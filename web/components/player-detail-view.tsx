@@ -1,11 +1,10 @@
-
 "use client";
 
 import { PlayerEfficiency } from "@/app/actions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, TrendingUp, TrendingDown, DollarSign, AlertTriangle } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import {
     ComposedChart,
@@ -19,106 +18,84 @@ import {
     ResponsiveContainer,
     Area
 } from "recharts";
+import { CutCalculator } from './cut-calculator';
 
 export default function PlayerDetailView({ player }: { player: PlayerEfficiency }) {
-    // Calculate Cumulative Error
+    // Safe Access for History
     const history = player.history || [];
-    const cumulativeError = history.reduce((acc, curr) => acc + (curr.actual - curr.predicted), 0);
 
-    // Determine status color
-    const statusColor = cumulativeError > 10 ? "text-red-500" : cumulativeError < -5 ? "text-emerald-500" : "text-amber-500";
-    const statusText = cumulativeError > 10 ? "OVERPAID" : cumulativeError < -5 ? "SURPLUS VALUE" : "FAIR VALUE";
+    // Chart Data Preparation
+    const chartData = history.map(h => ({
+        year: h.year,
+        actual: h.actual,
+        predicted: h.predicted,
+        error: h.actual - h.predicted
+    })).sort((a, b) => a.year - b.year);
+
+    // Cumulative Error
+    const totalError = chartData.reduce((sum, d) => sum + Math.abs(d.error), 0);
+    const avgError = chartData.length > 0 ? totalError / chartData.length : 0;
 
     return (
-        <div className="max-w-7xl mx-auto space-y-8">
-            {/* Header / Nav */}
-            <div className="flex items-center space-x-4">
-                <Link href="/" className="p-2 hover:bg-zinc-800 rounded-full transition-colors">
-                    <ArrowLeft className="w-6 h-6 text-zinc-400" />
+        <div className="space-y-6 max-w-7xl mx-auto">
+            <div className="flex items-center gap-4 mb-8">
+                <Link href="/" className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    <ArrowLeft className="h-6 w-6 text-slate-400" />
                 </Link>
                 <div>
-                    <h1 className="text-4xl font-bold tracking-tight">{player.player_name}</h1>
-                    <div className="flex items-center space-x-2 text-zinc-400 mt-1">
-                        <span className="font-semibold text-white">{player.team}</span>
-                        <span>•</span>
-                        <span>{player.position}</span>
-                        <span>•</span>
-                        <span>Age {player.age}</span>
-                    </div>
-                </div>
-                <div className="ml-auto flex items-center space-x-4">
-                    <div className="text-right">
-                        <div className="text-sm text-zinc-500 uppercase tracking-widest">Efficiency Rating</div>
-                        <div className={`text-2xl font-bold ${statusColor}`}>{statusText}</div>
-                    </div>
-                    <div className={`p-4 rounded-xl border ${cumulativeError > 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-emerald-500/10 border-emerald-500/20'}`}>
-                        <div className="text-xs text-zinc-500">Cumulative Error</div>
-                        <div className={`text-xl font-mono font-bold ${cumulativeError > 0 ? 'text-red-500' : 'text-emerald-500'}`}>
-                            {cumulativeError > 0 ? '+' : ''}{cumulativeError.toFixed(2)}M
-                        </div>
-                    </div>
+                    <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
+                        {player.player_name}
+                    </h1>
+                    <p className="text-slate-400 text-lg">{player.position} • {player.team} • {player.year}</p>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Main Chart: The "Money Chart" */}
-                <Card className="lg:col-span-2 bg-zinc-900 border-zinc-800">
-                    <CardHeader>
-                        <CardTitle>Cap Hit Trajectory vs. Model Prediction</CardTitle>
-                        <CardDescription>
-                            Historical analysis of actual cap hits against the Fair Market Value (FMV) model.
-                        </CardDescription>
+            {/* Key Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <Card className="bg-slate-900 border-slate-800">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Cap Hit</CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[400px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <ComposedChart data={history}>
-                                <defs>
-                                    <linearGradient id="colorPredicted" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#27272a" vertical={false} />
-                                <XAxis
-                                    dataKey="year"
-                                    stroke="#71717a"
-                                    tickLine={false}
-                                    axisLine={false}
-                                />
-                                <YAxis
-                                    stroke="#71717a"
-                                    tickFormatter={(value) => `$${value}M`}
-                                    tickLine={false}
-                                    axisLine={false}
-                                />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff' }}
-                                    itemStyle={{ color: '#fff' }}
-                                    formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, '']}
-                                />
-                                <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                <Bar
-                                    dataKey="actual"
-                                    name="Actual Cap Hit"
-                                    barSize={20}
-                                    fill="#3f3f46"
-                                    radius={[4, 4, 0, 0]}
-                                />
-                                <Area
-                                    type="monotone"
-                                    dataKey="predicted"
-                                    name="Model Fair Value"
-                                    fill="url(#colorPredicted)"
-                                    stroke="#10b981"
-                                    strokeWidth={3}
-                                />
-                            </ComposedChart>
-                        </ResponsiveContainer>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-white">
+                            ${player.cap_hit_millions.toLocaleString()}M
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Current Season Charge</p>
                     </CardContent>
                 </Card>
 
-                {/* Efficiency Stats Card */}
-                <div className="space-y-6">
+                <Card className="bg-slate-900 border-slate-800">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Efficiency Score</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-emerald-400">
+                            {(player.risk_score * 100).toFixed(0)}
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Percentile Rank vs Position</p>
+                    </CardContent>
+                </Card>
+
+                <Card className="bg-slate-900 border-slate-800">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Model Variance</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="text-3xl font-bold text-amber-400">
+                            ±${avgError.toFixed(1)}M
+                        </div>
+                        <p className="text-xs text-slate-500 mt-1">Avg. Prediction Error</p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {/* Main Content: Calculator + Chart */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Left Col: Cut Calculator (Action) */}
+                <div className="lg:col-span-1 space-y-6">
+                    <CutCalculator player={player} />
+
+                    {/* Efficiency Stats Card (Moved here to stack under calculator) */}
                     <Card className="bg-zinc-900 border-zinc-800">
                         <CardHeader>
                             <CardTitle>Risk Profile</CardTitle>
@@ -131,15 +108,6 @@ export default function PlayerDetailView({ player }: { player: PlayerEfficiency 
                                 </Badge>
                             </div>
                             <Separator className="bg-zinc-800" />
-                            <div className="flex justify-between items-center">
-                                <span className="text-zinc-400">Current Cap Hit</span>
-                                <span className="font-mono">${player.cap_hit_millions.toFixed(2)}M</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-zinc-400">Dead Cap Liability</span>
-                                <span className="font-mono text-amber-500">${player.dead_cap_millions.toFixed(2)}M</span>
-                            </div>
-                            <Separator className="bg-zinc-800" />
                             <div className="pt-2">
                                 <div className="text-xs text-zinc-500 mb-2">INTELLIGENCE NOTE</div>
                                 <p className="text-sm text-zinc-300 leading-relaxed">
@@ -150,8 +118,36 @@ export default function PlayerDetailView({ player }: { player: PlayerEfficiency 
                             </div>
                         </CardContent>
                     </Card>
+                </div>
 
-                    {/* Raw Data Table (Condensed) */}
+                {/* Right Col: Context Charts */}
+                <div className="lg:col-span-2 space-y-6">
+                    <Card className="bg-slate-900 border-slate-800 h-full">
+                        <CardHeader>
+                            <CardTitle>Value Trajectory (2022-2025)</CardTitle>
+                            <CardDescription>Actual Pay vs. Predicted Market Value</CardDescription>
+                        </CardHeader>
+                        <CardContent className="h-[400px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
+                                    <XAxis dataKey="year" stroke="#94a3b8" />
+                                    <YAxis stroke="#94a3b8" tickFormatter={(v) => `$${v}M`} />
+                                    <Tooltip
+                                        contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff' }}
+                                        itemStyle={{ color: '#fff' }}
+                                        formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, '']}
+                                    />
+                                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                    <Area type="monotone" dataKey="predicted" name="Fair Market Value" fill="#10b981" stroke="#10b981" fillOpacity={0.1} />
+                                    <Line type="monotone" dataKey="actual" name="Actual Cap Hit" stroke="#f472b6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 8 }} />
+                                    <Bar dataKey="error" name="Overpay/Underpay" fill="#64748b" opacity={0.3} barSize={20} />
+                                </ComposedChart>
+                            </ResponsiveContainer>
+                        </CardContent>
+                    </Card>
+
+                    {/* Historical Ledger */}
                     <Card className="bg-zinc-900 border-zinc-800">
                         <CardHeader>
                             <CardTitle>Historical Ledger</CardTitle>

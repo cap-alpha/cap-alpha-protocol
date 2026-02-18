@@ -16,6 +16,13 @@ def export_roster_json():
     logger.info(f"Connecting to {db_path} for JSON export...")
     con = duckdb.connect(db_path)
     
+    # DEBUG: Print columns to log to understand available fields for Cut Calculator
+    try:
+        logger.info(f"Fact Cols: {con.execute('DESCRIBE fact_player_efficiency').df()['column_name'].tolist()}")
+        logger.info(f"Silver Cols: {con.execute('DESCRIBE silver_spotrac_contracts').df()['column_name'].tolist()}")
+    except Exception as e:
+        logger.warning(f"Could not describe tables: {e}")
+    
     # Query matching the schema expected by web/app/actions.ts (reverted version)
     # actions.ts expects: player_name, team, position, cap_hit_millions, edce_risk, fair_market_value
     # It also handles 'ml_risk_score' if 'edce_risk' is missing or as alternative, but let's provide both or standard.
@@ -27,7 +34,10 @@ def export_roster_json():
             f.player_name, 
             f.team, 
             f.position, 
-            f.cap_hit_millions, 
+            f.cap_hit_millions,
+            f.dead_cap_millions as dead_cap_current_year, -- Likely just the 'Dead Cap' column from Spotrac (which is often 0 unless already cut)
+            f.potential_dead_cap_millions as dead_cap_if_cut,
+            f.signing_bonus_millions,
             -- Normalize Risk Score: (Risk $ / Cap Hit $) -> Ratio 0.0 to 1.0 (or >1.0 for toxic)
             CASE 
                 WHEN f.cap_hit_millions > 0 THEN 
@@ -51,6 +61,20 @@ def export_roster_json():
     
     if df.empty:
         logger.warning("No data found for 2025! JSON dump will be empty.")
+    
+    # Calculate Cut Calculator Fields
+    # Heuristic: Post-June 1 Dead Cap (Year 1) is typically the current year's prorated signing bonus.
+    # The 'savings' is the Cap Hit minus this Dead Cap.
+    # Future dead cap (acceleration) is pushed to Year 2.
+    
+    # Pre-June 1: Take it all on the chin now.
+    df['dead_cap_pre_june1'] = df['dead_cap_if_cut'].fillna(0)
+    df['savings_pre_june1'] = df['cap_hit_millions'] - df['dead_cap_pre_june1']
+    
+    # Post-June 1: Split the pain.
+    # We use 'signing_bonus_millions' as the proxy for the "Year 1 Dead Cap" content.
+    df['dead_cap_post_june1'] = df['signing_bonus_millions'].fillna(0)
+    df['savings_post_june1'] = df['cap_hit_millions'] - df['dead_cap_post_june1']
     
     # CRITICAL: Sanitize NaN/Inf values before JSON export.
     # Python's json.dump outputs 'NaN' for float NaN, which is INVALID JSON

@@ -25,6 +25,10 @@ const PlayerEfficiencySchema = z.object({
   edce_risk: z.number().default(0), // Expected Dead Cap Error ($M)
   risk_score: z.number().default(0), // Normalized Risk Probability (0-1)
   fair_market_value: z.number().default(0), // Surplus Value
+  dead_cap_pre_june1: z.number().optional().default(0),
+  savings_pre_june1: z.number().optional().default(0),
+  dead_cap_post_june1: z.number().optional().default(0),
+  savings_post_june1: z.number().optional().default(0),
   history: z.array(HistorySchema).optional().default([]), // Historical Authentication
 });
 

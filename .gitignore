@@ -58,3 +58,4 @@ web/out/
 web/build/
 .env.local
 pipeline/libs_314/
+.local_libs/

@@ -34,6 +34,34 @@ We take the feedback + expert audit and vote on the next Sprint's Backlog.
 
 ---
 
+## 🛠 Engineering Rituals (The "How")
+
+### 1. Architecture Decision Records (ADR)
+**Trigger**: Any choice that is hard to reverse (e.g., "Choosing Vercel Postgres over Supabase").
+**Ritual**: Write a short markdown file in `docs/architecture/adr-00X.md`.
+**Template**:
+*   **Context**: What problem are we solving?
+*   **Decision**: What did we choose?
+*   **Consequences**: What did we trade off? (Cost, Latency, vendor lock-in).
+
+### 2. The "Pre-Mortem"
+**Trigger**: Before shipping a major feature (e.g., Trade Machine).
+**Ritual**: "Assume it failed. Why did it fail?"
+*   *Example*: "The Trade Machine failed because scraping 32 teams took 40 seconds and timed out."
+*   *Action*: Build caching layer *first*.
+
+---
+
+## 📢 Product Rituals (The "Why")
+
+### 1. "Working Backwards" (The Press Release)
+**Trigger**: New Feature Idea (e.g., "Team Builder").
+**Ritual**: Write the Tweet/Press Release announcing it *before* writing code.
+*   *Example*: "Cap Alpha launches Team Builder, allowing fans to save 5 rosters. GMs hate it!"
+*   *Value*: If the tweet isn't exciting, don't build the feature.
+
+---
+
 ## 🛠 Execution Guide
 
 **Step 1**: Open a "Feedback Issue" on GitHub (e.g., `Issue #10: Sprint 1 Feedback`).

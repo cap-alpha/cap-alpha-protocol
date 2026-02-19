@@ -1,7 +1,14 @@
 # Product Roadmap: Cap Alpha Protocol
 
+# Product Roadmap: Cap Alpha Protocol
+
 ## 🎯 Strategic Vision
 To build the "Bloomberg Terminal" for NFL Salary Cap management, enabling users to analyze, simulate, and predict roster value with institutional-grade precision.
+
+> **Process Note**: We follow the [Sprint Rituals](process/SPRINT_RITUALS.md) cycle:
+> 1.  User Persona Test (UAT)
+> 2.  Expert Council Audit
+> 3.  Prioritization Vote
 
 ---
 

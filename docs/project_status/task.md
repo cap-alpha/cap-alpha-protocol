@@ -42,6 +42,8 @@
 - [x] **Docs**: Saved state to `docs/project_status/`.
 
 ## 5. Post-Launch: User Data Infrastructure (Vercel Stack)
+> **MOVED TO GITHUB ISSUES**: See `docs/project_management/ISSUES_BACKLOG.md`
+
 - [ ] **Database**: Provision **Vercel Postgres** (managed by Neon) for user data.
 - [ ] **ORM**: Install **Drizzle ORM** (lightweight, edge-compatible) to manage schema.
 - [ ] **Sync**: Implement Clerk Webhook to sync `user.created` events to Postgres.

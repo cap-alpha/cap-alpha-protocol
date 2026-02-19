@@ -8,10 +8,11 @@ import { Lock, AlertTriangle, CheckCircle, Scissors } from 'lucide-react';
 
 interface CutCalculatorProps {
     player: PlayerEfficiency;
+    isPostJune1: boolean;
+    onToggle: (val: boolean) => void;
 }
 
-export function CutCalculator({ player }: CutCalculatorProps) {
-    const [isPostJune1, setIsPostJune1] = useState(false);
+export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorProps) {
     const [showPaywall, setShowPaywall] = useState(false);
 
     const deadCap = isPostJune1 ? player.dead_cap_post_june1 : player.dead_cap_pre_june1;
@@ -19,14 +20,10 @@ export function CutCalculator({ player }: CutCalculatorProps) {
 
     const handleToggle = (checked: boolean) => {
         if (checked) {
-            // Trigger user story: "Casual Carl" hits the paywall
             setShowPaywall(true);
-            // We don't actually toggle logic yet, we show the wall.
-            // For demo purposes, we can let them toggle after a "Fake Paywall" delay or just show the wall.
-            // Let's toggle it but show a "Pro Feature" badge/warning.
-            setIsPostJune1(true);
+            onToggle(true);
         } else {
-            setIsPostJune1(false);
+            onToggle(false);
             setShowPaywall(false);
         }
     };

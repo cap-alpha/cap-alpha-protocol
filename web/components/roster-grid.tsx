@@ -209,9 +209,11 @@ export const columns: ColumnDef<PlayerMetric>[] = [
     },
 ]
 
-export function RosterGrid({ data }: { data: PlayerMetric[] }) {
+export function RosterGrid({ data, initialSearch = "" }: { data: PlayerMetric[], initialSearch?: string }) {
     const [sorting, setSorting] = React.useState<SortingState>([])
-    const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([])
+    const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+        initialSearch ? [{ id: "player_name", value: initialSearch }] : []
+    )
     const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({})
     const [rowSelection, setRowSelection] = React.useState({})
     const [teamFilter, setTeamFilter] = React.useState<string>("all")

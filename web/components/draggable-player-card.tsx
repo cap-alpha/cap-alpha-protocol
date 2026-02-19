@@ -42,8 +42,7 @@ export function DraggablePlayerCard({ player, onSelect }: { player: any, onSelec
                     <div className="hidden sm:block opacity-50 hover:opacity-100 transition-opacity">
                         <CapSparkline
                             data={generateCapHistory(player.cap_hit_millions, player.risk_score)}
-                            width={48}
-                            height={24}
+                            className="w-12 h-6"
                         />
                     </div>
                     <div className="text-right">

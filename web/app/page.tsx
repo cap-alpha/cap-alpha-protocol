@@ -10,8 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import PersonaSwitcher from "@/components/persona-switcher";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { GlobalSearch } from "@/components/global-search";
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: { search?: string } }) {
     // Get Data (hydrated from JSON with Mock Fallback if needed)
     const rosterData = await getRosterData();
     const teamSummary = await getTeamCapSummary();
@@ -41,6 +42,7 @@ export default async function Home() {
                     <SignedIn>
                         <UserButton afterSignOutUrl="/" />
                     </SignedIn>
+                    <GlobalSearch />
                     <PersonaSwitcher />
                     <Badge variant="outline" className="text-lg px-4 py-1 border-emerald-500 text-emerald-500">MARKET: OPEN</Badge>
                     <Badge variant="secondary" className="text-lg px-4 py-1">League Year: 2026</Badge>
@@ -115,7 +117,7 @@ export default async function Home() {
             </section>
 
             {/* Main Content: Tabs */}
-            <Tabs defaultValue="portfolio" className="space-y-4">
+            <Tabs defaultValue={searchParams?.search ? "grid" : "portfolio"} className="space-y-4">
                 <TabsList className="bg-secondary/50 p-1">
                     <TabsTrigger value="portfolio" className="px-8 font-mono uppercase">Portfolio Library</TabsTrigger>
                     <TabsTrigger value="grid" className="px-8 font-mono uppercase">Data Grid</TabsTrigger>
@@ -139,7 +141,7 @@ export default async function Home() {
                 <TabsContent value="grid" className="space-y-4">
                     <Card className="bg-card border-border">
                         <CardContent className="p-0">
-                            <RosterGrid data={rosterData} />
+                            <RosterGrid data={rosterData} initialSearch={searchParams?.search} />
                         </CardContent>
                     </Card>
                 </TabsContent>

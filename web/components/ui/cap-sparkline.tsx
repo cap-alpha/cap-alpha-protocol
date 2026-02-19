@@ -3,9 +3,11 @@
 
 import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts";
 
-export function CapSparkline({ data }: { data: any[] }) {
+import { cn } from "@/lib/utils";
+
+export function CapSparkline({ data, className }: { data: any[], className?: string }) {
     if (!data || data.length < 2) {
-        return <div className="h-8 w-16 bg-zinc-800/20 rounded animate-pulse" />;
+        return <div className={cn("h-8 w-16 bg-zinc-800/20 rounded animate-pulse", className)} />;
     }
 
     // Determine trend color
@@ -14,7 +16,7 @@ export function CapSparkline({ data }: { data: any[] }) {
     const isUp = end > start;
 
     return (
-        <div className="h-8 w-24">
+        <div className={cn("h-8 w-24", className)}>
             <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={data}>
                     <Line

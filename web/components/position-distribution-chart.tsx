@@ -35,22 +35,23 @@ export function PositionDistributionChart({ data, playerCapHit, position }: Posi
     });
 
     return (
-        <Card className="bg-slate-900 border-slate-800 h-full">
+        <Card className="bg-slate-900 border-slate-800 w-full">
             <CardHeader>
                 <CardTitle>{position} Market Distribution</CardTitle>
                 <CardDescription>Cap Hit Frequency across the League</CardDescription>
             </CardHeader>
-            <CardContent className="h-[300px]">
+            <CardContent className="h-[350px]">
                 <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                    <BarChart data={data} margin={{ top: 20, right: 30, left: 10, bottom: 30 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
                         <XAxis
                             dataKey="range"
                             stroke="#94a3b8"
                             tick={{ fontSize: 10 }}
-                            interval={2} // Show fewer ticks labels
+                            interval={2}
+                            label={{ value: 'Salary Buckets ($M)', position: 'insideBottom', offset: -10, fill: '#64748b', fontSize: 12 }}
                         />
-                        <YAxis stroke="#94a3b8" />
+                        <YAxis stroke="#94a3b8" label={{ value: 'Count', angle: -90, position: 'insideLeft', fill: '#64748b', fontSize: 12 }} />
                         <Tooltip
                             content={({ active, payload }) => {
                                 if (active && payload && payload.length) {

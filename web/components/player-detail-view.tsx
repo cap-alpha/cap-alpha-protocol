@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from 'react';
 import { PlayerEfficiency } from "@/app/actions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,7 @@ import {
 } from "recharts";
 import { CutCalculator } from './cut-calculator';
 import { PositionDistributionChart } from './position-distribution-chart';
+import { SaveScenarioButton } from './save-scenario-button';
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
@@ -27,6 +29,9 @@ interface PlayerDetailViewProps {
 }
 
 export default function PlayerDetailView({ player, distributionData = [] }: PlayerDetailViewProps) {
+    // State for Cut Calculator
+    const [isPostJune1, setIsPostJune1] = useState(false);
+
     // Safe Access for History
     const history = player.history || [];
 
@@ -44,16 +49,30 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
-            <div className="flex items-center gap-4 mb-8">
-                <Link href="/" className="p-2 hover:bg-white/10 rounded-full transition-colors">
-                    <ArrowLeft className="h-6 w-6 text-slate-400" />
-                </Link>
-                <div>
-                    <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
-                        {player.player_name}
-                    </h1>
-                    <p className="text-slate-400 text-lg">{player.position} • {player.team} • {player.year}</p>
+            <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center gap-4">
+                    <Link href="/" className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                        <ArrowLeft className="h-6 w-6 text-slate-400" />
+                    </Link>
+                    <div>
+                        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
+                            {player.player_name}
+                        </h1>
+                        <p className="text-slate-400 text-lg">{player.position} • {player.team} • {player.year}</p>
+                    </div>
                 </div>
+                {/* Save Action */}
+                <SaveScenarioButton
+                    rosterState={{
+                        ...player,
+                        scenario_config: {
+                            is_post_june_1: isPostJune1,
+                            savings: isPostJune1 ? player.savings_post_june1 : player.savings_pre_june1,
+                            dead_cap: isPostJune1 ? player.dead_cap_post_june1 : player.dead_cap_pre_june1
+                        }
+                    }}
+                    defaultName={`Cut ${player.player_name} (${isPostJune1 ? 'Post-June 1' : 'Pre-June 1'})`}
+                />
             </div>
 
             {/* Key Stats Grid */}
@@ -72,7 +91,7 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
 
                 <Card className="bg-slate-900 border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Efficiency Score</CardTitle>
+                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Efficiency Percentile</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-emerald-400">
@@ -99,18 +118,22 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Col: Cut Calculator (Action) */}
                 <div className="lg:col-span-1 space-y-6">
-                    <CutCalculator player={player} />
+                    <CutCalculator
+                        player={player}
+                        isPostJune1={isPostJune1}
+                        onToggle={setIsPostJune1}
+                    />
 
                     {/* Efficiency Stats Card (Moved here to stack under calculator) */}
                     <Card className="bg-zinc-900 border-zinc-800">
                         <CardHeader>
-                            <CardTitle>Risk Profile</CardTitle>
+                            <CardTitle>Efficiency Gap Analysis</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-zinc-400">Projected Risk Score</span>
+                                <span className="text-zinc-400">Projected Efficiency</span>
                                 <Badge variant="outline" className={player.risk_score > 0.7 ? "bg-red-500/10 text-red-500 border-red-500/20" : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"}>
-                                    {(player.risk_score * 100).toFixed(1)}/100
+                                    {(player.risk_score * 100).toFixed(0)}/100
                                 </Badge>
                             </div>
                             <Separator className="bg-zinc-800" />
@@ -118,8 +141,8 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                                 <div className="text-xs text-zinc-500 mb-2">INTELLIGENCE NOTE</div>
                                 <p className="text-sm text-zinc-300 leading-relaxed">
                                     {player.risk_score > 0.7
-                                        ? "Critical Risk Asset. Model indicates significant overpayment relative to performance production. Recommended action: Restructure or cut post-June 1."
-                                        : "Stable Asset. Contract value aligns with production metrics. Retain at current APY."}
+                                        ? "Critical Efficiency Gap. Model indicates significant overpayment relative to expected performance production. Recommended action: Restructure or cut post-June 1."
+                                        : "Stable Asset. Contract value aligns with expected performance production. Retain at current APY."}
                                 </p>
                             </div>
                         </CardContent>

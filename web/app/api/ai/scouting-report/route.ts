@@ -20,7 +20,7 @@ export async function POST(req: Request) {
         }
 
         // --- CREDIT CHECK & DEDUCTION ---
-        const client = await clerkClient();
+        const client = clerkClient;
         const user = await client.users.getUser(userId);
         const credits = (user.publicMetadata.credits as number) || 0;
 

@@ -30,12 +30,16 @@
 - [x] **Feature**: Implement "Cut Calculator" Logic (Pre/Post June 1) - **Essential Product Bridge & Monetization Engine**.
     - [x] Logic: Calculate `dead_cap_pre_june_1`, `savings_pre_june_1`, etc. (Python Backend).
     - [x] UI: "The Guillotine" Toggle (Keep vs Cut).
-    - [x] UI: Visual Delta (Savings/Hit) - Conversion Hook for "Armchair GM".
+    - [x] **UI**: Visual Delta (Savings/Hit) - Conversion Hook for "Armchair GM".
+- [x] **Feature**: Position Benchmarking (Distribution Chart).
+    - [x] Logic: `getPositionDistribution(pos)` in `actions.ts`.
+    - [x] UI: Histogram showing "Where they sit" vs Peers.
 - [x] **Assets**: Add Team Logos to Onboarding Modal (Quality Requirement)
 
 ## 4. Finalization (The "Hour Sprint" Close)
 - [x] **Git**: Commit and Push all changes to remote.
 - [x] **Audit**: Conduct Skills/Persona Audit (Usage vs Gap Analysis).
+- [x] **Docs**: Saved state to `docs/project_status/`.
 
 ## 5. Post-Launch: User Data Infrastructure (Vercel Stack)
 - [ ] **Database**: Provision **Vercel Postgres** (managed by Neon) for user data.

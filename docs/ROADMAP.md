@@ -12,6 +12,7 @@ To build the "Bloomberg Terminal" for NFL Salary Cap management, enabling users 
 
 > **Business Goals**: See [Commercial Milestones](business/COMMERCIAL_MILESTONES.md) for our path to revenue.
 > **Engineering Health**: See [Maturity Model](engineering/MATURITY_MODEL.md) for our path to "Google-Level" rigour.
+> **Marketing Strategy**: See [Launch Plan](marketing/LAUNCH_PLAN.md) for March 11 Campaign.
 
 ---
 

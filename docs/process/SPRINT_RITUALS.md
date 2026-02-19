@@ -21,6 +21,17 @@ We explicitly ask our "Virtual Board of Directors" to audit the User Feedback.
 *   **Andrew Ng (The Scientist)**: "Is Hardcore Harry's data request statistically significant, or just sample bias?"
 *   **CFO (The Money)**: "Does this actually drive conversion to the Paid Tier?"
 
+### 3. The Monetization Council (New Additions)
+**Bill Simmons (The Gambler/Fan)**:
+*   **Lens**: "The Vigorish" (Betting/Fantasy Edge).
+*   **Feedback**: "Does this help me win my Dynasty League or Prop Bet? If yes, I pay $10/mo immediately."
+*   **Trigger**: "Can I see the odds change if they cut Dak?"
+
+**Adam Schefter (The Insider/Viral)**:
+*   **Lens**: "The Scoop" (Virality/Traffic).
+*   **Feedback**: "Is this screenshot clear enough to get 10k Retweets? If not, nobody sees your paywall."
+*   **Trigger**: "Make the 'Dead Money' number RED and HUGE so it pops on Twitter."
+
 ### 3. The Vote (Prioritization)
 We take the feedback + expert audit and vote on the next Sprint's Backlog.
 

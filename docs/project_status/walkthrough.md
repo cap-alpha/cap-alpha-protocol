@@ -201,3 +201,29 @@ The system correctly identifies that cutting Dak Pre-June 1 is impossible (Net L
 
 ### Conclusion
 The Auth stack is healthy. The blocking issue is likely environment-specific (Browser Extensions, IP Reputation, or Stale Cookies).
+
+# Feature: Position Benchmarking (Context Engine)
+**Date**: 2026-02-15
+**Status**: Implemented & Verified
+**Persona**: Data Visualization Architect + NFL Analyst
+
+### The Request
+"Show me normalization across the distribution of all quarterbacks." - User
+
+### The Solution: `PositionDistributionChart`
+We implemented a **Client-Side Histogram** that visualizes the "Salary Economy" of the player's position.
+
+1.  **Backend (`actions.ts`)**: Added `getPositionDistribution(pos)`.
+    *   Filters all roster data by position.
+    *   Buckets Cap Hits into 15 dynamic ranges.
+    *   Returns frequency counts + player lists for tooltips.
+2.  **Frontend**:
+    *   **Visualization**: Recharts BarChart.
+    *   **Context**: Highlights the *current player's bucket* in **Emerald** vs the **Gray** peer group.
+    *   **Insight**: Instantly shows if a player is an outlier (Right-Tail) or value play.
+
+### Verification (Dak Prescott)
+*   **Observation**: Dak's $55M hit places him in the extreme right tail.
+*   **Visual**: The chart clearly shows a "Long Tail" distribution (many cheap QBs, few elite expensive ones).
+*   **Evidence**: ![Dak Distribution](images/dak_distribution.png)
+

@@ -1,5 +1,5 @@
 
-import { getRosterData } from '@/app/actions';
+import { getRosterData, getPositionDistribution } from '@/app/actions';
 import PlayerDetailView from '@/components/player-detail-view';
 import { notFound } from 'next/navigation';
 
@@ -20,9 +20,11 @@ export default async function PlayerPage({ params }: { params: { id: string } })
         notFound();
     }
 
+    const distribution = await getPositionDistribution(player.position);
+
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <PlayerDetailView player={player} />
+            <PlayerDetailView player={player} distributionData={distribution} />
         </main>
     );
 }

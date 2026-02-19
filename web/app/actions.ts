@@ -207,3 +207,46 @@ export async function simulateTrade(assets: any[]) {
     win_prob_delta: win_delta
   };
 }
+
+// --- BENCHMARKING ACTIONS ---
+
+export async function getPositionDistribution(position: string) {
+  const data = await getHydratedData();
+
+  // Filter by position and valid cap hit
+  const peers = data
+    .filter(p => p.position === position && p.cap_hit_millions > 0)
+    .sort((a, b) => a.cap_hit_millions - b.cap_hit_millions);
+
+  // Calculate Buckets (Histogram)
+  // We want ~10-15 buckets
+  if (peers.length === 0) return [];
+
+  const maxCap = Math.max(...peers.map(p => p.cap_hit_millions));
+  const bucketSize = Math.ceil(maxCap / 15);
+
+  const buckets: Record<string, { range: string, count: number, players: string[], min: number }> = {};
+
+  // Initialize buckets
+  for (let i = 0; i < 15; i++) {
+    const min = i * bucketSize;
+    const max = (i + 1) * bucketSize;
+    const key = `${min}-${max}`;
+    buckets[key] = { range: `$${min}M - $${max}M`, count: 0, players: [], min };
+  }
+
+  peers.forEach(p => {
+    // Find bucket
+    const bucketIndex = Math.min(Math.floor(p.cap_hit_millions / bucketSize), 14);
+    const min = bucketIndex * bucketSize;
+    const max = (bucketIndex + 1) * bucketSize;
+    const key = `${min}-${max}`;
+
+    if (buckets[key]) {
+      buckets[key].count++;
+      buckets[key].players.push(p.player_name);
+    }
+  });
+
+  return Object.values(buckets).sort((a, b) => a.min - b.min);
+}

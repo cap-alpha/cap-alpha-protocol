@@ -19,8 +19,14 @@ import {
     Area
 } from "recharts";
 import { CutCalculator } from './cut-calculator';
+import { PositionDistributionChart } from './position-distribution-chart';
 
-export default function PlayerDetailView({ player }: { player: PlayerEfficiency }) {
+interface PlayerDetailViewProps {
+    player: PlayerEfficiency;
+    distributionData?: any[]; // Loose type for now to avoid circular dependency hell, or define interface
+}
+
+export default function PlayerDetailView({ player, distributionData = [] }: PlayerDetailViewProps) {
     // Safe Access for History
     const history = player.history || [];
 
@@ -146,6 +152,13 @@ export default function PlayerDetailView({ player }: { player: PlayerEfficiency 
                             </ResponsiveContainer>
                         </CardContent>
                     </Card>
+
+                    {/* Market Context (Distribution) */}
+                    <PositionDistributionChart
+                        data={distributionData}
+                        playerCapHit={player.cap_hit_millions}
+                        position={player.position}
+                    />
 
                     {/* Historical Ledger */}
                     <Card className="bg-zinc-900 border-zinc-800">

@@ -10,6 +10,8 @@ To build the "Bloomberg Terminal" for NFL Salary Cap management, enabling users 
 > 2.  Expert Council Audit
 > 3.  Prioritization Vote
 
+> **Business Goals**: See [Commercial Milestones](business/COMMERCIAL_MILESTONES.md) for our path to revenue.
+
 ---
 
 ## 🚦 Phase 1: Foundation (Q1 2026)

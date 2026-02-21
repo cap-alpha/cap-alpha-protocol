@@ -11,6 +11,7 @@ import PersonaSwitcher from "@/components/persona-switcher";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { GlobalSearch } from "@/components/global-search";
+import { ProofOfAlphaCarousel } from "@/components/proof-of-alpha-carousel";
 
 export default async function Home({ searchParams }: { searchParams: { search?: string } }) {
     // Get Data (hydrated from JSON with Mock Fallback if needed)
@@ -103,6 +104,8 @@ export default async function Home({ searchParams }: { searchParams: { search?: 
                     </CardContent>
                 </Card>
             </div>
+
+            <ProofOfAlphaCarousel />
 
             <section className="mb-8 relative">
                 <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background z-10 pointer-events-none" />

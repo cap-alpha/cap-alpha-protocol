@@ -4,6 +4,7 @@ import { headers } from 'next/headers'
 import { WebhookEvent } from '@clerk/nextjs/server'
 import { db } from '@/db'
 import { users } from '@/db/schema'
+import { eq } from 'drizzle-orm'
 
 export async function POST(req: Request) {
     // You can find this in the Clerk Dashboard -> Webhooks -> choose the webhook
@@ -70,6 +71,29 @@ export async function POST(req: Request) {
                 console.log(`User created: ${email}`);
             } catch (e) {
                 console.error('Error inserting user:', e);
+            }
+        }
+    } else if (eventType === 'user.updated') {
+        const { id, email_addresses } = evt.data;
+        // @ts-ignore
+        const email = email_addresses[0]?.email_address;
+
+        if (email) {
+            try {
+                await db.update(users).set({ email }).where(eq(users.clerkId, id));
+                console.log(`User updated: ${email}`);
+            } catch (e) {
+                console.error('Error updating user:', e);
+            }
+        }
+    } else if (eventType === 'user.deleted') {
+        const { id } = evt.data;
+        if (id) {
+            try {
+                await db.delete(users).where(eq(users.clerkId, id));
+                console.log(`User deleted: ${id}`);
+            } catch (e) {
+                console.error('Error deleting user:', e);
             }
         }
     }

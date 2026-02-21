@@ -1,4 +1,5 @@
 import React from 'react';
+import { DebugReset } from './debug-reset';
 
 const Footer = () => {
     return (
@@ -20,8 +21,10 @@ const Footer = () => {
                         rel="noopener noreferrer"
                         className="font-mono text-slate-600 hover:text-emerald-500 transition-colors"
                     >
-                        v{process.env.NEXT_PUBLIC_COMMIT_SHA?.substring(0, 7)}
+                        v{process.env.NEXT_PUBLIC_COMMIT_SHA?.substring(0, 7) || 'local'}
                     </a>
+                    <span className="h-1 w-1 bg-slate-700 rounded-full mx-2 hidden sm:inline-block"></span>
+                    <DebugReset />
                 </div>
             </div>
         </footer>

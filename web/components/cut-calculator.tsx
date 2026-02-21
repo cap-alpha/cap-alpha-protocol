@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { PlayerEfficiency } from '@/app/actions';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Lock, AlertTriangle, CheckCircle, Scissors } from 'lucide-react';
+import { Lock, AlertTriangle, CheckCircle, Scissors, Save } from 'lucide-react';
+import { saveScenario } from '@/app/actions/scenario';
 
 interface CutCalculatorProps {
     player: PlayerEfficiency;
@@ -14,6 +15,8 @@ interface CutCalculatorProps {
 
 export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorProps) {
     const [showPaywall, setShowPaywall] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [saved, setSaved] = useState(false);
 
     const deadCap = isPostJune1 ? player.dead_cap_post_june1 : player.dead_cap_pre_june1;
     const savings = isPostJune1 ? player.savings_post_june1 : player.savings_pre_june1;
@@ -26,6 +29,19 @@ export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorPr
             onToggle(false);
             setShowPaywall(false);
         }
+    };
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        const cutType = isPostJune1 ? 'Post-June 1' : 'Pre-June 1';
+        const res = await saveScenario(player.player_name, player.player_name, cutType, savings ?? 0, deadCap ?? 0);
+        if (res.success) {
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
+        } else {
+            alert(res.error || "Failed to save");
+        }
+        setIsSaving(false);
     };
 
     const isSavings = (savings || 0) > 0;
@@ -110,9 +126,28 @@ export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorPr
 
                 {/* Context Bar */}
                 <div className="mt-8 pt-4 border-t border-slate-800">
-                    <div className="text-sm text-slate-400 flex justify-between">
-                        <span>Current Cap Hit: <span className="text-slate-200">${player.cap_hit_millions.toLocaleString()}M</span></span>
-                        <span>Efficiency Impact: <span className="text-slate-200">{player.risk_score > 0.5 ? "High Risk Removed" : "Low Risk Loss"}</span></span>
+                    <div className="text-sm text-slate-400 flex justify-between items-center">
+                        <div className="flex space-x-4">
+                            <span>Current Cap Hit: <span className="text-slate-200">${player.cap_hit_millions.toLocaleString()}M</span></span>
+                            <span>Efficiency Impact: <span className="text-slate-200">{player.risk_score > 0.5 ? "High Risk Removed" : "Low Risk Loss"}</span></span>
+                        </div>
+                        <button
+                            onClick={handleSave}
+                            disabled={isSaving || saved}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50"
+                        >
+                            {saved ? (
+                                <>
+                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>Saved</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="w-3.5 h-3.5" />
+                                    <span>{isSaving ? 'Saving...' : 'Save Scenario'}</span>
+                                </>
+                            )}
+                        </button>
                     </div>
                 </div>
             </CardContent>

@@ -132,12 +132,12 @@ export const columns: ColumnDef<PlayerMetric>[] = [
                                     className="flex items-center gap-1 hover:bg-transparent px-0"
                                     onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
                                 >
-                                    Risk Score
+                                    Efficiency Gap
                                     <ArrowUpDown className="h-4 w-4" />
                                 </Button>
                             </TooltipTrigger>
                             <TooltipContent>
-                                <p>0-1 score assessing contract volatility & injury risk</p>
+                                <p>Percentile rank of contract efficiency relative to production</p>
                             </TooltipContent>
                         </Tooltip>
                     </TooltipProvider>
@@ -150,7 +150,7 @@ export const columns: ColumnDef<PlayerMetric>[] = [
                 <div className="text-right">
                     <Badge variant={risk > 0.7 ? "destructive" : risk < 0.3 ? "secondary" : "default"}
                         className={risk < 0.3 ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""}>
-                        {risk.toFixed(2)}
+                        {(risk * 100).toFixed(0)}/100
                     </Badge>
                 </div>
             )

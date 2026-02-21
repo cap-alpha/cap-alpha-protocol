@@ -57,7 +57,7 @@ export function RosterCard({ player }: RosterCardProps) {
                         </div>
                     </div>
                     <div className="bg-secondary/50 p-2 rounded">
-                        <div className="text-[10px] text-muted-foreground uppercase">Risk Score</div>
+                        <div className="text-[10px] text-muted-foreground uppercase">Efficiency Gap</div>
                         <div className={cn("font-bold", isHighRisk ? "text-rose-500" : "text-amber-500")}>
                             {(player.cap_hit_millions > 0 && player.surplus_value === 0) ? "N/A" : `${(player.risk_score * 100).toFixed(0)}/100`}
                         </div>

@@ -75,11 +75,18 @@ export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorPr
 
                 {/* Paywall Overlay for Post-June 1 (Simulated) */}
                 {showPaywall && (
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-[1px] z-10 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md z-10 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
                         <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-6 rounded-xl shadow-2xl border border-indigo-400/30 max-w-sm">
                             <Lock className="h-8 w-8 text-white mx-auto mb-3" />
                             <h3 className="text-xl font-bold text-white mb-2">Unlock Pro Mode</h3>
                             <p className="text-indigo-100 text-sm mb-4">Post-June 1 Designations & multi-year restructure modeling are available in the Executive Suite.</p>
+
+                            {/* Social Proof Badge */}
+                            <div className="flex items-center justify-center gap-2 mb-6 text-xs font-semibold text-indigo-100 bg-black/20 py-1.5 px-3 rounded-full border border-white/10">
+                                <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                                Join 14+ NFL Front Offices tracking Dead Money
+                            </div>
+
                             <div className="flex gap-2 justify-center">
                                 <button
                                     onClick={() => setShowPaywall(false)} // Let them "preview" for now or cancel

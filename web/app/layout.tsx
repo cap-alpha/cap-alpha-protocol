@@ -4,6 +4,7 @@ import "./globals.css";
 import Footer from "@/components/footer";
 import { Providers } from "@/components/providers";
 import OnboardingModal from "@/components/onboarding-modal";
+import { AuthInterstitial } from "@/components/auth-interstitial";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,6 +23,7 @@ export default function RootLayout({
             <body className={`${inter.className} min-h-screen flex flex-col`}>
                 <Providers>
                     <OnboardingModal />
+                    <AuthInterstitial />
                     <main className="flex-grow">
                         {children}
                     </main>

@@ -11,6 +11,7 @@ import PersonaSwitcher from "@/components/persona-switcher";
 import { SignInButton, SignedIn, SignedOut, UserButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { GlobalSearch } from "@/components/global-search";
+import { HeroSearch } from "@/components/hero-search";
 import { ProofOfAlphaCarousel } from "@/components/proof-of-alpha-carousel";
 
 export default async function Home({ searchParams }: { searchParams: { search?: string } }) {
@@ -49,6 +50,9 @@ export default async function Home({ searchParams }: { searchParams: { search?: 
                     <Badge variant="secondary" className="text-lg px-4 py-1">League Year: 2026</Badge>
                 </div>
             </header>
+
+            {/* Hero Search Bar */}
+            <HeroSearch />
 
             {/* KPI Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">

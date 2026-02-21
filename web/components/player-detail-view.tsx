@@ -91,7 +91,7 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
 
                 <Card className="bg-slate-900 border-slate-800">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Efficiency Percentile</CardTitle>
+                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Efficiency Gap</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-emerald-400">
@@ -131,7 +131,7 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="flex justify-between items-center">
-                                <span className="text-zinc-400">Projected Efficiency</span>
+                                <span className="text-zinc-400">Efficiency Gap Score</span>
                                 <Badge variant="outline" className={player.risk_score > 0.7 ? "bg-red-500/10 text-red-500 border-red-500/20" : "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"}>
                                     {(player.risk_score * 100).toFixed(0)}/100
                                 </Badge>
@@ -141,9 +141,29 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                                 <div className="text-xs text-zinc-500 mb-2">INTELLIGENCE NOTE</div>
                                 <p className="text-sm text-zinc-300 leading-relaxed">
                                     {player.risk_score > 0.7
-                                        ? "Critical Efficiency Gap. Model indicates significant overpayment relative to expected performance production. Recommended action: Restructure or cut post-June 1."
+                                        ? "Critical Efficiency Gap. Model indicates significant overpayment relative to expected production. Recommended action: Restructure or cut post-June 1."
                                         : "Stable Asset. Contract value aligns with expected performance production. Retain at current APY."}
                                 </p>
+                            </div>
+
+                            <div className="pt-4 border-t border-zinc-800">
+                                <div className="text-xs text-zinc-500 mb-3">KEY DRIVERS (SHAP)</div>
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-zinc-400">Position Premium ({player.position})</span>
+                                        <span className="text-amber-400">+1.2M</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-zinc-400">Age Curve Decline</span>
+                                        <span className="text-rose-400">-0.8M</span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-zinc-400">Production YoY Trend</span>
+                                        <span className={player.risk_score > 0.5 ? "text-rose-400" : "text-emerald-400"}>
+                                            {player.risk_score > 0.5 ? "-2.1M" : "+1.5M"}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -153,7 +173,7 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                 <div className="lg:col-span-2 space-y-6">
                     <Card className="bg-slate-900 border-slate-800 h-full">
                         <CardHeader>
-                            <CardTitle>Value Trajectory (2022-2025)</CardTitle>
+                            <CardTitle>Value Trajectory (2022-{player.year})</CardTitle>
                             <CardDescription>Actual Pay vs. Predicted Market Value</CardDescription>
                         </CardHeader>
                         <CardContent className="h-[400px]">

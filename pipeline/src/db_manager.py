@@ -36,16 +36,19 @@ class DBManager:
         try:
             bind_params = params
             if params:
-                # Separate DataFrames for registration from bind parameters
-                df_params = {k: v for k, v in params.items() if isinstance(v, pd.DataFrame)}
-                bind_params = {k: v for k, v in params.items() if not isinstance(v, pd.DataFrame)}
-                
-                for name, df in df_params.items():
-                    self.con.register(name, df)
-                
-                # If bind_params is empty, pass None to avoid issues if execute expects no params
-                if not bind_params:
-                    bind_params = None
+                if isinstance(params, dict):
+                    # Separate DataFrames for registration from bind parameters
+                    df_params = {k: v for k, v in params.items() if isinstance(v, pd.DataFrame)}
+                    bind_params = {k: v for k, v in params.items() if not isinstance(v, pd.DataFrame)}
+                    
+                    for name, df in df_params.items():
+                        self.con.register(name, df)
+                    
+                    # If bind_params is empty, pass None to avoid issues if execute expects no params
+                    if not bind_params:
+                        bind_params = None
+                else:
+                    bind_params = params
 
             return self.con.execute(query, bind_params)
         except Exception as e:
@@ -57,14 +60,17 @@ class DBManager:
         try:
             bind_params = params
             if params:
-                df_params = {k: v for k, v in params.items() if isinstance(v, pd.DataFrame)}
-                bind_params = {k: v for k, v in params.items() if not isinstance(v, pd.DataFrame)}
-                
-                for name, df in df_params.items():
-                    self.con.register(name, df)
-                
-                if not bind_params:
-                    bind_params = None
+                if isinstance(params, dict):
+                    df_params = {k: v for k, v in params.items() if isinstance(v, pd.DataFrame)}
+                    bind_params = {k: v for k, v in params.items() if not isinstance(v, pd.DataFrame)}
+                    
+                    for name, df in df_params.items():
+                        self.con.register(name, df)
+                    
+                    if not bind_params:
+                        bind_params = None
+                else:
+                    bind_params = params
 
             return self.con.execute(query, bind_params).df()
         except Exception as e:

@@ -6,6 +6,13 @@ export const users = pgTable("users", {
     clerkId: text("clerk_id").unique().notNull(),
     email: text("email").notNull(),
     isPro: boolean("is_pro").default(false),
+    stripeCustomerId: text("stripe_customer_id"),
+    stripeSubscriptionId: text("stripe_subscription_id"),
+    stripeSubscriptionStatus: text("stripe_subscription_status"),
+    stripePriceId: text("stripe_price_id"),
+    stripeCurrentPeriodEnd: timestamp("stripe_current_period_end"),
+    tosAgreedAt: timestamp("tos_agreed_at"),
+    tosVersion: text("tos_version"),
     createdAt: timestamp("created_at").defaultNow(),
 });
 

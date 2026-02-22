@@ -36,6 +36,10 @@ To reach **Level 3 (Professional Engineering)**, we need to close three specific
 *   **Google Way**: The "Submit Queue" (CQ).
 *   **Our Fix**: Enable "Branch Protection" on `main`. Requires passing CI to merge. No more `--no-verify`.
 
+### 4. The "Engineering Blindspot" Problem (UX/UI Persona Audits)
+*   **Google Way**: Dedicated UX Research and Design teams review functionality and aesthetics prior to launch.
+*   **Our Fix**: Mandate "Persona UI/UX Audits" (invoking Product Architect, Tufte, etc.) as an integral Quality Gate in our workflow *before* any frontend feature is considered structurally complete. Code complete != Product complete.
+
 ---
 
 ## 🧠 Strategic Advice

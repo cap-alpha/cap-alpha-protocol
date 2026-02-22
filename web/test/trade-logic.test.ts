@@ -10,7 +10,8 @@ describe('Trade Logic', () => {
         cap_hit_millions: 20,
         dead_cap_millions: 10,
         risk_score: 0.5,
-        surplus_value: 5
+        surplus_value: 5,
+        type: 'player'
     };
 
     test('calculateTradeImpact: Basic Trade (Pre-June 1)', () => {

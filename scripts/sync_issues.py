@@ -9,7 +9,7 @@ ISSUE_FILE = "docs/project_management/ISSUES_BACKLOG.md"
 def get_existing_issues():
     """Fetches all issues (open and closed) to check for duplicates."""
     print("Fetching existing GitHub issues...")
-    cmd = ["gh", "issue", "list", "--state", "all", "--limit", "100", "--json", "title,number,state"]
+    cmd = ["gh", "issue", "list", "--state", "all", "--limit", "100", "--json", "title,number,state,labels,body"]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         return json.loads(result.stdout)
@@ -99,6 +99,37 @@ def sync_issue(issue, existing_issues):
         except subprocess.CalledProcessError as e:
             print(f"Error creating issue: {e.stderr}")
 
+def sync_to_local(gh_issues, local_issues, file_path):
+    local_titles = {i['title'] for i in local_issues}
+    new_local_content = ""
+    for gh_issue in gh_issues:
+        if gh_issue['title'] not in local_titles:
+            print(f"Syncing from GitHub to local: {gh_issue['title']}")
+            labels_str = ", ".join([l['name'] for l in gh_issue.get('labels', [])])
+            body_text = gh_issue.get('body', '')
+            
+            # Create markdown block
+            block = f"\n## {gh_issue['title']}\n"
+            block += f"**Title**: {gh_issue['title']}\n"
+            block += f"**Labels**: {labels_str}\n"
+            block += f"**Body**:\n"
+            for line in body_text.split('\n'):
+                # Avoid nesting blockquotes if already present
+                if line.startswith('> '):
+                    block += f"{line}\n"
+                elif line.strip():
+                    block += f"> {line}\n"
+                else:
+                    block += f">\n"
+            
+            new_local_content += block
+            
+    if new_local_content:
+        with open(file_path, "a") as f:
+            f.write(new_local_content)
+        print("Updated local markdown with missing GitHub issues.")
+
+
 if __name__ == "__main__":
     if not os.path.exists(ISSUE_FILE):
         print(f"File not found: {ISSUE_FILE}")
@@ -111,3 +142,5 @@ if __name__ == "__main__":
     
     for issue in local_issues:
         sync_issue(issue, gh_issues)
+        
+    sync_to_local(gh_issues, local_issues, ISSUE_FILE)

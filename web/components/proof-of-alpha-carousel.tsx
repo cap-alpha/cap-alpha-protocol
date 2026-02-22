@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Clock, CheckCircle2 } from "lucide-react";
 
 const RECEIPTS = [
@@ -36,7 +37,7 @@ const RECEIPTS = [
         prediction: "LIQUIDATE (Efficiency Gap: 42%)",
         outcome: "Career-low QBR / Injury",
         roi: "+510%",
-        pitch: "Medallion architecture identified irreversible degradation before the season started.",
+        pitch: "Quantitative Risk Engine identified irreversible physical degradation before the season started.",
         trend: "down"
     }
 ];
@@ -102,7 +103,7 @@ export function ProofOfAlphaCarousel() {
                                 </div>
                             </div>
                             <div className="mt-4 pt-4 border-t border-border/50 text-sm italic text-muted-foreground">
-                                "{currentReceipt.pitch}"
+                                &quot;{currentReceipt.pitch}&quot;
                             </div>
                         </div>
 
@@ -117,6 +118,15 @@ export function ProofOfAlphaCarousel() {
                     </div>
                 </CardContent>
             </Card>
+
+            <div className="mt-6 flex items-center justify-between px-2">
+                <div className="text-xs text-muted-foreground font-mono uppercase">
+                    Auditing your team&apos;s risk portfolio takes 30 seconds.
+                </div>
+                <Button variant="ghost" className="text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 font-mono text-xs uppercase tracking-wider flex items-center gap-2">
+                    Run Free Diagnostic <TrendingDown className="w-3 h-3" />
+                </Button>
+            </div>
         </div>
     );
 }

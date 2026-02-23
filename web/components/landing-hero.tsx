@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { SignInButton } from "@clerk/nextjs";
+import { WaitlistForm } from "./waitlist-form";
 import { Button } from "@/components/ui/button";
 import { Clock, TrendingDown, MessageSquareWarning, ChevronLeft, ChevronRight, Twitter, Pause, Play, Heart, Repeat, MessageSquare, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -100,12 +101,8 @@ export function LandingHero({ receipts }: { receipts: Receipt[] }) {
                         Actionable, point-in-time analytics for NFL Roster construction.
                         We expose what the prevailing wisdom misses, saving teams millions.
                     </p>
-                    <div className="pt-8">
-                        <SignInButton mode="modal" fallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/dashboard">
-                            <button className="bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xl h-14 px-10 rounded-md inline-flex items-center justify-center transition-colors shadow-lg shadow-emerald-500/20">
-                                Join the Waitlist
-                            </button>
-                        </SignInButton>
+                    <div className="pt-8 w-full max-w-2xl mx-auto">
+                        <WaitlistForm />
                     </div>
                 </div>
 
@@ -126,53 +123,55 @@ export function LandingHero({ receipts }: { receipts: Receipt[] }) {
                         </Button>
                     </div>
 
-                    {/* Twitter Commentary Overlay */}
-                    <div className="w-full lg:w-1/3 flex flex-col gap-4 justify-start pt-8">
-                        <div className="flex items-center gap-3 mb-2">
-                            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-800 text-slate-300 font-bold border border-slate-700 shadow-lg">1</span>
-                            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 drop-shadow-md">
-                                Prevailing Wisdom
-                            </h3>
-                        </div>
-                        {currentReceipt.tweets.map((tweet, i) => (
-                            <a key={i} href={tweet.url} target="_blank" rel="noopener noreferrer" className="block relative group/tweet">
-                                <Card className="bg-black/40 backdrop-blur-md border-white/10 group-hover/tweet:border-sky-500/50 group-hover/tweet:bg-black/60 transition-all shadow-xl">
-                                    <CardContent className="p-4 flex items-start gap-3">
-                                        {tweet.source === 'twitter' ? (
-                                            <Twitter className="w-5 h-5 text-sky-400 group-hover/tweet:text-sky-300 shrink-0 mt-1 transition-colors" />
-                                        ) : (
-                                            <MessageSquare className="w-5 h-5 text-orange-500 group-hover/tweet:text-orange-400 shrink-0 mt-1 transition-colors" />
-                                        )}
-                                        <div className="flex flex-col gap-1 w-full">
-                                            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider group-hover/tweet:text-slate-400 transition-colors">{tweet.author} &middot; Circa {currentReceipt.date}</span>
-                                            <p className="text-sm text-slate-200 leading-relaxed font-sans italic group-hover/tweet:text-white transition-colors">"{tweet.text}"</p>
-                                            <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 group-hover/tweet:text-slate-400 font-mono">
-                                                <div className="flex items-center gap-1">
-                                                    {tweet.source === 'twitter' ? <Repeat className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
-                                                    {tweet.reposts}
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                    <Heart className="w-3 h-3" />
-                                                    {tweet.likes}
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            </a>
-                        ))}
-                    </div>
-
-                    {/* Ledger Receipt Card */}
-                    <div className="w-full lg:w-2/3 relative group">
-                        <Card className="bg-black/60 backdrop-blur-xl border border-white/10 overflow-hidden relative shadow-2xl h-full">
+                    {/* Unified Ledger Receipt Card */}
+                    <div className="w-full relative group min-h-[500px]">
+                        <Card className="bg-black/60 backdrop-blur-xl border border-white/10 overflow-hidden relative shadow-2xl h-full w-full">
                             <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/20 rounded-full blur-[100px] pointer-events-none -mr-32 -mt-32" />
 
                             <CardContent className="p-0 h-full flex flex-col">
-                                <div className="grid md:grid-cols-2 flex-grow">
+                                <div className="grid lg:grid-cols-3 flex-grow">
 
-                                    {/* Left Col: Asset & Date */}
-                                    <div className="p-8 border-b md:border-b-0 md:border-r border-white/10 bg-white/5 flex flex-col justify-start relative">
+                                    {/* Column 1: Prevailing Wisdom (Tweets) */}
+                                    <div className="p-8 border-b lg:border-b-0 lg:border-r border-white/10 bg-black/40 flex flex-col justify-start relative">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-800 text-slate-300 font-bold border border-slate-700 shadow-lg">1</span>
+                                            <h3 className="text-sm font-bold uppercase tracking-widest text-slate-400 drop-shadow-md">
+                                                Prevailing Wisdom
+                                            </h3>
+                                        </div>
+                                        <div className="flex flex-col gap-4 flex-grow">
+                                            {currentReceipt.tweets.map((tweet, i) => (
+                                                <a key={i} href={tweet.url} target="_blank" rel="noopener noreferrer" className="block relative group/tweet">
+                                                    <Card className="bg-black/40 backdrop-blur-md border-white/10 group-hover/tweet:border-sky-500/50 group-hover/tweet:bg-black/60 transition-all shadow-xl">
+                                                        <CardContent className="p-4 flex items-start gap-3">
+                                                            {tweet.source === 'twitter' ? (
+                                                                <Twitter className="w-5 h-5 text-sky-400 group-hover/tweet:text-sky-300 shrink-0 mt-1 transition-colors" />
+                                                            ) : (
+                                                                <MessageSquare className="w-5 h-5 text-orange-500 group-hover/tweet:text-orange-400 shrink-0 mt-1 transition-colors" />
+                                                            )}
+                                                            <div className="flex flex-col gap-1 w-full">
+                                                                <span className="text-[10px] font-mono text-slate-500 uppercase tracking-wider group-hover/tweet:text-slate-400 transition-colors">{tweet.author}</span>
+                                                                <p className="text-sm text-slate-200 leading-relaxed font-sans italic group-hover/tweet:text-white transition-colors">"{tweet.text}"</p>
+                                                                <div className="flex items-center gap-4 mt-2 text-xs text-slate-500 group-hover/tweet:text-slate-400 font-mono">
+                                                                    <div className="flex items-center gap-1">
+                                                                        {tweet.source === 'twitter' ? <Repeat className="w-3 h-3" /> : <MessageSquare className="w-3 h-3" />}
+                                                                        {tweet.reposts}
+                                                                    </div>
+                                                                    <div className="flex items-center gap-1">
+                                                                        <Heart className="w-3 h-3" />
+                                                                        {tweet.likes}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                </a>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Column 2: Our Prediction */}
+                                    <div className="p-8 border-b lg:border-b-0 lg:border-r border-white/10 bg-white/5 flex flex-col justify-start relative">
                                         <div className="flex items-center gap-3 mb-6">
                                             <span className="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">2</span>
                                             <h3 className="text-sm font-bold uppercase tracking-widest text-emerald-400">
@@ -199,7 +198,7 @@ export function LandingHero({ receipts }: { receipts: Receipt[] }) {
                                         </div>
                                     </div>
 
-                                    {/* Right Col: The Truth */}
+                                    {/* Column 3: The Truth */}
                                     <div className="p-8 flex flex-col justify-start relative z-10">
                                         <div className="flex items-center gap-3 mb-6">
                                             <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/80 font-bold border border-white/20 shadow-lg">3</span>
@@ -217,7 +216,7 @@ export function LandingHero({ receipts }: { receipts: Receipt[] }) {
                                                 )}
                                                 <p className="text-md text-slate-300 mb-4">{currentReceipt.outcome}</p>
                                                 <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-md">
-                                                    <h4 className="text-[10px] font-bold uppercase text-emerald-500 mb-1">Cap Alpha Savings</h4>
+                                                    <h4 className="text-[10px] font-bold uppercase text-emerald-500 mb-1">Impact of Ignoring Cap Alpha</h4>
                                                     <p className="text-sm font-mono text-emerald-400">{currentReceipt.roi}</p>
                                                 </div>
                                             </div>
@@ -227,7 +226,6 @@ export function LandingHero({ receipts }: { receipts: Receipt[] }) {
                                 </div>
                             </CardContent>
                         </Card>
-
                     </div>
                 </div>
 

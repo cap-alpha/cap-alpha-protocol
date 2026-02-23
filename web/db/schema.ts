@@ -54,3 +54,10 @@ export const proofOfAlphaTweets = pgTable("proof_of_alpha_tweets", {
     likes: text("likes"),
     reposts: text("reposts"),
 });
+
+export const waitlist = pgTable("waitlist", {
+    id: serial("id").primaryKey(),
+    email: text("email").unique().notNull(),
+    persona: text("persona"), // e.g., 'Agent', 'Fan', 'Bettor', 'Front_Office'
+    createdAt: timestamp("created_at").defaultNow(),
+});

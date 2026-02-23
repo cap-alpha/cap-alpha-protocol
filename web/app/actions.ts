@@ -2,7 +2,7 @@
 
 import { z } from 'zod';
 import rosterData from '../data/roster_dump.json';
-import historicalData from '../data/historical_predictions.json';
+import historicalData from '../public/historical_predictions.json';
 
 // --- SCHEMA DEFINITIONS (The Bridge) ---
 

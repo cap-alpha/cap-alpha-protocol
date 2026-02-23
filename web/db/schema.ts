@@ -25,3 +25,32 @@ export const scenarios = pgTable("scenarios", {
     createdAt: timestamp("created_at").defaultNow(),
     updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+export const proofOfAlpha = pgTable("proof_of_alpha", {
+    id: serial("id").primaryKey(),
+    date: text("date").notNull(),
+    playerName: text("player_name").notNull(),
+    team: text("team").notNull(),
+    contractSize: text("contract_size").notNull(),
+    prediction: text("prediction").notNull(),
+    mediaSentiment: text("media_sentiment").notNull(),
+    capAlphaInsight: text("cap_alpha_insight").notNull(),
+    outcome: text("outcome").notNull(),
+    outcomeDate: text("outcome_date"),
+    roi: text("roi").notNull(),
+    trend: text("trend").notNull().default("down"),
+    imageUrl: text("image_url"),
+    imagePosition: text("image_position"),
+    createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const proofOfAlphaTweets = pgTable("proof_of_alpha_tweets", {
+    id: serial("id").primaryKey(),
+    proofOfAlphaId: serial("proof_of_alpha_id").references(() => proofOfAlpha.id, { onDelete: 'cascade' }).notNull(),
+    text: text("text").notNull(),
+    author: text("author").notNull(),
+    url: text("url").notNull(),
+    source: text("source").notNull().default("twitter"),
+    likes: text("likes"),
+    reposts: text("reposts"),
+});

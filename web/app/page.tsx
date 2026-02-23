@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { LandingHero } from "@/components/landing-hero";
+import { getProofOfAlpha } from "./actions/proof-of-alpha";
 
 export default async function LandingPage() {
     const { userId } = await auth();
@@ -10,5 +11,7 @@ export default async function LandingPage() {
         redirect("/dashboard");
     }
 
-    return <LandingHero />;
+    const receipts = await getProofOfAlpha();
+
+    return <LandingHero receipts={receipts} />;
 }

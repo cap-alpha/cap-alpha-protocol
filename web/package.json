@@ -7,7 +7,9 @@
         "build": "next build",
         "start": "next start",
         "lint": "next lint",
-        "vercel": "XDG_CONFIG_HOME=/tmp/vercel-config XDG_DATA_HOME=/tmp/vercel-data ./node_modules/.bin/vercel"
+        "vercel": "XDG_CONFIG_HOME=/tmp/vercel-config XDG_DATA_HOME=/tmp/vercel-data ./node_modules/.bin/vercel",
+        "db:push": "npx drizzle-kit push",
+        "db:alpha-sync": "mkdir -p .tsx_temp && TMPDIR=$(pwd)/.tsx_temp npx tsx --env-file=$(pwd)/.env.local scripts/push_alpha_to_db.ts"
     },
     "dependencies": {
         "@clerk/nextjs": "^5.0.0",

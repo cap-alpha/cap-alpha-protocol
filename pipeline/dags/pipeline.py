@@ -72,8 +72,8 @@ default_args = {
 with DAG(
     'pipeline',
     default_args=default_args,
-    description='Weekly NFL dead money pipeline (scrapers → dbt → validation → notebooks)',
-    schedule='0 2 * * 1',  # Every Monday at 2 AM UTC
+    description='Daily NFL dead money pipeline (scrapers → dbt → validation → notebooks → LLM Predictions)',
+    schedule='0 2 * * *',  # Every Day at 2 AM UTC (Trade Deadline coverage)
     start_date=datetime(2025, 1, 13),
     catchup=False,
     max_active_runs=1,
@@ -248,6 +248,22 @@ with DAG(
     )
     
     # ========================================================================
+    # LAYER 8: AUTOMATED PUBLICATION (PROOF OF ALPHA)
+    # ========================================================================
+    
+    generate_alpha_payload = BashOperator(
+        task_id='generate_alpha_payload',
+        bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(grep GEMINI_API_KEY web/.env.local | cut -d "=" -f 2) && {VENV_PYTHON} scripts/generate_proof_of_alpha.py 2>&1 | tail -20',
+        dag=dag,
+    )
+    
+    sync_alpha_to_postgres = BashOperator(
+        task_id='sync_alpha_to_postgres',
+        bash_command=f'cd {PROJECT_ROOT}/web && npm run db:alpha-sync 2>&1 | tail -20',
+        dag=dag,
+    )
+    
+    # ========================================================================
     # TASK DEPENDENCIES (DAG GRAPH)
     # ========================================================================
     
@@ -278,5 +294,8 @@ with DAG(
     # Layer 6 (Hyperscale Intelligence) - depends on validation
     [data_quality_checks, validate_dead_money] >> run_feature_factory >> train_risk_model
     
-    # Layer 7 (Notebooks) - final step
+    # Layer 7 (Notebooks)
     train_risk_model >> run_salary_analysis_notebook
+    
+    # Layer 8 (Automated Publication via Gemini & Vercel Postgres)
+    run_salary_analysis_notebook >> generate_alpha_payload >> sync_alpha_to_postgres

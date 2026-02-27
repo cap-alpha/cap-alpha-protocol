@@ -61,3 +61,7 @@ pipeline/libs_314/
 .local_libs/
 .docker_buildx/
 pipeline/local_libs/
+web/.playwright_browsers/
+web/.playwright_tmp/
+test-results/
+playwright-report/

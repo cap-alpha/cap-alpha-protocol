@@ -4,7 +4,7 @@ import pathlib
 import sys
 
 def filter_history(start_year=2022, end_year=2024):
-    input_path = pathlib.Path("web/data/historical_predictions.json")
+    input_path = pathlib.Path("reports/historical_predictions.json")
     if not input_path.exists():
         print(f"Error: {input_path} not found.")
         sys.exit(1)

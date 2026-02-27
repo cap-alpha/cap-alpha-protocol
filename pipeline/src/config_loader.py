@@ -6,6 +6,11 @@ import yaml
 from pathlib import Path
 import os
 import logging
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 logger = logging.getLogger(__name__)
 

@@ -12,8 +12,9 @@ class DBManager:
     Technology-agnostic database manager.
     Currently supports DuckDB and MotherDuck.
     """
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None, read_only: bool = False):
         self.db_path = db_path or get_db_path()
+        self.read_only = read_only
         self.con = None
         self._initialize_connection()
 
@@ -23,10 +24,10 @@ class DBManager:
             # Check if we are using MotherDuck
             if "md:" in self.db_path or os.getenv("MOTHERDUCK_TOKEN"):
                 logger.info(f"Connecting to MotherDuck/DuckDB at {self.db_path}")
-                self.con = duckdb.connect(self.db_path)
+                self.con = duckdb.connect(self.db_path, read_only=self.read_only)
             else:
-                logger.info(f"Connecting to local DuckDB at {self.db_path}")
-                self.con = duckdb.connect(self.db_path)
+                logger.info(f"Connecting to local DuckDB at {self.db_path} (read_only={self.read_only})")
+                self.con = duckdb.connect(self.db_path, read_only=self.read_only)
         except Exception as e:
             logger.error(f"Failed to connect to database: {e}")
             raise

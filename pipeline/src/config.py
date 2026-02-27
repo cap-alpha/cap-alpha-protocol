@@ -35,5 +35,8 @@ CURRENT_SEASON = _config.get("project", {}).get("current_season", 2025)
 
 # Create dirs if they don't exist (Safety)
 for d in [DATA_BRONZE_DIR, DATA_SILVER_DIR, DATA_GOLD_DIR, DATA_DUCKDB_DIR, MODELS_DIR, REPORTS_DIR, VIZ_DIR]:
-    d.mkdir(parents=True, exist_ok=True)
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        pass
 

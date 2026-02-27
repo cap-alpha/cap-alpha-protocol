@@ -1,7 +1,8 @@
 .PHONY: setup shell pipeline test clean
 
 setup:
-	docker-compose build
+	@mkdir -p .docker_buildx
+	BUILDX_CONFIG=$$(pwd)/.docker_buildx docker-compose build
 
 shell:
 	docker-compose run --rm pipeline /bin/bash

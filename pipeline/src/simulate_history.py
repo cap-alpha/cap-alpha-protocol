@@ -94,7 +94,7 @@ class HistoricalSimulator:
         results_df = pd.DataFrame(simulation_history)
         
         # Save for Frontend
-        output_path = Path("web/data/historical_predictions.json")
+        output_path = Path("reports/historical_predictions.json")
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         results_df.to_json(output_path, orient="records", indent=2)

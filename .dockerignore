@@ -19,8 +19,4 @@ out
 build
 dist
 tmp
-contracts/
-tests/
-pipeline/tests/
-pipeline/logs/
 data/duckdb/

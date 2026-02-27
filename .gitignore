@@ -59,3 +59,6 @@ web/build/
 .env.local
 pipeline/libs_314/
 .local_libs/
+\npipeline/local_libs/\n
+local_libs/
+\n.docker_buildx/

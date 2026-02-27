@@ -8,7 +8,9 @@ import yaml
 logger = logging.getLogger(__name__)
 
 class MLGovernance:
-    def __init__(self, config_path="config/ml_config.yaml"):
+    def __init__(self, config_path=None):
+        if config_path is None:
+            config_path = Path(__file__).resolve().parent.parent / "config" / "ml_config.yaml"
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
         self.registry_path = Path(self.config["model_registry"]["registry_path"])

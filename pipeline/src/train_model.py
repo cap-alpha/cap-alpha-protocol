@@ -37,47 +37,70 @@ class RiskModeler:
     def __init__(self, db_path=DB_PATH, read_only=False):
         self.db_path = db_path
         self.read_only = read_only
-        self.db = DBManager(db_path)
+        self.db = DBManager(db_path, read_only=self.read_only)
         self.con = self.db.con
 
-    def prepare_data(self, target_col='edce_risk'):
-        logger.info(f"Loading feature matrix from staging_feature_matrix...")
+    def prepare_data(self, target_col='true_bust_variance'):
+        from src.feature_factory import FeatureFactory
         
-        # Direct read from staging (bypass FeatureStore for now as FeatureFactory populates staging)
-        df = self.con.execute(f"""
-            SELECT * FROM staging_feature_matrix 
-            WHERE year BETWEEN 2015 AND 2025
-        """).df()
+        logger.info("Generating hyperscale feature matrix via FeatureFactory...")
+        factory = FeatureFactory(self.db.db_path)
+        df = factory.generate_hyperscale_matrix()
         
-        if df.empty:
-            raise ValueError("Staging feature matrix is empty. Run Feature Factory first.")
+        if not self.read_only:
+            self.con.register('df_view', df)
+            self.con.execute("CREATE OR REPLACE TABLE staging_feature_matrix AS SELECT * FROM df_view")
+            logger.info("Persisted staging_feature_matrix to DuckDB.")
+            
+        df = df[df['year'].between(2015, 2025)]
+        
+        if len(df) == 0:
+            raise ValueError("Staging feature matrix is empty. Pipeline failure.")
             
         # Target is already in the matrix (passed through from Gold Layer)
         if target_col not in df.columns:
              # Fallback: Try to join from fact_player_efficiency if missing
              logger.warning(f"Target {target_col} not in matrix. Joining from Gold Layer...")
-             df_target = self.con.execute(f"SELECT player_name, year, {target_col} FROM fact_player_efficiency").df()
-             df = pd.merge(df, df_target, on=['player_name', 'year'], how='inner')
+             df_target = self.con.execute(f"SELECT player_name, year, week, {target_col} FROM fact_player_efficiency").df()
+             df = pd.merge(df, df_target, on=['player_name', 'year', 'week'], how='inner')
 
         # Merge handled implicitly or above
         
         # 1. Split into features and target
         # LEAKAGE PREVENTION: Drop columns that define average/risk directly
+        # LEAKAGE PREVENTION: Drop columns that define average/risk directly
         skip_cols = [
-            'player_name', 'year', 'team', target_col, 
+            'player_name', 'year', 'week', 'team', target_col, 
             'potential_dead_cap_millions',
             'dead_cap_millions', 
             'signing_bonus_millions',
-            'salaries_dead_cap_millions'
+            'salaries_dead_cap_millions',
+            'edce_risk',
+            'fair_market_value',
+            'total_pass_yds',
+            'total_rush_yds',
+            'total_rec_yds',
+            'total_tds',
+            'total_sacks',
+            'total_int',
+            'total_penalty_yards',
+            'total_penalty_count',
+            'availability_rating',
+            'games_played'
         ]
         X = df.drop(columns=[c for c in skip_cols if c in df.columns])
         
-        # Robust numeric conversion
-        X = X.apply(pd.to_numeric, errors='coerce').dropna(axis=1, how='all').fillna(0)
+        # Clean currency strings
+        for col in X.columns:
+            if X[col].dtype == 'object':
+                X[col] = X[col].astype(str).str.replace(r'[\$,]', '', regex=True)
+                
+        # Robust numeric conversion (XGBoost handles sparsity natively, do not dropna)
+        X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
         y = df[target_col].fillna(0)
         
         # 2. Retain player info for joining results back
-        metadata = df[['player_name', 'year', 'team']]
+        metadata = df[['player_name', 'year', 'week', 'team']].copy()
         
         logger.info(f"✓ Data Prepared: {len(X)} rows, {len(X.columns)} features.")
         return X, y, metadata
@@ -94,7 +117,7 @@ class RiskModeler:
         # Save Historical Predictions for Frontend (Validation Layer)
         if not predictions_df.empty:
             # Assume running from project root
-            preds_target = Path("web/data/historical_predictions.json")
+            preds_target = Path("reports/historical_predictions.json")
             preds_target.parent.mkdir(parents=True, exist_ok=True)
             
             # Simple JSON export

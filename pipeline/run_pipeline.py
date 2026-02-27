@@ -94,17 +94,23 @@ def main():
     # 4. Model Inference (Enrichment)
     # This must run AFTER Feature Factory and Training
     if not args.skip_training: 
-         run_step("Gold Layer Enrichment", "pipeline/src/inference.py")
+         run_step("Gold Layer Enrichment", "src/inference.py")
     
     # 5. Quality Gate (Silver/Gold Check)
     if not args.skip_validation:
-        run_step("Data Validation", "pipeline/scripts/validate_gold_layer.py")
+        run_step("Data Validation", "scripts/validate_gold_layer.py")
     else:
         logger.info("⏭️  Skipping Validation (Quality Gate)")
+
+    # Evaluate Misses
+    if not args.skip_audits:
+        run_step("Model Miss Diagnostics", "pipeline/src/analyze_model_misses.py")
+    else:
+        logger.info("⏭️  Skipping Model Miss Diagnostics")
     
     # 5. Pipeline Integrity Testing (Formal pytest)
     if not args.skip_tests:
-        run_step("Integrity Testing", "-m pytest pipeline/tests/test_gold_integrity.py")
+        run_step("Integrity Testing", "-m pytest tests/test_gold_integrity.py")
     else:
         logger.info("⏭️  Skipping Tests (Integrity Layer)")
     
@@ -122,9 +128,11 @@ def main():
             logger.error(f"--- FAILED Step: Strategic Audits ({e}) ---")
             sys.exit(1)
 
+        # Generate Proof of Alpha HTML Payload
+        run_step("Proof of Alpha Generation", "pipeline/src/generate_proof_of_alpha.py")
         # 7. Supplemental Reports
-        run_step("Super Bowl Audit", "pipeline/scripts/generate_sb_audit.py")
-        run_step("Intelligence Report", "pipeline/scripts/generate_intelligence_report.py")
+        run_step("Super Bowl Audit", "scripts/generate_sb_audit.py")
+        run_step("Intelligence Report", "scripts/generate_intelligence_report.py")
     else:
          logger.info("⏭️  Skipping Audits (Reporting Layer)")
     

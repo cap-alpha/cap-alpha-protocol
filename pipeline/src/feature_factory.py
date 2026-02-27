@@ -26,18 +26,20 @@ class FeatureFactory:
         violations = 0
         
         for player in sample_players:
-            player_df = df[df['player_name'] == player].sort_values('year')
+            player_df = df[df['player_name'] == player].sort_values(['year', 'week'])
             if len(player_df) < 2:
                 continue
             
             for i in range(1, len(player_df)):
                 current_year = player_df.iloc[i]['year']
+                current_week = player_df.iloc[i]['week']
                 lag_year = player_df.iloc[i-1]['year']
+                lag_week = player_df.iloc[i-1]['week']
                 
-                # The lag should be from a prior year
-                if lag_year >= current_year:
+                # The lag should be from a prior week
+                if lag_year > current_year or (lag_year == current_year and lag_week >= current_week):
                     violations += 1
-                    logger.warning(f"⚠️ Violation: {player} has lag data from {lag_year} for year {current_year}")
+                    logger.warning(f"⚠️ Violation: {player} has lag data from {lag_year}-W{lag_week} for week {current_year}-W{current_week}")
         
         if violations == 0:
             logger.info("✅ Point-in-Time validation PASSED: No future data leakage detected.")
@@ -62,8 +64,14 @@ class FeatureFactory:
         df = df.rename(columns={'team_original': 'team'})
         
         # 4. Performance Lags (Historical Performance Lags)
-        # We need to sort by player/year
-        df = df.sort_values(['player_name', 'year'])
+        # We need to sort by player/year/week
+        df = df.sort_values(['player_name', 'year', 'week'])
+        
+        # Calculate chronological gaps (injuries/byes) for the MLE standard
+        df['abs_week'] = df['year'] * 17 + df['week']
+        df['injury_gap_weeks'] = (df['abs_week'] - df.groupby('player_name')['abs_week'].shift(1) - 1).clip(lower=0).fillna(0)
+        df.drop(columns=['abs_week'], inplace=True)
+        
         lag_cols = {}
         for col in ['total_pass_yds', 'total_rush_yds', 'total_rec_yds', 'total_tds', 'games_played', 'total_sacks', 'total_int']:
             for lag in [1, 2, 3]:
@@ -79,10 +87,12 @@ class FeatureFactory:
         # 4. Interaction Terms (Cross-Domain Risk)
         df['age_cap_interaction'] = df['age'] * df['cap_hit_millions']
         df['experience_risk_interaction'] = df['draft_round'] * df['age']
-        df['td_per_dollar'] = df['total_tds'] / df['cap_hit_millions'].replace(0, np.nan)
+        if 'total_tds_lag_1' in df.columns:
+            df['td_per_dollar'] = df['total_tds_lag_1'] / df['cap_hit_millions'].replace(0, np.nan)
         
         # 5. Volatility (Performance variance over lags)
-        df['td_volatility'] = df[['total_tds', 'total_tds_lag_1', 'total_tds_lag_2']].std(axis=1)
+        if all(c in df.columns for c in ['total_tds_lag_1', 'total_tds_lag_2', 'total_tds_lag_3']):
+            df['td_volatility'] = df[['total_tds_lag_1', 'total_tds_lag_2', 'total_tds_lag_3']].std(axis=1)
         
         # 6. Narrative Taxonomy Expansion (Lean Hyperscale)
         # We focus on high-quality signal depth rather than vanity quantity.

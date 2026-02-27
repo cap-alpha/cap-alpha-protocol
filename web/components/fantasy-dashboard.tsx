@@ -32,11 +32,11 @@ export function FantasyDashboard({ rosterData }: { rosterData: any[] }) {
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Header Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="bg-slate-900 border-emerald-500/30">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs text-emerald-400 uppercase font-mono flex items-center gap-2">
+                        <CardTitle className="text-xs text-emerald-400 font-mono flex items-center gap-2">
                             <Trophy className="h-4 w-4" />
-                            League Projection
+                            <span className="uppercase font-bold tracking-wider">League Projection</span>
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -44,11 +44,11 @@ export function FantasyDashboard({ rosterData }: { rosterData: any[] }) {
                         <p className="text-xs text-slate-500 mt-1">Cap Alpha Win Probability: 78%</p>
                     </CardContent>
                 </Card>
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs text-slate-400 uppercase font-mono flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4" />
-                            Surplus Value
+                        <CardTitle className="text-xs text-slate-400 font-mono flex items-center gap-2">
+                            <TrendingUp className="h-4 w-4 text-emerald-500" />
+                            <span className="uppercase font-bold text-emerald-500 tracking-wider">Surplus Value</span>
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -56,16 +56,18 @@ export function FantasyDashboard({ rosterData }: { rosterData: any[] }) {
                         <p className="text-xs text-slate-500 mt-1">Value accrued vs ADP Cost</p>
                     </CardContent>
                 </Card>
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-xs text-slate-400 uppercase font-mono flex items-center gap-2">
+                        <CardTitle className="text-xs text-slate-400 font-mono flex items-center gap-2">
                             <AlertTriangle className={hasRisk ? "h-4 w-4 text-rose-500" : "h-4 w-4 text-amber-500"} />
-                            Portfolio Risk
+                            <span className={`uppercase font-bold tracking-wider ${hasRisk ? "text-rose-500" : "text-amber-500"}`}>
+                                Portfolio Risk
+                            </span>
                         </CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className={hasRisk ? "text-3xl font-black text-rose-500" : "text-3xl font-black text-amber-400"}>
-                            {hasRisk ? "HIGH" : "MODERATE"}
+                            {hasRisk ? "HIGH VOLATILITY" : "MODERATE"}
                         </div>
                         <p className="text-xs text-slate-500 mt-1">Exposure tied to aging RBs</p>
                     </CardContent>

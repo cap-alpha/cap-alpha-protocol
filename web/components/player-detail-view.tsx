@@ -78,9 +78,9 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
 
             {/* Key Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Cap Hit</CardTitle>
+                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Cap Hit</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-white">
@@ -90,9 +90,9 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Efficiency Gap</CardTitle>
+                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Efficiency Gap</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-emerald-400">
@@ -102,9 +102,9 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Model Variance</CardTitle>
+                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Model Variance</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-amber-400">
@@ -148,23 +148,28 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                             </div>
 
                             <div className="pt-4 border-t border-zinc-800">
-                                <div className="text-xs text-zinc-500 mb-3">KEY DRIVERS (SHAP)</div>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-zinc-400">Position Premium ({player.position})</span>
-                                        <span className="text-amber-400">+1.2M</span>
+                                <details className="group cursor-pointer">
+                                    <summary className="text-xs text-zinc-500 mb-3 font-semibold uppercase list-none flex justify-between items-center">
+                                        KEY DRIVERS (SHAP)
+                                        <span className="text-zinc-600 group-open:rotate-180 transition-transform">▼</span>
+                                    </summary>
+                                    <div className="space-y-2 text-sm mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-zinc-400">Position Premium ({player.position})</span>
+                                            <span className="text-amber-400">+1.2M</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-zinc-400">Age Curve Decline</span>
+                                            <span className="text-rose-400">-0.8M</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-zinc-400">Production YoY Trend</span>
+                                            <span className={player.risk_score > 0.5 ? "text-rose-400" : "text-emerald-400"}>
+                                                {player.risk_score > 0.5 ? "-2.1M" : "+1.5M"}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-zinc-400">Age Curve Decline</span>
-                                        <span className="text-rose-400">-0.8M</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-zinc-400">Production YoY Trend</span>
-                                        <span className={player.risk_score > 0.5 ? "text-rose-400" : "text-emerald-400"}>
-                                            {player.risk_score > 0.5 ? "-2.1M" : "+1.5M"}
-                                        </span>
-                                    </div>
-                                </div>
+                                </details>
                             </div>
                         </CardContent>
                     </Card>
@@ -180,7 +185,7 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                         <CardContent className="h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
                                 <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.15} />
                                     <XAxis dataKey="year" stroke="#94a3b8" />
                                     <YAxis stroke="#94a3b8" tickFormatter={(v) => `$${v}M`} />
                                     <Tooltip

@@ -65,9 +65,9 @@ export function IntelligenceFeed({ playerName, riskScore }: { playerName: string
 
                 <SignedOut>
                     {/* Paywall Overlay */}
-                    <div className="absolute inset-0 z-10 bg-slate-900/40 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center">
+                    <div className="absolute inset-0 z-10 bg-gradient-to-t from-slate-950 via-slate-900/90 to-slate-900/50 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
                         <Lock className="h-10 w-10 text-emerald-500 mb-4" />
-                        <h3 className="text-xl font-bold text-white mb-2">PRO INTELLIGENCE REQUIRED</h3>
+                        <h3 className="text-2xl font-black tracking-tight text-white mb-2">PRO INTELLIGENCE REQUIRED</h3>
                         <p className="text-slate-300 text-sm mb-6 max-w-xs">
                             Unlock real-time rumors, scouting synthesis, and RAG-powered contract telemetry for {playerName}.
                         </p>

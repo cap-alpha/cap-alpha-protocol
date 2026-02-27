@@ -49,9 +49,11 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
 
                 {/* Top Metrics Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="bg-card border-border">
+                    <Card className="bg-card border-transparent shadow-none">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-xs text-muted-foreground uppercase font-mono">Total Cap Liabilities</CardTitle>
+                            <CardTitle className="text-xs text-muted-foreground font-mono">
+                                <span className="uppercase font-bold tracking-wider">Total Cap Liabilities</span>
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-3xl font-black text-white">
@@ -61,11 +63,11 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-card border-border">
+                    <Card className="bg-card border-transparent shadow-none">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-xs text-muted-foreground uppercase font-mono flex items-center gap-2">
+                            <CardTitle className="text-xs text-muted-foreground font-mono flex items-center gap-2">
                                 <ShieldAlert className="h-4 w-4 text-rose-500" />
-                                Portfolio Risk Exposure
+                                <span className="uppercase font-bold tracking-wider text-rose-500">Portfolio Risk</span>
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -78,11 +80,11 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-card border-border">
+                    <Card className="bg-card border-transparent shadow-none">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-xs text-muted-foreground uppercase font-mono flex items-center gap-2">
+                            <CardTitle className="text-xs text-muted-foreground font-mono flex items-center gap-2">
                                 <TrendingUp className="h-4 w-4 text-emerald-500" />
-                                Roster Grade
+                                <span className="uppercase font-bold tracking-wider text-emerald-500">Roster Grade</span>
                             </CardTitle>
                         </CardHeader>
                         <CardContent>

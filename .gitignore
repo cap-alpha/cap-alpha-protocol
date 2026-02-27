@@ -1,4 +1,3 @@
-
 # Python
 __pycache__/
 *.py[cod]
@@ -7,6 +6,7 @@ libs/
 .venv/
 env/
 venv/
+pipeline/local_libs/
 
 # Logs
 *.log
@@ -59,3 +59,5 @@ web/build/
 .env.local
 pipeline/libs_314/
 .local_libs/
+.docker_buildx/
+pipeline/local_libs/

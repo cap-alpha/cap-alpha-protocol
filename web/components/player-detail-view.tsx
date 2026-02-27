@@ -22,6 +22,7 @@ import {
 import { CutCalculator } from './cut-calculator';
 import { PositionDistributionChart } from './position-distribution-chart';
 import { SaveScenarioButton } from './save-scenario-button';
+import { IntelligenceFeed } from './intelligence-feed';
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
@@ -202,6 +203,11 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                         playerCapHit={player.cap_hit_millions}
                         position={player.position}
                     />
+
+                    {/* Cap Alpha RAG Intelligence Feed (Mocked) */}
+                    <div className="h-[450px]">
+                        <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} />
+                    </div>
 
                     {/* Historical Ledger */}
                     <Card className="bg-zinc-900 border-zinc-800">

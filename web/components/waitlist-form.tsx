@@ -9,9 +9,13 @@ import { CheckCircle2, ChevronRight } from "lucide-react";
 export function WaitlistForm() {
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [message, setMessage] = useState("");
+    const [submittedEmail, setSubmittedEmail] = useState("");
 
     async function action(formData: FormData) {
         setStatus("loading");
+
+        const email = formData.get("email") as string;
+        setSubmittedEmail(email);
 
         // Grab the current URL path to infer persona context, or default to general
         formData.append("persona", window.location.pathname.includes("agent") ? "Agent" : "General");
@@ -23,7 +27,7 @@ export function WaitlistForm() {
             setMessage(result.error);
         } else {
             setStatus("success");
-            setMessage(result?.message || "You're on the list. We'll be in touch.");
+            setMessage(result?.message || `You're on the list. We'll be in touch at ${email}.`);
         }
     }
 

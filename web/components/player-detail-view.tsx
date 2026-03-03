@@ -5,7 +5,7 @@ import { PlayerEfficiency } from "@/app/actions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ShieldAlert, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
 import {
     ComposedChart,
@@ -22,6 +22,7 @@ import {
 import { CutCalculator } from './cut-calculator';
 import { PositionDistributionChart } from './position-distribution-chart';
 import { SaveScenarioButton } from './save-scenario-button';
+import { IntelligenceFeed } from './intelligence-feed';
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
@@ -46,6 +47,15 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
     // Cumulative Error
     const totalError = chartData.reduce((sum, d) => sum + Math.abs(d.error), 0);
     const avgError = chartData.length > 0 ? totalError / chartData.length : 0;
+
+    // Uncertainty Quantification: Error Bands
+    const chartDataWithBands = chartData.map(d => ({
+        ...d,
+        bounds: [
+            Math.max(0, d.predicted - avgError), // Floor at 0
+            d.predicted + avgError
+        ]
+    }));
 
     return (
         <div className="space-y-6 max-w-7xl mx-auto">
@@ -75,11 +85,26 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                 />
             </div>
 
+            {/* Executive Summary (B.L.U.F.) */}
+            <div className={`p-4 rounded-lg border flex items-start gap-4 mb-2 ${player.risk_score > 0.7 ? "bg-rose-500/10 border-rose-500/30 text-rose-400" : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"}`}>
+                <div className="mt-0.5">
+                    {player.risk_score > 0.7 ? <ShieldAlert className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+                </div>
+                <div>
+                    <h3 className="font-bold text-sm uppercase tracking-wider mb-1">Executive Summary (B.L.U.F.)</h3>
+                    <p className="text-sm leading-relaxed text-slate-300">
+                        {player.risk_score > 0.7
+                            ? `CRITICAL RISK: ${player.player_name} is generating negative surplus value. Models indicate an average overpayment of $${avgError.toFixed(1)}M annually vs empirical production expectations. Strong quantitative recommendation to restructure or execute a Post-June 1 designated cut.`
+                            : `STABLE ASSET: ${player.player_name} is performing within ±$${avgError.toFixed(1)}M of true Fair Market Value. The contract is currently efficient relative to positional scarcity. Maintain portfolio allocation.`}
+                    </p>
+                </div>
+            </div>
+
             {/* Key Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Cap Hit</CardTitle>
+                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Cap Hit</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-white">
@@ -89,9 +114,9 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Efficiency Gap</CardTitle>
+                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Efficiency Gap</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-emerald-400">
@@ -101,9 +126,9 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-slate-800">
+                <Card className="bg-slate-900 border-transparent shadow-none">
                     <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium text-slate-400 uppercase">Model Variance</CardTitle>
+                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Model Variance</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="text-3xl font-bold text-amber-400">
@@ -147,23 +172,28 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                             </div>
 
                             <div className="pt-4 border-t border-zinc-800">
-                                <div className="text-xs text-zinc-500 mb-3">KEY DRIVERS (SHAP)</div>
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-zinc-400">Position Premium ({player.position})</span>
-                                        <span className="text-amber-400">+1.2M</span>
+                                <details className="group cursor-pointer">
+                                    <summary className="text-xs text-zinc-500 mb-3 font-semibold uppercase list-none flex justify-between items-center">
+                                        KEY DRIVERS (SHAP)
+                                        <span className="text-zinc-600 group-open:rotate-180 transition-transform">▼</span>
+                                    </summary>
+                                    <div className="space-y-2 text-sm mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-zinc-400">Position Premium ({player.position})</span>
+                                            <span className="text-amber-400">+1.2M</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-zinc-400">Age Curve Decline</span>
+                                            <span className="text-rose-400">-0.8M</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-zinc-400">Production YoY Trend</span>
+                                            <span className={player.risk_score > 0.5 ? "text-rose-400" : "text-emerald-400"}>
+                                                {player.risk_score > 0.5 ? "-2.1M" : "+1.5M"}
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-zinc-400">Age Curve Decline</span>
-                                        <span className="text-rose-400">-0.8M</span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-zinc-400">Production YoY Trend</span>
-                                        <span className={player.risk_score > 0.5 ? "text-rose-400" : "text-emerald-400"}>
-                                            {player.risk_score > 0.5 ? "-2.1M" : "+1.5M"}
-                                        </span>
-                                    </div>
-                                </div>
+                                </details>
                             </div>
                         </CardContent>
                     </Card>
@@ -178,17 +208,18 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                         </CardHeader>
                         <CardContent className="h-[400px]">
                             <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.5} />
+                                <ComposedChart data={chartDataWithBands} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.15} />
                                     <XAxis dataKey="year" stroke="#94a3b8" />
                                     <YAxis stroke="#94a3b8" tickFormatter={(v) => `$${v}M`} />
                                     <Tooltip
                                         contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff' }}
                                         itemStyle={{ color: '#fff' }}
-                                        formatter={(value: any) => [`$${Number(value).toFixed(2)}M`, '']}
+                                        formatter={(value: any, name: any) => name === "Model Variance (95% CI)" ? null : [`$${Number(value).toFixed(2)}M`, name]}
                                     />
                                     <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                    <Area type="monotone" dataKey="predicted" name="Fair Market Value" fill="#10b981" stroke="#10b981" fillOpacity={0.1} />
+                                    <Area type="monotone" dataKey="bounds" name="Model Variance (95% CI)" fill="#10b981" stroke="none" fillOpacity={0.1} />
+                                    <Line type="monotone" dataKey="predicted" name="Fair Market Value" stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="5 5" />
                                     <Line type="monotone" dataKey="actual" name="Actual Cap Hit" stroke="#f472b6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 8 }} />
                                     <Bar dataKey="error" name="Overpay/Underpay" fill="#64748b" opacity={0.3} barSize={20} />
                                 </ComposedChart>
@@ -202,6 +233,11 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                         playerCapHit={player.cap_hit_millions}
                         position={player.position}
                     />
+
+                    {/* Cap Alpha RAG Intelligence Feed (Mocked) */}
+                    <div className="h-[450px]">
+                        <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} />
+                    </div>
 
                     {/* Historical Ledger */}
                     <Card className="bg-zinc-900 border-zinc-800">

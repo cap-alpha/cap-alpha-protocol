@@ -1,7 +1,6 @@
 import React from "react";
 import { getRosterData, getTeamCapSummary } from "../actions";
 import { RosterGrid } from "@/components/roster-grid";
-import { EfficiencyLandscape } from "@/components/efficiency-landscape";
 import { RosterCard } from "@/components/roster-card";
 import { TradeMachine } from "@/components/trade-machine";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,19 +86,6 @@ export default async function Home({ searchParams }: { searchParams: { search?: 
             </div>
 
             <ProofOfAlphaCarousel />
-
-            <section className="mb-8 relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background z-10 pointer-events-none" />
-                <React.Suspense fallback={
-                    <div className="w-full h-[500px] bg-secondary/20 animate-pulse rounded-lg border border-border flex items-center justify-center flex-col gap-4">
-                        <div className="text-emerald-500 font-mono text-sm uppercase tracking-widest animate-pulse duration-1000">System Initializing...</div>
-                        <div className="text-muted-foreground font-mono animate-bounce uppercase">SYNCING LEAGUE-WIDE CONTRACT LEDGER...</div>
-                    </div>
-                }>
-                    {/* @ts-ignore */}
-                    <EfficiencyLandscape data={rosterData} />
-                </React.Suspense>
-            </section>
 
             {/* Main Content: Tabs */}
             <Tabs defaultValue={searchParams?.search ? "grid" : "portfolio"} className="space-y-4">

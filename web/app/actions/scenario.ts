@@ -1,8 +1,8 @@
 'use server';
 
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { db } from '@/db';
-import { scenarios } from '@/db/schema';
+import { scenarios, users } from '@/db/schema';
 import { revalidatePath } from 'next/cache';
 
 export async function saveScenario(
@@ -19,6 +19,16 @@ export async function saveScenario(
     }
 
     try {
+        // Lazy provision the user to bypass local webhook forwarding issues
+        const user = await currentUser();
+        if (user) {
+            const email = user.emailAddresses[0]?.emailAddress || "unknown@clerk.dev";
+            await db.insert(users).values({
+                clerkId: userId,
+                email: email,
+            }).onConflictDoNothing();
+        }
+
         await db.insert(scenarios).values({
             userId: userId,
             name: `Cut ${playerName} (${cutType})`,

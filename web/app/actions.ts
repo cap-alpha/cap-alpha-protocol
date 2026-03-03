@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import rosterData from '../data/roster_dump.json';
+import { getMotherDuckDb } from '@/lib/motherduck';
 import historicalData from '../data/historical_predictions.json';
 
 // --- SCHEMA DEFINITIONS (The Bridge) ---
@@ -68,7 +68,24 @@ function generateMockFinancials(player: any): PlayerEfficiency {
 
 async function getHydratedData(): Promise<PlayerEfficiency[]> {
   try {
-    const rawData: any[] = rosterData as any[];
+    // 1. Attempt Cloud Sync (MotherDuck)
+    let rawData: any[] = [];
+    try {
+      const db = await getMotherDuckDb();
+      const res = await db.all(`SELECT * FROM fact_player_efficiency WHERE year = 2024`);
+      rawData = res as any[];
+      console.log(`[MotherDuck] Successfully fetched ${rawData.length} records from cloud.`);
+    } catch (dbError) {
+      console.warn("[MotherDuck] Fallback to Mock Generation:", dbError);
+      // Fallback for UI Design mock dev if cloud is unreachable
+      rawData = [
+        { player_name: "Dak Prescott", team: "DAL", position: "QB", cap_hit_millions: 55 },
+        { player_name: "Micah Parsons", team: "DAL", position: "EDGE", cap_hit_millions: 5 },
+        { player_name: "Tua Tagovailoa", team: "MIA", position: "QB", cap_hit_millions: 23 },
+        { player_name: "Tyreek Hill", team: "MIA", position: "WR", cap_hit_millions: 31 },
+        { player_name: "Kyler Murray", team: "ARI", position: "QB", cap_hit_millions: 43 },
+      ];
+    }
 
     // transform historical data into a lookup map for O(1) access
     const historyMap = new Map<string, PlayerHistory[]>();
@@ -108,7 +125,7 @@ async function getHydratedData(): Promise<PlayerEfficiency[]> {
     return parsedData;
 
   } catch (e) {
-    console.error("[Data] Error parsing roster data:", e);
+    console.error("[Data] Error loading roster data:", e);
     return [];
   }
 }

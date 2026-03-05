@@ -6,6 +6,7 @@ import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Lock, AlertTriangle, CheckCircle, Scissors, Save } from 'lucide-react';
 import { saveScenario } from '@/app/actions/scenario';
+import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 
 interface CutCalculatorProps {
     player: PlayerEfficiency;
@@ -138,23 +139,33 @@ export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorPr
                             <span>Current Cap Hit: <span className="text-slate-200">${player.cap_hit_millions.toLocaleString()}M</span></span>
                             <span>Efficiency Impact: <span className="text-slate-200">{player.risk_score > 0.5 ? "High Risk Removed" : "Low Risk Loss"}</span></span>
                         </div>
-                        <button
-                            onClick={handleSave}
-                            disabled={isSaving || saved}
-                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50"
-                        >
-                            {saved ? (
-                                <>
-                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span>Saved</span>
-                                </>
-                            ) : (
-                                <>
+                        <SignedIn>
+                            <button
+                                onClick={handleSave}
+                                disabled={isSaving || saved}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors disabled:opacity-50"
+                            >
+                                {saved ? (
+                                    <>
+                                        <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                                        <span>Saved</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="w-3.5 h-3.5" />
+                                        <span>{isSaving ? 'Saving...' : 'Save Scenario'}</span>
+                                    </>
+                                )}
+                            </button>
+                        </SignedIn>
+                        <SignedOut>
+                            <SignInButton mode="modal">
+                                <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                                     <Save className="w-3.5 h-3.5" />
-                                    <span>{isSaving ? 'Saving...' : 'Save Scenario'}</span>
-                                </>
-                            )}
-                        </button>
+                                    <span>Sign in to Save</span>
+                                </button>
+                            </SignInButton>
+                        </SignedOut>
                     </div>
                 </div>
             </CardContent>

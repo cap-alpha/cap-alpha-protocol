@@ -7,15 +7,14 @@ services:
     volumes:
       - ./pipeline:/app/pipeline
       - ./scripts:/app/scripts
-      # Native duckdb disk persistence managed inside the container
-      - duckdb_volume:/app/pipeline/data/duckdb
     environment:
       - PIPELINE_YEAR=2025
       - PYTHONPATH=/app/pipeline
+      - MOTHERDUCK_TOKEN=${MOTHERDUCK_TOKEN}
     working_dir: /app
-    # Run apt-get and pip install on boot.
+    # Run pip install on boot.
     command: >
-      bash -c "apt-get update && apt-get install -y chromium chromium-driver git build-essential &&  pip install --no-cache-dir -r pipeline/requirements.txt &&  tail -f /dev/null"
+      bash -c "pip install --no-cache-dir -r pipeline/requirements.txt && tail -f /dev/null"
 
   web:
     image: node:20
@@ -46,6 +45,3 @@ services:
     command: bash -c "apt-get update && apt-get install -y make g++ && npm install && npx playwright test"
     depends_on:
       - web
-
-volumes:
-  duckdb_volume:

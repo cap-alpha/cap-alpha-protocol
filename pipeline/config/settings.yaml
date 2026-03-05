@@ -12,7 +12,7 @@ data:
 
 database:
   # Primary production database - contains Silver and Gold layers
-  path: "data/duckdb/nfl_production.db"
+  path: "md:nfl_dead_money"
 
 models:
   directory: "models"

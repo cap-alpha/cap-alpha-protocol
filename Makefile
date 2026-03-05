@@ -18,10 +18,10 @@ shell-pipeline:
 # -----------------------------------------------------------------------------
 
 pipeline-scrape:
-	docker compose exec pipeline bash -c "python src/spotrac_scraper_v2.py team-cap 2024"
+	docker compose exec pipeline bash -c "python pipeline/src/spotrac_scraper_v2.py team-cap 2024"
 
 pipeline-train:
-	docker compose exec pipeline bash -c "python src/train_model.py"
+	docker compose exec pipeline bash -c "python pipeline/src/train_model.py"
 
 # -----------------------------------------------------------------------------
 # WEB & TESTING

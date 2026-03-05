@@ -22,9 +22,17 @@ class DBManager:
         """Initializes the database connection."""
         try:
             # Check if we are using MotherDuck
-            if "md:" in self.db_path or os.getenv("MOTHERDUCK_TOKEN"):
+            if self.db_path.startswith("md:"):
                 logger.info(f"Connecting to MotherDuck/DuckDB at {self.db_path}")
-                self.con = duckdb.connect(self.db_path, read_only=self.read_only)
+                # Connect to base MotherDuck to ensure DB exists
+                self.con = duckdb.connect("md:", read_only=self.read_only)
+                
+                # Extract db name if specified (e.g., md:nfl_dead_money)
+                parts = self.db_path.split(":")
+                if len(parts) > 1 and parts[1]:
+                    db_name = parts[1].split('?')[0] # remove query params if any
+                    self.con.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
+                    self.con.execute(f"USE {db_name}")
             else:
                 logger.info(f"Connecting to local DuckDB at {self.db_path} (read_only={self.read_only})")
                 self.con = duckdb.connect(self.db_path, read_only=self.read_only)

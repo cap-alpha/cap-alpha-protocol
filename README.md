@@ -52,26 +52,26 @@ A Walk-Forward Validation pipeline that trains on past data to predict future in
 ## Setup & Usage
 
 ### Prerequisites
-- macOS (Apple Silicon) / Linux
-- Python 3.10+
-- Node.js 18+ (for Web)
+- Docker Engine & Docker Compose (Required for bypassing macOS SIP/Sandbox limits)
+- Make
 
-### Quickstart (Data Pipeline)
+### Quickstart (Data Pipeline via Containerization)
+**CRITICAL**: Do not run Python natively. Due to macOS restrictions on SQLite/DuckDB file locks and headless browser automation, all operations must run inside Docker.
 
 ```bash
-# 1. Initialize Environment (Local Libs Strategy)
-# We utilize a local library strategy to maintain strict hermetic environments.
-export PYTHONPATH="$(pwd)/libs:$PYTHONPATH"
+# 1. Build and boot the immutable container environment
+docker compose up -d
 
 # 2. Materialize Features (Populate Feature Store)
-python3 pipeline/src/materialize_features.py
+docker compose exec pipeline bash -c "python src/materialize_features.py"
 
 # 3. Train Risk Model
-python3 pipeline/src/train_model.py
+docker compose exec pipeline bash -c "python src/train_model.py"
 
-# 4. Audit Population Coverage
-python3 pipeline/scripts/population_audit.py
+# 4. Run E2E Playwright Suite (Without host caching EPERM blocks)
+docker compose run e2e
 ```
+*Alternatively, use the provided `Makefile` (e.g., `make pipeline`, `make test-e2e`) for streamlined aliases.*
 
 ---
 

@@ -1,29 +1,35 @@
-.PHONY: setup shell pipeline test clean
+.PHONY: up down pipeline web e2e shell-pipeline check
 
-setup:
-	@mkdir -p .docker_buildx
-	BUILDX_CONFIG=$$(pwd)/.docker_buildx docker-compose build
+# -----------------------------------------------------------------------------
+# CORE COMMANDS (IMMUTABLE EXECUTION ONLY)
+# -----------------------------------------------------------------------------
 
-shell:
-	docker-compose run --rm pipeline /bin/bash
+up:
+	docker compose up -d
 
-# Run the full pipeline inside the container
-pipeline:
-	docker-compose run --rm pipeline python3 run_pipeline.py
+down:
+	docker compose down
 
-# Run tests inside the container
-test:
-	docker-compose run --rm pipeline pytest tests/
+shell-pipeline:
+	docker compose exec pipeline bash
 
-validate:
-	docker-compose run --rm pipeline python pipeline/src/dead_money_validator.py
+# -----------------------------------------------------------------------------
+# PIPELINE EXECUTION
+# -----------------------------------------------------------------------------
 
-clean:
-	docker-compose down -v
+pipeline-scrape:
+	docker compose exec pipeline bash -c "python src/spotrac_scraper_v2.py team-cap 2024"
 
-# Deploy local: Run pipeline -> Copy Data -> Ready for Web Dev
-deploy-local: pipeline
-	@echo "Deploying data to web app..."
-	@mkdir -p web/data
-	@cp data/roster_dump.json web/data/roster_dump.json
-	@echo "✅ Data Deployed to web/data/roster_dump.json"
+pipeline-train:
+	docker compose exec pipeline bash -c "python src/train_model.py"
+
+# -----------------------------------------------------------------------------
+# WEB & TESTING
+# -----------------------------------------------------------------------------
+
+web-logs:
+	docker compose logs -f web
+
+test-e2e:
+	@echo "Running Playwright E2E suite natively inside Ubuntu container..."
+	docker compose run --rm e2e

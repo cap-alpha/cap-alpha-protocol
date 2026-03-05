@@ -1,0 +1,7 @@
+.env.local
+.env
+.playwright_tmp
+.playwright_browsers
+.git
+node_modules
+.next

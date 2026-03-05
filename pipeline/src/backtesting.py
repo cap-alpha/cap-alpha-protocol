@@ -141,4 +141,8 @@ class WalkForwardValidator:
         with open(report_path, "w") as f:
             f.write(report)
             
+        print("\n[DEBUG] BACKTEST METRICS (from memory):")
+        print(report)
+        print("=========================================\n")
+            
         logger.info(f"✓ Backtest report generated: {report_path}")

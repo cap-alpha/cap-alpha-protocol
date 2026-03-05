@@ -41,18 +41,23 @@ We track **Technical Maturity** (Productionization) alongside **Business Maturit
 | **S1 (Now)** | **"The Hook"** | **Localhost/Preview**: Next.js App functional on Vercel (Stateless). | **Validation**: 10 users verify the "Cut Calculator" works via DM/Twitter. |
 | **S2 (Next)** | **"Persistence"** | **Vercel Postgres + Clerk Webhooks**: Robust user data storage. | **First Dollar**: Gate "Save Scenario" behind Login. Convert 1 user. |
 | **S3 (Future)** | **"Scale"** | **Motherduck + Caching**: Sub-100ms queries for Roster Data. | **Micro-SaaS**: 100 Active Users. Marketing push on Reddit. |
-| **S4 (Future)** | **"Enterprise"** | **CI/CD + Testing**: 95% Coverage, auto-deploy. | **B2B License**: Sell "Clean Exports" to 1 Podcaster ($50/mo). |
+| **S4 (Future)** | **"Hardening"** | **CI/CD + Testing**: Stabilize Airflow ingestion. 100% Playwright UAT pass rate. | **Trust**: Prove system reliability to early adopters. |
+| **S5 (Future)** | **"Model Integrity"** | **Validation**: Fix XGBoost weekly granularity collapse. Walk-forward testing. | **B2B License**: Sell "Clean Exports" to 1 Podcaster ($50/mo). |
 
 ---
 
-## 🏗️ Phase 3: Infrastructure Hardening (Next Sprint)
-**Theme**: "Persistence & Scale"
+## 🏗️ Phase 3: Infrastructure Hardening (Next Sprints)
+**Theme**: "Persistence, Scale, & Stability"
 - [ ] **Data Persistence**: Migrate User Data (Scenarios, Saved Cuts) to **Vercel Postgres**.
 - [ ] **ORM Layer**: Implement **Drizzle ORM** for type-safe database interactions.
 - [ ] **Sync Engine**: Clerk Webhooks -> Postgres synchronization.
+- [ ] **Pipeline Stability**: Debug and resolve Airflow `ingest_market_data` hanging issues.
+- [x] **Testing Rigour**: Fix Playwright tests for Authentication and Data Assertions.
 
-## 🧪 Phase 4: Advanced Simulation (Future)
-**Theme**: "The War Room"
+## 🧠 Phase 4: Model Integrity & Advanced Simulation (Sprint 5+)
+**Theme**: "The War Room & The Oracle"
+- [ ] **Model Repair**: Investigate and fix XGBoost R-squared collapse on weekly granularity.
+- [ ] **Validation**: Re-establish rigorous walk-forward validation (2019-2023).
 - [ ] **Trade Machine**: Multi-Team Trade Simulator with Dead Cap logic.
 - [ ] **Scenario Saving**: "Save this Roster" feature for GMs.
 - [ ] **Team Builder**: Drag-and-drop Roster Construction.

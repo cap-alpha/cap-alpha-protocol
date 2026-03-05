@@ -449,7 +449,10 @@ class SpotracScraper:
             from webdriver_manager.chrome import ChromeDriverManager
             self.driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=options)
             
-        logger.info("✓ Selenium driver initialized")
+        # VITAL FIX for Airflow hanging: Force a hard timeout on page load
+        self.driver.set_page_load_timeout(45)
+            
+        logger.info("✓ Selenium driver initialized with 45s page load timeout")
         
     def _ensure_driver(self):
         """Check if driver is alive, if not re-initialize it."""

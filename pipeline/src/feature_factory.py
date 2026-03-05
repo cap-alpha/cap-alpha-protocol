@@ -72,13 +72,27 @@ class FeatureFactory:
         df['injury_gap_weeks'] = (df['abs_week'] - df.groupby('player_name')['abs_week'].shift(1) - 1).clip(lower=0).fillna(0)
         df.drop(columns=['abs_week'], inplace=True)
         
-        lag_cols = {}
-        for col in ['total_pass_yds', 'total_rush_yds', 'total_rec_yds', 'total_tds', 'games_played', 'total_sacks', 'total_int']:
-            for lag in [1, 2, 3]:
-                lag_cols[f'{col}_lag_{lag}'] = df.groupby('player_name')[col].shift(lag)
+        # FIXED: To get true YEARLY lags on a weekly dataframe, we must aggregate to the year, 
+        # shift those years, and join back. Otherwise a shift(1) just gives us "last week's" data.
+        lag_cols = ['total_pass_yds', 'total_rush_yds', 'total_rec_yds', 'total_tds', 'games_played', 'total_sacks', 'total_int']
         
-        if lag_cols:
-            df = pd.concat([df, pd.DataFrame(lag_cols, index=df.index)], axis=1)
+        # 1. Aggregate to the Year
+        yearly_df = df.groupby(['player_name', 'year'])[lag_cols].sum().reset_index()
+        
+        # 2. Sort to guarantee chronological shift
+        yearly_df = yearly_df.sort_values(['player_name', 'year'])
+        
+        # 3. Create the lags at the yearly level
+        yearly_lags = pd.DataFrame(index=yearly_df.index)
+        for col in lag_cols:
+            for lag in [1, 2, 3]:
+                lag_name = f'{col}_lag_{lag}'
+                yearly_lags[lag_name] = yearly_df.groupby('player_name')[col].shift(lag)
+        
+        yearly_df = pd.concat([yearly_df[['player_name', 'year']], yearly_lags], axis=1)
+        
+        # 4. Join back to the weekly dataframe
+        df = pd.merge(df, yearly_df, on=['player_name', 'year'], how='left')
         
         # POINT-IN-TIME CORRECTNESS VALIDATION (Principal MLE Standard)
         # Assert that lag features do not contain future data

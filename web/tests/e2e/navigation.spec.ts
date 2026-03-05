@@ -2,9 +2,15 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Core Navigation & Layout', () => {
 
+    test.beforeEach(async ({ page }) => {
+        await page.addInitScript(() => {
+            window.localStorage.setItem('has_skipped_onboarding', 'true');
+        });
+    });
+
     test('Homepage Loads with Correct Branding', async ({ page }) => {
         // Navigate to home
-        await page.goto('/');
+        await page.goto('/dashboard');
 
         // Verify Title
         await expect(page).toHaveTitle(/Cap Alpha Protocol/);
@@ -16,11 +22,11 @@ test.describe('Core Navigation & Layout', () => {
     });
 
     test('KPI Cards Render Correctly', async ({ page }) => {
-        await page.goto('/');
+        await page.goto('/dashboard');
 
-        // Verify presence of 4 KPI cards
+        // Verify presence of 5 KPI cards
         const kpiCards = page.locator('.grid.gap-4 .bg-card');
-        await expect(kpiCards).toHaveCount(4);
+        await expect(kpiCards).toHaveCount(5);
 
         // Verify specific KPI labels
         await expect(page.getByText('Total Cap Liabilities')).toBeVisible();
@@ -30,7 +36,7 @@ test.describe('Core Navigation & Layout', () => {
     });
 
     test('Tab Navigation Works', async ({ page }) => {
-        await page.goto('/');
+        await page.goto('/dashboard');
 
         // Default Tab should remain "Portfolio Library"
         const portfolioTab = page.getByRole('tab', { name: 'Portfolio Library' });
@@ -48,13 +54,19 @@ test.describe('Core Navigation & Layout', () => {
     });
 
     test('Auth Elements for Signed Out User', async ({ page }) => {
-        await page.goto('/');
+        await page.goto('/dashboard');
 
-        // Verify "Sign In" button is visible
-        const signInBtn = page.getByRole('button', { name: 'Sign In' });
+        // Switch to Trade tab to expose the Paywall component
+        await page.getByRole('tab', { name: 'The War Room (Trade)' }).click();
+
+        // Verify Paywall blocks access
+        await expect(page.getByText('PREMIUM INTELLIGENCE REQUIRED')).toBeVisible();
+
+        // Verify "Unlock The War Room" CTA exists
+        const signInBtn = page.getByRole('button', { name: /Unlock/i });
         await expect(signInBtn).toBeVisible();
 
-        // Verify "Market: Open" badge
+        // Verify "Market: Open" badge still exists globally
         await expect(page.getByText('MARKET: OPEN')).toBeVisible();
     });
 

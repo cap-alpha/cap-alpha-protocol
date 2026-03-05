@@ -1,86 +1,51 @@
 version: '3.8'
 
-x-airflow-common: &x-airflow-common
-  build:
-    context: .
-    dockerfile: pipeline/Dockerfile
-  environment:
-    - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-    - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-    - AIRFLOW__CORE__FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
-    - AIRFLOW__CORE__LOAD_EXAMPLES=False
-    - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres/airflow
-    - PYTHONPATH=/app/pipeline:/app
-    - DB_PATH=/app/data/duckdb/nfl_production.db
-  volumes:
-    - ./pipeline/dags:/opt/airflow/dags
-    - ./pipeline/logs:/opt/airflow/logs
-    - ./pipeline/plugins:/opt/airflow/plugins
-    - ./pipeline:/app/pipeline
-    - ./data:/app/data
-    - ./contracts:/app/contracts
-
 services:
-  postgres:
-    image: postgres:13
-    environment:
-      - POSTGRES_USER=airflow
-      - POSTGRES_PASSWORD=airflow
-      - POSTGRES_DB=airflow
+  pipeline:
+    image: python:3.11-slim
+    container_name: nfl_pipeline
     volumes:
-      - postgres-db-volume:/var/lib/postgresql/data
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "airflow" ]
-      interval: 5s
-      retries: 5
+      - ./pipeline:/app/pipeline
+      - ./scripts:/app/scripts
+      # Native duckdb disk persistence managed inside the container
+      - duckdb_volume:/app/pipeline/data/duckdb
+    environment:
+      - PIPELINE_YEAR=2025
+      - PYTHONPATH=/app/pipeline
+    working_dir: /app
+    # Run apt-get and pip install on boot.
+    command: >
+      bash -c "apt-get update && apt-get install -y chromium chromium-driver git build-essential &&  pip install --no-cache-dir -r pipeline/requirements.txt &&  tail -f /dev/null"
 
-  airflow-init:
-    <<: *x-airflow-common
-    command: version
-    entrypoint:
-      - /bin/bash
-      - -c
-      - |
-        # Wait for postgres
-        while ! nc -z postgres 5432; do   
-          sleep 1
-        done
-        airflow db init && \
-        airflow users create \
-          --username admin \
-          --firstname Admin \
-          --lastname User \
-          --role Admin \
-          --email admin@example.com \
-          --password admin
-    depends_on:
-      postgres:
-        condition: service_healthy
-
-  airflow-webserver:
-    <<: *x-airflow-common
-    command: airflow webserver
+  web:
+    image: node:20
+    container_name: nfl_web
+    working_dir: /app
     ports:
-      - "8080:8080"
-    healthcheck:
-      test: [ "CMD", "curl", "--fail", "http://localhost:8080/health" ]
-      interval: 30s
-      timeout: 30s
-      retries: 5
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
+      - "3000:3000"
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    command: bash -c "npm install && npm run dev"
 
-  airflow-scheduler:
-    <<: *x-airflow-common
-    command: airflow scheduler
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.41.2-jammy
+    container_name: nfl_e2e
+    # Fuse network interfaces so Playwright accesses Next.js natively via localhost
+    network_mode: "service:web"
+    volumes:
+      - ./web:/e2e
+      - /e2e/node_modules
+    working_dir: /e2e
+    environment:
+      - CI=1
+    command: bash -c "apt-get update && apt-get install -y make g++ && npm install && npx playwright test"
     depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-      postgres:
-        condition: service_healthy
+      - web
 
 volumes:
-  postgres-db-volume:
+  duckdb_volume:

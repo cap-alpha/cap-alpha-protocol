@@ -1,43 +1,23 @@
-FROM python:3.10-slim
+FROM python:3.11-slim
 
-# Set working directory
-WORKDIR /app
-
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    make \
+RUN apt-get update && apt-get install -y \
     chromium \
     chromium-driver \
+    git \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Chrome environment variables
+WORKDIR /app
+
+COPY pipeline/requirements.txt pipeline/requirements.txt
+RUN pip install --no-cache-dir -r pipeline/requirements.txt
+
 ENV CHROME_BIN=/usr/bin/chromium
 ENV CHROMEDRIVER_BIN=/usr/bin/chromium-driver
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app/pipeline
 
-# Copy requirements from pipeline dir
-COPY pipeline/requirements.txt .
+COPY pipeline/ pipeline/
+COPY scripts/ scripts/
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt && \
-    pip install apache-airflow==2.10.4 --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.10.txt"
-
-# Copy source code from pipeline dir
-COPY pipeline/ .
-
-# Copy contracts
-COPY contracts /app/contracts
-
-# Copy tests
-COPY tests /app/tests
-
-# Create non-root user for security
-RUN useradd -m appuser && chown -R appuser /app
-# Ensure volumes are writable by appuser
-RUN mkdir -p /app/models /app/data && chown -R appuser /app/models /app/data
-
-USER appuser
-
-# Default command
 CMD ["tail", "-f", "/dev/null"]

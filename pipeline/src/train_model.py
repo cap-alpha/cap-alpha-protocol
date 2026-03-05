@@ -44,7 +44,7 @@ class RiskModeler:
         from src.feature_factory import FeatureFactory
         
         logger.info("Generating hyperscale feature matrix via FeatureFactory...")
-        factory = FeatureFactory(self.db.db_path)
+        factory = FeatureFactory(db_manager=self.db)
         df = factory.generate_hyperscale_matrix()
         
         if not self.read_only:

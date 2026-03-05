@@ -23,6 +23,10 @@ pipeline-scrape:
 pipeline-train:
 	docker compose exec pipeline bash -c "python pipeline/src/train_model.py"
 
+pipeline-validate:
+	@echo "Running Pipeline Validation Suite (Target Leakage Diagnostics)..."
+	docker compose exec pipeline bash -c "python pipeline/scripts/check_target_leakage.py"
+
 # -----------------------------------------------------------------------------
 # WEB & TESTING
 # -----------------------------------------------------------------------------

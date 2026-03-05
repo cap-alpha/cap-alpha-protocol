@@ -13,8 +13,11 @@ from src.config_loader import get_db_path
 DB_PATH = get_db_path()
 
 class FeatureFactory:
-    def __init__(self, db_path=DB_PATH):
-        self.db = DBManager(db_path)
+    def __init__(self, db_path=DB_PATH, db_manager=None):
+        if db_manager:
+            self.db = db_manager
+        else:
+            self.db = DBManager(db_path)
         self.con = self.db.con
 
     def _validate_point_in_time(self, df):

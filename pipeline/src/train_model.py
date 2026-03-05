@@ -220,43 +220,33 @@ class RiskModeler:
             return
 
         try:
-            logger.info("Generating SHAP Explanations for Rationale (Top 3 Factors)...")
+            logger.info("Generating SHAP Explanations for Rationale (Top 3 Factors) on a memory-safe 10% sample...")
+            
+            # MEMORY FIX: 315 features * 11000 rows OOMs the container during SHAP expansion. Sample it.
+            sample_size = min(len(X), max(int(len(X) * 0.1), 100))
+            X_sample = X.sample(n=sample_size, random_state=42)
+            
             explainer = shap.TreeExplainer(model)
-            # Use X (full dataset)
-            shap_values = explainer.shap_values(X)
+            shap_values = explainer.shap_values(X_sample)
             
             explanations = []
             all_shap_scores = []
-            feature_names = X.columns.tolist()
+            feature_names = X_sample.columns.tolist()
             
             # Efficiently format strings & capture all data
-            import json
-            for i, row_values in enumerate(shap_values):
-                # filter out 0s for text, but keep for JSON?
-                # User asked for "ALL the scores", so let's keep even small ones?
-                # Actually, 0 means no contribution. but let's store non-zero.
-                contribs = [(feature_names[j], float(val)) for j, val in enumerate(row_values)]
-                
-                # 1. For Text Rationale (Top 3)
-                # Sort by abs value
-                contribs.sort(key=lambda x: abs(x[1]), reverse=True)
-                top_3 = contribs[:3]
-                factors = ", ".join([f"{name} ({val:+.2f})" for name, val in top_3])
-                explanations.append(factors)
-                
-                # 2. For Full Data Storage (JSON)
-                # Store as dict: {feature: score}
-                all_data = {name: val for name, val in contribs if val != 0}
-                all_shap_scores.append(json.dumps(all_data))
-                
+            # Align sample back to original metadata shape (leave NaN for un-sampled rows)
             metadata_copy = metadata.copy()
-            metadata_copy['top_factors'] = explanations
-            metadata_copy['all_factors'] = all_shap_scores
+            metadata_copy['top_factors'] = None
+            metadata_copy['all_factors'] = None
+            
+            # Map back exactly to the index
+            metadata_copy.loc[X_sample.index, 'top_factors'] = explanations
+            metadata_copy.loc[X_sample.index, 'all_factors'] = all_shap_scores
             
             if self.read_only:
                 logger.info("Database is read-only. Skipping persistence to 'prediction_explanations' table.")
             else:
-                self.db.execute("CREATE OR REPLACE TABLE prediction_explanations AS SELECT player_name, year, top_factors, all_factors FROM metadata_copy", {"metadata_copy": metadata_copy})
+                self.db.execute("CREATE OR REPLACE TABLE prediction_explanations AS SELECT player_name, year, top_factors, all_factors FROM metadata_copy WHERE top_factors IS NOT NULL", {"metadata_copy": metadata_copy})
                 logger.info("✓ Explanations persisted to 'prediction_explanations' (Top 3 + Full JSON).")
             
         except Exception as e:

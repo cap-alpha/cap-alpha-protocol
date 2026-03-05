@@ -24,8 +24,13 @@ class DBManager:
             # Check if we are using MotherDuck
             if self.db_path.startswith("md:"):
                 logger.info(f"Connecting to MotherDuck/DuckDB at {self.db_path}")
-                # Connect to base MotherDuck to ensure DB exists
-                self.con = duckdb.connect("md:", read_only=self.read_only)
+                import os
+                # Ensure local extension path exists to bypass macOS/Docker sandbox write permissions
+                local_ext_dir = os.path.join(os.getcwd(), ".duckdb_local")
+                os.makedirs(local_ext_dir, exist_ok=True)
+                
+                # Connect to base MotherDuck passing the safe extension directory
+                self.con = duckdb.connect("md:", read_only=self.read_only, config={'extension_directory': local_ext_dir})
                 
                 # Extract db name if specified (e.g., md:nfl_dead_money)
                 parts = self.db_path.split(":")

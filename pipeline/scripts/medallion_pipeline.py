@@ -368,18 +368,20 @@ class GoldLayer:
             SELECT 
                 s.*,
                 p.week as week,
-                COALESCE(p.games_played, 0) as games_played,
-                CAST(COALESCE(p.games_played, 0) AS FLOAT) / 17.0 as availability_rating,
-                COALESCE(p.total_pass_yds, 0) as total_pass_yds,
-                COALESCE(p.total_rush_yds, 0) as total_rush_yds,
-                COALESCE(p.total_rec_yds, 0) as total_rec_yds,
-                COALESCE(p.total_tds, 0) as total_tds,
-                -- Defensive Stats (if present in PFR Logs)
-                COALESCE(p.total_sacks, 0) as total_sacks,
-                COALESCE(p.total_int, 0) as total_int,
-
+                -- YTD Aggregation Window Functions
+                COALESCE(SUM(p.games_played) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as games_played,
+                CAST(COALESCE(SUM(p.games_played) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) AS FLOAT) / 17.0 as availability_rating,
+                COALESCE(SUM(p.total_pass_yds) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_pass_yds,
+                COALESCE(SUM(p.total_rush_yds) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_rush_yds,
+                COALESCE(SUM(p.total_rec_yds) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_rec_yds,
+                COALESCE(SUM(p.total_tds) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_tds,
+                COALESCE(SUM(p.total_sacks) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_sacks,
+                COALESCE(SUM(p.total_int) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_int,
                 COALESCE(pen.total_penalty_count, 0) as total_penalty_count,
                 COALESCE(pen.total_penalty_yards, 0) as total_penalty_yards,
+                -- Elite Positional Flags for False Positive Suppression
+                CASE WHEN s.position = 'QB' THEN 1 ELSE 0 END as is_qb,
+                CASE WHEN s.cap_hit_millions >= 25.0 THEN 1 ELSE 0 END as is_elite_tier,
                 m.college,
                 m.draft_round,
                 m.draft_pick,
@@ -393,21 +395,26 @@ class GoldLayer:
         )
         SELECT 
             f.*,
-            GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0 as potential_dead_cap_millions,
-            GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0 as edce_risk,
+            -- Dynamic YTD Cap Hurdles based on Week Progression (1-17)
+            (GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week as potential_dead_cap_millions,
+            (GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week as edce_risk,
+            
+            -- Fair Market Value against YTD stats
             ( 
                 (COALESCE(f.total_tds,0) * 2.0 + (COALESCE(f.total_pass_yds,0) + COALESCE(f.total_rush_yds,0) + COALESCE(f.total_rec_yds,0)) / 100.0) * 1.8 
                 + (COALESCE(f.total_sacks,0) * 4.0) + (COALESCE(f.total_int,0) * 5.0) 
               - (COALESCE(f.total_penalty_yards,0) / 10.0) 
             ) as fair_market_value,
+            
+            -- True Bust Variance (YTD Performance vs YTD Cap)
             CASE 
                 WHEN (
                     (COALESCE(f.total_tds,0) * 2.0 + (COALESCE(f.total_pass_yds,0) + COALESCE(f.total_rush_yds,0) + COALESCE(f.total_rec_yds,0)) / 100.0) * 1.8 
                     + (COALESCE(f.total_sacks,0) * 4.0) + (COALESCE(f.total_int,0) * 5.0) 
                   - (COALESCE(f.total_penalty_yards,0) / 10.0) 
-                ) / 5.0 > GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0 THEN 0.0
+                ) / 5.0 > (GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week THEN 0.0
                 ELSE 
-                    (GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0)
+                    ((GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week)
                     - 
                     (( 
                         (COALESCE(f.total_tds,0) * 2.0 + (COALESCE(f.total_pass_yds,0) + COALESCE(f.total_rush_yds,0) + COALESCE(f.total_rec_yds,0)) / 100.0) * 1.8 

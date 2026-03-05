@@ -7,6 +7,7 @@ services:
     volumes:
       - ./pipeline:/app/pipeline
       - ./scripts:/app/scripts
+      - ./.duckdb_local:/app/.duckdb_local
     environment:
       - PIPELINE_YEAR=2025
       - PYTHONPATH=/app/pipeline

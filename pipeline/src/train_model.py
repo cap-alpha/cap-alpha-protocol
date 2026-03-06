@@ -40,17 +40,20 @@ class RiskModeler:
         self.db = DBManager(db_path, read_only=self.read_only)
         self.con = self.db.con
 
-    def prepare_data(self, target_col='true_bust_variance'):
+    def prepare_data(self, target_col='true_bust_variance', skip_persist=False):
         from src.feature_factory import FeatureFactory
         
         logger.info("Generating hyperscale feature matrix via FeatureFactory...")
         factory = FeatureFactory(db_manager=self.db)
         df = factory.generate_hyperscale_matrix()
         
-        if not self.read_only:
+        if not self.read_only and not skip_persist:
+            import time
+            start_time = time.time()
             self.con.register('df_view', df)
             self.con.execute("CREATE OR REPLACE TABLE staging_feature_matrix AS SELECT * FROM df_view")
-            logger.info("Persisted staging_feature_matrix to DuckDB.")
+            elapsed = time.time() - start_time
+            logger.info(f"Persisted staging_feature_matrix to DuckDB in {elapsed:.2f} seconds.")
             
         df = df[df['year'].between(2015, 2025)]
         
@@ -87,6 +90,11 @@ class RiskModeler:
             'total_penalty_count',
             'availability_rating',
             'games_played',
+            # ==== SPRINT 6: TARGET CROSS-CONTAMINATION & LEAKAGE EXCLUSION ====
+            'ytd_performance_value',
+            'true_bust_variance',
+            'efficiency_ratio',
+            'is_bust_binary',
             # ==== SPRINT 5: FINANCIAL DETERMINANT EXCLUSION ====
             # Remove the base financial anchor to prevent deterministic formula solving
             'cap_hit_millions',
@@ -257,25 +265,81 @@ class RiskModeler:
         except Exception as e:
             logger.warning(f"Failed to save explanations: {e}")
 
-if __name__ == "__main__":
+def main():
     import argparse
+    from sklearn.metrics import accuracy_score, f1_score
     parser = argparse.ArgumentParser()
     parser.add_argument("--read-only", action="store_true", help="Run in read-only mode (no DB writes)")
     args = parser.parse_args()
     
     modeler = RiskModeler(read_only=args.read_only)
-    X, y, metadata = modeler.prepare_data()
-    model, X_test, backtest_results = modeler.train_xgboost(X, y, metadata)
     
-    # Validation against config thresholds using AVERAGE backtest performance
-    avg_rmse = backtest_results['rmse'].mean()
-    avg_r2 = backtest_results['r2'].mean()
+    targets = ['true_bust_variance', 'efficiency_ratio', 'is_bust_binary']
+    print("\n" + "="*50)
+    print("🚀 SPRINT 6: MULTI-TARGET HYPER-EVALUATION")
+    print("="*50)
     
-    metrics = {
-        "rmse": float(avg_rmse),
-        "r2": float(avg_r2)
-    }
-    
-    modeler.generate_shap_report(model, X_test)
-    modeler.save_predictions(model, X, metadata, metrics)
-    modeler.save_explanations(model, X, metadata)
+    is_first = True
+    for target in targets:
+        print(f"\n--- Evaluating Target: {target} ---")
+        try:
+            X, y, metadata = modeler.prepare_data(target_col=target, skip_persist=not is_first)
+            is_first = False
+            
+            # 1. Run Backtest First
+            from src.backtesting import WalkForwardValidator
+            validator = WalkForwardValidator()
+            
+            # Switch metric evaluation and model type for Classification
+            if target == 'is_bust_binary':
+                # Pass classifier boolean to walk-forward validator so it knows how to score
+                backtest_results, predictions_df = validator.run_backtest(X, y, metadata, is_classification=True)
+            else:
+                backtest_results, predictions_df = validator.run_backtest(X, y, metadata, is_classification=False)
+                
+            validator.generate_report(backtest_results)
+            
+            # 2. Train Final Production Model on ALL History
+            try:
+                import yaml
+                config_path = "pipeline/config/ml_config.yaml"
+                if not Path(config_path).exists():
+                     config_path = "config/ml_config.yaml"
+                with open(config_path, "r") as f:
+                     config = yaml.safe_load(f)
+                params = config["models"]["xgboost"]["params"]
+            except Exception as e:
+                 logger.warning(f"Could not load config: {e}. Using defaults.")
+                 params = {'n_estimators': 100, 'max_depth': 4, 'learning_rate': 0.1}
+            
+            # Instantiate Model
+            if target == 'is_bust_binary':
+                model = xgb.XGBClassifier(**params)
+            else:
+                model = xgb.XGBRegressor(**params)
+                
+            model.fit(X, y, verbose=False)
+            
+            latest_year = metadata['year'].max()
+            test_mask = metadata['year'] == latest_year
+            X_test_proxy = X[test_mask]
+            
+            # Collect appropriate metrics
+            if target == 'is_bust_binary':
+                avg_metric_1 = backtest_results['accuracy'].mean()
+                avg_metric_2 = backtest_results['f1_score'].mean()
+                metrics = {"accuracy": float(avg_metric_1), "f1_score": float(avg_metric_2)}
+                print(f"✅ FINAL {target} SCORES -> Accuracy: {avg_metric_1:.4f} | F1: {avg_metric_2:.4f}")
+            else:
+                avg_metric_1 = backtest_results['rmse'].mean()
+                avg_metric_2 = backtest_results['r2'].mean()
+                metrics = {"rmse": float(avg_metric_1), "r2": float(avg_metric_2)}
+                print(f"✅ FINAL {target} SCORES -> RMSE: {avg_metric_1:.4f} | R-Squared: {avg_metric_2:.4f}")
+            
+            modeler.save_predictions(model, X, metadata, metrics)
+            
+        except Exception as e:
+            logger.error(f"Failed to evaluate target {target}: {e}")
+
+if __name__ == "__main__":
+    main()

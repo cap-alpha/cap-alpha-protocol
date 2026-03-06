@@ -19,11 +19,11 @@ class WalkForwardValidator:
             self.config = yaml.safe_load(f)
         self.params = self.config["models"]["xgboost"]["params"]
 
-    def run_backtest(self, X, y, metadata, start_year=2018):
+    def run_backtest(self, X, y, metadata, start_year=2018, is_classification=False):
         """
         Executes a rolling walk-forward validation.
         """
-        logger.info(f"⏳ Starting Walk-Forward Validation (Start Test Year: {start_year})...")
+        logger.info(f"⏳ Starting Walk-Forward Validation (Start Test Year: {start_year}, Classification: {is_classification})...")
         
         # Ensure metadata index aligns with X/y
         metadata = metadata.loc[X.index].copy()
@@ -56,25 +56,42 @@ class WalkForwardValidator:
                 continue
             
             # 2. Train Model (Fresh for each fold)
-            model = xgb.XGBRegressor(**self.params)
+            if is_classification:
+                model = xgb.XGBClassifier(**self.params)
+            else:
+                model = xgb.XGBRegressor(**self.params)
             model.fit(X_train, y_train, verbose=False)
             
             # 3. Evaluate
             preds = model.predict(X_test)
-            rmse = np.sqrt(mean_squared_error(y_test, preds))
-            r2 = r2_score(y_test, preds)
             
-            y_test_binary = (y_test >= 10.0).astype(int)
-            preds_binary = (preds >= 10.0).astype(int)
-            f1 = f1_score(y_test_binary, preds_binary, zero_division=0)
+            if is_classification:
+                from sklearn.metrics import accuracy_score
+                acc = accuracy_score(y_test, preds)
+                f1 = f1_score(y_test, preds, zero_division=0)
+                logger.info(f"  📅 Test Year {test_year}: Accuracy={acc:.4f}, F1={f1:.4f} (Train Size: {len(X_train)})")
+                res_metrics = {
+                    "accuracy": float(acc),
+                    "f1_score": float(f1)
+                }
+            else:
+                rmse = np.sqrt(mean_squared_error(y_test, preds))
+                r2 = r2_score(y_test, preds)
+                
+                # Arbitrary binary f1 for regression output tracing
+                y_test_binary = (y_test >= 10.0).astype(int)
+                preds_binary = (preds >= 10.0).astype(int)
+                f1 = f1_score(y_test_binary, preds_binary, zero_division=0)
+                
+                logger.info(f"  📅 Test Year {test_year}: RMSE={rmse:.4f}, R2={r2:.4f}, F1={f1:.4f} (Train Size: {len(X_train)})")
+                res_metrics = {
+                    "rmse": float(rmse),
+                    "r2": float(r2),
+                    "f1": float(f1)
+                }
             
-            logger.info(f"  📅 Test Year {test_year}: RMSE={rmse:.4f}, R2={r2:.4f}, F1={f1:.4f} (Train Size: {len(X_train)})")
-            
-            results.append({
+            fold_results = {
                 "test_year": int(test_year),
-                "rmse": float(rmse),
-                "r2": float(r2),
-                "f1": float(f1),
                 "train_size": len(X_train),
                 "test_size": len(X_test),
                 "predictions": pd.DataFrame({
@@ -85,11 +102,13 @@ class WalkForwardValidator:
                     "actual": y_test,
                     "predicted": preds
                 })
-            })
+            }
+            fold_results.update(res_metrics)
+            results.append(fold_results)
         
         if not results:
             logger.error("❌ No valid backtest folds were produced!")
-            return pd.DataFrame(columns=["test_year", "rmse", "r2", "train_size", "test_size"]), pd.DataFrame()
+            return pd.DataFrame(columns=["test_year", "rmse", "r2", "accuracy", "f1_score", "train_size", "test_size"]), pd.DataFrame()
             
         # Compile all predictions into a single DataFrame
         all_preds = []
@@ -106,7 +125,7 @@ class WalkForwardValidator:
     def generate_report(self, results_df, report_path="reports/backtest_results.md"):
         if results_df.empty:
             logger.warning("⚠️ No backtest results to report.")
-            report = """# Walk-Forward Validation Report
+            report = f"""# Walk-Forward Validation Report
 **Generated:** {pd.Timestamp.now()}
 
 ## Summary
@@ -117,11 +136,32 @@ class WalkForwardValidator:
                 f.write(report)
             return
             
-        avg_rmse = results_df['rmse'].mean()
-        avg_r2 = results_df['r2'].mean()
-        avg_f1 = results_df['f1'].mean()
+        is_classification = 'accuracy' in results_df.columns
         
-        report = f"""# Walk-Forward Validation Report
+        if is_classification:
+            avg_acc = results_df['accuracy'].mean()
+            avg_f1 = results_df['f1_score'].mean()
+            
+            report = f"""# Walk-Forward Validation Report
+**Generated:** {pd.Timestamp.now()}
+
+## Summary
+- **Average Accuracy:** {avg_acc:.4f}
+- **Average F1 Score:** {avg_f1:.4f}
+- **Years Tested:** {results_df['test_year'].min()} - {results_df['test_year'].max()}
+
+## Breakdown by Year
+| Year | Accuracy | F1 | Train Size | Test Size |
+|------|----------|----|------------|-----------|
+"""
+            for _, row in results_df.iterrows():
+                report += f"| {int(row['test_year'])} | {row['accuracy']:.4f} | {row['f1_score']:.4f} | {int(row['train_size'])} | {int(row['test_size'])} |\n"
+        else:
+            avg_rmse = results_df['rmse'].mean()
+            avg_r2 = results_df['r2'].mean()
+            avg_f1 = results_df['f1'].mean()
+            
+            report = f"""# Walk-Forward Validation Report
 **Generated:** {pd.Timestamp.now()}
 
 ## Summary
@@ -134,9 +174,9 @@ class WalkForwardValidator:
 | Year | RMSE | R2 | F1 | Train Size | Test Size |
 |------|------|----|----|------------|-----------|
 """
-        for _, row in results_df.iterrows():
-            report += f"| {int(row['test_year'])} | {row['rmse']:.4f} | {row['r2']:.4f} | {row['f1']:.4f} | {int(row['train_size'])} | {int(row['test_size'])} |\n"
-            
+            for _, row in results_df.iterrows():
+                report += f"| {int(row['test_year'])} | {row['rmse']:.4f} | {row['r2']:.4f} | {row['f1']:.4f} | {int(row['train_size'])} | {int(row['test_size'])} |\n"
+                
         # Write to file
         Path(report_path).parent.mkdir(parents=True, exist_ok=True)
         with open(report_path, "w") as f:

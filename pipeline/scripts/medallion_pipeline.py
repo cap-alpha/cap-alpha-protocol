@@ -404,9 +404,9 @@ class GoldLayer:
                 (COALESCE(f.total_tds,0) * 2.0 + (COALESCE(f.total_pass_yds,0) + COALESCE(f.total_rush_yds,0) + COALESCE(f.total_rec_yds,0)) / 100.0) * 1.8 
                 + (COALESCE(f.total_sacks,0) * 4.0) + (COALESCE(f.total_int,0) * 5.0) 
               - (COALESCE(f.total_penalty_yards,0) / 10.0) 
-            ) as fair_market_value,
+            ) / 5.0 as ytd_performance_value,
             
-            -- True Bust Variance (YTD Performance vs YTD Cap)
+            -- Target A: True Bust Variance (Absolute Dollars)
             CASE 
                 WHEN (
                     (COALESCE(f.total_tds,0) * 2.0 + (COALESCE(f.total_pass_yds,0) + COALESCE(f.total_rush_yds,0) + COALESCE(f.total_rec_yds,0)) / 100.0) * 1.8 
@@ -421,7 +421,39 @@ class GoldLayer:
                         + (COALESCE(f.total_sacks,0) * 4.0) + (COALESCE(f.total_int,0) * 5.0) 
                       - (COALESCE(f.total_penalty_yards,0) / 10.0) 
                     ) / 5.0) 
-            END as true_bust_variance
+            END as true_bust_variance,
+            
+            -- Target B: Dimensionless Efficiency Ratio (YTD Performance / YTD Cap Hurdle)
+            -- Apply LEAST() Winsorization to cap explosive fractions (like backup RBs on minimal deals) at 10.0x ROI
+            CASE 
+                WHEN (GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week <= 0 THEN 1.0
+                ELSE 
+                    LEAST(
+                        ( 
+                            (COALESCE(f.total_tds,0) * 2.0 + (COALESCE(f.total_pass_yds,0) + COALESCE(f.total_rush_yds,0) + COALESCE(f.total_rec_yds,0)) / 100.0) * 1.8 
+                            + (COALESCE(f.total_sacks,0) * 4.0) + (COALESCE(f.total_int,0) * 5.0) 
+                          - (COALESCE(f.total_penalty_yards,0) / 10.0) 
+                        ) / 5.0 
+                        / 
+                        ((GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week)
+                    , 10.0)
+            END as efficiency_ratio,
+            
+            -- Target C: Binary Classification (Bust = 1, Success = 0)
+            -- If their efficiency_ratio is < 0.70, they are producing less than 70% of their contract's expected value
+            CASE 
+                WHEN (GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week <= 0 THEN 0
+                WHEN (
+                        (COALESCE(f.total_tds,0) * 2.0 + (COALESCE(f.total_pass_yds,0) + COALESCE(f.total_rush_yds,0) + COALESCE(f.total_rec_yds,0)) / 100.0) * 1.8 
+                        + (COALESCE(f.total_sacks,0) * 4.0) + (COALESCE(f.total_int,0) * 5.0) 
+                      - (COALESCE(f.total_penalty_yards,0) / 10.0) 
+                    ) / 5.0 
+                    / 
+                    ((GREATEST(COALESCE(sdc.salaries_dead_cap_millions, 0), f.dead_cap_millions, COALESCE(f.signing_bonus_millions, 0) * 2.0) / 17.0) * f.week) < 0.70 
+                THEN 1
+                ELSE 0
+            END as is_bust_binary
+            
         FROM fact_long_fallback f
         LEFT JOIN salary_dead_cap sdc ON LOWER(TRIM(CAST(f.player_name AS VARCHAR))) = LOWER(TRIM(CAST(sdc.player_name AS VARCHAR))) AND f.year = sdc.year AND LOWER(TRIM(CAST(f.team AS VARCHAR))) = LOWER(TRIM(CAST(sdc.team AS VARCHAR)))
         """)

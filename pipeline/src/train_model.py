@@ -86,7 +86,12 @@ class RiskModeler:
             'total_penalty_yards',
             'total_penalty_count',
             'availability_rating',
-            'games_played'
+            'games_played',
+            # ==== SPRINT 5: FINANCIAL DETERMINANT EXCLUSION ====
+            # Remove the base financial anchor to prevent deterministic formula solving
+            'cap_hit_millions',
+            'age_cap_interaction',
+            'td_per_dollar'
         ]
         X = df.drop(columns=[c for c in skip_cols if c in df.columns])
         

@@ -1,6 +1,5 @@
-
 import pytest
-from pipeline.src.win_probability import WinProbabilityModel
+from src.win_probability import WinProbabilityModel
 
 @pytest.fixture
 def model():

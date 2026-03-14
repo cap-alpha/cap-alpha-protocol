@@ -70,3 +70,5 @@ playwright-report/
 # Docker
 docker-compose.override.yml
 .env*
+docker_env.txt
+

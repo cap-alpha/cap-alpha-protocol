@@ -1,5 +1,5 @@
 pandas
-duckdb
+duckdb==1.4.4
 xgboost
 shap
 scikit-learn
@@ -30,3 +30,5 @@ fastapi
 uvicorn
 httpx
 python-multipart
+feedparser
+tabulate

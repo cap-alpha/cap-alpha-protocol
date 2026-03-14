@@ -41,13 +41,22 @@ export function IntelligenceFeed({ playerName, riskScore }: { playerName: string
                             {mockSentiments.map((item, i) => {
                                 const Icon = item.icon;
                                 return (
-                                    <div key={i} className="p-3 bg-slate-950 rounded-md border border-slate-800 flex gap-3">
-                                        <div className="mt-0.5">
-                                            <Icon className={`h-4 w-4 ${item.color}`} />
+                                    <div key={i} className="relative pl-6 pb-6 last:pb-0">
+                                        {/* Timeline connector */}
+                                        {i !== mockSentiments.length - 1 && (
+                                            <div className="absolute left-2.5 top-5 bottom-0 w-px bg-slate-800" />
+                                        )}
+                                        {/* Timeline node */}
+                                        <div className="absolute left-0 top-1.5 h-5 w-5 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center z-10">
+                                            <Icon className={`h-3 w-3 ${item.color}`} />
                                         </div>
-                                        <div>
-                                            <div className="text-xs uppercase font-bold text-slate-500 mb-1">{item.type}</div>
-                                            <div className="text-sm text-slate-300">{item.text}</div>
+                                        {/* Content */}
+                                        <div className="bg-slate-950/50 p-3 rounded-md border border-slate-800">
+                                            <div className="flex justify-between items-center mb-1">
+                                                <div className="text-xs font-bold text-slate-400">{item.type}</div>
+                                                <div className="text-[10px] text-slate-600">Generated 2h ago</div>
+                                            </div>
+                                            <div className="text-sm text-slate-300 leading-relaxed">{item.text}</div>
                                         </div>
                                     </div>
                                 );

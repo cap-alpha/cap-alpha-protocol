@@ -8,10 +8,12 @@ services:
       - ./pipeline:/app/pipeline
       - ./scripts:/app/scripts
       - ./.duckdb_local:/app/.duckdb_local
+      - ./dbt:/app/dbt
     environment:
       - PIPELINE_YEAR=2025
       - PYTHONPATH=/app/pipeline
       - MOTHERDUCK_TOKEN=${MOTHERDUCK_TOKEN}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
     working_dir: /app
     # Run pip install on boot.
     command: >

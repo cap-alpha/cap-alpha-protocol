@@ -24,7 +24,11 @@ class DBManager:
             # Check if we are using MotherDuck
             if self.db_path.startswith("md:"):
                 logger.info(f"Connecting to MotherDuck/DuckDB at {self.db_path}")
-                import os
+                
+                # Check for token strictly
+                if not os.environ.get("MOTHERDUCK_TOKEN"):
+                    raise EnvironmentError("MOTHERDUCK_TOKEN not found in environment. Cloud connectivity required.")
+
                 # Ensure local extension path exists to bypass macOS/Docker sandbox write permissions
                 local_ext_dir = os.path.join(os.getcwd(), ".duckdb_local")
                 os.makedirs(local_ext_dir, exist_ok=True)
@@ -39,6 +43,10 @@ class DBManager:
                     self.con.execute(f"CREATE DATABASE IF NOT EXISTS {db_name}")
                     self.con.execute(f"USE {db_name}")
             else:
+                # Local DuckDB is only permitted if the file explicitly exists and is NOT a MotherDuck path
+                if not os.path.exists(self.db_path) and not self.db_path.startswith("md:"):
+                    raise FileNotFoundError(f"Local DuckDB file not found at {self.db_path} and cloud fallback is disabled.")
+                
                 logger.info(f"Connecting to local DuckDB at {self.db_path} (read_only={self.read_only})")
                 self.con = duckdb.connect(self.db_path, read_only=self.read_only)
         except Exception as e:

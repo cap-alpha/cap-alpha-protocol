@@ -1,8 +1,10 @@
 import React from "react";
-import { getRosterData, getTeamCapSummary } from "../actions";
+import { getRosterData, getTeamCapSummary, getWarRoomData } from "../actions";
 import { RosterGrid } from "@/components/roster-grid";
 import { RosterCard } from "@/components/roster-card";
+import { TeamCard } from "@/components/team-card";
 import { TradeMachine } from "@/components/trade-machine";
+import { WarRoomDashboard } from "@/components/war-room-dashboard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,8 +17,11 @@ import { ProofOfAlphaCarousel } from "@/components/proof-of-alpha-carousel";
 
 export default async function Home({ searchParams }: { searchParams: { search?: string } }) {
     // Get Data (hydrated from JSON with Mock Fallback if needed)
-    const rosterData = await getRosterData();
-    const teamSummary = await getTeamCapSummary();
+    const [rosterData, teamSummary, warRoomData] = await Promise.all([
+        getRosterData(),
+        getTeamCapSummary(),
+        getWarRoomData()
+    ]);
 
     const totalCap = teamSummary.reduce((acc: number, t: any) => acc + t.total_cap, 0);
     const totalRiskCap = teamSummary.reduce((acc: number, t: any) => acc + t.risk_cap, 0);
@@ -88,11 +93,12 @@ export default async function Home({ searchParams }: { searchParams: { search?: 
             <ProofOfAlphaCarousel />
 
             {/* Main Content: Tabs */}
-            <Tabs defaultValue={searchParams?.search ? "grid" : "portfolio"} className="space-y-4">
-                <TabsList className="bg-secondary/50 p-1">
+            <Tabs defaultValue={searchParams?.search ? "grid" : "portfolio"} className="space-y-6">
+                <TabsList className="bg-secondary/50 p-1 flex-wrap">
                     <TabsTrigger value="portfolio" className="px-8 font-mono uppercase">Portfolio Library</TabsTrigger>
+                    <TabsTrigger value="teams" className="px-8 font-mono uppercase">Franchise Directory</TabsTrigger>
                     <TabsTrigger value="grid" className="px-8 font-mono uppercase">Data Grid</TabsTrigger>
-                    <TabsTrigger value="trade" className="px-8 font-mono uppercase">The War Room (Trade)</TabsTrigger>
+                    <TabsTrigger value="trade" className="px-8 font-mono uppercase">Master War Room</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="portfolio" className="space-y-4">
@@ -109,6 +115,14 @@ export default async function Home({ searchParams }: { searchParams: { search?: 
                     )}
                 </TabsContent>
 
+                <TabsContent value="teams" className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        {teamSummary.map((team: any) => (
+                            <TeamCard key={team.team} team={team} />
+                        ))}
+                    </div>
+                </TabsContent>
+
                 <TabsContent value="grid" className="space-y-4">
                     <Card className="bg-card border-border">
                         <CardContent className="p-0">
@@ -117,7 +131,11 @@ export default async function Home({ searchParams }: { searchParams: { search?: 
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="trade" className="space-y-4">
+                <TabsContent value="trade" className="space-y-8">
+                    {/* Publicly visible ROI & Alerts */}
+                    <WarRoomDashboard data={warRoomData} />
+
+                    {/* Restricted Trade Engine */}
                     <SignedIn>
                         <TradeMachine />
                     </SignedIn>
@@ -130,7 +148,7 @@ export default async function Home({ searchParams }: { searchParams: { search?: 
                             </p>
                             <SignInButton mode="modal">
                                 <Button className="bg-emerald-500 hover:bg-emerald-600 text-white text-lg px-8 py-6 rounded-md uppercase tracking-wider font-bold">
-                                    Unlock The War Room
+                                    Unlock Adversarial Trading
                                 </Button>
                             </SignInButton>
                         </Card>

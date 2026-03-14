@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, ShieldAlert, CheckCircle2 } from "lucide-react";
 import Link from "next/link";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     ComposedChart,
     Line,
@@ -23,13 +24,16 @@ import { CutCalculator } from './cut-calculator';
 import { PositionDistributionChart } from './position-distribution-chart';
 import { SaveScenarioButton } from './save-scenario-button';
 import { IntelligenceFeed } from './intelligence-feed';
+import { PlayerTimeline } from './player-timeline';
+import { TimelineEvent } from "@/app/actions";
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
-    distributionData?: any[]; // Loose type for now to avoid circular dependency hell, or define interface
+    distributionData?: any[]; 
+    timeline?: TimelineEvent[];
 }
 
-export default function PlayerDetailView({ player, distributionData = [] }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [] }: PlayerDetailViewProps) {
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -65,10 +69,17 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                         <ArrowLeft className="h-6 w-6 text-slate-400" />
                     </Link>
                     <div>
-                        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
-                            {player.player_name}
-                        </h1>
-                        <p className="text-slate-400 text-lg">{player.position} • {player.team} • {player.year}</p>
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400">
+                                {player.player_name}
+                            </h1>
+                            {player.report_status && (
+                                <Badge variant="outline" className={`border font-semibold tracking-wide ${player.report_status.toUpperCase() === 'OUT' ? 'border-red-500/50 bg-red-500/10 text-red-500' : 'border-amber-500/50 bg-amber-500/10 text-amber-500'}`}>
+                                    {player.report_status.toUpperCase()} • {player.report_primary_injury || 'Undisclosed'}
+                                </Badge>
+                            )}
+                        </div>
+                        <p className="text-slate-400 text-lg mt-1">{player.position} • {player.team} • {player.year}</p>
                     </div>
                 </div>
                 {/* Save Action */}
@@ -234,32 +245,54 @@ export default function PlayerDetailView({ player, distributionData = [] }: Play
                         position={player.position}
                     />
 
-                    {/* Cap Alpha RAG Intelligence Feed (Mocked) */}
-                    <div className="h-[450px]">
-                        <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} />
-                    </div>
+                    {/* Tabbed Intelligence & Ledger */}
+                    <Tabs defaultValue="timeline" className="w-full">
+                        <TabsList className="grid w-full grid-cols-3 bg-slate-900 border border-slate-800">
+                            <TabsTrigger value="timeline" className="data-[state=active]:bg-slate-800 data-[state=active]:text-emerald-400">Event Timeline</TabsTrigger>
+                            <TabsTrigger value="intelligence" className="data-[state=active]:bg-slate-800 data-[state=active]:text-emerald-400">Health Feed</TabsTrigger>
+                            <TabsTrigger value="ledger" className="data-[state=active]:bg-slate-800 data-[state=active]:text-emerald-400">Ledger</TabsTrigger>
+                        </TabsList>
 
-                    {/* Historical Ledger */}
-                    <Card className="bg-zinc-900 border-zinc-800">
-                        <CardHeader>
-                            <CardTitle>Historical Ledger</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="space-y-2">
-                                {history.slice().reverse().slice(0, 5).map((h) => (
-                                    <div key={h.year} className="flex justify-between items-center text-sm p-2 hover:bg-white/5 rounded">
-                                        <span className="font-mono text-zinc-500">{h.year}</span>
-                                        <div className="flex space-x-4">
-                                            <span className="text-zinc-300">${h.actual.toFixed(1)}M</span>
-                                            <span className={h.actual > h.predicted ? "text-red-500" : "text-emerald-500"}>
-                                                {h.actual > h.predicted ? '+' : ''}{(h.actual - h.predicted).toFixed(1)}M
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
+                        <TabsContent value="timeline" className="mt-4">
+                            <Card className="bg-zinc-900 border-zinc-800">
+                                <CardHeader>
+                                    <CardTitle>Chronological Asset Events</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <PlayerTimeline timeline={timeline} />
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+
+                        <TabsContent value="intelligence" className="mt-4">
+                            <div className="h-[450px]">
+                                <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} />
                             </div>
-                        </CardContent>
-                    </Card>
+                        </TabsContent>
+
+                        <TabsContent value="ledger" className="mt-4">
+                            <Card className="bg-zinc-900 border-zinc-800">
+                                <CardHeader>
+                                    <CardTitle>Historical Ledger</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-2">
+                                        {history.slice().reverse().slice(0, 5).map((h) => (
+                                            <div key={h.year} className="flex justify-between items-center text-sm p-2 hover:bg-white/5 rounded">
+                                                <span className="font-mono text-zinc-500">{h.year}</span>
+                                                <div className="flex space-x-4">
+                                                    <span className="text-zinc-300">${h.actual.toFixed(1)}M</span>
+                                                    <span className={h.actual > h.predicted ? "text-red-500" : "text-emerald-500"}>
+                                                        {h.actual > h.predicted ? '+' : ''}{(h.actual - h.predicted).toFixed(1)}M
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        </TabsContent>
+                    </Tabs>
                 </div>
             </div>
         </div>

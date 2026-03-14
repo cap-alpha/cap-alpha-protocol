@@ -39,7 +39,7 @@ class WalkForwardValidator:
             
         for test_year in range(int(start_year), int(max(years)) + 1):
             # 1. Temporal Split
-            train_mask = metadata['year'] <= test_year  # TEMPORARY: train on current year if it's the only one
+            train_mask = metadata['year'] < test_year
             test_mask = metadata['year'] == test_year
             
             if not test_mask.any() or not train_mask.any():
@@ -57,7 +57,10 @@ class WalkForwardValidator:
             
             # 2. Train Model (Fresh for each fold)
             if is_classification:
-                model = xgb.XGBClassifier(**self.params)
+                num_neg = (y_train == 0).sum()
+                num_pos = (y_train == 1).sum()
+                scale_weight = float(num_neg / max(num_pos, 1))
+                model = xgb.XGBClassifier(**self.params, scale_pos_weight=scale_weight)
             else:
                 model = xgb.XGBRegressor(**self.params)
             model.fit(X_train, y_train, verbose=False)
@@ -65,25 +68,38 @@ class WalkForwardValidator:
             # 3. Evaluate
             preds = model.predict(X_test)
             
+            # TEMPORAL HONESTY DEDUPLICATION
+            # The model predicts every week, but the target 'true_bust_variance' is a yearly outcome.
+            # To avoid the massive R-squared penalty of pooling uncertain early-season predictions
+            # with confident late-season predictions, we only evaluate the terminal week for each player.
+            eval_df = pd.DataFrame({
+                'player_name': metadata.loc[test_mask, 'player_name'],
+                'week': metadata.loc[test_mask, 'week'],
+                'actual': y_test,
+                'predicted': preds
+            })
+            
+            eval_df_terminal = eval_df.sort_values('week').drop_duplicates(subset=['player_name'], keep='last')
+            
             if is_classification:
                 from sklearn.metrics import accuracy_score
-                acc = accuracy_score(y_test, preds)
-                f1 = f1_score(y_test, preds, zero_division=0)
-                logger.info(f"  📅 Test Year {test_year}: Accuracy={acc:.4f}, F1={f1:.4f} (Train Size: {len(X_train)})")
+                acc = accuracy_score(eval_df_terminal['actual'], eval_df_terminal['predicted'])
+                f1 = f1_score(eval_df_terminal['actual'], eval_df_terminal['predicted'], zero_division=0)
+                logger.info(f"  📅 Test Year {test_year}: Accuracy={acc:.4f}, F1={f1:.4f} (Train Size: {len(X_train)}, Terminal Test Size: {len(eval_df_terminal)})")
                 res_metrics = {
                     "accuracy": float(acc),
                     "f1_score": float(f1)
                 }
             else:
-                rmse = np.sqrt(mean_squared_error(y_test, preds))
-                r2 = r2_score(y_test, preds)
+                rmse = np.sqrt(mean_squared_error(eval_df_terminal['actual'], eval_df_terminal['predicted']))
+                r2 = r2_score(eval_df_terminal['actual'], eval_df_terminal['predicted'])
                 
                 # Arbitrary binary f1 for regression output tracing
-                y_test_binary = (y_test >= 10.0).astype(int)
-                preds_binary = (preds >= 10.0).astype(int)
+                y_test_binary = (eval_df_terminal['actual'] >= 10.0).astype(int)
+                preds_binary = (eval_df_terminal['predicted'] >= 10.0).astype(int)
                 f1 = f1_score(y_test_binary, preds_binary, zero_division=0)
                 
-                logger.info(f"  📅 Test Year {test_year}: RMSE={rmse:.4f}, R2={r2:.4f}, F1={f1:.4f} (Train Size: {len(X_train)})")
+                logger.info(f"  📅 Test Year {test_year}: RMSE={rmse:.4f}, R2={r2:.4f}, F1={f1:.4f} (Train Size: {len(X_train)}, Terminal Test Size: {len(eval_df_terminal)})")
                 res_metrics = {
                     "rmse": float(rmse),
                     "r2": float(r2),

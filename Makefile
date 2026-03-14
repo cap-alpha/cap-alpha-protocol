@@ -5,39 +5,39 @@
 # -----------------------------------------------------------------------------
 
 up:
-	docker compose --env-file .env_docker up -d
+	docker compose --env-file docker_env.txt up -d
 
 down:
-	docker compose --env-file .env_docker down
+	docker compose --env-file docker_env.txt down
 
 shell-pipeline:
-	docker compose --env-file .env_docker exec pipeline bash
+	docker compose --env-file docker_env.txt exec pipeline bash
 
 # -----------------------------------------------------------------------------
 # PIPELINE EXECUTION
 # -----------------------------------------------------------------------------
 
 pipeline-scrape:
-	docker compose --env-file .env_docker exec -e CHROME_BIN=/usr/bin/chromium -e CHROMEDRIVER_BIN=/usr/bin/chromedriver pipeline bash -c "python pipeline/src/spotrac_scraper_v2.py team-cap 2024"
+	docker compose --env-file docker_env.txt exec -e CHROME_BIN=/usr/bin/chromium -e CHROMEDRIVER_BIN=/usr/bin/chromedriver pipeline bash -c "python pipeline/src/spotrac_scraper_v2.py team-cap 2024"
 
 pipeline-train:
-	docker compose --env-file .env_docker exec pipeline bash -c "python pipeline/src/train_model.py"
+	docker compose --env-file docker_env.txt exec pipeline bash -c "python pipeline/src/train_model.py"
 
 pipeline-nlp:
 	@echo "Hydrating 768-D NLP vectors into Silver Layer..."
-	docker compose --env-file .env_docker exec pipeline bash -c "python pipeline/src/generate_sentiment_features.py"
+	docker compose --env-file docker_env.txt exec pipeline bash -c "python pipeline/src/generate_sentiment_features.py"
 
 pipeline-validate:
 	@echo "Running Pipeline Validation Suite (Target Leakage Diagnostics)..."
-	docker compose --env-file .env_docker exec pipeline bash -c "python pipeline/scripts/check_target_leakage.py"
+	docker compose --env-file docker_env.txt exec pipeline bash -c "python pipeline/scripts/check_target_leakage.py"
 
 # -----------------------------------------------------------------------------
 # WEB & TESTING
 # -----------------------------------------------------------------------------
 
 web-logs:
-	docker compose --env-file .env_docker logs -f web
+	docker compose --env-file docker_env.txt logs -f web
 
 test-e2e:
 	@echo "Running Playwright E2E suite natively inside Ubuntu container..."
-	docker compose --env-file .env_docker run --rm e2e
+	docker compose --env-file docker_env.txt run --rm e2e

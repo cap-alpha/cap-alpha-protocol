@@ -1,5 +1,4 @@
-
-import { getRosterData, getPositionDistribution } from '@/app/actions';
+import { getRosterData, getPositionDistribution, getPlayerTimeline, TimelineEvent } from '@/app/actions';
 import PlayerDetailView from '@/components/player-detail-view';
 import { notFound } from 'next/navigation';
 
@@ -20,11 +19,14 @@ export default async function PlayerPage({ params }: { params: { id: string } })
         notFound();
     }
 
-    const distribution = await getPositionDistribution(player.position);
+    const [distribution, timeline] = await Promise.all([
+        getPositionDistribution(player.position),
+        getPlayerTimeline(player.player_name)
+    ]);
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <PlayerDetailView player={player} distributionData={distribution} />
+            <PlayerDetailView player={player} distributionData={distribution} timeline={timeline} />
         </main>
     );
 }

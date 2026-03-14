@@ -11,6 +11,7 @@ except ImportError:
 import matplotlib.pyplot as plt
 import os
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.ensemble import IsolationForest
 from pathlib import Path
 from src.feature_store import FeatureStore
 
@@ -50,10 +51,11 @@ class RiskModeler:
         if not self.read_only and not skip_persist:
             import time
             start_time = time.time()
-            self.con.register('df_view', df)
-            self.con.execute("CREATE OR REPLACE TABLE staging_feature_matrix AS SELECT * FROM df_view")
-            elapsed = time.time() - start_time
-            logger.info(f"Persisted staging_feature_matrix to DuckDB in {elapsed:.2f} seconds.")
+            logger.info("Skipping persistence of staging_feature_matrix to avoid MotherDuck wide-table timeout limits.")
+            # self.con.register('df_view', df)
+            # self.con.execute("CREATE OR REPLACE TABLE staging_feature_matrix AS SELECT * FROM df_view")
+            # elapsed = time.time() - start_time
+            # logger.info(f"Persisted staging_feature_matrix to DuckDB in {elapsed:.2f} seconds.")
             
         df = df[df['year'].between(2015, 2025)]
         
@@ -67,6 +69,21 @@ class RiskModeler:
              df_target = self.con.execute(f"SELECT player_name, year, week, {target_col} FROM fact_player_efficiency").df()
              df = pd.merge(df, df_target, on=['player_name', 'year', 'week'], how='inner')
 
+        # ==== SPRINT 6: SURVIVORSHIP BIAS IMPUTATION ====
+        # Players cut mid-season stop accumulating stats. If they stop playing (max week < 12) 
+        # but have a meaningful cap hit, we enforce catastrophic target metrics before training.
+        if 'cap_hit_millions' in df.columns:
+            # Memory Optimization: Compute max week independently without adding to the fragmented dataframe
+            max_week_series = df.groupby(['player_name', 'year'])['week'].transform('max')
+            washout_mask = (max_week_series < 12) & (df['cap_hit_millions'] > 2.0)
+            
+            if 'efficiency_ratio' in df.columns:
+                df.loc[washout_mask, 'efficiency_ratio'] = 0.0
+            if 'true_bust_variance' in df.columns:
+                df.loc[washout_mask, 'true_bust_variance'] = -50.0
+            if 'is_bust_binary' in df.columns:
+                df.loc[washout_mask, 'is_bust_binary'] = 1.0
+        
         # Merge handled implicitly or above
         
         # 1. Split into features and target
@@ -103,13 +120,13 @@ class RiskModeler:
         ]
         X = df.drop(columns=[c for c in skip_cols if c in df.columns])
         
-        # Clean currency strings
-        for col in X.columns:
-            if X[col].dtype == 'object':
-                X[col] = X[col].astype(str).str.replace(r'[\$,]', '', regex=True)
+        # Clean currency strings ONLY on object columns to save memory
+        for col in X.select_dtypes(include=['object']).columns:
+            X[col] = X[col].astype(str).str.replace(r'[\$,]', '', regex=True)
+            X[col] = pd.to_numeric(X[col], errors='coerce')
                 
         # Robust numeric conversion (XGBoost handles sparsity natively, do not dropna)
-        X = X.apply(pd.to_numeric, errors='coerce').fillna(0)
+        X.fillna(0, inplace=True)
         y = df[target_col].fillna(0)
         
         # 2. Retain player info for joining results back
@@ -154,8 +171,16 @@ class RiskModeler:
              logger.warning(f"Could not load config: {e}. Using defaults.")
              params = {'n_estimators': 100, 'max_depth': 4, 'learning_rate': 0.1}
         
+        # Apply Sample Weighting for Concept Drift (Sprint 6)
+        # We want the model to prioritize recent seasons over old ones (e.g. 2024 meta > 2011 meta)
+        # Use an exponential decay weight where the most recent year has weight 1.0
+        latest_history_year = metadata['year'].max()
+        decay_rate = 0.1 # 10% decay per year
+        years_ago = latest_history_year - metadata['year']
+        sample_weights = np.exp(-decay_rate * years_ago)
+        
         model = xgb.XGBRegressor(**params)
-        model.fit(X, y, verbose=False)
+        model.fit(X, y, sample_weight=sample_weights, verbose=False)
         
         # 3. Use the latest fold's test set as a proxy for "X_test" for SHAP/Metrics
         # This is strictly for reporting purposes
@@ -199,10 +224,25 @@ class RiskModeler:
         preds = model.predict(X)
         metadata['predicted_risk_score'] = preds
         
+        # 1a. UNCERTAINTY QUANTIFICATION (Yann LeCun Standard)
+        # Calculate how far the input features are from the core distribution
+        # to express confidence and warn against edge-case anomalies.
+        try:
+            logger.info("Calculating Epistemic Uncertainty using Isolation Forest OOD Detection...")
+            oof_detector = IsolationForest(contamination=0.05, n_jobs=-1, random_state=42)
+            oof_detector.fit(X) # Fit on the matrix to establish boundaries
+            metadata['uncertainty_score'] = oof_detector.decision_function(X) # Lower is more anomalous
+            metadata['high_uncertainty_flag'] = (oof_detector.predict(X) == -1).astype(int)
+        except Exception as e:
+            logger.warning(f"Failed to calculate uncertainty: {e}")
+            metadata['uncertainty_score'] = 1.0
+            metadata['high_uncertainty_flag'] = 0
+        
         if self.db.db_path and "read_only" in self.db.db_path: # Simulated read_only check for manager
              logger.info("Database is read-only. Skipping persistence to 'prediction_results' table.")
         else:
-            self.db.execute("CREATE OR REPLACE TABLE prediction_results AS SELECT * FROM metadata", {"metadata": metadata})
+            self.con.register('metadata_df', metadata)
+            self.db.execute("CREATE OR REPLACE TABLE prediction_results AS SELECT * FROM metadata_df")
             logger.info("✓ Predictions persisted to 'prediction_results' table.")
         
         # 2. Save Model Artifact
@@ -226,6 +266,9 @@ class RiskModeler:
             feature_names=list(X.columns)
         )
         logger.info("✓ Model registered in governance registry.")
+        
+        # 4. Save SHAP Explanations
+        self.save_explanations(model, X, metadata)
 
     def save_explanations(self, model, X, metadata):
         if shap is None:
@@ -242,11 +285,24 @@ class RiskModeler:
             explainer = shap.TreeExplainer(model)
             shap_values = explainer.shap_values(X_sample)
             
+            feature_names = X_sample.columns.tolist()
             explanations = []
             all_shap_scores = []
-            feature_names = X_sample.columns.tolist()
             
             # Efficiently format strings & capture all data
+            for i in range(len(X_sample)):
+                # Get indices of top 3 absolute SHAP values
+                top_indices = np.argsort(np.abs(shap_values[i]))[-3:][::-1]
+                top_3 = []
+                for idx in top_indices:
+                    top_3.append(f"{feature_names[idx]}: {shap_values[i][idx]:.4f}")
+                
+                explanations.append(", ".join(top_3))
+                
+                # All factors as JSON
+                all_factors_dict = {feature_names[j]: float(shap_values[i][j]) for j in range(len(feature_names)) if abs(shap_values[i][j]) > 0.001}
+                import json
+                all_shap_scores.append(json.dumps(all_factors_dict))
             # Align sample back to original metadata shape (leave NaN for un-sampled rows)
             metadata_copy = metadata.copy()
             metadata_copy['top_factors'] = None
@@ -259,7 +315,8 @@ class RiskModeler:
             if self.read_only:
                 logger.info("Database is read-only. Skipping persistence to 'prediction_explanations' table.")
             else:
-                self.db.execute("CREATE OR REPLACE TABLE prediction_explanations AS SELECT player_name, year, top_factors, all_factors FROM metadata_copy WHERE top_factors IS NOT NULL", {"metadata_copy": metadata_copy})
+                self.con.register('metadata_copy_df', metadata_copy)
+                self.db.execute("CREATE OR REPLACE TABLE prediction_explanations AS SELECT player_name, year, top_factors, all_factors FROM metadata_copy_df WHERE top_factors IS NOT NULL")
                 logger.info("✓ Explanations persisted to 'prediction_explanations' (Top 3 + Full JSON).")
             
         except Exception as e:
@@ -299,6 +356,13 @@ def main():
                 
             validator.generate_report(backtest_results)
             
+            # Save Historical Predictions for Gemini Error Analysis
+            if not predictions_df.empty:
+                preds_target = Path("reports/historical_predictions.json")
+                preds_target.parent.mkdir(parents=True, exist_ok=True)
+                predictions_df.to_json(preds_target, orient="records", indent=2)
+                logger.info(f"✓ Historical Predictions (Target: {target}) saved to {preds_target}")
+            
             # 2. Train Final Production Model on ALL History
             try:
                 import yaml
@@ -318,7 +382,13 @@ def main():
             else:
                 model = xgb.XGBRegressor(**params)
                 
-            model.fit(X, y, verbose=False)
+            # Concept Drift Sample Weighting
+            latest_history_year = metadata['year'].max()
+            decay_rate = 0.1
+            years_ago = latest_history_year - metadata['year']
+            sample_weights = np.exp(-decay_rate * years_ago)
+                
+            model.fit(X, y, sample_weight=sample_weights, verbose=False)
             
             latest_year = metadata['year'].max()
             test_mask = metadata['year'] == latest_year

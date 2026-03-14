@@ -73,7 +73,14 @@ export const columns: ColumnDef<PlayerMetric>[] = [
         accessorKey: "team",
         header: "Team",
         cell: ({ row }) => (
-            <div className="uppercase text-xs text-muted-foreground">{row.getValue("team")}</div>
+            <div className="uppercase text-xs font-bold">
+                <Link
+                    href={`/team/${encodeURIComponent(row.getValue("team"))}`}
+                    className="text-muted-foreground hover:text-emerald-400 hover:underline transition-colors px-2 py-1 -ml-2 rounded-sm"
+                >
+                    {row.getValue("team")}
+                </Link>
+            </div>
         ),
     },
     {

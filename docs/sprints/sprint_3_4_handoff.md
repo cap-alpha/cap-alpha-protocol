@@ -23,17 +23,19 @@
 | S3.5-2 | Safely migrate duplicate files to `/data/archive` | ✅ Complete | 1 | Execution success via ephemeral container bypass. |
 | S3.5-3 | Generate `redownload_list.txt` for duplicated symbols/dates | ✅ Complete | 1 | List of 10 symbols created. |
 
-## Completion Status: Sprint 4 (Model Integrity)
+## Completion Status: Sprint 4 (Model Integrity & ML Flywheel)
 | Task ID | Description | Status | QA Attempts | Notes |
 |---------|-------------|--------|-------------|-------|
-| S4-1 | Investigate XGBoost R-squared collapse on weekly granularity | ⏳ Pending | 0 | Blocked by S3-5 / S3-4 |
-| S4-2 | Analyze `model_miss_analysis.md` | ⏳ Pending | 0 | - |
+| S4-1 | Investigate XGBoost R-squared collapse on weekly granularity | ⏳ Pending | 0 | Root cause identified (weekly scoring vs yearly target). |
+| S4-2 | Analyze `model_miss_analysis.md` & Construct Continuous Error Dashboard | ⏳ Pending | 0 | - |
 | S4-3 | Re-establish rigorous walk-forward validation (2019-2026) | ⏳ Pending | 0 | - |
+| S4-4 | Implement Uncertainty Quantification (LeCun Standard) | ⏳ Pending | 0 | - |
+| S4-5 | Integrate Gemini API for automated hypothesis generation on model misses | ⏳ Pending | 0 | - |
 
 ## Quality Metrics Expected
 - **Data Integrity**: MotherDuck ingestion must succeed without local fallbacks.
-- **Model Performance**: R-squared drop must be identified and corrected (Goal: > 0.8 R-squared on weekly).
-- **Automation Validation**: Walk-forward engine must execute natively using cloud DuckDB.
+- **Model Performance**: R-squared drop must be identified and corrected (Goal: > 0.8 R-squared on weekly evaluation deduplicated to terminal week).
+- **Flywheel Validation**: Error analysis script must automatically classify false positives/negatives and query Gemini for remediation ideas.
 
 ## Context & Constraints
 **Project**: Cap Alpha Protocol

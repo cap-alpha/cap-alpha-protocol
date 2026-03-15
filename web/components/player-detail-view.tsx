@@ -184,7 +184,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                             <div className="pt-4 border-t border-zinc-800">
                                 <details className="group cursor-pointer">
-                                    <summary className="text-xs text-zinc-500 mb-3 font-semibold uppercase list-none flex justify-between items-center">
+                                    <summary className="text-xs text-zinc-500 mb-3 font-semibold uppercase list-none [&::-webkit-details-marker]:hidden flex justify-between items-center">
                                         KEY DRIVERS (SHAP)
                                         <span className="text-zinc-600 group-open:rotate-180 transition-transform">▼</span>
                                     </summary>

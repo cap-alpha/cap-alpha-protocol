@@ -1,17 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
-import { LandingHero } from "@/components/landing-hero";
-import { getProofOfAlpha } from "./actions/proof-of-alpha";
+import { PersonaShowcase } from "@/components/persona-showcase";
 
 export default async function LandingPage() {
     const { userId } = await auth();
 
-    // Bypass logic: if user is authenticated, send them to dashboard
-    if (userId) {
-        redirect("/dashboard");
-    }
+    // The Persona Showcase itself handles routing the user, 
+    // but if we wanted to auto-route an already authenticated user, we would do it here. 
+    // Since we don't know their persona, we let them pick on the landing page even if signed in for now.
 
-    const receipts = await getProofOfAlpha();
-
-    return <LandingHero receipts={receipts} />;
+    return <PersonaShowcase />;
 }

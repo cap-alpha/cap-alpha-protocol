@@ -6,6 +6,10 @@ description: Run massive-scale Combinatorial Fuzzing & Adversarial Playwright Te
 
 This workflow is designed to break the application. It goes beyond happy-path testing by generating massive combinatorial loads (Personas × URLs × Malformed Inputs × RBAC Overrides) and creating manual verification scripts for the Product Owner.
 
+## Phase 0: Pre-Flight UI/UX Architect Review
+1. **Strategy Alignment**: Before generating the 10,000+ tests, the `product_design_architect` and `data_viz_ux` personas must review the combinatorial constraints.
+2. **Approval**: The UX Architects must sign off that the tests are asserting the correct "Golden Paths" and that the malicious vectors don't compromise the intended user experience.
+
 ## Phase 1: Automated Combinatorial Fuzzing (The "10,000" Tests)
 1. **Generate the Fuzzer**: Write a Playwright test generator script (`web/tests/e2e/fuzz_generator.ts`) that programmatically constructs thousands of test cases.
    - **Vectors**: All active URLs (`/`, `/dashboard/gm`, `/teams/x`, `/player/y`).
@@ -25,3 +29,7 @@ This workflow is designed to break the application. It goes beyond happy-path te
    - A free Fan voting on a player.
    - A paid GM analyzing the Alpha spread and running a trade simulation.
 2. **AI Co-Pilot Walkthrough**: The AI must manually walk through these exact flows via Playwright or Local Dev assertions, fixing any layout or UX clunkiness found along the way, while the User follows along.
+
+## Phase 4: Post-Flight UI/UX Design Audit
+1. **The Polish Pass**: After the application survives the 10,000+ tests, invoke the `/ui_ux_audit` slash command.
+2. **Final Verification**: The designers will review the patched source code and actual DOM renders to ensure the "Security Fixes" didn't destroy the "Executive Suite" aesthetic (e.g., ensuring error boundary fallbacks look premium).

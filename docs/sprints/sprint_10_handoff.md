@@ -58,7 +58,18 @@ Designed for NFL Executives, Agents, and Sharps seeking actionable market edge.
    - Create `web/tests/verify_sprint10_auth.sh`.
    - Script performs unauthenticated `curl` requests to `/dashboard/gm` (asserting `307 Redirect` to Clerk) and `/dashboard/fan` (asserting `200 OK`).
 
+## 4. Adversarial Testing & Product Walkthrough (/webtest)
+
+The final deliverable of this sprint relies on achieving "Production Grade" stability. This mandate is fulfilled via the `/webtest` workflow.
+
+1. **Combinatorial Fuzzing (10,000+ Permutations)**: 
+   - We will write a Playwright script (`web/tests/e2e/fuzz_generator.ts`) executing combinatorial brute force across all URLs, Persona JWT mocks, and component interactables to guarantee 0 unhandled `500` errors resulting from bad state.
+2. **Manual Security Validation**:
+   - The AI will produce a `manual_adversarial_verification.sh` script containing aggressive `curl` commands. The User must be able to execute these locally to prove the routing matrix cannot leak pro-level alpha.
+3. **The "Typical User Flow" Walkthrough**: 
+   - A final `typical_user_flow.md` document will map the exact golden paths (e.g., A Free Fan voting vs. A GM triggering a trade scenario). The AI and User will co-pilot these specific clicks natively to iron out pure UI/UX Layout friction.
+
 ---
 
-## 4. Sign-Off & Approvals
-*This sprint is ready for execution upon User (Product Owner) approval of the "Time-Delayed Alpha" monetization premise.*
+## 5. Sign-Off & Approvals
+*This sprint is ready for execution upon User (Product Owner) approval of the "Time-Delayed Alpha" monetization premise and the /webtest exit criteria.*

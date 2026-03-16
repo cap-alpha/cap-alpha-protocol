@@ -17,7 +17,7 @@ const PlayerEfficiencySchema = z.object({
   player_name: z.string(),
   team: z.string(),
   position: z.string(),
-  year: z.number().default(2024),
+  year: z.number().default(2025),
   age: z.number().optional().default(25),
   games_played: z.number().optional().default(0),
   cap_hit_millions: z.number().default(0),
@@ -62,7 +62,7 @@ function generateMockFinancials(player: any): PlayerEfficiency {
     edce_risk: player.edce_risk || (risk * 10), // approximate error
     risk_score: player.risk_score || risk,
     fair_market_value: player.fair_market_value || surplus,
-    year: player.year || 2024
+    year: player.year || 2025
   };
 }
 
@@ -74,7 +74,7 @@ async function getHydratedData(): Promise<PlayerEfficiency[]> {
     let rawData: any[] = [];
     try {
       const db = await getMotherDuckDb();
-      const res = await db.all(`SELECT * FROM fact_player_efficiency WHERE year = 2024`);
+      const res = await db.all(`SELECT * FROM fact_player_efficiency WHERE year = 2025`);
       rawData = res as any[];
       console.log(`[MotherDuck] Successfully fetched ${rawData.length} records from cloud.`);
     } catch (dbError) {
@@ -247,7 +247,7 @@ export async function getSearchIndex(): Promise<SearchIndexItem[]> {
                 type: 'player',
                 label: d.player_name,
                 sub: `${d.position} • ${d.team}`,
-                url: `/player/${encodeURIComponent(d.player_name)}`
+                url: `/player/${encodeURIComponent(d.player_name.toLowerCase().replace(' ', '-'))}`
             });
         }
         
@@ -349,8 +349,7 @@ export async function getPlayerTimeline(playerName: string): Promise<TimelineEve
       
       UNION ALL
       
-      -- 3. Media Consensus (Fallible if table is missing, but wrapped in try/catch internally if needed. MotherDuck handles missing tables with catalog err, so we check first or just union if it exists. Actually, we'll try to select it, if it fails, the whole query fails. Let's make it robust).
-      -- Use a subquery that might be empty if we haven't seeded yet, but we *have* seeded it.
+      -- 3. Media Consensus
       SELECT 
           year, 
           media_consensus_week as week, 
@@ -363,27 +362,71 @@ export async function getPlayerTimeline(playerName: string): Promise<TimelineEve
       ORDER BY year ASC, week ASC;
     `;
     
-    const results = await db.all(query, [playerName, playerName, playerName]);
+    const results = await db.all(query, playerName, playerName, playerName);
     return results as unknown as TimelineEvent[];
     
   } catch (error) {
     console.error(`[Data] Error loading timeline for ${playerName}:`, error);
+    return []; // ZERO MOCKS. Return true empty state on error.
+  }
+}
+
+// --- INTELLIGENCE FEED ACTIONS ---
+
+export type IntelligenceEvent = {
+  type: string;
+  text: string;
+  icon: 'TrendingDown' | 'TrendingUp' | 'AlertCircle' | 'FileText';
+  color: string;
+};
+
+export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
+  try {
+    const db = await getMotherDuckDb();
+    const feed: IntelligenceEvent[] = [];
+
+    // 1. Predictions
+    const preds = await db.all(`
+      SELECT year, week, predicted_risk_score, high_uncertainty_flag 
+      FROM prediction_results 
+      WHERE player_name = ? 
+      ORDER BY year DESC, week DESC LIMIT 5
+    `, playerName);
     
-    // Fallback Mock Timeline for UI Design
-    return [
-      {
-        year: 2024, week: 0, date_of_event: "2024-03-15",
-        event_type: "CONTRACT", description: "Cap Hit: $63.9M (Total: $230M) - MOCK DATA"
-      },
-      {
-        year: 2024, week: 1, date_of_event: null,
-        event_type: "ML_ALERT", description: "🚨 Alpha Protocol Alert: High Bust Probability Detected."
-      },
-      {
-        year: 2024, week: 5, date_of_event: "2024-10-15",
-        event_type: "MEDIA_CONSENSUS", description: "🗞️ Media Consensus Shift: PFF and The Ringer demand benching."
+    if (preds && preds.length > 0) {
+      const latest = preds[0] as any;
+      if (latest.predicted_risk_score == 1) {
+          feed.push({ type: "Warning", text: "Alpha Protocol model alerts high bust probability for current production trends.", icon: 'TrendingDown', color: 'text-rose-400' });
+      } else {
+          feed.push({ type: "Stable", text: "Alpha Protocol modeling shows stable production aligning with contract expectations.", icon: 'TrendingUp', color: 'text-emerald-400' });
       }
-    ];
+    }
+
+    // 2. Media Consensus
+    const media = await db.all(`
+      SELECT media_date_approx as date_of_event, rationale
+      FROM media_lag_metrics
+      WHERE player_name = ?
+      ORDER BY year DESC, media_consensus_week DESC LIMIT 3
+    `, playerName);
+    
+    if (media && media.length > 0) {
+      for (const m of media) {
+        feed.push({
+          type: "Media",
+          text: `Consensus shift: ${(m as any).rationale}`,
+          icon: 'AlertCircle',
+          color: 'text-amber-400'
+        });
+      }
+    }
+
+    // 3. Contracts (Optional base state to make sure feed is never completely empty if we have them)
+    // No, we let the UI handle empty state. No filler.
+    return feed;
+  } catch (error) {
+    console.error("[Data] Error loading intelligence feed:", error);
+    return []; // ZERO MOCKS.
   }
 }
 

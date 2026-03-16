@@ -61,7 +61,7 @@ export const columns: ColumnDef<PlayerMetric>[] = [
         cell: ({ row }) => (
             <div className="capitalize font-medium">
                 <Link
-                    href={`/player/${encodeURIComponent(row.getValue("player_name"))}`}
+                    href={`/player/${encodeURIComponent((row.getValue("player_name") as string).toLowerCase().replace(' ', '-'))}`}
                     className="hover:underline hover:text-emerald-400 transition-colors"
                 >
                     {row.getValue("player_name")}

@@ -33,26 +33,28 @@ export function RosterCard({ player }: RosterCardProps) {
                     {/* Placeholder until we have headshots */}
                     <AvatarFallback>{player.position}</AvatarFallback>
                 </Avatar>
-                <div className="flex-1 overflow-hidden z-10">
-                    <div className="flex items-center gap-2">
-                        <Link href={`/player/${encodeURIComponent(player.player_name)}`} className="hover:underline hover:text-emerald-500 transition-colors after:absolute after:inset-0 after:z-0">
-                            <h3 className="font-bold truncate leading-none relative z-10">{player.player_name}</h3>
-                        </Link>
-                        {(player.cap_hit_millions > 0 && player.surplus_value === 0) && (
-                            <Badge variant="destructive" className="text-[10px] h-4 px-1 rounded-sm relative z-20">DEAD</Badge>
-                        )}
+                <div className="flex-1 overflow-hidden z-10 w-full min-w-0">
+                    <div className="flex flex-col">
+                        <div className="flex items-center gap-2">
+                            <Link href={`/player/${encodeURIComponent(player.player_name.toLowerCase().replace(' ', '-'))}`} className="hover:underline hover:text-emerald-500 transition-colors">
+                                <h3 className="font-bold truncate text-base leading-tight relative z-20">{player.player_name}</h3>
+                            </Link>
+                            {(player.cap_hit_millions > 0 && player.surplus_value === 0) && (
+                                <Badge variant="destructive" className="text-[10px] h-4 px-1 rounded-sm relative z-20">DEAD</Badge>
+                            )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5 relative z-20 flex items-center gap-1">
+                            <Link href={`/team/${encodeURIComponent(player.team)}`} className="hover:text-emerald-500 hover:underline">
+                                {player.team}
+                            </Link>
+                            <span>•</span>
+                            <span>{player.position}</span>
+                        </p>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 relative z-20">
-                        <Link href={`/team/${encodeURIComponent(player.team)}`} className="hover:text-emerald-500 hover:underline">
-                            {player.team}
-                        </Link>
-                        {" • "}
-                        {player.player_name.split(' ')[0]}
-                    </p>
                 </div>
-                <div className="text-right z-10">
-                    <div className="font-mono font-bold text-sm">{fmt(player.cap_hit_millions)}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase">Cap Hit</div>
+                <div className="text-right z-10 flex-shrink-0">
+                    <div className="font-mono font-bold text-sm tracking-tighter">{fmt(player.cap_hit_millions)}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase text-right">Cap Hit</div>
                 </div>
             </CardHeader>
 

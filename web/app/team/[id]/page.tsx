@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ShieldAlert, TrendingUp } from 'lucide-react';
 import { IntelligenceFeed } from '@/components/intelligence-feed';
+import { TEAM_LOGOS, TEAM_NAMES } from '@/lib/team-logos';
 
 export async function generateStaticParams() {
     const teams = await getTeams();
@@ -35,13 +36,19 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
         <main className="min-h-[100dvh] bg-background text-foreground p-8">
             <div className="max-w-7xl mx-auto space-y-8">
                 {/* Header Section */}
-                <div className="flex items-center gap-4 border-b border-border pb-6">
+                <div className="flex items-center gap-6 border-b border-border pb-6">
                     <Link href="/dashboard" className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400">
                         <ArrowLeft className="h-6 w-6" />
                     </Link>
+                    {TEAM_LOGOS[teamName] && (
+                        <div className="w-16 h-16 relative flex-shrink-0 bg-white rounded-full p-2 border border-border shadow-sm">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={TEAM_LOGOS[teamName]} alt={`${teamName} logo`} className="object-contain w-full h-full drop-shadow-sm" />
+                        </div>
+                    )}
                     <div>
                         <h1 className="text-4xl font-bold tracking-tight uppercase text-emerald-500">
-                            {teamName}
+                            {TEAM_NAMES[teamName] || teamName}
                         </h1>
                         <p className="text-muted-foreground uppercase tracking-widest text-sm mt-1">Franchise Intelligence Overview</p>
                     </div>

@@ -25,15 +25,16 @@ import { PositionDistributionChart } from './position-distribution-chart';
 import { SaveScenarioButton } from './save-scenario-button';
 import { IntelligenceFeed } from './intelligence-feed';
 import { PlayerTimeline } from './player-timeline';
-import { TimelineEvent } from "@/app/actions";
+import { TimelineEvent, IntelligenceEvent } from "@/app/actions";
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
     distributionData?: any[]; 
     timeline?: TimelineEvent[];
+    feed?: IntelligenceEvent[];
 }
 
-export default function PlayerDetailView({ player, distributionData = [], timeline = [] }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [] }: PlayerDetailViewProps) {
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -218,23 +219,33 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                             <CardDescription>Actual Pay vs. Predicted Market Value</CardDescription>
                         </CardHeader>
                         <CardContent className="h-[400px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <ComposedChart data={chartDataWithBands} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.15} />
-                                    <XAxis dataKey="year" stroke="#94a3b8" />
-                                    <YAxis stroke="#94a3b8" tickFormatter={(v) => `$${v}M`} />
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff' }}
-                                        itemStyle={{ color: '#fff' }}
-                                        formatter={(value: any, name: any) => name === "Model Variance (95% CI)" ? null : [`$${Number(value).toFixed(2)}M`, name]}
-                                    />
-                                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                    <Area type="monotone" dataKey="bounds" name="Model Variance (95% CI)" fill="#10b981" stroke="none" fillOpacity={0.1} />
-                                    <Line type="monotone" dataKey="predicted" name="Fair Market Value" stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="5 5" />
-                                    <Line type="monotone" dataKey="actual" name="Actual Cap Hit" stroke="#f472b6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 8 }} />
-                                    <Bar dataKey="error" name="Overpay/Underpay" fill="#64748b" opacity={0.3} barSize={20} />
-                                </ComposedChart>
-                            </ResponsiveContainer>
+                            {chartDataWithBands.length === 0 ? (
+                                <div className="h-full flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-lg bg-slate-950/30">
+                                    <ShieldAlert className="h-8 w-8 text-slate-600 mb-3" />
+                                    <h4 className="text-sm font-semibold text-slate-300">Insufficient Historical Data</h4>
+                                    <p className="text-xs text-slate-500 mt-1 max-w-[250px] text-center">
+                                        This asset lacks the required historical telemetry to generate a multi-year value trajectory model.
+                                    </p>
+                                </div>
+                            ) : (
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <ComposedChart data={chartDataWithBands} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.15} />
+                                        <XAxis dataKey="year" stroke="#94a3b8" />
+                                        <YAxis stroke="#94a3b8" tickFormatter={(v) => `$${v}M`} />
+                                        <Tooltip
+                                            contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff' }}
+                                            itemStyle={{ color: '#fff' }}
+                                            formatter={(value: any, name: any) => name === "Model Variance (95% CI)" ? null : [`$${Number(value).toFixed(2)}M`, name]}
+                                        />
+                                        <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                                        <Area type="monotone" dataKey="bounds" name="Model Variance (95% CI)" fill="#10b981" stroke="none" fillOpacity={0.1} />
+                                        <Line type="monotone" dataKey="predicted" name="Fair Market Value" stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="5 5" />
+                                        <Line type="monotone" dataKey="actual" name="Actual Cap Hit" stroke="#f472b6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 8 }} />
+                                        <Bar dataKey="error" name="Overpay/Underpay" fill="#64748b" opacity={0.3} barSize={20} />
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -266,7 +277,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                         <TabsContent value="intelligence" className="mt-4">
                             <div className="h-[450px]">
-                                <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} />
+                                <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} feedEvents={feed} />
                             </div>
                         </TabsContent>
 

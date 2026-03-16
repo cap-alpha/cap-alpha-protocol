@@ -2,21 +2,22 @@
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Lock, FileText, TrendingDown, TrendingUp, AlertCircle } from "lucide-react";
+import { Lock, FileText, TrendingDown, TrendingUp, AlertCircle, Info } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { IntelligenceEvent } from "@/app/actions";
 
-export function IntelligenceFeed({ playerName, riskScore }: { playerName: string, riskScore: number }) {
-    // Generate some mock intelligence data based on the risk score
-    const isRisky = riskScore > 0.5;
+export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { playerName: string, riskScore: number, feedEvents?: IntelligenceEvent[] }) {
 
-    const mockSentiments = isRisky ? [
-        { type: "Warning", text: "Scouting reports indicate declining burst metrics in recent film.", icon: TrendingDown, color: "text-rose-400" },
-        { type: "Rumor", text: "Front office considering post-June 1 designation to clear cap space for 2026.", icon: AlertCircle, color: "text-amber-400" }
-    ] : [
-        { type: "Positive", text: "Market value expected to increase by 15% next off-season based on current positional scarcity.", icon: TrendingUp, color: "text-emerald-400" },
-        { type: "Contract", text: "Extension talks reportedly progressing. Outstanding guaranteed money aligns with expected production.", icon: FileText, color: "text-blue-400" }
-    ];
+    const getIcon = (iconName: string) => {
+        switch (iconName) {
+            case 'TrendingDown': return TrendingDown;
+            case 'TrendingUp': return TrendingUp;
+            case 'AlertCircle': return AlertCircle;
+            case 'FileText': return FileText;
+            default: return Info; // Fallback
+        }
+    };
 
     return (
         <Card className="bg-slate-900 border-slate-800 h-full relative overflow-hidden flex flex-col">
@@ -37,31 +38,41 @@ export function IntelligenceFeed({ playerName, riskScore }: { playerName: string
                         <p className="text-sm text-slate-400 mb-4">
                             Synthesized intelligence from unstructured scouting reports and contract telemetry.
                         </p>
-                        <div className="space-y-3">
-                            {mockSentiments.map((item, i) => {
-                                const Icon = item.icon;
-                                return (
-                                    <div key={i} className="relative pl-6 pb-6 last:pb-0">
-                                        {/* Timeline connector */}
-                                        {i !== mockSentiments.length - 1 && (
-                                            <div className="absolute left-2.5 top-5 bottom-0 w-px bg-slate-800" />
-                                        )}
-                                        {/* Timeline node */}
-                                        <div className="absolute left-0 top-1.5 h-5 w-5 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center z-10">
-                                            <Icon className={`h-3 w-3 ${item.color}`} />
-                                        </div>
-                                        {/* Content */}
-                                        <div className="bg-slate-950/50 p-3 rounded-md border border-slate-800">
-                                            <div className="flex justify-between items-center mb-1">
-                                                <div className="text-xs font-bold text-slate-400">{item.type}</div>
-                                                <div className="text-[10px] text-slate-600">Generated 2h ago</div>
+                        {feedEvents.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-800 rounded-lg bg-slate-950/30">
+                                <Info className="h-8 w-8 text-slate-600 mb-3" />
+                                <h4 className="text-sm font-semibold text-slate-300">No Intelligence Events</h4>
+                                <p className="text-xs text-slate-500 mt-1 max-w-[200px]">
+                                    No significant modeling or media shifts detected in the trailing 30 days.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                {feedEvents.map((item, i) => {
+                                    const IconNode = getIcon(item.icon);
+                                    return (
+                                        <div key={i} className="relative pl-6 pb-6 last:pb-0">
+                                            {/* Timeline connector */}
+                                            {i !== feedEvents.length - 1 && (
+                                                <div className="absolute left-2.5 top-5 bottom-0 w-px bg-slate-800" />
+                                            )}
+                                            {/* Timeline node */}
+                                            <div className="absolute left-0 top-1.5 h-5 w-5 rounded-full bg-slate-950 border border-slate-700 flex items-center justify-center z-10">
+                                                <IconNode className={`h-3 w-3 ${item.color}`} />
                                             </div>
-                                            <div className="text-sm text-slate-300 leading-relaxed">{item.text}</div>
+                                            {/* Content */}
+                                            <div className="bg-slate-950/50 p-3 rounded-md border border-slate-800">
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <div className="text-xs font-bold text-slate-400">{item.type}</div>
+                                                    <div className="text-[10px] text-slate-600">Generated automatically</div>
+                                                </div>
+                                                <div className="text-sm text-slate-300 leading-relaxed">{item.text}</div>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
                         {/* RAG Chat Assistant placeholder */}
                         <div className="mt-6 pt-4 border-t border-slate-800">
                             <div className="text-xs text-slate-500 uppercase font-mono mb-2">Interrogate the Model</div>

@@ -5,6 +5,7 @@ import { GlobalSearch } from "@/components/global-search";
 import PersonaSwitcher from "@/components/persona-switcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 export default async function BettorDashboard() {
     const [rosterData, warRoomData] = await Promise.all([
@@ -59,7 +60,7 @@ export default async function BettorDashboard() {
                                         <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20 uppercase tracking-widest text-[10px]">
                                             Short Prop
                                         </Badge>
-                                        <span className="font-bold text-slate-200">{alert.player_name}</span>
+                                        <Link href={`/player/${alert.player_name.toLowerCase().replace(' ', '-')}`} className="font-bold text-slate-200 hover:text-white hover:underline transition-colors">{alert.player_name}</Link>
                                     </div>
                                     <span className="text-xs font-mono text-slate-500">{alert.team}</span>
                                 </div>

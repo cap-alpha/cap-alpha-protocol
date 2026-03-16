@@ -1,4 +1,4 @@
-import { getRosterData, getPositionDistribution, getPlayerTimeline, TimelineEvent } from '@/app/actions';
+import { getRosterData, getPositionDistribution, getPlayerTimeline, getIntelligenceFeed, TimelineEvent, IntelligenceEvent } from '@/app/actions';
 import PlayerDetailView from '@/components/player-detail-view';
 import { notFound } from 'next/navigation';
 
@@ -6,27 +6,30 @@ import { notFound } from 'next/navigation';
 export async function generateStaticParams() {
     const players = await getRosterData();
     return players.map((player) => ({
-        id: encodeURIComponent(player.player_name),
+        id: encodeURIComponent(player.player_name.toLowerCase().replace(' ', '-')),
     }));
 }
 
 export default async function PlayerPage({ params }: { params: { id: string } }) {
-    const playerName = decodeURIComponent(params.id);
+    const playerSlug = decodeURIComponent(params.id);
     const roster = await getRosterData();
-    const player = roster.find((p) => p.player_name === playerName);
+    
+    // Find the player where the kebab-case version of their name matches the slug URL
+    const player = roster.find((p) => p.player_name.toLowerCase().replace(' ', '-') === playerSlug);
 
     if (!player) {
         notFound();
     }
 
-    const [distribution, timeline] = await Promise.all([
+    const [distribution, timeline, feed] = await Promise.all([
         getPositionDistribution(player.position),
-        getPlayerTimeline(player.player_name)
+        getPlayerTimeline(player.player_name),
+        getIntelligenceFeed(player.player_name)
     ]);
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <PlayerDetailView player={player} distributionData={distribution} timeline={timeline} />
+            <PlayerDetailView player={player} distributionData={distribution} timeline={timeline} feed={feed} />
         </main>
     );
 }

@@ -97,21 +97,21 @@ export function PersonaShowcase() {
     };
 
     return (
-        <main className="min-h-[100dvh] bg-black text-white relative overflow-hidden flex flex-col justify-center">
+        <section id="personas" className="w-full relative overflow-hidden flex flex-col justify-center bg-black py-24 border-t border-white/10">
             {/* Background effects */}
             <div className={`absolute top-0 right-0 w-full h-[500px] bg-gradient-to-bl ${activePersona.gradient} opacity-10 blur-[120px] pointer-events-none transition-all duration-1000`} />
             <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))]" />
 
-            <div className="relative z-10 w-full max-w-7xl mx-auto px-6 py-12 lg:py-24">
+            <div className="relative z-10 w-full max-w-7xl mx-auto px-6">
                 
                 {/* Header CTA */}
                 <div className="text-center mb-16 space-y-4">
-                    <Badge variant="outline" className={`bg-transparent border-white/20 text-slate-300 font-mono tracking-widest uppercase transition-colors duration-500 hover:${activePersona.border}`}>
-                        Authentication Required for Entry
+                    <Badge variant="outline" className={`bg-black text-slate-300 font-mono tracking-widest uppercase transition-colors duration-500 border-white/20 hover:${activePersona.border}`}>
+                        Persona Entry Points
                     </Badge>
-                    <h1 className="text-5xl md:text-7xl font-black tracking-tighter">
-                        Choose your <span className={`text-transparent bg-clip-text bg-gradient-to-r ${activePersona.gradient} transition-all duration-700`}>Persona.</span>
-                    </h1>
+                    <h2 className="text-5xl md:text-7xl font-black tracking-tighter">
+                        Choose your <span className={`text-transparent bg-clip-text bg-gradient-to-r ${activePersona.gradient} transition-all duration-700`}>Context.</span>
+                    </h2>
                     <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
                         Cap Alpha Protocol is a multi-dimensional analytics engine. 
                         Your tools, telemetry, and permissions adapt to your specific role in the ecosystem.
@@ -222,6 +222,6 @@ export function PersonaShowcase() {
 
                 </div>
             </div>
-        </main>
+        </section>
     );
 }

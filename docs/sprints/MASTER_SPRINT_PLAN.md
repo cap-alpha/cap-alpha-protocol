@@ -33,6 +33,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [x] SP12-2: Connect the unstructured news data to the existing Gemini LLM summarization prompt to extract precise "Intelligence Sentences".
 - [x] SP12-3: Inject the processed intelligence sentences into the MotherDuck `media_lag_metrics` table.
 - [x] SP12-4: Establish a cron schedule or Airflow DAG to run the hydration pipeline.
+- [x] SP12-5: Execute `media_lag_analyzer.py` to replace mocked market reality data with grounded Gemini search consensus and integrate into Airflow DAG.
 
 ### Sprint 13: Legacy Data Parity (Spotrac/PFR Feature Match)
 **Goal:** Ensure the platform natively supports all core salary cap and historical context features natively offered by legacy competitor sites.

@@ -32,7 +32,7 @@ const THE_TAPE = [
 
 export function GlobalAggregator() {
     return (
-        <section className="relative w-full py-24 px-6 lg:px-12 bg-zinc-950 border-y border-white/5">
+        <section className="relative w-full py-24 px-6 lg:px-12 bg-black">
             <div className="w-full max-w-7xl mx-auto">
                 <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
                     <div>
@@ -48,7 +48,7 @@ export function GlobalAggregator() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16">
                     {/* Left Column: The Tape */}
                     <div className="space-y-6">
-                        <div className="flex items-center gap-3 border-b border-white/10 pb-4 mb-6">
+                        <div className="flex items-center gap-3 border-b border-zinc-900 pb-6 mb-6">
                             <Activity className="h-6 w-6 text-slate-400" />
                             <h3 className="text-2xl font-bold font-mono tracking-tight text-slate-300 uppercase">
                                 The Tape
@@ -82,7 +82,7 @@ export function GlobalAggregator() {
                     <div className="space-y-6 relative">
                         {/* Decorative connecting arrow removed per Tufte anti-chartjunk principles */}
 
-                        <div className="flex items-center gap-3 border-b border-emerald-500/30 pb-4 mb-6">
+                        <div className="flex items-center gap-3 border-b border-zinc-900 pb-6 mb-6">
                             <Zap className="h-6 w-6 text-emerald-500 fill-emerald-500/20" />
                             <h3 className="text-2xl font-bold font-mono tracking-tight text-emerald-400 uppercase">
                                 The Signal

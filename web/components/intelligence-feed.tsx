@@ -29,8 +29,8 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
     };
 
     return (
-        <Card className="bg-slate-900 border-slate-800 h-full relative overflow-hidden flex flex-col">
-            <CardHeader className="pb-3 border-b border-slate-800">
+        <Card className="bg-transparent border-0 h-full relative overflow-hidden flex flex-col">
+            <CardHeader className="pb-3 border-b border-zinc-900">
                 <CardTitle className="flex items-center justify-between text-lg">
                     <span className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-emerald-500" />
@@ -84,7 +84,7 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                                                 <IconNode className={`h-3 w-3 ${item.color}`} />
                                             </div>
                                             {/* Content */}
-                                            <div className="bg-slate-950/50 p-3 rounded-md border border-slate-800">
+                                            <div className="bg-transparent py-2">
                                                 <div className="flex justify-between items-center mb-1">
                                                     <div className="text-xs font-bold text-slate-400">{item.type}</div>
                                                     <div className="text-[10px] text-slate-600">Generated automatically</div>

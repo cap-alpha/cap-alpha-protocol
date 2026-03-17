@@ -55,19 +55,26 @@ with DAG(
         dag=dag,
     )
     
-    # 2. Scrape live news, extract AI intelligence, and inject to MotherDuck media_lag_metrics
+    # 2. Scrape live news, extract AI intelligence, and inject to MotherDuck raw_media_sentiment
     ingest_news = BashOperator(
         task_id='ingest_news',
-        bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(grep GEMINI_API_KEY ../web/.env.local | cut -d "=" -f 2) && export MOTHERDUCK_TOKEN=$(grep MOTHERDUCK_TOKEN ../web/.env.local | cut -d "=" -f 2) && {VENV_PYTHON} scripts/hydrate_live_news.py 2>&1 | tail -20',
+        bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(cat ../web/.env.local | grep GEMINI_API_KEY | cut -d "=" -f 2) && export MOTHERDUCK_TOKEN=$(cat ../web/.env.local | grep MOTHERDUCK_TOKEN | cut -d "=" -f 2) && {VENV_PYTHON} scripts/hydrate_live_news.py 2>&1 | tail -20',
         dag=dag,
     )
     
     # 3. Generate embeddings
     generate_features = BashOperator(
         task_id='generate_sentiment_features',
-        bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(grep GEMINI_API_KEY .env | cut -d "=" -f 2) && {VENV_PYTHON} src/generate_sentiment_features.py 2>&1 | tail -20',
+        bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(cat ../web/.env.local | grep GEMINI_API_KEY | cut -d "=" -f 2) && {VENV_PYTHON} src/generate_sentiment_features.py 2>&1 | tail -20',
+        dag=dag,
+    )
+    
+    # 4. Generate Media Lag Consensus (The missing step)
+    analyze_media_lag = BashOperator(
+        task_id='analyze_media_lag',
+        bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(cat ../web/.env.local | grep GEMINI_API_KEY | cut -d "=" -f 2) && export MOTHERDUCK_TOKEN=$(cat ../web/.env.local | grep MOTHERDUCK_TOKEN | cut -d "=" -f 2) && {VENV_PYTHON} scripts/media_lag_analyzer.py 2>&1 | tail -20',
         dag=dag,
     )
     
     # DAG Dependencies
-    [ingest_injuries, ingest_news] >> generate_features
+    [ingest_injuries, ingest_news] >> generate_features >> analyze_media_lag

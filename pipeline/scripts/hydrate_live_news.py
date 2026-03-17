@@ -1,200 +1,121 @@
-import os
+import urllib.request
+import feedparser
+from bs4 import BeautifulSoup
+import pandas as pd
+import logging
 import time
-import json
-import duckdb
-from duckduckgo_search import DDGS
-import google.generativeai as genai
+import os
+import sys
+import urllib.parse
 from datetime import datetime
 
-# Initialize APIs
-ddgs = DDGS()
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model_name = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash-002")
-model = genai.GenerativeModel(model_name)
+# Add pipeline root to path
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
-def get_db_connection():
-    md_token = os.environ.get("MOTHERDUCK_TOKEN")
-    if not md_token:
-        # Fallback to local if not running in production pipeline
-        return duckdb.connect("nfl_data.duckdb")
-    return duckdb.connect(f"md:nfl?motherduck_token={md_token}")
+from pipeline.src.db_manager import DBManager
 
-def get_active_rosters(con):
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+class NewsRSSHoover:
     """
-    Retrieve all teams and their active rosters for the current year.
-    Returns a dict: {team_name: [list of player_names]}
+    Ingests unstructured news headlines and summaries via Google News RSS.
+    Implements Franchise-Level News Batching: queries by team, cross-references
+    active rosters, and parses mentions to scale to 100% of the active NFL cohort.
+    """
+    def __init__(self):
+        self.db = DBManager()
+        self.db.execute("CREATE SCHEMA IF NOT EXISTS bronze_layer")
+        self.db.execute("""
+            CREATE TABLE IF NOT EXISTS bronze_layer.raw_media_sentiment (
+                player_name VARCHAR,
+                source VARCHAR,
+                raw_text VARCHAR,
+                ingested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+    def gather_team_news(self, team_name: str, players: list) -> bool:
+        """Fetches the Google News RSS feed for a team and attributes hits to active players."""
+        logger.info(f"Hoovering Franchise-Level Google News intelligence for {team_name}...")
+        try:
+            # URL encode the search query for the franchise
+            query = urllib.parse.quote(f'"{team_name}" NFL (injury OR rumor OR contract OR trade) -fantasy')
+            rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
+            
+            feed = feedparser.parse(rss_url)
+            
+            if not feed.entries:
+                logger.warning(f"  No recent news found for {team_name}")
+                return False
+                
+            logger.info(f"  Found {len(feed.entries)} macro news articles for {team_name}.")
+            
+            # Combine the titles and summaries of the top 15 articles into one context block
+            content_blocks = []
+            for entry in feed.entries[:15]:
+                title = entry.get('title', '')
+                summary_html = entry.get('summary', '')
+                soup = BeautifulSoup(summary_html, 'html.parser')
+                summary_text = soup.get_text(separator=' ', strip=True)
+                content_blocks.append(f"{title}. {summary_text}")
+                
+            compiled_content = "\\n\\n---\\n\\n".join(content_blocks).lower()
+            
+            hits = 0
+            # Cross-reference active roster against the franchise news payload
+            for player in players:
+                # Use last name as a fuzzy match proxy due to journalism standards
+                last_name = player.split()[-1].lower() if len(player.split()) > 1 else player.lower()
+                
+                if player.lower() in compiled_content or (len(last_name) > 3 and last_name in compiled_content):
+                    hits += 1
+                    # Insert into database with full team context
+                    self.db.execute(
+                        "INSERT INTO bronze_layer.raw_media_sentiment (player_name, source, raw_text) VALUES (?, 'google_news_rss_franchise_batch', ?)",
+                        (player, compiled_content)
+                    )
+            
+            logger.info(f"✅ Successfully cross-referenced {hits} players out of {len(players)} active roster names for {team_name}.")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to fetch news for {team_name}: {e}")
+            return False
+
+def get_active_rosters():
+    """Queries MotherDuck for all players grouped by active franchise."""
+    logger.info("Discovering Active Rosters and Franchises from MotherDuck...")
+    db = DBManager()
+    
+    if not db.table_exists("fact_player_efficiency"):
+        logger.warning("fact_player_efficiency not found. Using bootstrap list.")
+        return {"Denver Broncos": ["Russell Wilson"], "Green Bay Packers": ["Aaron Rodgers"]}
+        
+    query = """
+        SELECT team, player_name 
+        FROM fact_player_efficiency 
+        WHERE cap_hit_millions > 0
     """
     try:
-        query = """
-        WITH current_year AS (
-            SELECT MAX(year) as max_year FROM fact_player_efficiency
-        )
-        SELECT team, player_name
-        FROM fact_player_efficiency, current_year
-        WHERE year = current_year.max_year
-          AND cap_hit_millions > 0
-        """
-        df = con.execute(query).df()
+        df = db.fetch_df(query)
         rosters = {}
         for _, row in df.iterrows():
             team = row['team']
             if team not in rosters:
                 rosters[team] = []
             rosters[team].append(row['player_name'])
+        
+        logger.info(f"Successfully loaded {len(rosters)} active franchises for batch processing.")
         return rosters
     except Exception as e:
-        print(f"Error fetching rosters: {e}")
+        logger.error(f"Failed to query targets: {e}")
         return {}
 
-def synthesize_news(player, news_results):
-    """
-    Use Gemini to extract an Intelligence Sentence and Sentiment Score.
-    """
-    prompt = f"""
-    You are an NFL Cap and Operations Intelligence Analyst.
-    Review the following news search results which mention {player}.
-    Extract one precise, non-hyped "Intelligence Sentence" prioritizing Contract Talks, Trade Rumors, Injuries, or Cap Implications.
-    Also generate a "sentiment_score" from -1.0 (extremely negative/toxic) to 1.0 (extremely positive/stable).
-    Return JSON format: {{"type": "Warning|Rumor|Information", "text": "<sentence>", "sentiment_score": 0.0}}
-    If no relevant intelligence exists for {player} in the text, return empty JSON {{}}.
-    
-    News Data: {news_results}
-    """
-    try:
-        response = model.generate_content(prompt)
-        text = response.text.strip()
-        if text.startswith("```json"):
-            text = text[7:-3]
-        elif text.startswith("```"):
-            text = text[3:-3]
-        return json.loads(text)
-    except Exception as e:
-        print(f"  Failed to synthesize news for {player}: {e}")
-        return None
-
-def inject_motherduck(con, player, intel, has_news):
-    """
-    Inject the synthesized intelligence into MotherDuck, explicitly flagging 'has_news'.
-    """
-    if not intel:
-        intel = {"type": "Information", "text": "No recent news detected.", "sentiment_score": 0.0}
-    
-    timestamp = datetime.now().isoformat()
-    score = intel.get("sentiment_score", 0.0)
-    try:
-        # Ensure table exists with the new 'has_news' boolean flag
-        con.execute("""
-            CREATE TABLE IF NOT EXISTS media_lag_metrics (
-                player_name VARCHAR,
-                event_type VARCHAR,
-                intelligence_text VARCHAR,
-                sentiment_score DOUBLE,
-                source_url VARCHAR,
-                recorded_at TIMESTAMP,
-                has_news BOOLEAN
-            )
-        """)
-        
-        # Check idempotency: avoid inserting the exact same intelligence text for this player within 24h
-        check_query = """
-            SELECT COUNT(*) 
-            FROM media_lag_metrics 
-            WHERE player_name = ? 
-              AND intelligence_text = ? 
-              AND recorded_at > CURRENT_TIMESTAMP - INTERVAL 24 HOUR
-        """
-        exists = con.execute(check_query, (player, intel.get("text"))).fetchone()[0]
-        if exists > 0:
-            print(f"  [Idempotency] Skipping duplicate intel string for {player}.")
-            return False
-
-        # Insert the record
-        con.execute(
-            "INSERT INTO media_lag_metrics VALUES (?, ?, ?, ?, NULL, ?, ?)", 
-            (player, intel.get("type"), intel.get("text"), score, timestamp, has_news)
-        )
-        return True
-    except Exception as e:
-        print(f"  DB Injection failed: {e}")
-        return False
-
-def check_alert_telemetry(con, player, intel):
-    """
-    Compare current sentiment against contract value to generate automated telemetry
-    alerts for plunging public consensus on high-capital assets.
-    """
-    score = intel.get("sentiment_score", 0.0)
-    if score >= -0.4:
-        return # Not toxic enough to fire an alert
-
-    try:
-        query = f"""
-        WITH current_year AS (
-            SELECT MAX(year) as max_year FROM fact_player_efficiency
-        )
-        SELECT cap_hit_millions 
-        FROM fact_player_efficiency, current_year
-        WHERE player_name = '{player.replace("'", "''")}'
-          AND year = current_year.max_year
-        """
-        df = con.execute(query).df()
-        if not df.empty:
-            cap_hit = df['cap_hit_millions'].iloc[0]
-            # Alert threshold: Cap Hit > 15M and Sentiment < -0.4
-            if cap_hit > 15.0:
-                print(f"  [TELEMETRY ALERT] 🚨 CRITICAL SENTIMENT DISCONNECT 🚨")
-                print(f"  Asset: {player} | Cap Liability: ${cap_hit}M | Sentiment: {score}")
-                print(f"  Event: {intel.get('text')}")
-                print(f"  Trajectory: Accelerating Liability. Recommend Hedging.")
-    except Exception as e:
-        print(f"  Telemetry alert logic failed: {e}")
-
-def main():
-    print("--- Starting Franchise-Level Live Data Hydration ---")
-    con = get_db_connection()
-    team_rosters = get_active_rosters(con)
-    print(f"Targeting {len(team_rosters)} active franchises for news cross-referencing.")
-    
-    for team, players in team_rosters.items():
-        try:
-            print(f"\n[Hydrating Franchise] {team}...")
-            time.sleep(1.5) # Rate limit duckduckgo
-            
-            # Focused search by franchise to capture macro news
-            results = list(ddgs.news(f"{team} nfl contract OR injury OR rumor -fantasy", max_results=5))
-            
-            if not results:
-                print(f"  No recent news found for {team}.")
-                # Log 'no news' for all franchise players
-                for p in players:
-                    inject_motherduck(con, p, None, has_news=False)
-                continue
-
-            # Combine all headline/body text to search for player mentions
-            combined_text = " ".join([f"{r.get('title', '')} {r.get('body', '')}" for r in results]).lower()
-
-            for player in players:
-                # Use last name as a fuzzy match proxy because news often just uses last names
-                last_name = player.split()[-1].lower() if len(player.split()) > 1 else player.lower()
-                
-                if player.lower() in combined_text or (len(last_name) > 3 and last_name in combined_text):
-                    print(f"  > Hit detected for {player}.")
-                    intel = synthesize_news(player, results)
-                    if intel and intel.get("text"):
-                        print(f"    Result: [{intel.get('type')}] {intel.get('text')}")
-                        if inject_motherduck(con, player, intel, has_news=True):
-                            check_alert_telemetry(con, player, intel)
-                    else:
-                        # Mentioned, but LLM deemed it non-actionable
-                        inject_motherduck(con, player, None, has_news=False)
-                else:
-                    # Not mentioned in franchise news block
-                    inject_motherduck(con, player, None, has_news=False)
-            
-        except Exception as e:
-            print(f"  Error fetching news for {team}: {e}")
-            
-    print("\n--- Hydration Complete ---")
-
 if __name__ == "__main__":
-    main()
+    hoover = NewsRSSHoover()
+    rosters = get_active_rosters()
+    
+    for team, players in rosters.items():
+        hoover.gather_team_news(team, players)
+        time.sleep(1.5)  # Respect rate limits between franchise calls

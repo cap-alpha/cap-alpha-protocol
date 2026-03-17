@@ -6,7 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Clock, CheckCircle2 } from "lucide-react";
 
-const RECEIPTS = [
+export interface Receipt {
+    id: number | string;
+    date: string | number;
+    player_name: string;
+    team: string;
+    prediction: string;
+    outcome: string;
+    roi: string;
+    pitch: string;
+    trend: 'up' | 'down';
+}
+
+const MOCK_RECEIPTS: Receipt[] = [
     {
         id: 1,
         date: "2024-10-12",
@@ -36,24 +48,30 @@ const RECEIPTS = [
         team: "CLE",
         prediction: "LIQUIDATE (Efficiency Gap: 42%)",
         outcome: "Career-low QBR / Injury",
-        roi: "+510%",
+        roi: "-410%",
         pitch: "Quantitative Risk Engine identified irreversible physical degradation before the season started.",
         trend: "down"
     }
 ];
 
-export function ProofOfAlphaCarousel() {
+interface ProofOfAlphaCarouselProps {
+    receipts?: Receipt[];
+}
+
+export function ProofOfAlphaCarousel({ receipts = [] }: ProofOfAlphaCarouselProps) {
     const [currentIndex, setCurrentIndex] = useState(0);
+
+    const displayReceipts = receipts && receipts.length > 0 ? receipts : MOCK_RECEIPTS;
 
     // Auto-rotate the carousel
     useEffect(() => {
         const interval = setInterval(() => {
-            setCurrentIndex((current) => (current + 1) % RECEIPTS.length);
+            setCurrentIndex((current) => (current + 1) % displayReceipts.length);
         }, 5000);
         return () => clearInterval(interval);
-    }, []);
+    }, [displayReceipts.length]);
 
-    const currentReceipt = RECEIPTS[currentIndex];
+    const currentReceipt = displayReceipts[currentIndex];
 
     return (
         <div className="w-full mb-8 relative group">
@@ -63,7 +81,7 @@ export function ProofOfAlphaCarousel() {
                     PROOF OF ALPHA // <span className="text-muted-foreground">THE LEDGER</span>
                 </h2>
                 <div className="flex gap-1">
-                    {RECEIPTS.map((_, idx) => (
+                    {displayReceipts.map((_, idx) => (
                         <div
                             key={idx}
                             className={`h-1.5 w-6 rounded-full transition-all duration-300 ${idx === currentIndex ? "bg-emerald-500" : "bg-secondary"}`}
@@ -108,10 +126,10 @@ export function ProofOfAlphaCarousel() {
                         </div>
 
                         {/* Right Col: ROI */}
-                        <div className="p-6 bg-emerald-500/5 flex flex-col items-center justify-center text-center border-l border-border relative">
-                            <div className="text-xs text-emerald-500 uppercase font-mono mb-2 font-bold tracking-wider">Simulated ROI</div>
-                            <div className="text-4xl font-black text-emerald-400 drop-shadow-sm flex items-center justify-center gap-2">
-                                {currentReceipt.trend === 'up' ? <TrendingUp className="h-8 w-8" /> : <TrendingDown className="h-8 w-8 text-emerald-400" />}
+                        <div className={`p-6 flex flex-col items-center justify-center text-center border-l border-border relative ${currentReceipt.trend === 'down' ? 'bg-rose-500/5' : 'bg-emerald-500/5'}`}>
+                            <div className={`text-xs uppercase font-mono mb-2 font-bold tracking-wider ${currentReceipt.trend === 'down' ? 'text-rose-500' : 'text-emerald-500'}`}>Simulated ROI</div>
+                            <div className={`text-4xl font-black drop-shadow-sm flex items-center justify-center gap-2 ${currentReceipt.trend === 'down' ? 'text-rose-400' : 'text-emerald-400'}`}>
+                                {currentReceipt.trend === 'up' ? <TrendingUp className="h-8 w-8" /> : <TrendingDown className="h-8 w-8" />}
                                 {currentReceipt.roi}
                             </div>
                         </div>

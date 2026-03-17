@@ -1,6 +1,5 @@
 import { getRosterData, getPositionDistribution, getPlayerTimeline, getIntelligenceFeed, TimelineEvent, IntelligenceEvent } from '@/app/actions';
 import PlayerDetailView from '@/components/player-detail-view';
-import { GlobalSearch } from '@/components/global-search';
 import { notFound } from 'next/navigation';
 import { slugify } from '@/lib/utils';
 
@@ -31,12 +30,6 @@ export default async function PlayerPage({ params }: { params: { id: string } })
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <div className="max-w-7xl mx-auto flex justify-between items-center mb-6">
-                <div className="text-xl font-bold tracking-tighter bg-gradient-to-r from-emerald-400 to-teal-500 bg-clip-text text-transparent">
-                    ALPHA PROTOCOL
-                </div>
-                <GlobalSearch />
-            </div>
             <PlayerDetailView player={player} distributionData={distribution} timeline={timeline} feed={feed} />
         </main>
     );

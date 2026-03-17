@@ -3,9 +3,7 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { TrendingDown, TrendingUp, AlertTriangle, ShieldCheck, Activity, Target } from "lucide-react";
-import { SignInButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
-import { GlobalSearch } from "@/components/global-search";
 
 const DISLOCATIONS = [
     {
@@ -73,31 +71,7 @@ export function AlphaFeedHero() {
             <div className="absolute top-0 inset-x-0 h-[500px] bg-gradient-to-b from-emerald-900/20 to-transparent pointer-events-none" />
             <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,black,rgba(0,0,0,0))] pointer-events-none opacity-20" />
             
-            {/* Top Header Navigation */}
-            <header className="absolute top-0 inset-x-0 w-full flex justify-between items-center py-6 px-8 border-b border-white/10 z-50 bg-black/50 backdrop-blur-md">
-                <div className="text-xl font-bold font-mono tracking-tight text-emerald-500 flex items-center gap-2">
-                    <Target className="h-6 w-6" /> CAP ALPHA PROTOCOL
-                </div>
-                <nav className="flex items-center gap-4 lg:gap-6 text-sm">
-                    <div className="hidden md:block">
-                        <GlobalSearch />
-                    </div>
-                    <SignedOut>
-                        <SignInButton mode="modal" fallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/dashboard">
-                            <button className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-10 px-6 py-2 rounded-md inline-flex items-center justify-center transition-colors uppercase tracking-wider text-xs">
-                                Executive Login
-                            </button>
-                        </SignInButton>
-                    </SignedOut>
-                    <SignedIn>
-                        <a href="/dashboard/gm">
-                            <button className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-10 px-6 py-2 rounded-md inline-flex items-center justify-center transition-colors uppercase tracking-wider text-xs">
-                                Enter Protocol
-                            </button>
-                        </a>
-                    </SignedIn>
-                </nav>
-            </header>
+
 
             <div className="relative z-10 w-full max-w-7xl mx-auto text-center space-y-8 mb-16">
                 <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/30 font-mono tracking-widest uppercase mb-4 py-1 px-4">

@@ -4,18 +4,44 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton, useUser, SignInButton } from "@clerk/nextjs";
 import { GlobalSearch } from "./global-search";
+import { useState, useEffect } from "react";
 
 export function Navbar() {
     const pathname = usePathname();
     const { isSignedIn, isLoaded } = useUser();
+    const [isScrolled, setIsScrolled] = useState(false);
+
+    useEffect(() => {
+        const handleScroll = () => {
+            if (window.scrollY > 20) {
+                setIsScrolled(true);
+            } else {
+                setIsScrolled(false);
+            }
+        };
+
+        window.addEventListener("scroll", handleScroll);
+        // Fire once on mount
+        handleScroll();
+
+        return () => window.removeEventListener("scroll", handleScroll);
+    }, []);
 
     // Do not show on the absolute index page if you want that to remain a clean landing page,
     // but the user wants navigation, so we'll show it everywhere or maybe skip on '/' if it has a hero.
     // Let's show it everywhere for consistency, but with a transparent background on top of the landing page maybe?
     // A sticky dark navbar is usually fine.
     
+    const isRoot = pathname === '/';
+
     return (
-        <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-black/80 backdrop-blur-md">
+        <header 
+            className={`sticky top-0 z-50 w-full transition-all duration-300 ${
+                isScrolled || !isRoot
+                    ? "border-b border-white/10 bg-black/80 backdrop-blur-md" 
+                    : "border-b-transparent bg-transparent"
+            }`}
+        >
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-6">
                     <Link href="/" className="flex items-center gap-2">

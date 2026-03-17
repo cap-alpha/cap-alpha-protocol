@@ -1,10 +1,9 @@
-import React from "react";
 import { getRosterData, getTeamCapSummary, getWarRoomData } from "../../actions";
 import { WarRoomDashboard } from "@/components/war-room-dashboard";
 import { TradeMachine } from "@/components/trade-machine";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ShieldCheck, TrendingDown } from "lucide-react";
-import { GlobalSearch } from "@/components/global-search";
+import { MarketTicker } from "@/components/market-ticker";
 import PersonaSwitcher from "@/components/persona-switcher";
 
 export default async function GMDashboard() {
@@ -18,31 +17,22 @@ export default async function GMDashboard() {
     const totalRiskCap = teamSummary.reduce((acc: number, t: any) => acc + t.risk_cap, 0);
 
     return (
-        <main className="min-h-[100dvh] bg-background p-8 font-sans text-foreground">
-            {/* Context Header */}
-            <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between border-b border-border pb-4 gap-4">
-                <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/30">
-                        <ShieldCheck className="w-8 h-8 text-blue-400" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                            Front Office <span className="text-blue-500">Suite</span>
-                        </h1>
-                        <p className="text-muted-foreground mt-1 text-sm flex items-center gap-2">
-                            Total Liabilities: {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(totalCap * 1000000)}
-                            <span className="text-muted-foreground/50">|</span>
-                            Risk Exposure: <span className="text-rose-500 font-bold">{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(totalRiskCap * 1000000)}</span>
-                        </p>
-                    </div>
+        <main className="min-h-[100dvh] bg-zinc-950 font-sans text-foreground">
+            {/* Live Ticker Feed */}
+            <MarketTicker totalCap={totalCap} riskCap={totalRiskCap} />
+            
+            {/* Unified Controls & Blotter */}
+            <div className="flex justify-between items-center px-4 py-2 border-b border-white/5 bg-black/40">
+                <div className="flex items-center gap-2">
+                    <ShieldCheck className="w-5 h-5 text-emerald-500" />
+                    <h2 className="text-sm font-mono tracking-widest text-white uppercase flex items-center gap-2">
+                        Execution Desk <span className="text-zinc-600">/</span> <span className="text-emerald-500 font-bold">GM</span>
+                    </h2>
                 </div>
-                <div className="flex gap-4 items-center">
-                    <GlobalSearch />
-                    <PersonaSwitcher />
-                </div>
-            </header>
+                <PersonaSwitcher />
+            </div>
 
-            <div className="grid gap-8">
+            <div className="p-4 grid gap-4">
                 {/* War Room Feed */}
                 <WarRoomDashboard data={warRoomData} />
 

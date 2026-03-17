@@ -1,0 +1,208 @@
+[
+    {
+        "id": 1,
+        "date": "2022-09-01",
+        "player_name": "Russell Wilson",
+        "team": "DEN",
+        "contract_size": "$242.5M",
+        "prediction": "CRITICAL SELL: Avoid Extension. Asset degradation curve signals unrecoverable efficiency drop.",
+        "media_sentiment": "Consensus: 'Broncos stuck with Wilson. Payton must fix him.'",
+        "cap_alpha_insight": "Performance degradation curve signaled unrecoverable efficiency drop. Trade/Cut was strictly dominant.",
+        "outcome": "Released after 2 full seasons. Denver absorbed an NFL-record $85M dead cap hit.",
+        "outcome_date": "2024-03-04",
+        "roi": "Had Denver listened and avoided the extension at t0, they would have saved $165M in guaranteed cash and completely bypassed their current rebuild phase.",
+        "trend": "down",
+        "tweets": [
+            {
+                "text": "The Broncos and Russell Wilson just reached agreement on a five-year, $245 million contract extension that includes $165 million in guarantees...",
+                "author": "@AdamSchefter",
+                "url": "https://twitter.com/search?q=from%3AAdamSchefter%20Broncos%20Russell%20Wilson%20agreement&src=typed_query",
+                "source": "twitter",
+                "likes": "45K",
+                "reposts": "12K"
+            },
+            {
+                "text": "The Broncos just gave Russell Wilson $165M guaranteed before he even played a snap. This is an all-in move by George Paton.",
+                "author": "@getnickwright",
+                "url": "https://twitter.com/search?q=from%3Agetnickwright%20Russell%20Wilson%20165M&src=typed_query",
+                "source": "twitter",
+                "likes": "15K",
+                "reposts": "3.2K"
+            },
+            {
+                "text": "[Pelissero] Russell Wilson's new deal: $245M over 5 years. This essentially ties him to Denver until he retires.",
+                "author": "r/nfl",
+                "url": "https://www.reddit.com/r/nfl/search/?q=Russell+Wilson+extension&restrict_sr=1",
+                "source": "reddit",
+                "likes": "12K",
+                "reposts": "900"
+            }
+        ],
+        "image_url": "/players/russell_wilson.jpg"
+    },
+    {
+        "id": 2,
+        "date": "2022-03-15",
+        "player_name": "Aaron Rodgers",
+        "team": "GB",
+        "contract_size": "$150.8M",
+        "prediction": "SELL: Age-based efficiency cliff approaching. Cash out on MVP narrative.",
+        "media_sentiment": "Consensus: 'Packers must run it back with back-to-back MVP.'",
+        "cap_alpha_insight": "Historic age/salary intersection indicated maximum trade value. Holding was negative EV.",
+        "outcome": "GB retained Rodgers for one more disappointing season, then formally traded him to the Jets.",
+        "outcome_date": "2023-04-24",
+        "roi": "Green Bay cleared $40M off their books and acquired premium draft assets. Had they traded him a year earlier in 2022, they would have netted an additional 1st round pick.",
+        "trend": "down",
+        "image_position": "10% center",
+        "tweets": [
+            {
+                "text": "Aaron Rodgers has officially signed his new contract with the Packers. 3 years, $150.8 million, $101.5M guaranteed. Huge commitment by Green Bay to keep the back-to-back MVP.",
+                "author": "@NFL_DovKleiman",
+                "url": "https://twitter.com/search?q=from%3ANFL_DovKleiman%20Aaron%20Rodgers%20Packers%20150.8&src=typed_query",
+                "source": "twitter",
+                "likes": "65K",
+                "reposts": "15K"
+            },
+            {
+                "text": "AARON RODGERS IS RETURNING TO THE GREEN BAY PACKERS",
+                "author": "@PatMcAfeeShow",
+                "url": "https://twitter.com/search?q=from%3APatMcAfeeShow%20AARON%20RODGERS%20IS%20RETURNING&src=typed_query",
+                "source": "twitter",
+                "likes": "110K",
+                "reposts": "22K"
+            },
+            {
+                "text": "Rodgers signs 4 year 200 mil deal. We are running it back boys!!",
+                "author": "r/GreenBayPackers",
+                "url": "https://www.reddit.com/r/GreenBayPackers/search/?q=Aaron+Rodgers+extension&restrict_sr=1",
+                "source": "reddit",
+                "likes": "8.5K",
+                "reposts": "1.2K"
+            }
+        ],
+        "image_url": "/players/aaron_rodgers.jpg"
+    },
+    {
+        "id": 3,
+        "date": "2022-03-18",
+        "player_name": "Deshaun Watson",
+        "team": "CLE",
+        "contract_size": "$230M (Fully Guaranteed)",
+        "prediction": "AVOID AT ALL COSTS: Severe negative Efficiency Gap and unquantifiable off-field toxicity.",
+        "media_sentiment": "Consensus: 'Browns hands are tied due to fully guaranteed contract.'",
+        "cap_alpha_insight": "Sunk cost fallacy. Roster impact is deeply negative relative to replacement level. Evaluate buyout.",
+        "outcome": "Historic bust. Played only 12 games over two seasons before sustaining season-ending injuries.",
+        "outcome_date": "2023-11-15",
+        "roi": "Cleveland is locked into the worst contract in NFL history. Avoiding the trade would have saved three 1st-round picks and $230M in guarantees.",
+        "trend": "down",
+        "tweets": [
+            {
+                "text": "Deshaun Watson gets a fully guaranteed 5 year $230M contract. That is $80M more than the previous record for fully guaranteed money at signing.",
+                "author": "@AdamSchefter",
+                "url": "https://twitter.com/search?q=from%3AAdamSchefter%20Deshaun%20Watson%20fully%20guaranteed%20230M&src=typed_query",
+                "source": "twitter",
+                "likes": "85K",
+                "reposts": "25K"
+            },
+            {
+                "text": "The Browns constructing Deshaun Watson's contract so he loses very little base salary if suspended in 2022 is the ultimate all-in move.",
+                "author": "@FieldYates",
+                "url": "https://twitter.com/search?q=from%3AFieldYates%20Browns%20Deshaun%20Watson%20contract&src=typed_query",
+                "source": "twitter",
+                "likes": "22K",
+                "reposts": "5.5K"
+            },
+            {
+                "text": "WE GOT DESHAUN WATSON. Super bowl window is WIDE OPEN.",
+                "author": "r/Browns",
+                "url": "https://www.reddit.com/r/Browns/search/?q=Deshaun+Watson+trade&restrict_sr=1",
+                "source": "reddit",
+                "likes": "14K",
+                "reposts": "1.5K"
+            }
+        ],
+        "image_url": "/players/deshaun_watson.jpg"
+    },
+    {
+        "id": 4,
+        "date": "2019-09-04",
+        "player_name": "Ezekiel Elliott",
+        "team": "DAL",
+        "contract_size": "$90M",
+        "prediction": "SELL: RB efficiency cliff arriving in 18 months. Do not extend.",
+        "media_sentiment": "Consensus: 'Zeke is the heart of the Cowboys. Needs a restructure.'",
+        "cap_alpha_insight": "Positional value & declining explosiveness metrics mandate release. Roster spot more valuable than emotional attachment.",
+        "outcome": "Released. Cowboys absorbed $11.8M combined dead cap.",
+        "outcome_date": "2023-03-15",
+        "roi": "Dallas burned nearly $50M in cash over 4 years for replacement-level production. Reinvesting that cap would have extended their SB window.",
+        "trend": "down",
+        "tweets": [
+            {
+                "text": "The Cowboys and RB Ezekiel Elliott have agreed to a 6-year, $90M extension... He is the highest-paid running back in the NFL.",
+                "author": "@RapSheet",
+                "url": "https://twitter.com/search?q=from%3ARapSheet%20Cowboys%20Ezekiel%20Elliott%20extension&src=typed_query",
+                "source": "twitter",
+                "likes": "40K",
+                "reposts": "11K"
+            },
+            {
+                "text": "Zeke got his money. And he deserved every penny. This Cowboys offense runs through 21. Super Bowl bound.",
+                "author": "@RealSkipBayless",
+                "url": "https://twitter.com/search?q=from%3ARealSkipBayless%20Zeke&src=typed_query",
+                "source": "twitter",
+                "likes": "18K",
+                "reposts": "4.5K"
+            },
+            {
+                "text": "ZEKE IS EXTENDED! 6 years 90 mil. Let's go win number 6.",
+                "author": "r/cowboys",
+                "url": "https://www.reddit.com/r/cowboys/search/?q=Zeke+extension&restrict_sr=1",
+                "source": "reddit",
+                "likes": "6.2K",
+                "reposts": "800"
+            }
+        ],
+        "image_url": "/players/ezekiel_elliott.jpg"
+    },
+    {
+        "id": 5,
+        "date": "2020-07-25",
+        "player_name": "Jamal Adams",
+        "team": "SEA",
+        "contract_size": "$70M",
+        "prediction": "SELL THE TRADE: SS positional value does not support a $70M market rate reset.",
+        "media_sentiment": "Consensus: 'Seahawks defense is elite again with Adams.'",
+        "cap_alpha_insight": "Two 1st round picks for a non-coverage safety destroys draft capital ROI. Extension metrics project severe underperformance.",
+        "outcome": "Catastrophic failure due to repeated injuries. Suffered a torn quad tendon (2022) and chronic knee/concussion issues, playing only 10 games from 2022-2023 before release.",
+        "outcome_date": "2024-03-05",
+        "roi": "Seattle traded two 1st-round picks and committed $72M for a box safety whose injury profile destroyed their defensive cap flexibility.",
+        "trend": "down",
+        "tweets": [
+            {
+                "text": "Trade is now agreed to: Jets deal Jamal Adams to Seattle, in exchange for 1st-round pick in 2021, 1st-round pick in 2022, and 3rd-round pick in 2021...",
+                "author": "@AdamSchefter",
+                "url": "https://twitter.com/search?q=from%3AAdamSchefter%20Trade%20is%20now%20agreed%20to%3A%20Jets%20deal%20Jamal%20Adams&src=typed_query",
+                "source": "twitter",
+                "likes": "55K",
+                "reposts": "18K"
+            },
+            {
+                "text": "To the city of Seattle.. LET’S GET IT! #Prez",
+                "author": "@Prez",
+                "url": "https://twitter.com/search?q=from%3APrez%20To%20the%20city%20of%20Seattle&src=typed_query",
+                "source": "twitter",
+                "likes": "135K",
+                "reposts": "25K"
+            },
+            {
+                "text": "WE GOT JAMAL ADAMS. John Schneider is a wizard.",
+                "author": "r/Seahawks",
+                "url": "https://www.reddit.com/r/Seahawks/search/?q=Jamal+Adams+trade&restrict_sr=1",
+                "source": "reddit",
+                "likes": "11K",
+                "reposts": "1.1K"
+            }
+        ],
+        "image_url": "/players/jamal_adams.jpg"
+    }
+]

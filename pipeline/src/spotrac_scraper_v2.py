@@ -204,10 +204,18 @@ class SpotracParser:
                 target = 'position'
             elif (('contract' in col_lower and 'value' in col_lower) or col_lower == 'value') and 'total_contract_value' not in mapped_targets:
                 target = 'total_contract_value'
-            elif ('guaranteed' in col_lower or 'guarantee' in col_lower) and 'guaranteed_money' not in mapped_targets:
+            elif ('guaranteed' in col_lower or 'guarantee' in col_lower) and 'sign' not in col_lower and 'guaranteed_money' not in mapped_targets:
                 target = 'guaranteed_money'
+            elif 'guaranteed' in col_lower and 'sign' in col_lower and 'guaranteed_salary' not in mapped_targets:
+                target = 'guaranteed_salary'
             elif 'signing' in col_lower and 'bonus' in col_lower and 'signing_bonus' not in mapped_targets:
                 target = 'signing_bonus'
+            elif 'base' in col_lower and 'salary' in col_lower and 'base_salary' not in mapped_targets:
+                target = 'base_salary'
+            elif 'prorated' in col_lower and 'bonus' in col_lower and 'prorated_bonus' not in mapped_targets:
+                target = 'prorated_bonus'
+            elif 'roster' in col_lower and 'bonus' in col_lower and 'roster_bonus' not in mapped_targets:
+                target = 'roster_bonus'
             elif 'contract' in col_lower and 'year' in col_lower and 'contract_length_years' not in mapped_targets:
                 target = 'contract_length_years'
             elif 'years' in col_lower and 'remaining' in col_lower and 'years_remaining' not in mapped_targets:
@@ -226,7 +234,7 @@ class SpotracParser:
         df = df.rename(columns=col_map).copy()
         
         # Parse money columns
-        money_cols = ['total_contract_value', 'guaranteed_money', 'signing_bonus', 'cap_hit', 'dead_cap']
+        money_cols = ['total_contract_value', 'guaranteed_money', 'signing_bonus', 'cap_hit', 'dead_cap', 'guaranteed_salary', 'base_salary', 'prorated_bonus', 'roster_bonus']
         for col in money_cols:
             if col in df.columns:
                 df[f'{col}_millions'] = df[col].apply(self.parse_money)
@@ -239,7 +247,9 @@ class SpotracParser:
         keep_cols = ['player_name', 'team', 'position', 'age', 'year',
                      'total_contract_value_millions', 'guaranteed_money_millions', 
                      'signing_bonus_millions', 'contract_length_years', 'years_remaining',
-                     'cap_hit_millions', 'dead_cap_millions']
+                     'cap_hit_millions', 'dead_cap_millions',
+                     'base_salary_millions', 'prorated_bonus_millions',
+                     'roster_bonus_millions', 'guaranteed_salary_millions']
         df = df[[c for c in keep_cols if c in df.columns]]
         
         if 'player_name' in df.columns:

@@ -59,6 +59,18 @@ export interface SilverSpotracContracts {
   dead_cap_millions: number;
   /** Signing bonus in millions */
   signing_bonus_millions: number;
+  /** Guaranteed money in millions */
+  guaranteed_money_millions: number;
+  /** Total contract value in millions */
+  total_contract_value_millions: number;
+  /** Base salary in millions */
+  base_salary_millions: number;
+  /** Prorated bonus in millions */
+  prorated_bonus_millions: number;
+  /** Roster bonus in millions */
+  roster_bonus_millions: number;
+  /** Guaranteed salary in millions */
+  guaranteed_salary_millions: number;
   /** Player age */
   age: number;
 }
@@ -193,6 +205,16 @@ export interface FactPlayerEfficiency {
   dead_cap_millions: number;
   /** Signing bonus (M) */
   signing_bonus_millions: number;
+  /** Guaranteed money (M) */
+  guaranteed_money_millions: number;
+  /** Base salary (M) */
+  base_salary_millions: number;
+  /** Prorated bonus (M) */
+  prorated_bonus_millions: number;
+  /** Roster bonus (M) */
+  roster_bonus_millions: number;
+  /** Guaranteed salary (M) */
+  guaranteed_salary_millions: number;
   /** Projected dead cap risk */
   potential_dead_cap_millions: number;
   /** Target variable: Effective Dead Cap Exposure */

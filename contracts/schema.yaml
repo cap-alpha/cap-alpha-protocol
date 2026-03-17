@@ -38,6 +38,12 @@ tables:
       cap_hit_millions: { type: "FLOAT", description: "Cap hit in millions" }
       dead_cap_millions: { type: "FLOAT", description: "Dead cap in millions" }
       signing_bonus_millions: { type: "FLOAT", description: "Signing bonus in millions" }
+      guaranteed_money_millions: { type: "FLOAT", description: "Guaranteed money in millions" }
+      total_contract_value_millions: { type: "FLOAT", description: "Total contract value in millions" }
+      base_salary_millions: { type: "FLOAT", description: "Base salary in millions" }
+      prorated_bonus_millions: { type: "FLOAT", description: "Prorated bonus in millions" }
+      roster_bonus_millions: { type: "FLOAT", description: "Roster bonus in millions" }
+      guaranteed_salary_millions: { type: "FLOAT", description: "Guaranteed salary in millions" }
       age: { type: "INTEGER", description: "Player age" }
 
   silver_spotrac_rankings:
@@ -122,6 +128,11 @@ tables:
       cap_hit_millions: { type: "FLOAT", description: "Cap hit (M)" }
       dead_cap_millions: { type: "FLOAT", description: "Dead cap (M)" }
       signing_bonus_millions: { type: "FLOAT", description: "Signing bonus (M)" }
+      guaranteed_money_millions: { type: "FLOAT", description: "Guaranteed money (M)" }
+      base_salary_millions: { type: "FLOAT", description: "Base salary (M)" }
+      prorated_bonus_millions: { type: "FLOAT", description: "Prorated bonus (M)" }
+      roster_bonus_millions: { type: "FLOAT", description: "Roster bonus (M)" }
+      guaranteed_salary_millions: { type: "FLOAT", description: "Guaranteed salary (M)" }
       potential_dead_cap_millions: { type: "FLOAT", description: "Projected dead cap risk" }
       edce_risk: { type: "FLOAT", description: "Target variable: Effective Dead Cap Exposure" }
       fair_market_value: { type: "FLOAT", description: "Calculated FMV score" }

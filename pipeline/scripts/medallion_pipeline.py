@@ -144,14 +144,18 @@ class SilverLayer:
             'guaranteed_money_millions': 'dead_cap_millions',
         })
         
-        required_cols = ['cap_hit_millions', 'dead_cap_millions', 'age', 'signing_bonus_millions', 'guaranteed_money_millions', 'total_contract_value_millions']
+        required_cols = [
+            'cap_hit_millions', 'dead_cap_millions', 'age', 
+            'signing_bonus_millions', 'guaranteed_money_millions', 'total_contract_value_millions',
+            'base_salary_millions', 'prorated_bonus_millions', 'roster_bonus_millions', 'guaranteed_salary_millions'
+        ]
         for col in required_cols:
             if col not in df.columns: df[col] = None
 
         self.db.execute(f"DELETE FROM silver_spotrac_contracts WHERE year = {year}")
         self.db.execute("""
-            INSERT INTO silver_spotrac_contracts (player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, age)
-            SELECT player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, age FROM df
+            INSERT INTO silver_spotrac_contracts (player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, age, base_salary_millions, prorated_bonus_millions, roster_bonus_millions, guaranteed_salary_millions)
+            SELECT player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, age, base_salary_millions, prorated_bonus_millions, roster_bonus_millions, guaranteed_salary_millions FROM df
         """, {"df": df})
 
         # Salaries
@@ -344,6 +348,10 @@ class GoldLayer:
                 SUM(s.dead_cap_millions) as dead_cap_millions,
                 MAX(s.signing_bonus_millions) as signing_bonus_millions,
                 MAX(s.guaranteed_money_millions) as guaranteed_money_millions,
+                MAX(s.base_salary_millions) as base_salary_millions,
+                MAX(s.prorated_bonus_millions) as prorated_bonus_millions,
+                MAX(s.roster_bonus_millions) as roster_bonus_millions,
+                MAX(s.guaranteed_salary_millions) as guaranteed_salary_millions,
                 MAX(s.total_contract_value_millions) as total_contract_value_millions,
                 MAX(s.age) as age
             FROM silver_spotrac_contracts s

@@ -1,0 +1,86 @@
+
+> cap-alpha-protocol@0.1.0 build
+> next build
+
+ ⨯ Failed to load env from .env.local Error: EPERM: operation not permitted, stat '/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.env.local'
+    at Object.statSync (node:fs:1753:25)
+    at loadEnvConfig (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/@next/env/dist/index.js:1:9602)
+    at /Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/build/index.js:377:115
+    at Span.traceFn (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/trace/trace.js:144:20)
+    at /Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/build/index.js:377:80
+    at Span.traceAsyncFn (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/trace/trace.js:151:26)
+    at build (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/build/index.js:374:29)
+    at nextBuild (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/cli/next-build.js:101:31)
+    at /Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/bin/next:155:54
+    at async main (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/bin/next:155:5) {
+  errno: -1,
+  code: 'EPERM',
+  syscall: 'stat',
+  path: '/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.env.local'
+}
+   ▲ Next.js 14.1.0
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully
+   Skipping validation of types
+   Skipping linting
+   Collecting page data ...
+   Generating static pages (0/5) ...
+   Generating static pages (1/5) 
+   Generating static pages (2/5) 
+   Generating static pages (3/5) 
+Error: @clerk/nextjs: Missing publishableKey. You can get your key at https://dashboard.clerk.com/last-active?path=api-keys.
+    at Object.throwMissingPublishableKeyError (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:31:1731)
+    at /Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:20:53924
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47419)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47570)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61233)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+
+Error occurred prerendering page "/_not-found". Read more: https://nextjs.org/docs/messages/prerender-error
+
+Error: @clerk/nextjs: Missing publishableKey. You can get your key at https://dashboard.clerk.com/last-active?path=api-keys.
+    at Object.throwMissingPublishableKeyError (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:31:1731)
+    at /Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:20:53924
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47419)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47570)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61233)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+Error: @clerk/nextjs: Missing publishableKey. You can get your key at https://dashboard.clerk.com/last-active?path=api-keys.
+    at Object.throwMissingPublishableKeyError (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:31:1731)
+    at /Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:20:53924
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47419)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47570)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61233)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+
+Error occurred prerendering page "/". Read more: https://nextjs.org/docs/messages/prerender-error
+
+Error: @clerk/nextjs: Missing publishableKey. You can get your key at https://dashboard.clerk.com/last-active?path=api-keys.
+    at Object.throwMissingPublishableKeyError (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:31:1731)
+    at /Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/.next/server/chunks/929.js:20:53924
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47419)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:47570)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nM (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:61233)
+    at nN (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:64674)
+    at nI (/Users/andrewsmith/Documents/portfolio/nfl-dead-money/web/node_modules/next/dist/compiled/next-server/app-page.runtime.prod.js:12:46806)
+ ✓ Generating static pages (5/5) 
+
+> Export encountered errors on following paths:
+	/_not-found
+	/page: /

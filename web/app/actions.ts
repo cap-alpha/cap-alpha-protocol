@@ -2,33 +2,38 @@
 
 import { z } from 'zod';
 import { getMotherDuckDb } from '@/lib/motherduck';
+import { slugify } from '@/lib/utils';
 import historicalData from '../data/historical_predictions.json';
 
 // --- SCHEMA DEFINITIONS (The Bridge) ---
 
 const HistorySchema = z.object({
-  year: z.number(),
+  year: z.coerce.number(),
   team: z.string(),
-  actual: z.number(),
-  predicted: z.number(),
+  actual: z.coerce.number(),
+  predicted: z.coerce.number(),
 });
 
 const PlayerEfficiencySchema = z.object({
   player_name: z.string(),
   team: z.string(),
   position: z.string(),
-  year: z.number().default(2025),
-  age: z.number().optional().default(25),
-  games_played: z.number().optional().default(0),
-  cap_hit_millions: z.number().default(0),
-  dead_cap_millions: z.number().default(0),
-  edce_risk: z.number().default(0), // Expected Dead Cap Error ($M)
-  risk_score: z.number().default(0), // Normalized Risk Probability (0-1)
-  fair_market_value: z.number().default(0), // Surplus Value
-  dead_cap_pre_june1: z.number().optional().default(0),
-  savings_pre_june1: z.number().optional().default(0),
-  dead_cap_post_june1: z.number().optional().default(0),
-  savings_post_june1: z.number().optional().default(0),
+  year: z.coerce.number().default(2025),
+  age: z.coerce.number().optional().default(25),
+  games_played: z.coerce.number().optional().default(0),
+  cap_hit_millions: z.coerce.number().default(0),
+  dead_cap_millions: z.coerce.number().default(0),
+  edce_risk: z.coerce.number().default(0), // Expected Dead Cap Error ($M)
+  risk_score: z.coerce.number().default(0), // Normalized Risk Probability (0-1)
+  fair_market_value: z.coerce.number().default(0), // Surplus Value
+  dead_cap_pre_june1: z.coerce.number().optional().default(0),
+  savings_pre_june1: z.coerce.number().optional().default(0),
+  dead_cap_post_june1: z.coerce.number().optional().default(0),
+  savings_post_june1: z.coerce.number().optional().default(0),
+  base_salary_millions: z.coerce.number().optional().default(0),
+  prorated_bonus_millions: z.coerce.number().optional().default(0),
+  roster_bonus_millions: z.coerce.number().optional().default(0),
+  guaranteed_salary_millions: z.coerce.number().optional().default(0),
   report_status: z.string().optional(),
   report_primary_injury: z.string().optional(),
   history: z.array(HistorySchema).optional().default([]), // Historical Authentication
@@ -38,33 +43,9 @@ const PlayerEfficiencySchema = z.object({
 export type PlayerEfficiency = z.infer<typeof PlayerEfficiencySchema>;
 export type PlayerHistory = z.infer<typeof HistorySchema>;
 
-// --- MOCK DATA GENERATOR (The Safety Net) ---
-// Used when the real pipeline data is missing or $0 (as confirmed in audit).
-// This allows Frontend Development to proceed without blocking on Data Engineering.
+// --- MOCK DATA GENERATOR REMOVED ---
+// We no longer provide fallback mock data during production or staging.
 
-function generateMockFinancials(player: any): PlayerEfficiency {
-  // Deterministic "random" based on name length for consistency during dev
-  const seed = player.player_name.length;
-
-  // Mock Cap Hit: $1M - $50M based on name length mod
-  const baseCap = (seed % 45) + 1;
-
-  // Mock Risk: Higher cap = Higher risk (simplified heuristic)
-  const risk = (baseCap > 30) ? 0.8 : (baseCap > 10) ? 0.4 : 0.1;
-
-  // Mock FMV: Random variance from cap
-  const surplus = baseCap * (1.2 - (seed % 5) / 10);
-
-  return {
-    ...player,
-    cap_hit_millions: player.cap_hit_millions || baseCap,
-    dead_cap_millions: player.dead_cap_millions || (baseCap * 0.5),
-    edce_risk: player.edce_risk || (risk * 10), // approximate error
-    risk_score: player.risk_score || risk,
-    fair_market_value: player.fair_market_value || surplus,
-    year: player.year || 2025
-  };
-}
 
 // --- DATA HYDRATION ---
 
@@ -78,15 +59,8 @@ async function getHydratedData(): Promise<PlayerEfficiency[]> {
       rawData = res as any[];
       console.log(`[MotherDuck] Successfully fetched ${rawData.length} records from cloud.`);
     } catch (dbError) {
-      console.warn("[MotherDuck] Fallback to Mock Generation:", dbError);
-      // Fallback for UI Design mock dev if cloud is unreachable
-      rawData = [
-        { player_name: "Dak Prescott", team: "DAL", position: "QB", cap_hit_millions: 55 },
-        { player_name: "Micah Parsons", team: "DAL", position: "EDGE", cap_hit_millions: 5 },
-        { player_name: "Tua Tagovailoa", team: "MIA", position: "QB", cap_hit_millions: 23 },
-        { player_name: "Tyreek Hill", team: "MIA", position: "WR", cap_hit_millions: 31 },
-        { player_name: "Kyler Murray", team: "ARI", position: "QB", cap_hit_millions: 43 },
-      ];
+      console.warn("[MotherDuck] Database connection failed. Returning empty state.", dbError);
+      return [];
     }
 
     // transform historical data into a lookup map for O(1) access
@@ -107,7 +81,6 @@ async function getHydratedData(): Promise<PlayerEfficiency[]> {
     const parsedData = rawData.map(item => {
       const result = PlayerEfficiencySchema.safeParse(item);
       if (!result.success) {
-        if (item.player_name) return generateMockFinancials(item);
         return null;
       }
 
@@ -119,7 +92,7 @@ async function getHydratedData(): Promise<PlayerEfficiency[]> {
       p.history = history.sort((a, b) => a.year - b.year);
 
       if (p.cap_hit_millions === 0 && p.risk_score === 0) {
-        return generateMockFinancials(p);
+        return null; // Return nothing instead of mocking
       }
       return p;
     }).filter((p): p is PlayerEfficiency => p !== null);
@@ -247,7 +220,7 @@ export async function getSearchIndex(): Promise<SearchIndexItem[]> {
                 type: 'player',
                 label: d.player_name,
                 sub: `${d.position} • ${d.team}`,
-                url: `/player/${encodeURIComponent(d.player_name.toLowerCase().replace(' ', '-'))}`
+                url: `/player/${encodeURIComponent(slugify(d.player_name))}`
             });
         }
         
@@ -378,6 +351,7 @@ export type IntelligenceEvent = {
   text: string;
   icon: 'TrendingDown' | 'TrendingUp' | 'AlertCircle' | 'FileText';
   color: string;
+  url?: string; // Optional URL field for source citation
 };
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
@@ -404,7 +378,7 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
 
     // 2. Media Consensus
     const media = await db.all(`
-      SELECT media_date_approx as date_of_event, rationale
+      SELECT media_date_approx as date_of_event, rationale, source_url
       FROM media_lag_metrics
       WHERE player_name = ?
       ORDER BY year DESC, media_consensus_week DESC LIMIT 3
@@ -416,7 +390,8 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
           type: "Media",
           text: `Consensus shift: ${(m as any).rationale}`,
           icon: 'AlertCircle',
-          color: 'text-amber-400'
+          color: 'text-amber-400',
+          url: (m as any).source_url || undefined,
         });
       }
     }
@@ -512,18 +487,13 @@ export async function getWarRoomData(): Promise<WarRoomData> {
     };
   } catch (error) {
     console.error(`[Data] Error loading War Room Data:`, error);
-    // Safe Fallback Mock for Dashboard
+    // Return empty state rather than mock data
     return {
-      redAlerts: [
-        { player_name: "Dak Prescott", team: "DAL", year: 2024, week: 1, uncertainty_score: 0.95 },
-        { player_name: "Deshaun Watson", team: "CLE", year: 2024, week: 5, uncertainty_score: 0.88 },
-      ],
+      redAlerts: [],
       roiMetrics: {
-        averageLeadTime: 3.5,
-        totalValidations: 2,
-        topPerformers: [
-          { player_name: "Russell Wilson", year: 2024, lead_time: 5, rationale: "Benched by PIT" }
-        ]
+        averageLeadTime: 0,
+        totalValidations: 0,
+        topPerformers: []
       }
     };
   }

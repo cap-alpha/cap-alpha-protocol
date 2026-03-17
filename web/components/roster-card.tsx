@@ -4,6 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 interface RosterCardProps {
     player: {
@@ -36,7 +37,7 @@ export function RosterCard({ player }: RosterCardProps) {
                 <div className="flex-1 overflow-hidden z-10 w-full min-w-0">
                     <div className="flex flex-col">
                         <div className="flex items-center gap-2">
-                            <Link href={`/player/${encodeURIComponent(player.player_name.toLowerCase().replace(' ', '-'))}`} className="hover:underline hover:text-emerald-500 transition-colors">
+                            <Link href={`/player/${encodeURIComponent(slugify(player.player_name))}`} className="hover:underline hover:text-emerald-500 transition-colors">
                                 <h3 className="font-bold truncate text-base leading-tight relative z-20">{player.player_name}</h3>
                             </Link>
                             {(player.cap_hit_millions > 0 && player.surplus_value === 0) && (

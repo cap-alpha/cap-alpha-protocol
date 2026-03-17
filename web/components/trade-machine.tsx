@@ -166,7 +166,7 @@ export function TradeMachine() {
                     [teamA]: impactA,
                     [teamB]: impactB
                 },
-                score: apiResult.grade === 'A+' ? 99 : apiResult.grade === 'F' ? 50 : 75, // Mock score mapping for now
+                score: apiResult.grade === 'A+' ? 99 : apiResult.grade === 'F' ? 50 : 75, // Basic heuristic score mapping
                 vegas_impact: vegasImpact || undefined // Add Vegas Data
             };
 

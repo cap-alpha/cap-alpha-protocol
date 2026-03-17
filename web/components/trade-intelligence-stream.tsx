@@ -15,6 +15,7 @@ interface Scenario {
     cost: string;
     score: number;
     rationale: string;
+    date?: string; // Optional since it's injected
 }
 
 interface TradeIntelligenceStreamProps {
@@ -25,8 +26,16 @@ interface TradeIntelligenceStreamProps {
 export function TradeIntelligenceStream({ teamFilter, onSelectScenario }: TradeIntelligenceStreamProps) {
 
     const filteredScenarios = React.useMemo(() => {
-        if (!teamFilter) return scenarios;
-        return scenarios.filter(s => s.buyer === teamFilter || s.seller === teamFilter);
+        let scens = scenarios;
+        if (teamFilter) {
+            scens = scenarios.filter(s => s.buyer === teamFilter || s.seller === teamFilter);
+        }
+        // Inject mock dates working backward from now
+        const now = new Date();
+        return scens.map((s, idx) => {
+            const d = new Date(now.getTime() - (idx * 6 * 60 * 60 * 1000));
+            return { ...s, _dateObj: d };
+        });
     }, [teamFilter]);
 
     return (
@@ -64,9 +73,14 @@ export function TradeIntelligenceStream({ teamFilter, onSelectScenario }: TradeI
                                             <span className="text-muted-foreground">gets</span>
                                             <span className="text-white">{s.player}</span>
                                         </div>
-                                        <span className="text-[10px] font-mono text-emerald-600 bg-emerald-950/30 px-1 rounded">
-                                            {s.score.toFixed(1)} UTIL
-                                        </span>
+                                        <div className="text-right">
+                                            <span className="block text-[10px] text-muted-foreground mb-1 font-mono">
+                                                {s._dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} - {s._dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            </span>
+                                            <span className="text-[10px] font-mono text-emerald-600 bg-emerald-950/30 px-1 rounded">
+                                                {s.score.toFixed(1)} UTIL
+                                            </span>
+                                        </div>
                                     </div>
 
                                     <div className="flex justify-between items-center text-[10px] text-muted-foreground mb-2">

@@ -48,11 +48,8 @@ export function TradePartnerRolodex({ selectedPlayer }: RolodexProps) {
             setPartners(data.top_partners || []);
         } catch (e) {
             console.error(e);
-            // Fallback mock for demo if API fails/offline
-            setPartners([
-                { team: "LV", score: 95, reason: "Mock: High Cap Space" },
-                { team: "WAS", score: 88, reason: "Mock: Rebuilding" }
-            ]);
+            // Do not provide mock data if API fails
+            setPartners([]);
         } finally {
             setLoading(false);
         }

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingDown, TrendingUp, AlertTriangle, ShieldCheck, Activity, Target } from "lucide-react";
 import { SignInButton, SignedIn, SignedOut } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { GlobalSearch } from "@/components/global-search";
 
 const DISLOCATIONS = [
     {
@@ -77,7 +78,10 @@ export function AlphaFeedHero() {
                 <div className="text-xl font-bold font-mono tracking-tight text-emerald-500 flex items-center gap-2">
                     <Target className="h-6 w-6" /> CAP ALPHA PROTOCOL
                 </div>
-                <nav className="flex items-center gap-6 text-sm">
+                <nav className="flex items-center gap-4 lg:gap-6 text-sm">
+                    <div className="hidden md:block">
+                        <GlobalSearch />
+                    </div>
                     <SignedOut>
                         <SignInButton mode="modal" fallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/dashboard">
                             <button className="bg-emerald-500 hover:bg-emerald-400 text-black font-bold h-10 px-6 py-2 rounded-md inline-flex items-center justify-center transition-colors uppercase tracking-wider text-xs">

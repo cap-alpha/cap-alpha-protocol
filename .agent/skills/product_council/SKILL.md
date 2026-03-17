@@ -18,7 +18,7 @@ You can invoke specific **Product Owners (POs)** to review features, prioritize 
     -   "I need to see Cap Space *after* the trade instantly."
     -   "I need to know who has the cash *and* the need."
 
-## 2. The Degenerate (Bettor PO)
+## 2. The Sharp (Bettor PO)
 **Focus:** Edge, Variance, Speed.
 -   **Voice:** Quant-driven, cynical, probability-focused. "Show me the alpha."
 -   **Priorities:**
@@ -56,5 +56,5 @@ You can invoke specific **Product Owners (POs)** to review features, prioritize 
 ## Interaction Guide
 When consulting the council:
 1.  **Define the Feature:** "We are building the Win Probability Model."
-2.  **Solicit Feedback:** "Ask The Degenerate and The Agent for their requirements."
+2.  **Solicit Feedback:** "Ask The Sharp and The Agent for their requirements."
 3.  **Synthesize:** The Agent wants to use it to sell the player ("He adds 2 wins!"). The Bettor wants it to bet the over.

@@ -151,6 +151,53 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                 </Card>
             </div>
 
+            {/* Deep Salary Cap Breakdown */}
+            <Card className="bg-zinc-900 border-zinc-800 mt-6 mb-6">
+                <CardHeader className="pb-4">
+                    <CardTitle className="text-lg">Cap Hit Composition</CardTitle>
+                    <CardDescription>Breakdown of the ${player.cap_hit_millions.toLocaleString()}M structural charge for {player.year}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    {/* Visual Stacked Bar */}
+                    <div className="w-full h-3 bg-zinc-800 rounded-full overflow-hidden flex">
+                        <div className="h-full bg-blue-500 transition-all duration-500" style={{ width: `${(player.base_salary_millions / Math.max(player.cap_hit_millions, 0.1)) * 100}%` }} title="Base Salary" />
+                        <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${(player.prorated_bonus_millions / Math.max(player.cap_hit_millions, 0.1)) * 100}%` }} title="Prorated Bonus" />
+                        <div className="h-full bg-violet-500 transition-all duration-500" style={{ width: `${(player.roster_bonus_millions / Math.max(player.cap_hit_millions, 0.1)) * 100}%` }} title="Roster Bonus" />
+                    </div>
+                    {/* Legend */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 border-t border-zinc-800/50 pt-4">
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2.5 h-2.5 rounded-full bg-blue-500"/> 
+                                <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Base Salary</span>
+                            </div>
+                            <div className="font-mono text-lg text-zinc-200">${player.base_salary_millions.toFixed(1)}M</div>
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2.5 h-2.5 rounded-full bg-indigo-500"/> 
+                                <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Prorated Bonus</span>
+                            </div>
+                            <div className="font-mono text-lg text-zinc-200">${player.prorated_bonus_millions.toFixed(1)}M</div>
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2.5 h-2.5 rounded-full bg-violet-500"/> 
+                                <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Roster Bonus</span>
+                            </div>
+                            <div className="font-mono text-lg text-zinc-200">${player.roster_bonus_millions.toFixed(1)}M</div>
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2 mb-1">
+                                <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> 
+                                <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Guaranteed At Sign</span>
+                            </div>
+                            <div className="font-mono text-lg text-zinc-200">${player.guaranteed_salary_millions.toFixed(1)}M</div>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+
             {/* Main Content: Calculator + Chart */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Left Col: Cut Calculator (Action) */}

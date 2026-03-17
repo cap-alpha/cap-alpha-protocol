@@ -3,7 +3,6 @@ import { PersonaShowcase } from "@/components/persona-showcase";
 import { AlphaFeedHero } from "@/components/alpha-feed-hero";
 import { ProofOfAlphaCarousel } from "@/components/proof-of-alpha-carousel";
 import { GlobalAggregator } from "@/components/global-aggregator";
-import Footer from "@/components/footer";
 
 export default async function LandingPage() {
     const { userId } = await auth();
@@ -25,8 +24,6 @@ export default async function LandingPage() {
             
             {/* 4. Persona Entry Points */}
             <PersonaShowcase />
-
-            <Footer />
         </div>
     );
 }

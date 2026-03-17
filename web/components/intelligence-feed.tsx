@@ -66,7 +66,19 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                                                     <div className="text-xs font-bold text-slate-400">{item.type}</div>
                                                     <div className="text-[10px] text-slate-600">Generated automatically</div>
                                                 </div>
-                                                <div className="text-sm text-slate-300 leading-relaxed">{item.text}</div>
+                                                <div className="text-sm text-slate-300 leading-relaxed">
+                                                    {item.text}
+                                                    {item.url && (
+                                                        <a 
+                                                            href={item.url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer" 
+                                                            className="ml-2 inline-flex items-center text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+                                                        >
+                                                            Read Source
+                                                        </a>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     );

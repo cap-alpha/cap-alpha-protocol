@@ -36,7 +36,7 @@ import {
     TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { NFL_TEAMS } from "@/lib/utils"
+import { NFL_TEAMS, slugify } from "@/lib/utils"
 import {
     Tooltip,
     TooltipContent,
@@ -61,7 +61,7 @@ export const columns: ColumnDef<PlayerMetric>[] = [
         cell: ({ row }) => (
             <div className="capitalize font-medium">
                 <Link
-                    href={`/player/${encodeURIComponent((row.getValue("player_name") as string).toLowerCase().replace(' ', '-'))}`}
+                    href={`/player/${encodeURIComponent(slugify(row.getValue("player_name") as string))}`}
                     className="hover:underline hover:text-emerald-400 transition-colors"
                 >
                     {row.getValue("player_name")}

@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  web:
+    image: node:20
+    container_name: nfl_web_test
+    working_dir: /app
+    volumes:
+      - ./web:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+    command: bash -c "npm install && npm run dev"
+
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.41.2-jammy
+    container_name: nfl_e2e_test
+    # Fuse network interfaces so Playwright accesses Next.js natively via localhost
+    network_mode: "service:web"
+    volumes:
+      - ./web:/e2e
+      - /e2e/node_modules
+    working_dir: /e2e
+    environment:
+      - CI=1
+    command: bash -c "apt-get update && apt-get install -y make g++ curl && npm install && echo 'Waiting for web server...' && while ! curl -s http://localhost:3000 > /dev/null; do sleep 2; done && echo 'Web server is up!' && npx playwright test tests/e2e/integration.spec.ts"
+    depends_on:
+      - web

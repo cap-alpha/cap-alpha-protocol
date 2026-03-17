@@ -2,12 +2,13 @@ import { getRosterData, getPositionDistribution, getPlayerTimeline, getIntellige
 import PlayerDetailView from '@/components/player-detail-view';
 import { GlobalSearch } from '@/components/global-search';
 import { notFound } from 'next/navigation';
+import { slugify } from '@/lib/utils';
 
 // Generate static params for all players to enable static generation (optional but good for performance)
 export async function generateStaticParams() {
     const players = await getRosterData();
     return players.map((player) => ({
-        id: encodeURIComponent(player.player_name.toLowerCase().replace(' ', '-')),
+        id: encodeURIComponent(slugify(player.player_name)),
     }));
 }
 
@@ -15,8 +16,8 @@ export default async function PlayerPage({ params }: { params: { id: string } })
     const playerSlug = decodeURIComponent(params.id);
     const roster = await getRosterData();
     
-    // Find the player where the kebab-case version of their name matches the slug URL
-    const player = roster.find((p) => p.player_name.toLowerCase().replace(' ', '-') === playerSlug);
+    // Find the player where the slugified version of their name matches the slug URL
+    const player = roster.find((p) => slugify(p.player_name) === playerSlug);
 
     if (!player) {
         notFound();

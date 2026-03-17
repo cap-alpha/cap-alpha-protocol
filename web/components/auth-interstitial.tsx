@@ -22,16 +22,12 @@ export function AuthInterstitial() {
                 // Returning user within 7 days, show immediate modal
                 setShowSignIn(true);
             } else {
-                // Older than 7 days, treat as new user (60s roam)
+                // Older than 7 days, treat as new user (no forced roam)
                 localStorage.setItem("last_seen", now.toString());
-                const timer = setTimeout(() => setShowSignIn(true), 60000);
-                return () => clearTimeout(timer);
             }
         } else {
-            // Completely new user (60s roam)
+            // Completely new user (no forced roam)
             localStorage.setItem("last_seen", now.toString());
-            const timer = setTimeout(() => setShowSignIn(true), 60000);
-            return () => clearTimeout(timer);
         }
     }, [isLoaded, isSignedIn]);
 

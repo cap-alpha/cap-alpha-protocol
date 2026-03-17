@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowLeft, ShieldAlert, TrendingUp } from 'lucide-react';
 import { IntelligenceFeed } from '@/components/intelligence-feed';
 import { TEAM_LOGOS, TEAM_NAMES } from '@/lib/team-logos';
+import { PositionalSpendingChart } from '@/components/positional-spending-chart';
 
 export async function generateStaticParams() {
     const teams = await getTeams();
@@ -31,6 +32,29 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
     const totalCap = teamSummary.total_cap || 0;
     const riskCap = teamSummary.risk_cap || 0;
     const riskPercentage = totalCap > 0 ? (riskCap / totalCap) * 100 : 0;
+
+    // Calculate Positional Spending
+    const teamPosSpending: Record<string, number> = {};
+    teamRoster.forEach(p => {
+        teamPosSpending[p.position] = (teamPosSpending[p.position] || 0) + (p.cap_hit_millions || 0);
+    });
+
+    const leaguePosSpendingTotal: Record<string, number> = {};
+    const numTeams = allTeamsSummary.length || 32;
+    rosterData.forEach(p => {
+        leaguePosSpendingTotal[p.position] = (leaguePosSpendingTotal[p.position] || 0) + (p.cap_hit_millions || 0);
+    });
+    
+    const leaguePosAverage: Record<string, number> = {};
+    Object.keys(leaguePosSpendingTotal).forEach(pos => {
+        leaguePosAverage[pos] = leaguePosSpendingTotal[pos] / numTeams;
+    });
+
+    const positionalChartData = Object.keys(teamPosSpending).map(pos => ({
+        position: pos,
+        teamSpend: teamPosSpending[pos],
+        leagueAvg: leaguePosAverage[pos] || 0
+    })).sort((a,b) => b.teamSpend - a.teamSpend);
 
     return (
         <main className="min-h-[100dvh] bg-background text-foreground p-8">
@@ -106,6 +130,8 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
                 {/* Team Intelligence & Roster Split view */}
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                     <div className="lg:col-span-3 space-y-6">
+                        <PositionalSpendingChart data={positionalChartData} teamName={teamName} />
+
                         <Card className="bg-card border-border h-full">
                             <CardHeader>
                                 <CardTitle className="uppercase font-mono tracking-widest text-sm text-slate-400">Current Roster Taxonomy</CardTitle>

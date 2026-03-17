@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ShieldAlert, TrendingUp, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { slugify } from "@/lib/utils";
 
 interface WarRoomDashboardProps {
     data: WarRoomData;
@@ -31,7 +32,7 @@ export function WarRoomDashboard({ data }: WarRoomDashboardProps) {
                         <ScrollArea className="h-[300px] w-full">
                             <div className="divide-y divide-rose-500/10">
                                 {redAlerts.length > 0 ? redAlerts.map((alert, idx) => (
-                                    <Link key={idx} href={`/player/${encodeURIComponent(alert.player_name.toLowerCase().replace(' ', '-'))}`}>
+                                    <Link key={idx} href={`/player/${encodeURIComponent(slugify(alert.player_name))}`}>
                                         <div className="flex items-center justify-between p-4 hover:bg-rose-500/5 cursor-pointer transition-colors">
                                             <div>
                                                 <div className="font-bold text-rose-100 flex items-center gap-2">
@@ -75,7 +76,7 @@ export function WarRoomDashboard({ data }: WarRoomDashboardProps) {
                         <ScrollArea className="h-[300px] w-full">
                             <div className="divide-y divide-emerald-500/10">
                                 {roiMetrics.topPerformers.length > 0 ? roiMetrics.topPerformers.map((roi, idx) => (
-                                    <Link key={idx} href={`/player/${encodeURIComponent(roi.player_name.toLowerCase().replace(' ', '-'))}`}>
+                                    <Link key={idx} href={`/player/${encodeURIComponent(slugify(roi.player_name))}`}>
                                         <div className="flex items-center justify-between p-4 hover:bg-emerald-500/5 cursor-pointer transition-colors">
                                             <div className="max-w-[70%]">
                                                 <div className="font-bold text-emerald-100">

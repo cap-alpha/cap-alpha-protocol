@@ -18,6 +18,7 @@ export function GlobalSearch() {
     const [open, setOpen] = React.useState(false)
     const [query, setQuery] = React.useState("")
     const [index, setIndex] = React.useState<SearchIndexItem[]>([])
+    const [selectedIndex, setSelectedIndex] = React.useState(0)
     const router = useRouter()
 
     // Keyboard shortcut to open search
@@ -74,7 +75,22 @@ export function GlobalSearch() {
                             placeholder="Type a player name (e.g., 'Dak') or team..."
                             className="bg-transparent border-none text-white focus-visible:ring-0 px-0 shadow-none text-lg placeholder:text-slate-600"
                             value={query}
-                            onChange={(e) => setQuery(e.target.value)}
+                            onChange={(e) => {
+                                setQuery(e.target.value)
+                                setSelectedIndex(0)
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'ArrowDown') {
+                                    e.preventDefault()
+                                    setSelectedIndex(prev => Math.min(filteredResults.length - 1, prev + 1))
+                                } else if (e.key === 'ArrowUp') {
+                                    e.preventDefault()
+                                    setSelectedIndex(prev => Math.max(0, prev - 1))
+                                } else if (e.key === 'Enter' && filteredResults.length > 0) {
+                                    e.preventDefault()
+                                    handleSelect(filteredResults[selectedIndex].url)
+                                }
+                            }}
                             autoFocus
                         />
                     </div>
@@ -98,14 +114,14 @@ export function GlobalSearch() {
                                     <button
                                         key={idx}
                                         onClick={() => handleSelect(item.url)}
-                                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-900 transition-colors text-left group"
+                                        className={`w-full flex items-center justify-between px-4 py-3 transition-colors text-left group ${idx === selectedIndex ? 'bg-slate-900 border-l-2 border-emerald-500' : 'hover:bg-slate-900 border-l-2 border-transparent'}`}
                                     >
                                         <div className="flex items-center gap-3">
-                                            <div className="p-2 bg-slate-800 rounded group-hover:bg-emerald-500/20 group-hover:text-emerald-400 transition-colors text-slate-400">
+                                            <div className={`p-2 rounded transition-colors ${idx === selectedIndex ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400 group-hover:bg-emerald-500/20 group-hover:text-emerald-400'}`}>
                                                 {item.type === 'player' ? <User className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
                                             </div>
                                             <div>
-                                                <div className="text-sm font-medium text-slate-200 group-hover:text-emerald-400 transition-colors">
+                                                <div className={`text-sm font-medium transition-colors ${idx === selectedIndex ? 'text-emerald-400' : 'text-slate-200 group-hover:text-emerald-400'}`}>
                                                     {item.label}
                                                 </div>
                                                 <div className="text-xs text-slate-500 font-mono uppercase tracking-wider mt-0.5">
@@ -113,7 +129,7 @@ export function GlobalSearch() {
                                                 </div>
                                             </div>
                                         </div>
-                                        <ChevronRight className="h-4 w-4 text-slate-700 group-hover:text-emerald-500 transition-colors" />
+                                        <ChevronRight className={`h-4 w-4 transition-colors ${idx === selectedIndex ? 'text-emerald-500' : 'text-slate-700 group-hover:text-emerald-500'}`} />
                                     </button>
                                 ))}
                             </div>

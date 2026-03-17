@@ -58,3 +58,17 @@ export function getRiskColor(risk: number): string {
     if (risk < 0.3) return "text-emerald-500"
     return "text-amber-500" // Use amber for middle ground
 }
+
+export function slugify(text: string) {
+    if (!text) return "";
+    return text
+        .toString()
+        .toLowerCase()
+        .trim()
+        .replace(/\.+/g, '')        // Remove dots first so "a.j." becomes "aj" instead of "aj"
+        .replace(/\s+/g, '-')       // Replace spaces with -
+        .replace(/[^\w\-]+/g, '')   // Remove all non-word chars
+        .replace(/\-\-+/g, '-')     // Replace multiple - with single -
+        .replace(/^-+/, '')         // Trim - from start of text
+        .replace(/-+$/, '');        // Trim - from end of text
+}

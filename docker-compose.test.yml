@@ -25,6 +25,6 @@ services:
     working_dir: /e2e
     environment:
       - CI=1
-    command: bash -c "apt-get update && apt-get install -y make g++ curl && npm install && echo 'Waiting for web server...' && while ! curl -s http://localhost:3000 > /dev/null; do sleep 2; done && echo 'Web server is up!' && npx playwright test tests/e2e/integration.spec.ts"
+    command: bash -c "apt-get update && apt-get install -y make g++ curl && npm install && echo 'Waiting for web server...' && while ! curl -s http://localhost:3000 > /dev/null; do sleep 2; done && echo 'Web server is up!' && npx playwright test tests/e2e/integration.spec.ts --project=chromium"
     depends_on:
       - web

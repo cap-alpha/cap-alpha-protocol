@@ -1,13 +1,22 @@
 "use client";
 
+import { useState } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Lock, FileText, TrendingDown, TrendingUp, AlertCircle, Info } from "lucide-react";
+import { Lock, FileText, TrendingDown, TrendingUp, AlertCircle, Info, Filter } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { IntelligenceEvent } from "@/app/actions";
 
 export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { playerName: string, riskScore: number, feedEvents?: IntelligenceEvent[] }) {
+
+    const [criticalOnly, setCriticalOnly] = useState(false);
+
+    const displayedEvents = criticalOnly 
+        ? feedEvents.filter(e => e.type === 'Warning' || e.type === 'High Uncertainty' || e.color.includes('rose') || e.color.includes('amber'))
+        : feedEvents;
 
     const getIcon = (iconName: string) => {
         switch (iconName) {
@@ -31,6 +40,20 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                         Live Feed
                     </Badge>
                 </CardTitle>
+                <div className="flex items-center justify-between mt-4">
+                    <div className="flex items-center space-x-2">
+                        <Filter className="h-4 w-4 text-slate-500" />
+                        <Label htmlFor="critical-mode" className="text-xs text-slate-400 font-mono uppercase tracking-wider cursor-pointer">
+                            Critical Only
+                        </Label>
+                    </div>
+                    <Switch
+                        id="critical-mode"
+                        checked={criticalOnly}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setCriticalOnly(e.target.checked)}
+                        className="data-[state=checked]:bg-rose-500"
+                    />
+                </div>
             </CardHeader>
             <CardContent className="pt-4 flex-1">
                 <SignedIn>
@@ -38,22 +61,22 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                         <p className="text-sm text-slate-400 mb-4">
                             Synthesized intelligence from unstructured scouting reports and contract telemetry.
                         </p>
-                        {feedEvents.length === 0 ? (
+                        {displayedEvents.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-800 rounded-lg bg-slate-950/30">
                                 <Info className="h-8 w-8 text-slate-600 mb-3" />
-                                <h4 className="text-sm font-semibold text-slate-300">No Intelligence Events</h4>
+                                <h4 className="text-sm font-semibold text-slate-300">No {criticalOnly ? "Critical " : ""}Intelligence Events</h4>
                                 <p className="text-xs text-slate-500 mt-1 max-w-[200px]">
                                     No significant modeling or media shifts detected in the trailing 30 days.
                                 </p>
                             </div>
                         ) : (
                             <div className="space-y-3">
-                                {feedEvents.map((item, i) => {
+                                {displayedEvents.map((item, i) => {
                                     const IconNode = getIcon(item.icon);
                                     return (
                                         <div key={i} className="relative pl-6 pb-6 last:pb-0">
                                             {/* Timeline connector */}
-                                            {i !== feedEvents.length - 1 && (
+                                            {i !== displayedEvents.length - 1 && (
                                                 <div className="absolute left-2.5 top-5 bottom-0 w-px bg-slate-800" />
                                             )}
                                             {/* Timeline node */}

@@ -114,39 +114,39 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
             {/* Key Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <Card className="bg-slate-900 border-transparent shadow-none">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Cap Hit</CardTitle>
+                <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
+                    <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
+                        <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-500 uppercase">Cap Hit</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-white">
+                        <div className="text-3xl font-mono font-bold text-white">
                             ${player.cap_hit_millions.toLocaleString()}M
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">Current Season Charge</p>
+                        <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Current Season Charge</p>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-transparent shadow-none">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Efficiency Gap</CardTitle>
+                <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
+                    <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
+                        <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-500 uppercase">Efficiency Gap</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-emerald-400">
+                        <div className="text-3xl font-mono font-bold text-emerald-400">
                             {(player.risk_score * 100).toFixed(0)}
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">Percentile Rank vs Position</p>
+                        <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Percentile Rank vs Position</p>
                     </CardContent>
                 </Card>
 
-                <Card className="bg-slate-900 border-transparent shadow-none">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-bold tracking-wider text-slate-400 uppercase">Model Variance</CardTitle>
+                <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
+                    <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
+                        <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-500 uppercase">Model Variance</CardTitle>
                     </CardHeader>
                     <CardContent>
-                        <div className="text-3xl font-bold text-amber-400">
+                        <div className="text-3xl font-mono font-bold text-amber-400">
                             ±${avgError.toFixed(1)}M
                         </div>
-                        <p className="text-xs text-slate-500 mt-1">Avg. Prediction Error</p>
+                        <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Avg. Prediction Error</p>
                     </CardContent>
                 </Card>
             </div>
@@ -314,9 +314,9 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                 {/* Right Col: Context Charts */}
                 <div className="lg:col-span-2 space-y-6">
-                    <Card className="bg-slate-900 border-slate-800 h-full">
-                        <CardHeader>
-                            <CardTitle>Value Trajectory (2022-{player.year})</CardTitle>
+                    <Card className="bg-zinc-900 border-zinc-800 h-full shadow-sm">
+                        <CardHeader className="border-b border-zinc-800/50 mb-4 pb-4">
+                            <CardTitle className="uppercase font-mono tracking-widest text-sm text-zinc-500">Value Trajectory (2022-{player.year})</CardTitle>
                             <CardDescription>Actual Pay vs. Predicted Market Value</CardDescription>
                         </CardHeader>
                         <CardContent className="h-[400px]">
@@ -359,10 +359,10 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                     {/* Tabbed Intelligence & Ledger */}
                     <Tabs defaultValue="timeline" className="w-full">
-                        <TabsList className="grid w-full grid-cols-3 bg-slate-900 border border-slate-800">
-                            <TabsTrigger value="timeline" className="data-[state=active]:bg-slate-800 data-[state=active]:text-emerald-400">Event Timeline</TabsTrigger>
-                            <TabsTrigger value="intelligence" className="data-[state=active]:bg-slate-800 data-[state=active]:text-emerald-400">Health Feed</TabsTrigger>
-                            <TabsTrigger value="ledger" className="data-[state=active]:bg-slate-800 data-[state=active]:text-emerald-400">Ledger</TabsTrigger>
+                        <TabsList className="grid w-full grid-cols-3 bg-zinc-900 border border-zinc-800">
+                            <TabsTrigger value="timeline" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Event Timeline</TabsTrigger>
+                            <TabsTrigger value="intelligence" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Health Feed</TabsTrigger>
+                            <TabsTrigger value="ledger" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Ledger</TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="timeline" className="mt-4">

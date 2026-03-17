@@ -80,49 +80,49 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
 
                 {/* Top Metrics Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <Card className="bg-card border-transparent shadow-none">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-xs text-muted-foreground font-mono">
-                                <span className="uppercase font-bold tracking-wider">Total Cap Liabilities</span>
+                    <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
+                        <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
+                            <CardTitle className="text-xs text-zinc-500 font-mono flex items-center gap-2">
+                                <span className="uppercase font-bold tracking-widest">Total Cap Liabilities</span>
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-white">
+                            <div className="text-3xl font-mono font-bold text-white">
                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(totalCap * 1000000)}
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">Across {teamRoster.length} Active Roster Contracts</p>
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Across {teamRoster.length} Active Roster Contracts</p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-card border-transparent shadow-none">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-xs text-muted-foreground font-mono flex items-center gap-2">
+                    <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
+                        <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
+                            <CardTitle className="text-xs text-zinc-500 font-mono flex items-center gap-2">
                                 <ShieldAlert className="h-4 w-4 text-rose-500" />
-                                <span className="uppercase font-bold tracking-wider text-rose-500">Portfolio Risk</span>
+                                <span className="uppercase font-bold tracking-widest text-rose-500">Portfolio Risk</span>
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-rose-500">
+                            <div className="text-3xl font-mono font-bold text-rose-500">
                                 {riskPercentage.toFixed(1)}%
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">
                                 {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(riskCap * 1000000)} in High-Risk Cap
                             </p>
                         </CardContent>
                     </Card>
 
-                    <Card className="bg-card border-transparent shadow-none">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-xs text-muted-foreground font-mono flex items-center gap-2">
+                    <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
+                        <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
+                            <CardTitle className="text-xs text-zinc-500 font-mono flex items-center gap-2">
                                 <TrendingUp className="h-4 w-4 text-emerald-500" />
-                                <span className="uppercase font-bold tracking-wider text-emerald-500">Roster Grade</span>
+                                <span className="uppercase font-bold tracking-widest text-emerald-500">Roster Grade</span>
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-3xl font-black text-emerald-400">
+                            <div className="text-3xl font-mono font-bold text-emerald-400">
                                 {riskPercentage > 30 ? "C-" : riskPercentage > 15 ? "B" : "A"}
                             </div>
-                            <p className="text-xs text-slate-500 mt-1">Cap Alpha Efficiency Rating</p>
+                            <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Cap Alpha Efficiency Rating</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -132,9 +132,9 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
                     <div className="lg:col-span-3 space-y-6">
                         <PositionalSpendingChart data={positionalChartData} teamName={teamName} />
 
-                        <Card className="bg-card border-border h-full">
-                            <CardHeader>
-                                <CardTitle className="uppercase font-mono tracking-widest text-sm text-slate-400">Current Roster Taxonomy</CardTitle>
+                        <Card className="bg-zinc-900 border-zinc-800 h-full shadow-sm">
+                            <CardHeader className="border-b border-zinc-800/50 mb-4">
+                                <CardTitle className="uppercase font-mono tracking-widest text-sm text-zinc-500">Current Roster Taxonomy</CardTitle>
                             </CardHeader>
                             <CardContent className="p-0">
                                 <RosterGrid data={teamRoster} initialSearch="" />

@@ -2,8 +2,8 @@ name: Live News Hydration
 
 on:
   schedule:
-    # Run every day at 4:00 AM EST (9:00 AM UTC) to capture breaking morning news
-    - cron: '0 9 * * *'
+    # Run hourly to capture breaking news and telemetry alerts
+    - cron: '0 * * * *'
   workflow_dispatch:
     # Allow manual triggering from the GitHub UI
 

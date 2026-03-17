@@ -68,22 +68,40 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [ ] SP17-2: Validate that GitHub Actions executes the `docker-compose run e2e` integration tests prior to approving the build.
 - [ ] SP17-3: Conduct User Acceptance Testing (UAT) on the deployed site across mobile and web interfaces.
 
-### Sprint 18: Immutable Auditability (Cryptographic Ledger)
+## Milestone 2: Production Launch & Data Independence
+***Goal:*** Launch the production version of the web application to the public internet. Be able to respond to stakeholder requests for changes and updates. Automation fixes, which should have been ironed about by now, must take a back seat to addressing stakeholder requests.
+
+### Sprint 18: Official Data Vendor Integration (Data Independence)
+**Goal:** Sever reliance on scraped/competitor data by integrating official, deterministic data feeds (e.g., Sportradar, official NFL API, or premium vendor) to ensure we own our pipeline and can scale without rate-limits or adversarial blocking.
+- [ ] SP18-1: Select and procure an official data vendor API for real-time and historical NFL player/contract data (e.g., Sportradar API, Stats Perform).
+- [ ] SP18-2: Build a robust Python ingestion client to hydrate the MotherDuck Bronze layer directly from the official authenticated API.
+- [ ] SP18-3: Validate the new official feed against our internal predictions and backtests, ensuring schema compatibility and resolving any data discrepancies.
+- [ ] SP18-4: Deprecate legacy web scraper pipelines and reroute all downstream Silver/Gold transformations to rely exclusively on the new official Bronze data.
+
+### Sprint 19: Immutable Auditability (Cryptographic Ledger)
 **Goal:** Prove absolute honesty in historical Fair Market Value predictions by eliminating hindsight bias. Implement a verifiable cryptographic ledger.
-- [ ] SP18-1: Hash nightly predictions and intelligence signals into a Merkle tree or public ledger interface.
-- [ ] SP18-2: Build `<VerifiableAudit />` component to render the cryptographic signature for any historical player event.
-- [ ] SP18-3: Architect a "Regulatory-Grade" data tier strictly enforcing append-only writes for prediction artifacts.
+- [ ] SP19-1: Hash nightly predictions and intelligence signals into a Merkle tree or public ledger interface.
+- [ ] SP19-2: Build `<VerifiableAudit />` component to render the cryptographic signature for any historical player event.
+- [ ] SP19-3: Architect a "Regulatory-Grade" data tier strictly enforcing append-only writes for prediction artifacts.
 
-### Sprint 19: Sub-Second Latency & Performance Optimization
+### Sprint 20: Sub-Second Latency & Performance Optimization
 **Goal:** Ensure every page load across the entire web application resolves in under 1.0s to deliver an elite, lightning-fast executive UX.
-- [ ] SP19-1: Implement edge caching strategies and static site generation (SSG) for static assets, team directories, and global search index.
-- [ ] SP19-2: Optimize MotherDuck query execution paths (e.g., query caching, materialized views) for complex models and aggregations.
-- [ ] SP19-3: Audit React rendering loops to eliminate unnecessary re-renders in heavy visualization components (`<ComposedChart />`, `<RosterGrid />`).
-- [ ] SP19-4: Enforce an automated performance budget in CI/CD pipeline (Lighthouse scores > 95 for Performance, Accessibility, and SEO).
+- [ ] SP20-1: Implement edge caching strategies and static site generation (SSG) for static assets, team directories, and global search index.
+- [ ] SP20-2: Optimize MotherDuck query execution paths (e.g., query caching, materialized views) for complex models and aggregations.
+- [ ] SP20-3: Audit React rendering loops to eliminate unnecessary re-renders in heavy visualization components (`<ComposedChart />`, `<RosterGrid />`).
+- [ ] SP20-4: Enforce an automated performance budget in CI/CD pipeline (Lighthouse scores > 95 for Performance, Accessibility, and SEO).
 
-### Sprint 20: Front Page Strategic Redesign & Identity
+### Sprint 21: Front Page Strategic Redesign & Identity
 **Goal:** Reconvene key stakeholders to brainstorm, define, and agree upon a comprehensive user flow and concept set for the front page, firmly establishing the product identity as an "intelligence aggregator and prediction market on sports."
-- [ ] SP20-1: Schedule and conduct a stakeholder roundtable (Product Council, Design, Execution) to discuss front page flow and concepts.
-- [ ] SP20-2: Draft a "Front Page Vision & Identity" document clarifying the "intelligence aggregator and prediction market" positioning.
-- [ ] SP20-3: Develop low-fidelity wireframes or concepts for the new front page flow based on stakeholder consensus.
-- [ ] SP20-4: Review and approve the new front page concepts before technical implementation begins.
+- [ ] SP21-1: Schedule and conduct a stakeholder roundtable (Product Council, Design, Execution) to discuss front page flow and concepts.
+- [ ] SP21-2: Draft a "Front Page Vision & Identity" document clarifying the "intelligence aggregator and prediction market" positioning.
+- [ ] SP21-3: Develop low-fidelity wireframes or concepts for the new front page flow based on stakeholder consensus.
+- [ ] SP21-4: Review and approve the new front page concepts before technical implementation begins.
+
+### Sprint 22: Media Accountability & Prediction Tracking (The Pundit Index)
+**Goal:** Track public assertions made by major sports personalities across X and mainstream media, mapping their narrative influence against empirical "sharp" line movements to expose manipulation or toxic advice.
+- [ ] SP22-1: **Data Ingestion (Media Pipes)** - Integrate APIs/Scrapers (e.g., X, YouTube transcripts via Whisper, Action Network) to chronologically log public predictions from major sports personalities.
+- [ ] SP22-2: **NLP Assertion Extraction** - Build an LLM-based parsing pipeline to convert unstructured media quotes ("I love Mahomes this week") into structured prediction vectors (`{entity: "P. Mahomes", stance: "Bullish", date: "2024-10-12", pundit: "Pat McAfee"}`).
+- [ ] SP22-3: **Reverse Line Movement Integration** - Ingest live Vegas line movements and Ticket vs. Money percentages to track where "Sharp" money is flowing.
+- [ ] SP22-4: **Contrary Syndicate Detection** - Build the anomaly detection model: Flag instances where a personality pushes a narrative (driving retail ticket %), but the sharp money aggressively moves the opposite direction (indicating the pundit's advice is toxic/manipulative).
+- [ ] SP22-5: **The Pundit Ledger UI** - Create a public accountability dashboard ranking personalities by their Brier Score (prediction accuracy) vs. Market Consensus, exposing toxic alpha.

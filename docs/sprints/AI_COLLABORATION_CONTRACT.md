@@ -24,3 +24,12 @@ The AI may not begin Execution of a new Epic or Sprint without a confirmed sign-
 
 ## Enforcing the Contract
 *If the Human asks "what are you doing?", it indicates the AI has violated rule #2.*
+
+## 4. Maximizing Human+AI Synergy
+To operate as an elite Human+AI team across *all* projects, the Human and AI commit to the following high-velocity patterns:
+
+1. **Front-Load Constraints**: The Human provides strict boundary conditions (e.g., visual style, libraries, performance targets) immediately when defining a task. This eliminates iterative guessing.
+2. **Local Environment Autonomy**: The Human ensures the local dev environment mirrors production (via `.env` variables) so the AI can run test suites (`/test_suite`) and validate its own work autonomously without waiting for Human QA.
+3. **Delegated Refactoring**: The Human never performs massive, repetitive codebase changes manually. Instead, the Human clearly defines the pattern and delegates the multi-file execution to the AI.
+4. **Raw Error Traces**: When something breaks, the Human pastes the raw, literal stack trace or console error into the chat, rather than summarizing it.
+5. **Slash Command Mastery**: The Human ruthlessly leverages specialized workflows (`/go`, `/todo`, `/test_suite`, `/ui_ux_audit`, `/deploy`) to trigger complex, multi-step autonomous behavior.

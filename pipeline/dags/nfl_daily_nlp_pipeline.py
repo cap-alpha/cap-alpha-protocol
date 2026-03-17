@@ -55,10 +55,10 @@ with DAG(
         dag=dag,
     )
     
-    # 2. Scrape latest Google News headlines for high value players
+    # 2. Scrape live news, extract AI intelligence, and inject to MotherDuck media_lag_metrics
     ingest_news = BashOperator(
         task_id='ingest_news',
-        bash_command=f'cd {PROJECT_ROOT} && {VENV_PYTHON} scripts/ingest_news_sentiment.py 2>&1 | tail -20',
+        bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(grep GEMINI_API_KEY ../web/.env.local | cut -d "=" -f 2) && export MOTHERDUCK_TOKEN=$(grep MOTHERDUCK_TOKEN ../web/.env.local | cut -d "=" -f 2) && {VENV_PYTHON} scripts/hydrate_live_news.py 2>&1 | tail -20',
         dag=dag,
     )
     

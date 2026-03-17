@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 class NewsRSSHoover:
     """
     Ingests unstructured news headlines and summaries via Google News RSS.
-    Replaces Wikipedia for more real-time 'market edge' insights on injuries and rumors.
+    Implements Franchise-Level News Batching: queries by team, cross-references
+    active rosters, and parses mentions to scale to 100% of the active NFL cohort.
     """
     def __init__(self):
         self.db = DBManager()
@@ -34,78 +35,87 @@ class NewsRSSHoover:
             )
         """)
 
-    def gather_player_news(self, player_name: str) -> bool:
-        """Fetches the Google News RSS feed for a player and saves the text to Bronze."""
-        logger.info(f"Hoovering Google News intelligence for {player_name}...")
+    def gather_team_news(self, team_name: str, players: list) -> bool:
+        """Fetches the Google News RSS feed for a team and attributes hits to active players."""
+        logger.info(f"Hoovering Franchise-Level Google News intelligence for {team_name}...")
         try:
-            # URL encode the search query
-            query = urllib.parse.quote(f'"{player_name}" NFL (injury OR rumor OR contract OR trade)')
+            # URL encode the search query for the franchise
+            query = urllib.parse.quote(f'"{team_name}" NFL (injury OR rumor OR contract OR trade) -fantasy')
             rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-US&gl=US&ceid=US:en"
             
             feed = feedparser.parse(rss_url)
             
             if not feed.entries:
-                logger.warning(f"No recent news found for {player_name}")
+                logger.warning(f"  No recent news found for {team_name}")
                 return False
                 
-            logger.info(f"Found {len(feed.entries)} news articles for {player_name}.")
+            logger.info(f"  Found {len(feed.entries)} macro news articles for {team_name}.")
             
-            # Combine the titles and summaries of the top 10 articles into one context block
+            # Combine the titles and summaries of the top 15 articles into one context block
             content_blocks = []
-            for entry in feed.entries[:10]:
+            for entry in feed.entries[:15]:
                 title = entry.get('title', '')
-                # Clean HTML from summary
                 summary_html = entry.get('summary', '')
                 soup = BeautifulSoup(summary_html, 'html.parser')
                 summary_text = soup.get_text(separator=' ', strip=True)
-                
-                # Format: "Title. Summary"
                 content_blocks.append(f"{title}. {summary_text}")
                 
-            compiled_content = "\\n\\n---\\n\\n".join(content_blocks)
+            compiled_content = "\\n\\n---\\n\\n".join(content_blocks).lower()
             
-            # Insert into database
-            self.db.execute(
-                "INSERT INTO bronze_layer.raw_media_sentiment (player_name, source, raw_text) VALUES (?, 'google_news_rss', ?)",
-                (player_name, compiled_content)
-            )
+            hits = 0
+            # Cross-reference active roster against the franchise news payload
+            for player in players:
+                # Use last name as a fuzzy match proxy due to journalism standards
+                last_name = player.split()[-1].lower() if len(player.split()) > 1 else player.lower()
+                
+                if player.lower() in compiled_content or (len(last_name) > 3 and last_name in compiled_content):
+                    hits += 1
+                    # Insert into database with full team context
+                    self.db.execute(
+                        "INSERT INTO bronze_layer.raw_media_sentiment (player_name, source, raw_text) VALUES (?, 'google_news_rss_franchise_batch', ?)",
+                        (player, compiled_content)
+                    )
             
-            logger.info(f"✅ Successfully ingested {len(compiled_content)} characters of news for {player_name}")
+            logger.info(f"✅ Successfully cross-referenced {hits} players out of {len(players)} active roster names for {team_name}.")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to fetch news for {player_name}: {e}")
+            logger.error(f"Failed to fetch news for {team_name}: {e}")
             return False
 
-def get_high_value_targets():
-    """Queries MotherDuck for all players with a cap hit > $10M or high risk."""
-    logger.info("Discovering high-value targets from MotherDuck...")
+def get_active_rosters():
+    """Queries MotherDuck for all players grouped by active franchise."""
+    logger.info("Discovering Active Rosters and Franchises from MotherDuck...")
     db = DBManager()
     
-    # We query fact_player_efficiency. 
-    # Fallback to a hardcoded list if the table doesn't exist yet (for bootstrap mode).
     if not db.table_exists("fact_player_efficiency"):
         logger.warning("fact_player_efficiency not found. Using bootstrap list.")
-        return ["Russell Wilson", "Aaron Rodgers", "Deshaun Watson", "Ezekiel Elliott", "Jamal Adams"]
+        return {"Denver Broncos": ["Russell Wilson"], "Green Bay Packers": ["Aaron Rodgers"]}
         
     query = """
-        SELECT DISTINCT player_name 
+        SELECT team, player_name 
         FROM fact_player_efficiency 
-        WHERE cap_hit_millions >= 10 OR risk_score > 0.65
+        WHERE cap_hit_millions > 0
     """
     try:
         df = db.fetch_df(query)
-        targets = df['player_name'].tolist()
-        logger.info(f"Found {len(targets)} high-value targets for NLP parsing.")
-        return targets
+        rosters = {}
+        for _, row in df.iterrows():
+            team = row['team']
+            if team not in rosters:
+                rosters[team] = []
+            rosters[team].append(row['player_name'])
+        
+        logger.info(f"Successfully loaded {len(rosters)} active franchises for batch processing.")
+        return rosters
     except Exception as e:
         logger.error(f"Failed to query targets: {e}")
-        return []
+        return {}
 
 if __name__ == "__main__":
     hoover = NewsRSSHoover()
-    targets = get_high_value_targets()
+    rosters = get_active_rosters()
     
-    for player in targets:
-        hoover.gather_player_news(player)
-        time.sleep(1)  # Respect rate limits
+    for team, players in rosters.items():
+        hoover.gather_team_news(team, players)
+        time.sleep(1.5)  # Respect rate limits between franchise calls

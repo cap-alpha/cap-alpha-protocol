@@ -34,6 +34,12 @@ const PlayerEfficiencySchema = z.object({
   prorated_bonus_millions: z.coerce.number().optional().default(0),
   roster_bonus_millions: z.coerce.number().optional().default(0),
   guaranteed_salary_millions: z.coerce.number().optional().default(0),
+  total_pass_yds: z.coerce.number().optional().default(0),
+  total_rush_yds: z.coerce.number().optional().default(0),
+  total_rec_yds: z.coerce.number().optional().default(0),
+  total_tds: z.coerce.number().optional().default(0),
+  total_sacks: z.coerce.number().optional().default(0),
+  total_int: z.coerce.number().optional().default(0),
   report_status: z.string().optional(),
   report_primary_injury: z.string().optional(),
   history: z.array(HistorySchema).optional().default([]), // Historical Authentication

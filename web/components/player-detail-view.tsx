@@ -256,6 +256,60 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                             </div>
                         </CardContent>
                     </Card>
+
+                    {/* Empirical Production (Box Score) */}
+                    {(player.total_pass_yds > 0 || player.total_rush_yds > 0 || player.total_rec_yds > 0 || player.total_sacks > 0 || player.total_int > 0) && (
+                        <Card className="bg-zinc-900 border-zinc-800">
+                            <CardHeader className="pb-3">
+                                <CardTitle>Empirical Production</CardTitle>
+                                <CardDescription>Season Box Score Aggregates</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    {(player.total_pass_yds > 0 || player.total_rush_yds > 0 || player.total_rec_yds > 0) && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-zinc-500 font-semibold uppercase">Total Scrimmage Yds</p>
+                                            <p className="text-2xl font-mono text-zinc-200">
+                                                {(player.total_pass_yds + player.total_rush_yds + player.total_rec_yds).toLocaleString()}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {player.total_tds > 0 && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-zinc-500 font-semibold uppercase">Touchdowns</p>
+                                            <p className="text-2xl font-mono text-emerald-400">
+                                                {player.total_tds.toLocaleString()}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {player.total_sacks > 0 && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-zinc-500 font-semibold uppercase">Defensive Sacks</p>
+                                            <p className="text-2xl font-mono text-rose-400">
+                                                {player.total_sacks.toFixed(1)}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {player.total_int > 0 && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-zinc-500 font-semibold uppercase">Interceptions</p>
+                                            <p className="text-2xl font-mono text-blue-400">
+                                                {player.total_int.toLocaleString()}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {player.games_played > 0 && (
+                                        <div className="space-y-1">
+                                            <p className="text-xs text-zinc-500 font-semibold uppercase">Games Played</p>
+                                            <p className="text-2xl font-mono text-zinc-400">
+                                                {player.games_played}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
                 </div>
 
                 {/* Right Col: Context Charts */}

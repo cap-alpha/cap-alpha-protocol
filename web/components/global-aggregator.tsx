@@ -40,7 +40,7 @@ export function GlobalAggregator() {
                             The Global Aggregator
                         </h2>
                         <p className="text-xl text-zinc-400 max-w-2xl font-light">
-                            Unstructured "Tape" from Twitter and media goes in. Structured "Alpha" predicting the cap impact comes out.
+                            Unstructured &quot;Tape&quot; from Twitter and media goes in. Structured &quot;Alpha&quot; predicting the cap impact comes out.
                         </p>
                     </div>
                 </div>
@@ -121,7 +121,7 @@ export function GlobalAggregator() {
                                         </div>
                                         <p className="text-sm text-zinc-400 font-light flex items-start gap-3">
                                             <XCircle className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
-                                            "This extension guarantees WR1 production through 2029."
+                                            &quot;This extension guarantees WR1 production through 2029.&quot;
                                         </p>
                                     </div>
                                     <div className="flex flex-col gap-2">

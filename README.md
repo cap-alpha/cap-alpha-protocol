@@ -58,6 +58,9 @@ A Walk-Forward Validation pipeline that trains on past data to predict future in
 ### Quickstart (Data Pipeline via Containerization)
 **CRITICAL**: Do not run Python natively. Due to macOS restrictions on SQLite/DuckDB file locks and headless browser automation, all operations must run inside Docker.
 
+**Vercel / Next.js Deployment**: DuckDB `1.1.1` requires prebuilt binaries. Vercel must be pinned to **Node 20.x** in `web/package.json` to prevent source compilation failures (`node-pre-gyp` falling back and failing due to ABI limits).
+
+
 ```bash
 # 1. Build and boot the immutable container environment
 docker compose up -d

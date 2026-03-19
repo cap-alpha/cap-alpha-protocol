@@ -15,9 +15,8 @@ model = genai.GenerativeModel(model_name)
 def get_db_connection():
     md_token = os.environ.get("MOTHERDUCK_TOKEN")
     if not md_token:
-        # Fallback to local if not running in production pipeline
-        return duckdb.connect("nfl_data.duckdb")
-    return duckdb.connect(f"md:nfl?motherduck_token={md_token}")
+        raise ValueError("MOTHERDUCK_TOKEN environment variable not set.")
+    return duckdb.connect(f"md:nfl_dead_money?motherduck_token={md_token}")
 
 def get_active_rosters(con):
     """

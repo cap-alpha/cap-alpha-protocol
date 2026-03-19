@@ -24,7 +24,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install duckduckgo-search google-generativeai "duckdb==1.4.4" python-dotenv
+          pip install duckduckgo-search google-generativeai duckdb pandas python-dotenv
 
       - name: Setup Environment Variables
         run: |

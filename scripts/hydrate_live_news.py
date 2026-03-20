@@ -2,7 +2,7 @@ import os
 import time
 import json
 import duckdb
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 from google import genai
 from datetime import datetime
 

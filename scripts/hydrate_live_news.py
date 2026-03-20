@@ -9,6 +9,8 @@ from datetime import datetime
 # Initialize APIs
 ddgs = DDGS()
 api_key = os.environ.get("GEMINI_API_KEY")
+if not api_key:
+    raise ValueError("GEMINI_API_KEY environment variable not set or empty in GitHub Secrets.")
 client = genai.Client(api_key=api_key)
 model_name = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 

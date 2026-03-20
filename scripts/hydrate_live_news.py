@@ -3,14 +3,14 @@ import time
 import json
 import duckdb
 from duckduckgo_search import DDGS
-import google.generativeai as genai
+from google import genai
 from datetime import datetime
 
 # Initialize APIs
 ddgs = DDGS()
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model_name = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash-002")
-model = genai.GenerativeModel(model_name)
+api_key = os.environ.get("GEMINI_API_KEY")
+client = genai.Client(api_key=api_key)
+model_name = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
 
 def get_db_connection():
     md_token = os.environ.get("MOTHERDUCK_TOKEN")
@@ -60,7 +60,10 @@ def synthesize_news(player, news_results):
     News Data: {news_results}
     """
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model=model_name,
+            contents=prompt
+        )
         text = response.text.strip()
         if text.startswith("```json"):
             text = text[7:-3]

@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getMotherDuckDb } from '@/lib/motherduck';
 import { slugify } from '@/lib/utils';
 import historicalData from '../data/historical_predictions.json';
+import { unstable_cache } from 'next/cache';
 
 // --- SCHEMA DEFINITIONS (The Bridge) ---
 
@@ -213,7 +214,7 @@ export type SearchIndexItem = {
     url: string;
 };
 
-export async function getSearchIndex(): Promise<SearchIndexItem[]> {
+async function fetchSearchIndex(): Promise<SearchIndexItem[]> {
     const data = await getHydratedData();
     const seen = new Set<string>();
     const index: SearchIndexItem[] = [];
@@ -244,6 +245,13 @@ export async function getSearchIndex(): Promise<SearchIndexItem[]> {
 
     return index.sort((a, b) => a.label.localeCompare(b.label));
 }
+
+// Wrap the actual fetch in unstable_cache for sub-second latency
+export const getSearchIndex = unstable_cache(
+    async () => fetchSearchIndex(),
+    ['global-search-index'],
+    { revalidate: 3600 } // Cache for 1 hour
+);
 
 // --- BENCHMARKING ACTIONS ---
 
@@ -503,4 +511,45 @@ export async function getWarRoomData(): Promise<WarRoomData> {
       }
     };
   }
+}
+
+// --- CRYPTOGRAPHIC LEDGER ACTIONS ---
+
+export type AuditEntry = {
+    entry_id: string;
+    year: number;
+    week: number;
+    payload: string;
+    payload_type: string;
+    signature_hash: string;
+    created_at: string;
+    merkle_root: string;
+};
+
+export async function getPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
+    try {
+        const db = await getMotherDuckDb();
+        const query = `
+            SELECT 
+                e.entry_id, 
+                e.year, 
+                e.week, 
+                e.payload, 
+                e.payload_type,
+                e.signature_hash, 
+                CAST(e.created_at AS VARCHAR) as created_at,
+                b.merkle_root
+            FROM gold_layer.audit_ledger_entries e
+            LEFT JOIN gold_layer.audit_ledger_blocks b 
+                ON e.year = b.year AND e.week = b.week
+            WHERE e.player_name = ?
+            ORDER BY e.year DESC, e.week DESC;
+        `;
+        const res = await db.all(query, playerName);
+        return res as unknown as AuditEntry[];
+    } catch (error) {
+        // Table might not exist yet
+        console.error(`[Data] Error loading audit ledger for ${playerName}:`, error);
+        return [];
+    }
 }

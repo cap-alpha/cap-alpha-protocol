@@ -12,9 +12,10 @@ class DBManager:
     Technology-agnostic database manager.
     Currently supports DuckDB and MotherDuck.
     """
-    def __init__(self, db_path: Optional[str] = None, read_only: bool = False):
+    def __init__(self, db_path: Optional[str] = None, read_only: bool = False, access_tier: str = 'writer'):
         self.db_path = db_path or get_db_path()
         self.read_only = read_only
+        self.access_tier = access_tier.lower()
         self.con = None
         self._initialize_connection()
 
@@ -25,9 +26,15 @@ class DBManager:
             if self.db_path.startswith("md:"):
                 logger.info(f"Connecting to MotherDuck/DuckDB at {self.db_path}")
                 
-                # Check for token strictly
-                if not os.environ.get("MOTHERDUCK_TOKEN"):
-                    raise EnvironmentError("MOTHERDUCK_TOKEN not found in environment. Cloud connectivity required.")
+                # Enforce regulatory role-based token separation
+                token_env_var = "MOTHERDUCK_READER_TOKEN" if self.access_tier == 'reader' else "MOTHERDUCK_TOKEN"
+                token = os.environ.get(token_env_var)
+                
+                if not token:
+                    # Fallback to standard token if explicitly requested reader token isn't found
+                    token = os.environ.get("MOTHERDUCK_TOKEN")
+                    if not token:
+                        raise EnvironmentError(f"{token_env_var} not found in environment. Cloud connectivity and RBAC scopes required for regulatory tier.")
 
                 # Ensure local extension path exists to bypass macOS/Docker sandbox write permissions
                 local_ext_dir = os.path.join(os.getcwd(), ".duckdb_local")

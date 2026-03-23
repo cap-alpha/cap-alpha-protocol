@@ -20,17 +20,9 @@ function SimpleModal({ open, children }: { open: boolean; children: React.ReactN
 }
 
 export default function OnboardingModal() {
-    const { activeTeam, setActiveTeam, isLoading } = useTeam();
+    const { activeTeam, setActiveTeam, isLoading, isTeamSelectorOpen, setTeamSelectorOpen } = useTeam();
     const [teams, setTeams] = useState<string[]>([]);
     const [loadingTeams, setLoadingTeams] = useState(true);
-    const [open, setOpen] = useState(false);
-    const [hasSkipped, setHasSkipped] = useState(false);
-
-    useEffect(() => {
-        if (localStorage.getItem("has_skipped_onboarding") === "true") {
-            setHasSkipped(true);
-        }
-    }, []);
 
     useEffect(() => {
         const loadTeams = async () => {
@@ -46,39 +38,24 @@ export default function OnboardingModal() {
         loadTeams();
     }, []);
 
-    useEffect(() => {
-        if (!isLoading && !activeTeam && !hasSkipped) {
-            setOpen(true);
-        } else {
-            setOpen(false);
-        }
-    }, [isLoading, activeTeam, hasSkipped]);
-
-    const handleSkip = () => {
-        setHasSkipped(true);
-        setOpen(false);
-        localStorage.setItem("has_skipped_onboarding", "true");
-    };
-
-    if (!open) return null;
+    if (!isTeamSelectorOpen) return null;
 
     return (
-        <SimpleModal open={open}>
+        <SimpleModal open={isTeamSelectorOpen}>
             <div className="space-y-8 relative">
                 <button
-                    onClick={handleSkip}
+                    onClick={() => setTeamSelectorOpen(false)}
                     className="absolute -top-4 -right-4 text-zinc-400 hover:text-white transition-colors"
                 >
                     ✕ Close
                 </button>
                 <div className="space-y-3 text-center">
-                    <h2 className="text-3xl font-bold tracking-tight text-white">Select Your Franchise</h2>
+                    <h2 className="text-3xl font-bold tracking-tight text-white">
+                        {activeTeam ? "Change Franchise" : "Select Your Franchise"}
+                    </h2>
                     <p className="text-zinc-400 text-lg">
                         Configure the War Room. Your selection personalizes the Cap Alpha intelligence suite.
                     </p>
-                    <button onClick={handleSkip} className="text-sm text-emerald-500 hover:text-emerald-400 font-mono tracking-widest mt-2 uppercase underline underline-offset-4">
-                        Skip for now
-                    </button>
                 </div>
 
                 {loadingTeams ? (
@@ -95,7 +72,10 @@ export default function OnboardingModal() {
                             return (
                                 <button
                                     key={team}
-                                    onClick={() => setActiveTeam(team)}
+                                    onClick={() => {
+                                        setActiveTeam(team);
+                                        setTeamSelectorOpen(false);
+                                    }}
                                     className={cn(
                                         "group relative flex flex-col items-center justify-center p-4 rounded-xl border transition-all duration-200",
                                         "hover:bg-zinc-800 hover:border-emerald-500/50 hover:scale-105 hover:shadow-lg hover:shadow-emerald-500/10",

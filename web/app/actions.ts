@@ -62,7 +62,7 @@ async function getHydratedData(): Promise<PlayerEfficiency[]> {
     let rawData: any[] = [];
     try {
       const db = await getMotherDuckDb();
-      const res = await db.all(`SELECT * FROM fact_player_efficiency WHERE year = 2025`);
+      const res = await db.all(`SELECT * FROM fact_player_efficiency WHERE year = (SELECT MAX(year) FROM fact_player_efficiency)`);
       rawData = res as any[];
       console.log(`[MotherDuck] Successfully fetched ${rawData.length} records from cloud.`);
     } catch (dbError) {
@@ -366,6 +366,8 @@ export type IntelligenceEvent = {
   icon: 'TrendingDown' | 'TrendingUp' | 'AlertCircle' | 'FileText';
   color: string;
   url?: string; // Optional URL field for source citation
+  provenanceHash?: string;
+  timestamp?: string;
 };
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
@@ -392,7 +394,7 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
 
     // 2. Media Consensus
     const media = await db.all(`
-      SELECT media_date_approx as date_of_event, rationale, source_url
+      SELECT media_date_approx as date_of_event, rationale
       FROM media_lag_metrics
       WHERE player_name = ?
       ORDER BY year DESC, media_consensus_week DESC LIMIT 3
@@ -410,7 +412,31 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
       }
     }
 
-    // 3. Contracts (Optional base state to make sure feed is never completely empty if we have them)
+    // 3. Raw News / Tweets (Guarantees every player has a feed)
+    try {
+      const rawNews = await db.all(`
+        SELECT headline as rationale, published_at as date_of_event, url as source_url, source_type, provenance_hash
+        FROM raw_media_mentions
+        WHERE player_name = ?
+        ORDER BY published_at DESC LIMIT 5
+      `, playerName);
+      
+      if (rawNews && rawNews.length > 0) {
+        for (const n of rawNews) {
+          const isTwitter = (n as any).source_type === 'twitter';
+          feed.push({
+            type: isTwitter ? "X_POST" : "WEB_ARCHIVE",
+            text: (n as any).rationale,
+            icon: 'FileText',
+            color: 'text-zinc-300',
+            url: (n as any).source_url || undefined,
+            provenanceHash: (n as any).provenance_hash || undefined,
+            timestamp: (n as any).date_of_event || new Date().toISOString(),
+          });
+        }
+      }
+    } catch(e) { /* Might not exist yet */ }
+
     // No, we let the UI handle empty state. No filler.
     return feed;
   } catch (error) {

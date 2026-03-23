@@ -8,6 +8,8 @@ interface TeamContextType {
     activeTeam: string | null;
     setActiveTeam: (team: string) => Promise<void>;
     isLoading: boolean;
+    isTeamSelectorOpen: boolean;
+    setTeamSelectorOpen: (open: boolean) => void;
 }
 
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
@@ -16,6 +18,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     const { user, isLoaded } = useUser();
     const [activeTeam, setActiveTeamState] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isTeamSelectorOpen, setTeamSelectorOpen] = useState(false);
 
     // Sync with User Metadata or Local Storage
     useEffect(() => {
@@ -62,7 +65,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <TeamContext.Provider value={{ activeTeam, setActiveTeam, isLoading }}>
+        <TeamContext.Provider value={{ activeTeam, setActiveTeam, isLoading, isTeamSelectorOpen, setTeamSelectorOpen }}>
             {children}
         </TeamContext.Provider>
     );

@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     experimental: {
-        serverComponentsExternalPackages: ['duckdb', '@mapbox/node-pre-gyp', 'node-gyp'],
+        serverComponentsExternalPackages: ['duckdb', 'duckdb-async', '@mapbox/node-pre-gyp', 'node-gyp'],
     },
     webpack: (config, { isServer }) => {
         if (isServer) {
-            config.externals.push('duckdb');
+            config.externals.push('duckdb', 'duckdb-async');
         }
         return config;
     },

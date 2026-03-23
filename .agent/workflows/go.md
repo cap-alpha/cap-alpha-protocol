@@ -6,8 +6,8 @@ description: Autonomous Sprint Task Execution Engine
 
 When the user triggers the `/go` slash command, you must operate in full autonomous mode to execute the remaining sprint backlog. Follow this strict operational loop:
 
-1. **Locate the Next Task**: Open and read the `task.md` artifact. Find the very next task that is NOT marked as `[x]`, `[-]` (Deferred), or `[b]` (Blocked), and is not dependent on any currently blocked/incomplete tasks.
-2. **Mark In-Progress**: Use `replace_file_content` to update `task.md` and mark the task as `[/]` (In Progress).
+1. **Locate the Next Task**: Open and read the `task.md` artifact. Find the very next task that is NOT marked as `[x]`, `[-]` (Deferred), `[b]` (Blocked), or `[/]` (In Progress by another agent), and is not dependent on any currently blocked/incomplete tasks. **Crucial**: To prevent collisions in multi-agent runs, favor tasks in different technical domains or files than what other agents are actively working on.
+2. **Mark In-Progress & Claim**: Use `replace_file_content` to update `task.md` and mark the task as `[/]` (In Progress). You MUST append a claim tag (e.g. `(Claimed by Agent [session/time])`) to explicitly lock the task.
 3. **Execute Task**: 
     - Assess the requirements. If it requires architectural design, draft it in `implementation_plan.md` first.
     - Write the code, run the necessary scripts, or configure the necessary infrastructure.

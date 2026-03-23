@@ -1,5 +1,6 @@
 "use client";
 
+import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
@@ -8,7 +9,7 @@ interface PositionalSpendingChartProps {
     teamName: string;
 }
 
-export function PositionalSpendingChart({ data, teamName }: PositionalSpendingChartProps) {
+export const PositionalSpendingChart = React.memo(function PositionalSpendingChart({ data, teamName }: PositionalSpendingChartProps) {
     if (!data || data.length === 0) return null;
 
     return (
@@ -35,4 +36,4 @@ export function PositionalSpendingChart({ data, teamName }: PositionalSpendingCh
             </CardContent>
         </Card>
     );
-}
+})

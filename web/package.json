@@ -66,5 +66,8 @@
         "ts-node": "^10.9.2",
         "typescript": "^5.9.3",
         "vercel": "^50.32.5"
+    },
+    "optionalDependencies": {
+        "@next/swc-darwin-arm64": "*"
     }
 }

@@ -18,9 +18,14 @@ logger = logging.getLogger(__name__)
 
 RAW_DIR = Path("data/raw")
 
+def get_current_nfl_year() -> int:
+    now = datetime.now()
+    return now.year if now.month >= 3 else now.year - 1
+
+CURRENT_YEAR = get_current_nfl_year()
 
 class SpotracRankingsScraper:
-    """Scrape all 2024 player contracts from Spotrac rankings page"""
+    """Scrape player contracts from Spotrac rankings page"""
     
     def __init__(self, headless: bool = True):
         self.headless = headless
@@ -54,7 +59,7 @@ class SpotracRankingsScraper:
         self.driver = webdriver.Chrome(options=options)
         logger.info("✓ Selenium driver initialized")
     
-    def scrape_all_contracts(self, year: int = 2024) -> pd.DataFrame:
+    def scrape_all_contracts(self, year: int = CURRENT_YEAR) -> pd.DataFrame:
         """
         Scrape salary rankings page - has ALL NFL players ranked by salary cap hit.
         
@@ -190,7 +195,7 @@ class SpotracRankingsScraper:
         except:
             return 0.0
     
-    def scrape_and_save(self, year: int = 2024) -> Path:
+    def scrape_and_save(self, year: int = CURRENT_YEAR) -> Path:
         """Scrape all contracts and save to CSV"""
         df = self.scrape_all_contracts(year)
         
@@ -220,8 +225,8 @@ def main():
     """CLI"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Scrape all 2024 NFL player salaries from Spotrac rankings')
-    parser.add_argument('--year', type=int, default=2024, help='Year to scrape')
+    parser = argparse.ArgumentParser(description='Scrape NFL player salaries from Spotrac rankings')
+    parser.add_argument('--year', type=int, default=CURRENT_YEAR, help='Year to scrape (defaults to active NFL year)')
     
     args = parser.parse_args()
     

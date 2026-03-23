@@ -11,6 +11,44 @@ This module will contain tests to ensure:
 import pandas as pd
 import logging
 from typing import Tuple, Dict
+from datetime import datetime
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+def get_current_nfl_year() -> int:
+    """Returns the active NFL league year (League year traditionally shifts in March)."""
+    now = datetime.now()
+    return now.year if now.month >= 3 else now.year - 1
+
+def validate_data_freshness(db_manager) -> Dict[str, any]:
+    """
+    [CRITICAL QA GATE]
+    Halts the pipeline if the maximum ingested year in the database
+    does not match the current NFL league year. Prevents silent staleness.
+    """
+    logger.info("🔒 Running Data Freshness QA Gate...")
+    current_year = get_current_nfl_year()
+    
+    try:
+        # Check fact_player_efficiency (Gold Layer)
+        res = db_manager.execute("SELECT MAX(year) as max_yr FROM fact_player_efficiency").fetchone()
+        db_max_year = int(res[0]) if res and res[0] is not None else 0
+        
+        if db_max_year < current_year:
+            err_msg = f"🚨 Pipeline Stale: DB max year ({db_max_year}) < NFL Current Year ({current_year}). Halting."
+            logger.error(err_msg)
+            raise RuntimeError(err_msg)
+            
+        logger.info(f"✅ Freshness verified. DB max year: {db_max_year} == NFL Current Year: {current_year}")
+        return {'is_fresh': True, 'db_max_year': db_max_year, 'required_year': current_year}
+    except Exception as e:
+        if isinstance(e, RuntimeError):
+            raise
+        logger.warning(f"⚠️ Could not verify freshness (tables might not exist): {e}")
+        return {'is_fresh': False, 'error': str(e)}
+
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

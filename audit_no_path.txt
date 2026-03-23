@@ -1,5 +1,0 @@
-python3: error: couldn't create cache file '/var/folders/2c/hn46snbj3qb84rkyzmls72240000gn/T/xcrun_db-jwHesaWI' (errno=Operation not permitted)
-Traceback (most recent call last):
-  File "/Users/andrewsmith/Documents/portfolio/nfl-dead-money/scripts/population_audit.py", line 6, in <module>
-    import duckdb
-ModuleNotFoundError: No module named 'duckdb'

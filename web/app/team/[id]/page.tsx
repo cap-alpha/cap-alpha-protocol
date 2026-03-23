@@ -15,6 +15,8 @@ export async function generateStaticParams() {
     }));
 }
 
+export const revalidate = 3600; // Cache for 1 hour (ISR)
+
 export default async function TeamPage({ params }: { params: { id: string } }) {
     const teamName = decodeURIComponent(params.id);
     const rosterData = await getRosterData();

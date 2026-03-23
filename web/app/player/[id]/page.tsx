@@ -1,4 +1,4 @@
-import { getRosterData, getPositionDistribution, getPlayerTimeline, getIntelligenceFeed, TimelineEvent, IntelligenceEvent } from '@/app/actions';
+import { getRosterData, getPositionDistribution, getPlayerTimeline, getIntelligenceFeed, getPlayerAuditLedger, TimelineEvent, IntelligenceEvent, AuditEntry } from '@/app/actions';
 import PlayerDetailView from '@/components/player-detail-view';
 import { notFound } from 'next/navigation';
 import { slugify } from '@/lib/utils';
@@ -11,6 +11,8 @@ export async function generateStaticParams() {
     }));
 }
 
+export const revalidate = 3600; // Cache for 1 hour (ISR)
+
 export default async function PlayerPage({ params }: { params: { id: string } }) {
     const playerSlug = decodeURIComponent(params.id);
     const roster = await getRosterData();
@@ -22,15 +24,16 @@ export default async function PlayerPage({ params }: { params: { id: string } })
         notFound();
     }
 
-    const [distribution, timeline, feed] = await Promise.all([
+    const [distribution, timeline, feed, ledger] = await Promise.all([
         getPositionDistribution(player.position),
         getPlayerTimeline(player.player_name),
-        getIntelligenceFeed(player.player_name)
+        getIntelligenceFeed(player.player_name),
+        getPlayerAuditLedger(player.player_name)
     ]);
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <PlayerDetailView player={player} distributionData={distribution} timeline={timeline} feed={feed} />
+            <PlayerDetailView player={player} distributionData={distribution} timeline={timeline} feed={feed} ledger={ledger} />
         </main>
     );
 }

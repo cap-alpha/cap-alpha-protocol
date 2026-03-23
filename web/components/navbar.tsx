@@ -5,10 +5,12 @@ import { usePathname } from "next/navigation";
 import { UserButton, useUser, SignInButton } from "@clerk/nextjs";
 import { GlobalSearch } from "./global-search";
 import { useState, useEffect } from "react";
+import { useTeam } from "./team-context";
 
 export function Navbar() {
     const pathname = usePathname();
     const { isSignedIn, isLoaded } = useUser();
+    const { activeTeam, setTeamSelectorOpen } = useTeam();
     const [isScrolled, setIsScrolled] = useState(false);
 
     useEffect(() => {
@@ -58,12 +60,12 @@ export function Navbar() {
                         >
                             DASHBOARD
                         </Link>
-                        <Link 
-                            href="/dashboard/team-select" 
-                            className={`transition-colors hover:text-emerald-400 ${pathname?.includes('/team') ? 'text-emerald-500' : 'text-slate-400'}`}
+                        <button 
+                            onClick={() => setTeamSelectorOpen(true)}
+                            className="transition-colors hover:text-emerald-400 text-slate-400 uppercase tracking-wide font-medium"
                         >
-                            TEAMS
-                        </Link>
+                            {activeTeam ? `TEAM: ${activeTeam}` : "SELECT TEAM"}
+                        </button>
                     </nav>
                 </div>
 

@@ -1,9 +1,12 @@
 import { auth } from "@clerk/nextjs/server";
 import { PersonaShowcase } from "@/components/persona-showcase";
 import { AlphaFeedHero } from "@/components/alpha-feed-hero";
-import { ProofOfAlphaCarousel, Receipt } from "@/components/proof-of-alpha-carousel";
+import { ProofOfAlphaCarousel } from "@/components/proof-of-alpha-carousel";
+import type { Receipt } from "@/components/proof-of-alpha-carousel";
 import { GlobalAggregator } from "@/components/global-aggregator";
 import { getWarRoomData } from "@/app/actions";
+
+export const revalidate = 3600; // Cache for 1 hour (ISR)
 
 export default async function LandingPage() {
     const { userId } = await auth();

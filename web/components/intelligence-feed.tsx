@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { IntelligenceEvent } from "@/app/actions";
+import { ProvenanceSnapshot } from "./provenance-snapshot";
 
 export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { playerName: string, riskScore: number, feedEvents?: IntelligenceEvent[] }) {
 
@@ -84,24 +85,16 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                                                 <IconNode className={`h-3 w-3 ${item.color}`} />
                                             </div>
                                             {/* Content */}
-                                            <div className="bg-transparent py-2">
-                                                <div className="flex justify-between items-center mb-1">
-                                                    <div className="text-xs font-bold text-slate-400">{item.type}</div>
-                                                    <div className="text-[10px] text-slate-600">Generated automatically</div>
-                                                </div>
-                                                <div className="text-sm text-slate-300 leading-relaxed">
-                                                    {item.text}
-                                                    {item.url && (
-                                                        <a 
-                                                            href={item.url} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer" 
-                                                            className="ml-2 inline-flex items-center text-xs text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
-                                                        >
-                                                            Read Source
-                                                        </a>
-                                                    )}
-                                                </div>
+                                            <div className="bg-transparent py-2 w-full mt-2 pr-4">
+                                                <ProvenanceSnapshot
+                                                    source={item.type}
+                                                    content={item.text}
+                                                    sentiment={item.color.includes('rose') || item.color.includes('amber') ? 0.2 : 0.8}
+                                                    timestamp={item.timestamp || new Date().toISOString()}
+                                                    provenanceHash={item.provenanceHash}
+                                                    snapshotType={item.type === 'Warning' ? 'SYSTEM_ALERT' : (item.type.includes('Media') ? 'WEB_ARCHIVE' : 'DISPATCH_LOG')}
+                                                    sourceUrl={item.url}
+                                                />
                                             </div>
                                         </div>
                                     );

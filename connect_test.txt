@@ -1,3 +1,0 @@
-python3: error: couldn't create cache file '/var/folders/2c/hn46snbj3qb84rkyzmls72240000gn/T/xcrun_db-OB2Sk2W1' (errno=Operation not permitted)
-Imported
-Connected

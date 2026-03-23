@@ -1,2 +1,0 @@
-python3: error: couldn't create cache file '/var/folders/2c/hn46snbj3qb84rkyzmls72240000gn/T/xcrun_db-9wl5msVP' (errno=Operation not permitted)
-BOOTSTRAP

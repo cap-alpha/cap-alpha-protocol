@@ -24,8 +24,8 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [x] SP11-2: Plumb actual DB queries for `IntelligenceFeed` and handle true empty states gracefully (Zero State UX).
 - [x] SP11-3: Guarantee `PlayerTimeline` query execution in MotherDuck and render authentic DB events.
 - [x] SP11-4: Update Data Visualization charts (`ComposedChart`) to render robust empty states when historical data is absent.
-- [ ] SP11-5: Build `tests/e2e/integration.spec.ts` as the singular, high-signal integration suite for deployment pipelines.
-- [ ] SP11-6: Execute integration suite exclusively inside the `e2e` Docker container to guarantee environment parity and bypass macOS EPERM.
+- [x] SP11-5: Build `tests/e2e/integration.spec.ts` as the singular, high-signal integration suite for deployment pipelines.
+- [x] SP11-6: Execute integration suite exclusively inside the `e2e` Docker container to guarantee environment parity and bypass macOS EPERM.
 
 ### Sprint 12: Real-Time Live Data Hydration (News & Rumors) - ACTIVE
 **Goal:** Satisfy stakeholder requirement to view *live, up-to-date market information, trade rumors, and injury news* populated dynamically into `media_lag_metrics`.
@@ -37,36 +37,36 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 13: Legacy Data Parity (Spotrac/PFR Feature Match)
 **Goal:** Ensure the platform natively supports all core salary cap and historical context features natively offered by legacy competitor sites.
-- [ ] SP13-1: Extract and display deep salary cap breakdowns (Base, Prorated Bonus, Roster Bonus, Guaranteed Salary) per player.
-- [ ] SP13-2: Visualize team-level positional spending alongside league averages for immediate roster architecture critique.
-- [ ] SP13-3: Migrate historical game logs or essential box score statistics for context beside the advanced machine learning intelligence.
+- [x] SP13-1: Extract and display deep salary cap breakdowns (Base, Prorated Bonus, Roster Bonus, Guaranteed Salary) per player.
+- [x] SP13-2: Visualize team-level positional spending alongside league averages for immediate roster architecture critique.
+- [x] SP13-3: Migrate historical game logs or essential box score statistics for context beside the advanced machine learning intelligence.
 
 ### Sprint 14: Pipeline Automation & Broad Sentiment Tracking
 **Goal:** Optimize scale and unit economics on LLM hydration via Franchise-Level batching, achieving 100% total active roster verifiability.
-- [ ] SP14-1: Migrate the manual `docker-compose` pipeline executions into a scheduled Git Action or Airflow DAG running on a set cadence.
-- [ ] SP14-2: Architect and implement Franchise-Level News Batching in `hydrate_live_news.py` to achieve 100% total active roster verifiability using Gemini Ultra context.
-- [ ] SP14-3: Generate automated alert telemetry for when sentiment severely disconnects from contract value (identifying accelerating trajectories).
-- [ ] SP14-4: Refactor `hydrate_live_news.py` to search for news by franchise/team rather than individual player.
-- [ ] SP14-5: Cross-reference team news against active rosters to record a definitive "news" or "no news" status for every player, enabling comprehensive point-in-time analysis.
-- [ ] SP14-6: Optimize the pipeline to safely execute hourly (idempotency, rate limit handling).
-- [ ] SP14-7: Implement filtering capabilities to elevate the most critical updates for media use cases while retaining full player-level history.
+- [x] SP14-1: Migrate the manual `docker-compose` pipeline executions into a scheduled Git Action or Airflow DAG running on a set cadence.
+- [x] SP14-2: Architect and implement Franchise-Level News Batching in `hydrate_live_news.py` to achieve 100% total active roster verifiability using Gemini Ultra context.
+- [x] SP14-3: Generate automated alert telemetry for when sentiment severely disconnects from contract value (identifying accelerating trajectories).
+- [x] SP14-4: Refactor `hydrate_live_news.py` to search for news by franchise/team rather than individual player.
+- [x] SP14-5: Cross-reference team news against active rosters to record a definitive "news" or "no news" status for every player, enabling comprehensive point-in-time analysis.
+- [x] SP14-6: Optimize the pipeline to safely execute hourly (idempotency, rate limit handling).
+- [x] SP14-7: Implement filtering capabilities to elevate the most critical updates for media use cases while retaining full player-level history.
 
 ### Sprint 15: Walk-Forward Validation & Model Audit
 **Goal:** Solidify confidence in the prediction engine against historical point-in-time facts (Out-of-sample backtesting).
-- [ ] SP15-1: Build out out-of-sample temporal backtesting capabilities to validate the prediction engine against historical point-in-time facts.
-- [ ] SP15-2: Perform a post-mortem on severe model misses (e.g., highly rated players who busted, low rated players who popped).
+- [x] SP15-1: Build out out-of-sample temporal backtesting capabilities to validate the prediction engine against historical point-in-time facts.
+- [x] SP15-2: Perform a post-mortem on severe model misses (e.g., highly rated players who busted, low rated players who popped).
 - [ ] SP15-3: Create an explicit architectural roadmap for algorithmic improvements to address identified weaknesses.
 
 ### Sprint 16: Player Visual Timeline Experience 
 **Goal:** Empower users with a single unified chronological view of all events affecting a player's market value.
-- [ ] SP16-1: Unify heterogeneous events (News Intel, Contract Restructures, Trades, Injuries, Cap hits) into a singular `player_timeline_events` view.
-- [ ] SP16-2: Build a horizontal `<VisualTimeline />` React component on the player profile page (`/player/[id]`).
-- [ ] SP16-3: Implement data fetching and rendering of dynamic events with custom icons per event type (e.g. 📄 for contracts, 🚨 for rumors).
+- [x] SP16-1: Unify heterogeneous events (News Intel, Contract Restructures, Trades, Injuries, Cap hits) into a singular `player_timeline_events` view.
+- [x] SP16-2: Build a horizontal `<VisualTimeline />` React component on the player profile page (`/player/[id]`).
+- [x] SP16-3: Implement data fetching and rendering of dynamic events with custom icons per event type (e.g. 📄 for contracts, 🚨 for rumors).
 
 ### Sprint 17: Vercel Production Deployment
 **Goal:** Expose the web application securely to the public internet for continuous stakeholder review.
-- [ ] SP17-1: Connect the repository to Vercel and configure the `MOTHERDUCK_TOKEN` and Auth Environment variables.
-- [ ] SP17-2: Validate that GitHub Actions executes the `docker-compose run e2e` integration tests prior to approving the build.
+- [x] SP17-1: Connect the repository to Vercel and configure the `MOTHERDUCK_TOKEN` and Auth Environment variables.
+- [x] SP17-2: Validate that GitHub Actions executes the `docker-compose run e2e` integration tests prior to approving the build.
 - [ ] SP17-3: Conduct User Acceptance Testing (UAT) on the deployed site across mobile and web interfaces.
 
 ## Milestone 2: Production Launch & Data Independence
@@ -95,7 +95,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 ### Sprint 21: Front Page Strategic Redesign & Identity
 **Goal:** Reconvene key stakeholders to brainstorm, define, and agree upon a comprehensive user flow and concept set for the front page, firmly establishing the product identity as an "intelligence aggregator and prediction market on sports."
 - [ ] SP21-1: Schedule and conduct a stakeholder roundtable (Product Council, Design, Execution) to discuss front page flow and concepts.
-- [ ] SP21-2: Draft a "Front Page Vision & Identity" document clarifying the "intelligence aggregator and prediction market" positioning.
+- [x] SP21-2: Draft a "Front Page Vision & Identity" document clarifying the "intelligence aggregator and prediction market" positioning.
 - [ ] SP21-3: Develop low-fidelity wireframes or concepts for the new front page flow based on stakeholder consensus.
 - [ ] SP21-4: Review and approve the new front page concepts before technical implementation begins.
 

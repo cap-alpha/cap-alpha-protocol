@@ -1,1 +1,0 @@
-import { db } from '../db'; import { waitlist } from '../db/schema'; async function main() { const leads = await db.select().from(waitlist); console.log(JSON.stringify(leads, null, 2)); process.exit(0); } main();

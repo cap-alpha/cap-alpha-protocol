@@ -1,5 +1,0 @@
-python3: error: couldn't create cache file '/var/folders/2c/hn46snbj3qb84rkyzmls72240000gn/T/xcrun_db-JYj0gLdO' (errno=Operation not permitted)
-       cap_bucket       n  r2_score
-0    Low Cap (<M)  332001    0.0345
-1  Mid Cap (M-0M)  114424    0.5120
-2  High Cap (>0M)   39734    0.9079

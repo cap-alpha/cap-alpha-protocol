@@ -19,6 +19,7 @@ import pandas as pd
 
 from src.historical_scraper import scrape_all_years
 from src.data_quality_tests import DataQualityTester
+from src.cryptographic_ledger import hash_predictions_to_ledger
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,7 @@ def pipeline_daily(dead_money_csv: Path = DEFAULT_DM_CSV, start_year: int = 2015
     scrape_rosters(start_year=start_year, end_year=end_year)
     merge_dead_money(dead_money_csv=dead_money_csv)
     run_data_quality()
+    hash_predictions_to_ledger()
     logger.info("Pipeline run complete")
 
 

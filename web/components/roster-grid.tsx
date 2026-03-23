@@ -216,7 +216,7 @@ export const columns: ColumnDef<PlayerMetric>[] = [
     },
 ]
 
-export function RosterGrid({ data, initialSearch = "" }: { data: PlayerMetric[], initialSearch?: string }) {
+export const RosterGrid = React.memo(function RosterGrid({ data, initialSearch = "" }: { data: PlayerMetric[], initialSearch?: string }) {
     const [sorting, setSorting] = React.useState<SortingState>([])
     const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
         initialSearch ? [{ id: "player_name", value: initialSearch }] : []
@@ -463,4 +463,4 @@ export function RosterGrid({ data, initialSearch = "" }: { data: PlayerMetric[],
             </div>
         </div>
     )
-}
+})

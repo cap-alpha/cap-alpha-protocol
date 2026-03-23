@@ -47,3 +47,16 @@
     @apply bg-background text-foreground;
   }
 }
+
+@keyframes alpha-marquee {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(calc(-50% - 0.75rem)); } /* Account for half the gap */
+}
+
+.animate-alpha-marquee {
+  animation: alpha-marquee 60s linear infinite;
+}
+
+.animate-alpha-marquee:hover {
+  animation-play-state: paused;
+}

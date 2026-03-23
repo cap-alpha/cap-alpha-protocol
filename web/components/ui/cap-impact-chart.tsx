@@ -27,7 +27,7 @@ export function CapImpactChart({
                     <Tooltip
                         cursor={{ fill: 'transparent' }}
                         contentStyle={{ backgroundColor: '#1e293b', border: 'none', fontSize: '12px' }}
-                        formatter={(value: number | undefined) => [`$${(value || 0).toFixed(2)}M`, "Cap Savings"]}
+                        formatter={(value: any) => [`$${(Number(value) || 0).toFixed(2)}M`, "Cap Savings"]}
                     />
                     <ReferenceLine x={0} stroke="#475569" />
                     <Bar dataKey="value" barSize={20} radius={[0, 4, 4, 0]}>

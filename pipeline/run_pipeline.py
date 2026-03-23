@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from src.strategic_engine import StrategicEngine
 from src.config_loader import get_db_path
+from src.data_validation import get_current_nfl_year, validate_data_freshness
+from src.db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -33,16 +35,27 @@ def main():
     args = parser.parse_args()
 
     logger.info(f"--- Pipeline Started with Options: {args} ---")
+    current_year = get_current_nfl_year()
     
     # 1. Ingestion & Normalization (Bronze/Silver)
     if not args.skip_ingest:
-        for year in range(2011, 2026):
+        for year in range(2011, current_year + 1):
              run_step(f"Ingestion {year}", f"pipeline/scripts/medallion_pipeline.py --year {year} --skip-gold")
         # Build Gold Layer once after all ingestion
-        run_step("Build Gold Layer", "pipeline/scripts/medallion_pipeline.py --year 2025 --gold-only")
+        run_step("Build Gold Layer", f"pipeline/scripts/medallion_pipeline.py --year {current_year} --gold-only")
     else:
         logger.info("⏭️  Skipping Ingestion (Bronze Layer)")
     
+    # 1.5 Data Staleness QA Gate
+    if not args.skip_validation:
+        try:
+            db = DBManager(get_db_path())
+            validate_data_freshness(db)
+            db.close()
+        except Exception as e:
+            logger.error(f"FATAL: {e}")
+            sys.exit(1)
+
     # 2. Feature Engineering (Gold Layer Enrichment Preparation)
     if not args.skip_features:
         run_step("Feature Factory", "pipeline/src/feature_factory.py")
@@ -120,8 +133,8 @@ def main():
         try:
             db_path = get_db_path()
             engine = StrategicEngine(db_path)
-            report_path = os.getenv("AUDIT_REPORT_PATH", "reports/nfl_team_strategic_audit_2025.md")
-            engine.generate_audit_report(report_path, year=2025)
+            report_path = os.getenv("AUDIT_REPORT_PATH", f"reports/nfl_team_strategic_audit_{current_year}.md")
+            engine.generate_audit_report(report_path, year=current_year)
             engine.close()
             logger.info("--- Completed Step: Strategic Audits ---")
         except Exception as e:

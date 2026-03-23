@@ -24,17 +24,19 @@ import { CutCalculator } from './cut-calculator';
 import { PositionDistributionChart } from './position-distribution-chart';
 import { SaveScenarioButton } from './save-scenario-button';
 import { IntelligenceFeed } from './intelligence-feed';
-import { PlayerTimeline } from './player-timeline';
-import { TimelineEvent, IntelligenceEvent } from "@/app/actions";
+import { VisualTimeline } from './visual-timeline';
+import { VerifiableAudit } from './verifiable-audit';
+import { TimelineEvent, IntelligenceEvent, AuditEntry } from "@/app/actions";
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
     distributionData?: any[]; 
     timeline?: TimelineEvent[];
     feed?: IntelligenceEvent[];
+    ledger?: AuditEntry[];
 }
 
-export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [] }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [] }: PlayerDetailViewProps) {
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -366,14 +368,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                         </TabsList>
 
                         <TabsContent value="timeline" className="mt-4">
-                            <Card className="bg-zinc-900 border-zinc-800">
-                                <CardHeader>
-                                    <CardTitle>Chronological Asset Events</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    <PlayerTimeline timeline={timeline} />
-                                </CardContent>
-                            </Card>
+                            <VisualTimeline timeline={timeline} />
                         </TabsContent>
 
                         <TabsContent value="intelligence" className="mt-4">
@@ -403,6 +398,8 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                     </div>
                                 </CardContent>
                             </Card>
+
+                            <VerifiableAudit entries={ledger} />
                         </TabsContent>
                     </Tabs>
                 </div>

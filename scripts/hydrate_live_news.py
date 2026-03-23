@@ -49,14 +49,20 @@ def get_active_rosters(con):
 
 def synthesize_news(player, news_results):
     """
-    Use Gemini to extract an Intelligence Sentence and Sentiment Score.
+    Use Gemini to extract Multi-Resolution Intelligence.
     """
     prompt = f"""
     You are an NFL Cap and Operations Intelligence Analyst.
     Review the following news search results which mention {player}.
-    Extract one precise, non-hyped "Intelligence Sentence" prioritizing Contract Talks, Trade Rumors, Injuries, or Cap Implications.
-    Also generate a "sentiment_score" from -1.0 (extremely negative/toxic) to 1.0 (extremely positive/stable).
-    Return JSON format: {{"type": "Warning|Rumor|Information", "text": "<sentence>", "sentiment_score": 0.0}}
+    Extract multi-resolution intelligence prioritizing Contract Talks, Trade Rumors, Injuries, or Cap Implications.
+    
+    Provide:
+    1. "type": "Warning|Rumor|Information|Injury|Contract"
+    2. "resolution_high_level": A single, concise sentence summarizing the event (e.g. "Patrick Mahomes restructured his contract.")
+    3. "resolution_detailed": 1-2 paragraphs analyzing the context and severity.
+    4. "sentiment_score": from -1.0 (extremely negative/toxic/injury) to 1.0 (extremely positive/stable).
+    
+    Return JSON format: {{"type": "...", "resolution_high_level": "...", "resolution_detailed": "...", "sentiment_score": 0.0}}
     If no relevant intelligence exists for {player} in the text, return empty JSON {{}}.
     
     News Data: {news_results}
@@ -76,46 +82,58 @@ def synthesize_news(player, news_results):
         print(f"  Failed to synthesize news for {player}: {e}")
         return None
 
-def inject_motherduck(con, player, intel, has_news):
+import hashlib
+
+def get_event_id(url: str, player_name: str) -> str:
+    s = f"{url}-{player_name}"
+    return hashlib.sha256(s.encode('utf-8')).hexdigest()
+
+def inject_motherduck(con, player, team, intel, raw_content, source_url, source_platform="DDG_NEWS"):
     """
-    Inject the synthesized intelligence into MotherDuck, explicitly flagging 'has_news'.
+    Inject the synthesized intelligence into MotherDuck using the player_timeline_events table.
     """
     if not intel:
-        intel = {"type": "Information", "text": "No recent news detected.", "sentiment_score": 0.0}
+        # Ignore if no intel was found - we don't need 'no news' cluttering the timeline table
+        return False
     
     timestamp = datetime.now().isoformat()
     score = intel.get("sentiment_score", 0.0)
+    high_level = intel.get("resolution_high_level", "No summary.")
+    detailed = intel.get("resolution_detailed", "")
+    event_type = intel.get("type", "Information")
+    
+    # Use the source_url to generate a unique event ID coupled with the player
+    event_id = get_event_id(source_url, player)
+
     try:
-        # Ensure table exists with the new 'has_news' boolean flag
+        # Ensure table exists
         con.execute("""
-            CREATE TABLE IF NOT EXISTS media_lag_metrics (
+            CREATE TABLE IF NOT EXISTS player_timeline_events (
+                event_id VARCHAR,
                 player_name VARCHAR,
+                team_name VARCHAR,
                 event_type VARCHAR,
-                intelligence_text VARCHAR,
-                sentiment_score DOUBLE,
+                event_date TIMESTAMP,
                 source_url VARCHAR,
-                recorded_at TIMESTAMP,
-                has_news BOOLEAN
+                source_platform VARCHAR,
+                sentiment_score DOUBLE,
+                resolution_high_level VARCHAR,
+                resolution_detailed VARCHAR,
+                raw_content VARCHAR
             )
         """)
         
-        # Check idempotency: avoid inserting the exact same intelligence text for this player within 24h
-        check_query = """
-            SELECT COUNT(*) 
-            FROM media_lag_metrics 
-            WHERE player_name = ? 
-              AND intelligence_text = ? 
-              AND recorded_at > CURRENT_TIMESTAMP - INTERVAL 24 HOUR
-        """
-        exists = con.execute(check_query, (player, intel.get("text"))).fetchone()[0]
+        # Check idempotency via event_id
+        check_query = "SELECT COUNT(*) FROM player_timeline_events WHERE event_id = ?"
+        exists = con.execute(check_query, (event_id,)).fetchone()[0]
         if exists > 0:
-            print(f"  [Idempotency] Skipping duplicate intel string for {player}.")
+            print(f"  [Idempotency] Skipping duplicate event_id for {player}.")
             return False
 
         # Insert the record
         con.execute(
-            "INSERT INTO media_lag_metrics VALUES (?, ?, ?, ?, NULL, ?, ?)", 
-            (player, intel.get("type"), intel.get("text"), score, timestamp, has_news)
+            "INSERT INTO player_timeline_events VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", 
+            (event_id, player, team, event_type, timestamp, source_url, source_platform, score, high_level, detailed, raw_content)
         )
         return True
     except Exception as e:
@@ -148,7 +166,7 @@ def check_alert_telemetry(con, player, intel):
             if cap_hit > 15.0:
                 print(f"  [TELEMETRY ALERT] 🚨 CRITICAL SENTIMENT DISCONNECT 🚨")
                 print(f"  Asset: {player} | Cap Liability: ${cap_hit}M | Sentiment: {score}")
-                print(f"  Event: {intel.get('text')}")
+                print(f"  Event: {intel.get('resolution_high_level')}")
                 print(f"  Trajectory: Accelerating Liability. Recommend Hedging.")
     except Exception as e:
         print(f"  Telemetry alert logic failed: {e}")
@@ -176,6 +194,9 @@ def main():
 
             # Combine all headline/body text to search for player mentions
             combined_text = " ".join([f"{r.get('title', '')} {r.get('body', '')}" for r in results]).lower()
+            
+            # Use the first URL or an aggregate placeholder
+            primary_url = results[0].get('url', 'duckduckgo.com/news') if results else 'duckduckgo.com'
 
             for player in players:
                 # Use last name as a fuzzy match proxy because news often just uses last names
@@ -184,16 +205,16 @@ def main():
                 if player.lower() in combined_text or (len(last_name) > 3 and last_name in combined_text):
                     print(f"  > Hit detected for {player}.")
                     intel = synthesize_news(player, results)
-                    if intel and intel.get("text"):
-                        print(f"    Result: [{intel.get('type')}] {intel.get('text')}")
-                        if inject_motherduck(con, player, intel, has_news=True):
+                    if intel and intel.get("resolution_high_level"):
+                        print(f"    Result: [{intel.get('type')}] {intel.get('resolution_high_level')}")
+                        raw_content = json.dumps(results)
+                        if inject_motherduck(con, player, team, intel, raw_content, primary_url, "DDG_NEWS"):
                             check_alert_telemetry(con, player, intel)
                     else:
-                        # Mentioned, but LLM deemed it non-actionable
-                        inject_motherduck(con, player, None, has_news=False)
+                        pass # Ignore if LLM deems irrelevant
                 else:
-                    # Not mentioned in franchise news block
-                    inject_motherduck(con, player, None, has_news=False)
+                    pass # Not mentioned
+
             
         except Exception as e:
             print(f"  Error fetching news for {team}: {e}")

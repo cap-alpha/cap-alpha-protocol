@@ -32,3 +32,4 @@ httpx
 python-multipart
 feedparser
 tabulate
+praw

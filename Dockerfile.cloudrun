@@ -1,0 +1,37 @@
+FROM python:3.11-slim
+
+# Install system dependencies (Chromium for scrapers, Node.js for syncs, git)
+RUN apt-get update && apt-get install -y \
+    chromium \
+    chromium-driver \
+    curl \
+    git \
+    make \
+    build-essential \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Setup Chrome environment variables for headless scraping
+ENV CHROME_BIN=/usr/bin/chromium
+ENV CHROMEDRIVER_BIN=/usr/bin/chromedriver
+
+WORKDIR /app/pipeline
+
+# Install Python dependencies
+COPY pipeline/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir dbt-duckdb papermill jupyter
+
+# Copy pipeline context
+COPY pipeline/ /app/pipeline/
+COPY scripts/ /app/scripts/
+
+# Copy React app package for DB sync scripts if needed
+COPY web/package.json /app/web/package.json
+
+# Environment configuration
+ENV PYTHONPATH="/app/pipeline:/app"
+
+# Entrypoint is the simplified daily orchestrator
+CMD ["python", "src/run_daily.py"]

@@ -13,6 +13,9 @@ from datetime import datetime
 import praw
 from google import genai
 from dotenv import load_dotenv
+import feedparser
+import time
+import requests
 
 import duckdb
 
@@ -24,27 +27,12 @@ load_dotenv(ENV_PATH)
 MOTHERDUCK_TOKEN = os.getenv("MOTHERDUCK_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-REDDIT_CLIENT_ID = os.getenv("REDDIT_CLIENT_ID")
-REDDIT_CLIENT_SECRET = os.getenv("REDDIT_CLIENT_SECRET")
-REDDIT_USER_AGENT = os.getenv("REDDIT_USER_AGENT", "NFLDeadMoneySocialSpider/1.0 by NFL_Alpha_Bot")
-
 if not MOTHERDUCK_TOKEN or not GEMINI_API_KEY:
     raise RuntimeError("Missing MOTHERDUCK_TOKEN or GEMINI_API_KEY in web/.env.local")
-
-if not REDDIT_CLIENT_ID or not REDDIT_CLIENT_SECRET:
-    print("⚠️ WARNING: REDDIT_CLIENT_ID or REDDIT_CLIENT_SECRET missing. This script cannot run without Reddit API credentials.")
-    print("Please add these to web/.env.local.")
-    exit(1)
 
 # Initialize clients
 client = genai.Client(api_key=GEMINI_API_KEY)
 model_name = "gemini-2.5-flash"
-
-reddit = praw.Reddit(
-    client_id=REDDIT_CLIENT_ID,
-    client_secret=REDDIT_CLIENT_SECRET,
-    user_agent=REDDIT_USER_AGENT
-)
 
 def get_event_id(url: str, player_name: str) -> str:
     s = f"{url}-{player_name}"
@@ -212,41 +200,47 @@ def main():
         for p in players:
             player_to_team[p.lower()] = (p, team)
 
-    # 3. Pull Reddit Posts (last ~1 hour) -> We grab 'hot' and 'new'
+    # 3. Pull Reddit Posts via RSS (Credential-Free) -> We grab 'hot' and 'new'
     subreddits = ['nfl', 'fantasyfootball']
     posts_to_analyze = []
     
-    print("Fetching active discussions from Reddit...")
+    print("Fetching active discussions from Reddit via RSS...")
+    # Reddit frequently blocks default python user agents for RSS, so we need a custom one.
+    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 App/NFLDeadMoneyBot'}
+    
     for sub in subreddits:
-        try:
-            subreddit = reddit.subreddit(sub)
-            for submission in subreddit.hot(limit=30):
-                posts_to_analyze.append(submission)
-            for submission in subreddit.new(limit=30):
-                posts_to_analyze.append(submission)
-        except Exception as e:
-            print(f"Error fetching from r/{sub}: {e}")
+        for feed_type in ['.rss', '/new.rss']:
+            url = f"https://www.reddit.com/r/{sub}{feed_type}"
+            try:
+                # Use requests to fetch with custom user agent, then parse with feedparser
+                response = requests.get(url, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    feed = feedparser.parse(response.content)
+                    for entry in feed.entries[:30]:  # Top 30 from each feed
+                        posts_to_analyze.append(entry)
+                else:
+                    print(f"Warning: Got status {response.status_code} requesting {url}")
+                time.sleep(2) # Be polite to Reddit servers
+            except Exception as e:
+                print(f"Error fetching from r/{sub}{feed_type}: {e}")
             
-    # Deduplicate posts by ID
-    unique_posts = {post.id: post for post in posts_to_analyze}.values()
+    # Deduplicate posts by link
+    unique_posts = {post.link: post for post in posts_to_analyze}.values()
     print(f"Gathered {len(unique_posts)} unique recent Reddit posts for evaluation.")
     
     hits = 0
     # 4. Synthesize + Inject
     for post in unique_posts:
         title = post.title.lower()
-        selftext = post.selftext.lower()
+        # RSS 'summary' often contains HTML of the post body
+        selftext = post.get('summary', '').lower()
         combined_text = f"{title} {selftext}"
         
         # Check against active players
         matches = []
         for player_lower, (actual_name, team) in player_to_team.items():
-            # Basic fuzzy logic - last names are often used in sports titles
             parts = player_lower.split()
             last_name = parts[-1]
-            
-            # Require full name match, or if it's a very unique last name or paired with team context
-            # We'll stick to full name matches or strong last name matches for now to prevent false positives.
             if player_lower in combined_text or (len(last_name) > 4 and last_name in combined_text):
                 matches.append((actual_name, team))
                 
@@ -259,10 +253,8 @@ def main():
             
             post_data = {
                 "title": post.title,
-                "text": post.selftext,
-                "url": f"https://reddit.com{post.permalink}",
-                "score": post.score,
-                "num_comments": post.num_comments
+                "text": post.get('summary', ''),
+                "url": post.link
             }
             
             for player, team in matches:

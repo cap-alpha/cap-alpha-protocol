@@ -115,9 +115,9 @@ def hash_predictions_to_ledger():
         # 3. Enhance ledger with intelligence signals
         logger.info("Hashing intelligence signals into Ledger...")
         signals = db.fetch_all("""
-            SELECT player_name, event_type, intelligence_text, sentiment_score, recorded_at
-            FROM media_lag_metrics
-            WHERE recorded_at >= CURRENT_DATE - INTERVAL '7 DAYS'
+            SELECT player_name, event_type, resolution_high_level as intelligence_text, sentiment_score, event_date as recorded_at
+            FROM player_timeline_events
+            WHERE event_date >= CURRENT_DATE - INTERVAL '7 DAYS'
         """)
         
         if signals:

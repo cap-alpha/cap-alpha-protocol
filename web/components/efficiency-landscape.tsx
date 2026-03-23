@@ -191,7 +191,7 @@ export function EfficiencyLandscape({ data, teams = [] }: EfficiencyLandscapePro
             </CardHeader>
 
             <CardContent className="h-[500px] w-full p-4 select-none">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
                     <ScatterChart
                         margin={{ top: 20, right: 30, bottom: 40, left: 60 }}
                         onMouseDown={(e: any) => e && setRefAreaLeft(e.xValue)}

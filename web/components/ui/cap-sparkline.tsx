@@ -17,7 +17,7 @@ export function CapSparkline({ data, className }: { data: any[], className?: str
 
     return (
         <div className={cn("h-8 w-24", className)}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
                 <LineChart data={data}>
                     <Line
                         type="monotone"

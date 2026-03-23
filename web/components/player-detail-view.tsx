@@ -331,7 +331,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                     </p>
                                 </div>
                             ) : (
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
                                     <ComposedChart data={chartDataWithBands} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.15} />
                                         <XAxis dataKey="year" stroke="#94a3b8" />

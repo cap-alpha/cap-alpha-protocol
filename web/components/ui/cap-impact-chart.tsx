@@ -20,7 +20,7 @@ export function CapImpactChart({
 
     return (
         <div className="h-[120px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
                 <BarChart layout="vertical" data={data} margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
                     <XAxis type="number" hide />
                     <YAxis dataKey="name" type="category" width={40} tick={{ fontSize: 10, fill: '#94a3b8' }} />

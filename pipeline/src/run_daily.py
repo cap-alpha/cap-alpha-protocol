@@ -31,9 +31,7 @@ def main():
     logger.info(f"Starting Daily Pipeline for year {year}")
     
     # Layer 1: Scrapers
-    run_cmd(f"python src/generate_2024_curated_full.py", ignore_failure=True)
     run_cmd(f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); from src.spotrac_scraper_v2 import scrape_and_save_team_cap; scrape_and_save_team_cap({year})\"")
-    run_cmd(f"python src/historical_scraper.py --year {year}")
     run_cmd(f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); from src.spotrac_scraper_v2 import scrape_and_save_player_rankings; scrape_and_save_player_rankings({year})\"")
     
     # Layer 2: Staging
@@ -56,6 +54,9 @@ def main():
     # Layer 6: ML Flywheel
     run_cmd("python src/feature_factory.py")
     run_cmd("python src/train_model.py")
+    
+    # Layer 7: Ledger & Provenance Signature
+    run_cmd("python src/cryptographic_ledger.py")
     
     # Layer 8: Proof of Alpha
     run_cmd("python ../scripts/generate_proof_of_alpha.py")

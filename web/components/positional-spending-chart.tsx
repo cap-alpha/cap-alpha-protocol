@@ -18,7 +18,7 @@ export const PositionalSpendingChart = React.memo(function PositionalSpendingCha
                 <CardTitle className="uppercase font-mono tracking-widest text-sm text-slate-400">Positional Spending vs League Avg</CardTitle>
             </CardHeader>
             <CardContent className="h-[350px]">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
                     <BarChart data={data} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.2} />
                         <XAxis dataKey="position" stroke="#94a3b8" tick={{ fontSize: 12 }} />

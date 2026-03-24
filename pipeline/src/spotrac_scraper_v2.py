@@ -1180,7 +1180,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser(description='Scrape Spotrac data.')
     parser.add_argument('task', choices=['team-cap', 'player-salaries', 'player-rankings', 'player-contracts'], help='Scraping task to perform')
-    parser.add_argument('year', type=int, help='Year to scrape')
+    parser.add_argument('year', type=int, nargs='?', help='Year to scrape (Defaults to current NFL season)')
     parser.add_argument('--teams', nargs='+', help='Subset of team codes to scrape (e.g., ARI ATL)')
     parser.add_argument('--snapshot', action='store_true', help='Save HTML snapshots')
     
@@ -1188,22 +1188,27 @@ if __name__ == '__main__':
     
     run_timestamp = datetime.now()
     
+    # Calculate dynamic NFL year (Rollover in March)
+    target_year = args.year
+    if not target_year:
+        target_year = run_timestamp.year if run_timestamp.month >= 3 else run_timestamp.year - 1
+        
     try:
         if args.task == 'team-cap':
-            filepath = scrape_and_save_team_cap(args.year, run_timestamp=run_timestamp, snapshot=args.snapshot)
+            filepath = scrape_and_save_team_cap(target_year, run_timestamp=run_timestamp, snapshot=args.snapshot)
             print(f"\n✅ SUCCESS: Team cap data saved to {filepath}")
             
         elif args.task == 'player-salaries':
-            filepath = scrape_and_save_player_salaries(args.year, run_timestamp=run_timestamp, snapshot=args.snapshot)
+            filepath = scrape_and_save_player_salaries(target_year, run_timestamp=run_timestamp, snapshot=args.snapshot)
             print(f"\n✅ SUCCESS: Player salary data saved to {filepath}")
             
         elif args.task == 'player-rankings':
-            filepath = scrape_and_save_player_rankings(args.year, run_timestamp=run_timestamp, snapshot=args.snapshot)
+            filepath = scrape_and_save_player_rankings(target_year, run_timestamp=run_timestamp, snapshot=args.snapshot)
             print(f"\n✅ SUCCESS: Player rankings data saved to {filepath}")
             
         elif args.task == 'player-contracts':
             filepath = scrape_and_save_player_contracts(
-                args.year, 
+                target_year, 
                 run_timestamp=run_timestamp, 
                 team_list=args.teams,
                 snapshot=args.snapshot

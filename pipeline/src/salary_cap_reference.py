@@ -15,7 +15,6 @@ from typing import Dict
 # Official NFL salary cap per team (in millions of dollars)
 # Source: NFL Communications press releases
 NFL_SALARY_CAPS: Dict[int, float] = {
-    2025: 255.4,   # Estimated / Projected for 2025
     2024: 255.4,   # Announced March 2024
     2023: 224.8,   # Announced March 2023
     2022: 208.2,   # Announced March 2022
@@ -35,7 +34,6 @@ NFL_SALARY_CAPS: Dict[int, float] = {
 # Player benefit pools (in millions per team)
 # These are in addition to the salary cap
 NFL_BENEFIT_POOLS: Dict[int, float] = {
-    2025: 74.0,
     2024: 74.0,
     2023: 68.6,
     2022: 64.0,
@@ -67,6 +65,7 @@ LEAGUE_CAP_TOLERANCE_PCT = 5  # Allow ±5% variance league-wide
 def get_official_cap(year: int) -> float:
     """
     Get the official NFL salary cap for a given year.
+    If the year is in the future, project it based on the latest known year.
     
     Args:
         year: NFL season year
@@ -75,9 +74,16 @@ def get_official_cap(year: int) -> float:
         Salary cap in millions of dollars
     
     Raises:
-        KeyError: If year is not in reference data
+        KeyError: If year is not in reference data (and prior to known history)
     """
-    return NFL_SALARY_CAPS[year]
+    if year in NFL_SALARY_CAPS:
+        return NFL_SALARY_CAPS[year]
+    
+    max_year = max(NFL_SALARY_CAPS.keys())
+    if year > max_year:
+        return NFL_SALARY_CAPS[max_year]
+        
+    raise KeyError(f"Salary cap data unrecorded for historical year {year}")
 
 
 def get_league_total_cap(year: int) -> float:

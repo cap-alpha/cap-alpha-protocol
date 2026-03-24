@@ -2,7 +2,7 @@ import os
 import time
 import json
 import duckdb
-from ddgs import DDGS
+from duckduckgo_search import DDGS
 from google import genai
 from datetime import datetime
 
@@ -187,9 +187,6 @@ def main():
             
             if not results:
                 print(f"  No recent news found for {team}.")
-                # Log 'no news' for all franchise players
-                for p in players:
-                    inject_motherduck(con, p, None, has_news=False)
                 continue
 
             # Combine all headline/body text to search for player mentions

@@ -24,7 +24,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install ddgs google-genai duckdb==1.4.4 pandas python-dotenv feedparser requests
+          pip install duckduckgo-search google-genai duckdb==1.4.4 pandas python-dotenv feedparser requests
 
       - name: Setup Environment Variables
         run: |

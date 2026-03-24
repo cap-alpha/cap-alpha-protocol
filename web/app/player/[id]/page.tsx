@@ -1,4 +1,4 @@
-import { getRosterData, getPositionDistribution, getPlayerTimeline, getIntelligenceFeed, getPlayerAuditLedger, TimelineEvent, IntelligenceEvent, AuditEntry } from '@/app/actions';
+import { getRosterData, getPlayerTimeline, getIntelligenceFeed, getPlayerAuditLedger, TimelineEvent, IntelligenceEvent, AuditEntry } from '@/app/actions';
 import PlayerDetailView from '@/components/player-detail-view';
 import { notFound } from 'next/navigation';
 import { slugify } from '@/lib/utils';
@@ -24,8 +24,7 @@ export default async function PlayerPage({ params }: { params: { id: string } })
         notFound();
     }
 
-    const [distribution, timeline, feed, ledger] = await Promise.all([
-        getPositionDistribution(player.position),
+    const [timeline, feed, ledger] = await Promise.all([
         getPlayerTimeline(player.player_name),
         getIntelligenceFeed(player.player_name),
         getPlayerAuditLedger(player.player_name)
@@ -33,7 +32,7 @@ export default async function PlayerPage({ params }: { params: { id: string } })
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <PlayerDetailView player={player} distributionData={distribution} timeline={timeline} feed={feed} ledger={ledger} />
+            <PlayerDetailView player={player} timeline={timeline} feed={feed} ledger={ledger} />
         </main>
     );
 }

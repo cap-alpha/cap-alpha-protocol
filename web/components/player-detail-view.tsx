@@ -21,7 +21,6 @@ import {
     Area
 } from "recharts";
 import { CutCalculator } from './cut-calculator';
-import { PositionDistributionChart } from './position-distribution-chart';
 import { SaveScenarioButton } from './save-scenario-button';
 import { IntelligenceFeed } from './intelligence-feed';
 import { VisualTimeline } from './visual-timeline';
@@ -351,13 +350,6 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                             )}
                         </CardContent>
                     </Card>
-
-                    {/* Market Context (Distribution) */}
-                    <PositionDistributionChart
-                        data={distributionData}
-                        playerCapHit={player.cap_hit_millions}
-                        position={player.position}
-                    />
 
                     {/* Tabbed Intelligence & Ledger */}
                     <Tabs defaultValue="timeline" className="w-full">

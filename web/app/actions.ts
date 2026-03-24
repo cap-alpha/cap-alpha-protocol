@@ -19,7 +19,7 @@ const PlayerEfficiencySchema = z.object({
   player_name: z.string(),
   team: z.string(),
   position: z.string(),
-  year: z.coerce.number().optional(),
+  year: z.coerce.number().default(new Date().getFullYear()),
   age: z.coerce.number().optional().default(25),
   games_played: z.coerce.number().optional().default(0),
   cap_hit_millions: z.coerce.number().default(0),

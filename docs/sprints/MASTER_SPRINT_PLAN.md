@@ -106,3 +106,15 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [ ] SP22-3: **Reverse Line Movement Integration** - Ingest live Vegas line movements and Ticket vs. Money percentages to track where "Sharp" money is flowing.
 - [ ] SP22-4: **Contrary Syndicate Detection** - Build the anomaly detection model: Flag instances where a personality pushes a narrative (driving retail ticket %), but the sharp money aggressively moves the opposite direction (indicating the pundit's advice is toxic/manipulative).
 - [ ] SP22-5: **The Pundit Ledger UI** - Create a public accountability dashboard ranking personalities by their Brier Score (prediction accuracy) vs. Market Consensus, exposing toxic alpha.
+
+### Sprint 23: Adversarial Sentiment & Prediction Defense
+**Goal:** Harden the Alpha Flywheel and Intelligence Pipeline against coordinated bad actors attempting to skew Media Sentiment (e.g. synthetic news/bots) via manufactured narratives.
+- [ ] SP23-1: **Bot & Astroturfing Detection:** Filter out synthetic articles and highly repetitive NLP phrasing that signals a coordinated attack on a specific high-value asset.
+- [ ] SP23-2: **Source Reputation Weighting:** Enforce a heuristic decay on unverified domains or publishers whose historical accuracy metric drops below an acceptable baseline.
+- [ ] SP23-3: **Anomaly Flagging (Suspicious Volume Spike):** If a player receives an atypical surge of negative sentiment divergence outside of standard Game-Days/Trade Windows, automatically quarantine the signals for manual review instead of directly lowering their contract value prediction.
+
+### Sprint 24: Vercel Expenditure & Build Cycle Optimization
+**Goal:** Drastically reduce accrued Vercel build time and hosting expenditures by decoupling the Next.js frontend builds from backend/pipeline monorepo commits.
+- [ ] SP24-1: **Monorepo Build Isolation:** Configure Vercel's `Ignored Build Step` (`git diff --quiet HEAD^ HEAD ./web/`) to ensure non-UI commits (Python pipeline, documentation, GitHub Actions) automatically skip web compilation.
+- [ ] SP24-2: **Cache Architecture Audit:** Audit the Next.js data hooks to ensure MotherDuck fetches utilize maximum valid `revalidate` periods (ISR) rather than forced SSR on every page hit, saving Serverless Function execution time.
+- [ ] SP24-3: **Asset Pre-computation:** Shift any heavy client-side statistical aggregations dynamically calculated in UI edge functions entirely into the Python `medallion_pipeline.py` to offload compute costs to the pipeline runner rather than Vercel.

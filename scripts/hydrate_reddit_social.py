@@ -10,7 +10,6 @@ import hashlib
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import praw
 from google import genai
 from dotenv import load_dotenv
 import feedparser

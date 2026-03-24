@@ -15,6 +15,7 @@ from typing import Dict
 # Official NFL salary cap per team (in millions of dollars)
 # Source: NFL Communications press releases
 NFL_SALARY_CAPS: Dict[int, float] = {
+    2025: 255.4,   # Estimated / Projected for 2025
     2024: 255.4,   # Announced March 2024
     2023: 224.8,   # Announced March 2023
     2022: 208.2,   # Announced March 2022
@@ -34,6 +35,7 @@ NFL_SALARY_CAPS: Dict[int, float] = {
 # Player benefit pools (in millions per team)
 # These are in addition to the salary cap
 NFL_BENEFIT_POOLS: Dict[int, float] = {
+    2025: 74.0,
     2024: 74.0,
     2023: 68.6,
     2022: 64.0,

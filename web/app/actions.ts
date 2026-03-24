@@ -19,7 +19,7 @@ const PlayerEfficiencySchema = z.object({
   player_name: z.string(),
   team: z.string(),
   position: z.string(),
-  year: z.coerce.number().default(new Date().getFullYear()),
+  year: z.coerce.number().optional(),
   age: z.coerce.number().optional().default(25),
   games_played: z.coerce.number().optional().default(0),
   cap_hit_millions: z.coerce.number().default(0),
@@ -56,7 +56,7 @@ export type PlayerHistory = z.infer<typeof HistorySchema>;
 
 // --- DATA HYDRATION ---
 
-async function getHydratedData(): Promise<PlayerEfficiency[]> {
+async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
   try {
     // 1. Attempt Cloud Sync (MotherDuck)
     let rawData: any[] = [];
@@ -110,6 +110,16 @@ async function getHydratedData(): Promise<PlayerEfficiency[]> {
     console.error("[Data] Error loading roster data:", e);
     return [];
   }
+}
+
+const getCachedHydratedData = unstable_cache(
+  async () => fetchHydratedDataFromDb(),
+  ['system-hydrated-matrix'],
+  { revalidate: 3600 } 
+);
+
+async function getHydratedData(): Promise<PlayerEfficiency[]> {
+  return await getCachedHydratedData();
 }
 
 // --- PUBLIC ACTIONS ---
@@ -208,50 +218,53 @@ export async function simulateTrade(assets: any[]) {
 }
 
 export type SearchIndexItem = {
-    type: 'player' | 'team';
-    label: string;
-    sub: string;
-    url: string;
+  type: 'player' | 'team';
+  label: string;
+  sub: string;
+  url: string;
 };
 
 async function fetchSearchIndex(): Promise<SearchIndexItem[]> {
-    const data = await getHydratedData();
-    const seen = new Set<string>();
-    const index: SearchIndexItem[] = [];
+  const data = await getHydratedData();
+  const seen = new Set<string>();
+  const index: SearchIndexItem[] = [];
 
-    data.forEach(d => {
-        // Player Index
-        if (!seen.has(`player_${d.player_name}`)) {
-            seen.add(`player_${d.player_name}`);
-            index.push({
-                type: 'player',
-                label: d.player_name,
-                sub: `${d.position} • ${d.team}`,
-                url: `/player/${encodeURIComponent(slugify(d.player_name))}`
-            });
-        }
-        
-        // Team Index
-        if (!seen.has(`team_${d.team}`)) {
-            seen.add(`team_${d.team}`);
-            index.push({
-                type: 'team',
-                label: d.team,
-                sub: 'Franchise Hub',
-                url: `/team/${encodeURIComponent(d.team)}`
-            });
-        }
-    });
+  data.forEach(d => {
+    // Player Index
+    if (!seen.has(`player_${d.player_name}`)) {
+      seen.add(`player_${d.player_name}`);
+      index.push({
+        type: 'player',
+        label: d.player_name,
+        sub: `${d.position} • ${d.team}`,
+        url: `/player/${encodeURIComponent(slugify(d.player_name))}`
+      });
+    }
 
-    return index.sort((a, b) => a.label.localeCompare(b.label));
+    // Team Index
+    if (!seen.has(`team_${d.team}`)) {
+      seen.add(`team_${d.team}`);
+      index.push({
+        type: 'team',
+        label: d.team,
+        sub: 'Franchise Hub',
+        url: `/team/${encodeURIComponent(d.team)}`
+      });
+    }
+  });
+
+  return index.sort((a, b) => a.label.localeCompare(b.label));
 }
 
-// Wrap the actual fetch in unstable_cache for sub-second latency
-export const getSearchIndex = unstable_cache(
+// Wrap the actual fetch in standard async Server Action to survive RPC compilation
+export async function getSearchIndex() {
+  const cachedFn = unstable_cache(
     async () => fetchSearchIndex(),
-    ['global-search-index'],
+    ['global-search-index-v2'], // Bump cache key to instantly clear empty memory
     { revalidate: 3600 } // Cache for 1 hour
-);
+  );
+  return await cachedFn();
+}
 
 // --- BENCHMARKING ACTIONS ---
 
@@ -309,7 +322,7 @@ export type TimelineEvent = {
 export async function getPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
   try {
     const db = await getMotherDuckDb();
-    
+
     // Construct the Unified Timeline CTE
     const query = `
       -- 1. Contract / Financial Base
@@ -348,10 +361,10 @@ export async function getPlayerTimeline(playerName: string): Promise<TimelineEve
       
       ORDER BY year ASC, week ASC;
     `;
-    
+
     const results = await db.all(query, playerName, playerName, playerName);
     return results as unknown as TimelineEvent[];
-    
+
   } catch (error) {
     console.error(`[Data] Error loading timeline for ${playerName}:`, error);
     return []; // ZERO MOCKS. Return true empty state on error.
@@ -382,13 +395,13 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
       WHERE player_name = ? 
       ORDER BY year DESC, week DESC LIMIT 5
     `, playerName);
-    
+
     if (preds && preds.length > 0) {
       const latest = preds[0] as any;
       if (latest.predicted_risk_score == 1) {
-          feed.push({ type: "Warning", text: "Alpha Protocol model alerts high bust probability for current production trends.", icon: 'TrendingDown', color: 'text-rose-400' });
+        feed.push({ type: "Warning", text: "Alpha Protocol model alerts high bust probability for current production trends.", icon: 'TrendingDown', color: 'text-rose-400' });
       } else {
-          feed.push({ type: "Stable", text: "Alpha Protocol modeling shows stable production aligning with contract expectations.", icon: 'TrendingUp', color: 'text-emerald-400' });
+        feed.push({ type: "Stable", text: "Alpha Protocol modeling shows stable production aligning with contract expectations.", icon: 'TrendingUp', color: 'text-emerald-400' });
       }
     }
 
@@ -399,7 +412,7 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
       WHERE player_name = ?
       ORDER BY year DESC, media_consensus_week DESC LIMIT 3
     `, playerName);
-    
+
     if (media && media.length > 0) {
       for (const m of media) {
         feed.push({
@@ -420,7 +433,7 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
         WHERE player_name = ?
         ORDER BY published_at DESC LIMIT 5
       `, playerName);
-      
+
       if (rawNews && rawNews.length > 0) {
         for (const n of rawNews) {
           const isTwitter = (n as any).source_type === 'twitter';
@@ -435,7 +448,7 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
           });
         }
       }
-    } catch(e) { /* Might not exist yet */ }
+    } catch (e) { /* Might not exist yet */ }
 
     // No, we let the UI handle empty state. No filler.
     return feed;
@@ -495,7 +508,7 @@ export async function getWarRoomData(): Promise<WarRoomData> {
       WHERE alpha_lead_time_weeks > 0;
     `;
     const roiRes = await db.all(roiQuery);
-    
+
     let avgLead = 0;
     let totalValidations = 0;
     if (roiRes.length > 0) {
@@ -542,20 +555,20 @@ export async function getWarRoomData(): Promise<WarRoomData> {
 // --- CRYPTOGRAPHIC LEDGER ACTIONS ---
 
 export type AuditEntry = {
-    entry_id: string;
-    year: number;
-    week: number;
-    payload: string;
-    payload_type: string;
-    signature_hash: string;
-    created_at: string;
-    merkle_root: string;
+  entry_id: string;
+  year: number;
+  week: number;
+  payload: string;
+  payload_type: string;
+  signature_hash: string;
+  created_at: string;
+  merkle_root: string;
 };
 
 export async function getPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
-    try {
-        const db = await getMotherDuckDb();
-        const query = `
+  try {
+    const db = await getMotherDuckDb();
+    const query = `
             SELECT 
                 e.entry_id, 
                 e.year, 
@@ -571,11 +584,11 @@ export async function getPlayerAuditLedger(playerName: string): Promise<AuditEnt
             WHERE e.player_name = ?
             ORDER BY e.year DESC, e.week DESC;
         `;
-        const res = await db.all(query, playerName);
-        return res as unknown as AuditEntry[];
-    } catch (error) {
-        // Table might not exist yet
-        console.error(`[Data] Error loading audit ledger for ${playerName}:`, error);
-        return [];
-    }
+    const res = await db.all(query, playerName);
+    return res as unknown as AuditEntry[];
+  } catch (error) {
+    // Table might not exist yet
+    console.error(`[Data] Error loading audit ledger for ${playerName}:`, error);
+    return [];
+  }
 }

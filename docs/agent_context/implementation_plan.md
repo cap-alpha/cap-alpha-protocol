@@ -1,42 +1,62 @@
-# Omnichannel Social Integration & Multi-Resolution Timeline Schema
+# Link Every Player Name to Player Page
 
-We will forgo paid APIs and aggregator services, and instead focus entirely on **Reddit** (`r/nfl`, `r/fantasyfootball`) for our high-signal social ingestion. Additionally, we will overhaul our MotherDuck schema to support "Semantic Zooming" across the player timeline.
+**Goal**: Ensure that wherever a player's name appears on the site, it is a clickable link pointing to their respective `/player/[id]` profile.
 
 ## Proposed Changes
 
-### 1. Multi-Resolution Timeline Schema (MotherDuck)
-We are deprecating the shallow `media_lag_metrics` table in favor of a robust `player_timeline_events` table that stores the event at varying levels of detail natively, allowing the React frontend to simply toggle state based on the user's zoom level.
+We will inspect and modify the following UI components to wrap the `player_name` (or similar fields) with a Next.js `<Link href={\`/player/\${encodeURIComponent(slugify(playerName))}\`}>` component. We will import `Link` from `next/link` and `slugify` from `@/lib/utils` where missing.
 
-```sql
-CREATE TABLE IF NOT EXISTS player_timeline_events (
-    event_id VARCHAR,             -- SHA256 Hash of url+player for idempotency
-    player_name VARCHAR,          
-    team_name VARCHAR,            
-    event_type VARCHAR,           -- INJURY, TRADE, RUMOR, CONTRACT, SENTIMENT
-    event_date TIMESTAMP,         
-    source_url VARCHAR,           
-    source_platform VARCHAR,      -- REDDIT, DDG_NEWS, OFFICIAL
-    
-    -- Multi-Resolution Data Tiers
-    sentiment_score DOUBLE,       -- -1.0 to 1.0
-    resolution_high_level VARCHAR,-- Z-1: 1 concise sentence (e.g. "Patrick Mahomes restructured his contract.")
-    resolution_detailed VARCHAR,  -- Z-2: 1-2 paragraphs (e.g. "Freed up $21.5M in cap space. Base converted to signing bonus.")
-    raw_content VARCHAR           -- Z-3: Raw markdown/text of the scraped Reddit post or News body.
-)
-```
+### Components to Update
+#### [MODIFY] `web/components/point-in-time-ledger.tsx`
+Wrap the `<h3...>{currentReceipt.player_name}</h3>` tag.
 
-### 2. Upgrading Ingestion Scripts
+#### [MODIFY] `web/components/roster-card.tsx`
+Wrap the player name in the card title/header.
 
-#### [NEW] `scripts/hydrate_reddit.py`
-A new script leveraging `praw` to scan hot/new posts from `r/nfl` hourly. It will cross-reference post titles/text against active rosters and use Gemini to generate the `high_level` and `detailed` summaries simultaneously before pushing to MotherDuck.
+#### [MODIFY] `web/components/proof-of-alpha-carousel.tsx`
+Wrap the player name in the carousel slides.
 
-#### [MODIFY] `scripts/hydrate_live_news.py`
-Update the existing DuckDuckGo news hydrator to use the new Gemini prompt structure (requesting both high-level and detailed summaries) and insert into the `player_timeline_events` table.
+#### [MODIFY] `web/components/efficiency-landscape.tsx`
+Ensure custom tooltip or selected player details link out to the player page.
 
-### 3. Execution Automation
-Since we are using Cloud Run Jobs for the main pipeline, we will deploy a **second, much smaller Cloud Run Job** specifically for `hydrate_reddit.py` and `hydrate_live_news.py`, attached to an **hourly** Cloud Scheduler trigger. This completely separates the fast-moving social intelligence from the slow-moving daily contract ETL pipeline.
+#### [MODIFY] `web/components/cut-calculator.tsx`
+Link the player name displayed in the title or summary.
+
+### Data Pipeline & Accuracy
+*   **Fix Cap Hit Anomaly**: The `pipeline/scripts/medallion_pipeline.py` currently renames `total_contract_value_millions` to `cap_hit_millions` due to a flawed `df.rename` mapping. This will be corrected to use actual `cap_hit` data so Mahomes shows ~$37M instead of $450M.
+*   **Ingest 2025 Data**: We will run the pipeline explicitly for 2025 to generate the latest features into MotherDuck so the `MAX(year)` query in UI hits 2025 data.
+
+### Automation
+*   **Daily Sync Workflow**: Create or update a GitHub Action (e.g., `.github/workflows/sync_daily.yml`) to automatically run the medallion pipeline for the current year (2025) and sync it to MotherDuck every day on a `cron` schedule (`0 4 * * *`).
+
+### UI Layout & Design
+*   **Timeline Layout Reorganization**: Modify `web/components/player-detail-view.tsx` to extract the `VisualTimeline` from the tabs and position it vertically along the right side of the page on desktop (`lg:col-span-3` in a new overarching 12-col grid). On mobile, ensure it shifts to the 2nd or 3rd position below the name and key stats.
+*   **Tufte-Inspired Timeline**: Redesign `web/components/visual-timeline.tsx` in a vertical format enforcing maximum data-ink ratio. Remove heavy borders, neon rings, animations, and large empty spaces. Use minimalist text, high-density timestamps, and subtle indicators (sparkline integration if applicable).
+
+#### [MODIFY] `pipeline/scripts/medallion_pipeline.py`
+#### [MODIFY] `web/components/player-detail-view.tsx`
+#### [MODIFY] `web/components/visual-timeline.tsx`
+#### [NEW/MODIFY] `.github/workflows/sync_daily.yml`
+#### [MODIFY] `web/components/landing-hero.tsx`
+Check for player name usage in the hero feed/events and add links.
+
+#### [MODIFY] `web/components/war-room-dashboard.tsx`
+Check for active player selections or tables and add links.
+
+#### [MODIFY] `web/app/dashboard/fan/page.tsx`
+#### [MODIFY] `web/app/dashboard/bettor/page.tsx`
+#### [MODIFY] `web/app/page.tsx`
+Check for hardcoded or statically rendered player names and ensure they are wrapped in links.
+
+*(Note: `web/components/roster-grid.tsx` already implements this pattern correctly, so we'll use it as the template).*
 
 ## Verification Plan
-1. Send a test execution fetching the top 20 `r/nfl` posts via `praw`.
-2. Inspect MotherDuck to verify Gemini correctly synthesized both the 1-sentence (`high_level`) and comprehensive (`detailed`) fields.
-3. Validate idempotency by running the script twice within the hour to ensure no duplicate event IDs are created.
+
+### Automated Tests
+1. No new automated test is specifically required for this beyond standard type-checking. I will run `npm run build` or rely on `tsc` to verify that there are no type errors after importing `Link` and `slugify` into the various files.
+
+### Manual Verification
+1. Open the local dev server (currently running).
+2. Browse through the front page, the Point-in-Time Ledger, the Proof of Alpha block, and the various dashboards (Fan, Bettor, War Room).
+3. Click on the newly formatted player names.
+4. Verify that the routing correctly resolves to the `PlayerDetailView` for that specific player without throwing 404s.

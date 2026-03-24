@@ -1,16 +1,16 @@
-# Data Automation Sprint
+# Task List
 
-- [x] Create a consolidated `pipeline/run_daily.py` to orchestrate all pipeline steps
-- [x] Create a `Dockerfile.cloudrun` optimized for headless Chrome, Selenium, Python, and dbt
-- [x] Determine Google Cloud Project ID and set up GCP infrastructure
-- [ ] Deploy the pipeline to Google Cloud Run Jobs using `gcloud` or MCP
-- [ ] Set up Google Cloud Scheduler to trigger the job daily at 2:00 AM UTC
-- [ ] Verify execution and confirm data syncs to MotherDuck/Vercel Postgres
-- [ ] Verify identical prediction output in Vercel Postgres/MotherDuck
+## Optimization & Stabilization (Completed)
+- [x] Identify UI components displaying player names.
+- [x] Import `next/link` and `slugify` utility.
+- [x] Wrap player names in `<Link href={\`/player/\${encodeURIComponent(slugify(player_name))}\`}>`.
+- [x] Verify routing integrity across the application.
 
-## Omnichannel Social Intelligence Sprint
-- [x] Decide on social media ingestion architecture (Apify vs Official APIs vs RSS/Reddit)
-- [x] Create `scripts/hydrate_reddit_social.py` using `praw` to pull from r/nfl and r/fantasyfootball hourly
-- [x] Migrate `media_lag_metrics` to a new `player_timeline_events` MotherDuck schema backing multi-resolution detail (`raw`, `detailed`, `high_level`)
-- [x] Implement Gemini prompt to extract high-level summaries and detailed event contexts simultaneously
-- [x] Build a dedicated Google Cloud Run Job & Scheduler (or GitHub Action) for the hourly Reddit/news fetch loop
+## Cap Hit Accuracy & 2025 Pipeline
+- [x] Fix data parsing in `medallion_pipeline.py` to prevent `total_contract_value_millions` from overwriting `cap_hit_millions`.
+- [x] Add explicit daily cron trigger in `.github/workflows/` or equivalent to sync 2025 data to MotherDuck automatically.
+- [x] Run full pipeline manually for 2025 (`medallion_pipeline.py --year 2025` and `sync_to_motherduck.py`) to verify data update.
+
+## Timeline Tufte Redesign
+- [x] Update layout in `player-detail-view.tsx` to mount `<VisualTimeline>` vertically on the right side of the screen on desktop.
+- [x] Refactor `visual-timeline.tsx` enforcing high data-ink ratio (Edward Tufte principles), removing heavy chartjunk, and creating a clean, tight, sparkline-inspired log.

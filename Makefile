@@ -18,7 +18,7 @@ shell-pipeline:
 # -----------------------------------------------------------------------------
 
 pipeline-scrape:
-	docker compose --env-file docker_env.txt exec -e CHROME_BIN=/usr/bin/chromium -e CHROMEDRIVER_BIN=/usr/bin/chromedriver pipeline bash -c "python pipeline/src/spotrac_scraper_v2.py team-cap 2025 && python pipeline/src/spotrac_scraper_v2.py player-salaries 2025 && python pipeline/src/spotrac_scraper_v2.py player-rankings 2025 && python pipeline/src/spotrac_scraper_v2.py player-contracts 2025"
+	docker compose --env-file docker_env.txt exec -e CHROME_BIN=/usr/bin/chromium -e CHROMEDRIVER_BIN=/usr/bin/chromedriver pipeline bash -c "python pipeline/src/spotrac_scraper_v2.py team-cap && python pipeline/src/spotrac_scraper_v2.py player-salaries && python pipeline/src/spotrac_scraper_v2.py player-rankings && python pipeline/src/spotrac_scraper_v2.py player-contracts"
 
 pipeline-train:
 	docker compose --env-file docker_env.txt exec pipeline bash -c "python pipeline/src/train_model.py"

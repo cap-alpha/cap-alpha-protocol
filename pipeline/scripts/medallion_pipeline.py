@@ -470,11 +470,18 @@ class GoldLayer:
 
 def main():
     import argparse
+    from datetime import datetime
     parser = argparse.ArgumentParser()
-    parser.add_argument("--year", type=int, required=True)
+    parser.add_argument("--year", type=int, required=False, help="Defaults to current active NFL season")
     parser.add_argument("--skip-gold", action="store_true")
     parser.add_argument("--gold-only", action="store_true")
     args = parser.parse_args()
+    
+    # Calculate dynamic NFL year (Rollover in March)
+    target_year = args.year
+    if not target_year:
+        now = datetime.now()
+        target_year = now.year if now.month >= 3 else now.year - 1
 
     with DBManager() as db:
         silver = SilverLayer(db)
@@ -482,9 +489,9 @@ def main():
 
         if not args.gold_only:
             silver.provision_schemas()
-            silver.ingest_spotrac(args.year)
-            silver.ingest_pfr(args.year)
-            silver.ingest_penalties(args.year)
+            silver.ingest_spotrac(target_year)
+            silver.ingest_pfr(target_year)
+            silver.ingest_penalties(target_year)
             silver.ingest_team_cap()
             silver.ingest_team_cap()
             silver.ingest_others()

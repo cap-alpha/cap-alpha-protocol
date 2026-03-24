@@ -40,11 +40,21 @@ jobs:
       - name: Step 1 - Execute Full Pipeline for 2025
         run: |
           export PYTHONPATH=$(pwd)
+          
+          # Scrape 2025 Data
+          python pipeline/src/spotrac_scraper_v2.py team-cap 2025
+          python pipeline/src/spotrac_scraper_v2.py player-salaries 2025
+          python pipeline/src/spotrac_scraper_v2.py player-rankings 2025
+          python pipeline/src/spotrac_scraper_v2.py player-contracts 2025
+          
           # Ingest data into DuckDB for 2025
           python pipeline/scripts/medallion_pipeline.py --year 2025
           
           # Materialize logic
           python pipeline/scripts/materialize_features.py
+          
+          # Regenerate cryptographic audit ledger to prevent UI crashes
+          python pipeline/src/cryptographic_ledger.py
           
           # Sync output to MotherDuck
           python pipeline/scripts/sync_to_motherduck.py

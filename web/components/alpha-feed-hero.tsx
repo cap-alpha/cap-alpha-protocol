@@ -6,6 +6,7 @@ import { TrendingDown, TrendingUp, AlertTriangle, Activity, Radar, X, Newspaper 
 import Link from "next/link";
 import { ImageWithFallback } from "./image-with-fallback";
 import { ProvenanceSnapshot } from "./provenance-snapshot";
+import { slugify } from "@/lib/utils";
 
 const DISLOCATIONS = [
     {
@@ -260,7 +261,12 @@ export function AlphaFeedHero() {
                                                 {asset.team}
                                             </h3>
                                             <h2 className="text-3xl font-light text-zinc-100 tracking-tight drop-shadow-xl">
-                                                {asset.name}
+                                                <Link 
+                                                    href={`/player/${encodeURIComponent(slugify(asset.name))}`}
+                                                    className="hover:underline hover:text-emerald-400 transition-colors pointer-events-auto"
+                                                >
+                                                    {asset.name}
+                                                </Link>
                                             </h2>
                                         </div>
                                     </div>

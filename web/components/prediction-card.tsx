@@ -3,6 +3,8 @@
 import React, { useState } from "react";
 import { TrendingUp, TrendingDown, Minus, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 interface PredictionCardProps {
     playerId: string;
@@ -44,7 +46,11 @@ export function PredictionCard({ playerId, playerName, currentCapHit, position, 
         <div className="bg-card border border-border rounded-lg p-5 shadow-sm">
             <div className="flex mb-4 items-baseline justify-between border-b border-border/50 pb-3">
                 <div className="flex items-baseline gap-2">
-                    <h3 className="text-lg font-bold text-foreground">{playerName}</h3>
+                    <h3 className="text-lg font-bold text-foreground">
+                        <Link href={`/player/${encodeURIComponent(slugify(playerName))}`} className="hover:underline hover:text-emerald-400 transition-colors">
+                            {playerName}
+                        </Link>
+                    </h3>
                     <p className="text-xs font-medium text-muted-foreground">{position} • {team}</p>
                 </div>
                 <div className="text-right">

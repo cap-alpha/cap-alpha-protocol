@@ -10,6 +10,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { IntelligenceEvent } from "@/app/actions";
 import { ProvenanceSnapshot } from "./provenance-snapshot";
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { playerName: string, riskScore: number, feedEvents?: IntelligenceEvent[] }) {
 
@@ -105,7 +107,7 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                         <div className="mt-6 pt-4 border-t border-slate-800">
                             <div className="text-xs text-slate-500 uppercase font-mono mb-2">Interrogate the Model</div>
                             <div className="bg-slate-950 rounded-md border border-slate-800 p-3 flex text-sm text-slate-500 italic">
-                                Ask a question about {playerName}'s valuation... (RAG Integration Pending)
+                                Ask a question about <Link href={`/player/${encodeURIComponent(slugify(playerName))}`} className="hover:underline hover:text-emerald-400 transition-colors px-1">{playerName}</Link>&apos;s valuation... (RAG Integration Pending)
                             </div>
                         </div>
                     </div>
@@ -117,7 +119,7 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                         <Lock className="h-10 w-10 text-emerald-500 mb-4" />
                         <h3 className="text-2xl font-black tracking-tight text-white mb-2">PRO INTELLIGENCE REQUIRED</h3>
                         <p className="text-slate-300 text-sm mb-6 max-w-xs">
-                            Unlock real-time rumors, scouting synthesis, and RAG-powered contract telemetry for {playerName}.
+                            Unlock real-time rumors, scouting synthesis, and RAG-powered contract telemetry for <Link href={`/player/${encodeURIComponent(slugify(playerName))}`} className="hover:underline hover:text-emerald-400 transition-colors font-bold">{playerName}</Link>.
                         </p>
                         <SignInButton mode="modal">
                             <Button className="bg-emerald-500 hover:bg-emerald-600 text-white w-full">

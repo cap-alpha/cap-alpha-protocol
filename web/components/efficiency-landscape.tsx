@@ -6,6 +6,8 @@ import { ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, ZAxis, Toolti
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePersona } from "@/components/persona-context";
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 
 interface EfficiencyLandscapeProps {
@@ -240,7 +242,12 @@ export function EfficiencyLandscape({ data, teams = [] }: EfficiencyLandscapePro
                                         <div className="rounded-lg border bg-popover p-3 shadow-md z-50 min-w-[200px]">
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex justify-between items-center">
-                                                    <span className="font-bold text-sm uppercase">{d.player_name}</span>
+                                                    <Link 
+                                                        href={d.team ? `/player/${encodeURIComponent(slugify(d.player_name))}` : "#"}
+                                                        className="font-bold text-sm uppercase hover:underline hover:text-emerald-400 transition-colors pointer-events-auto"
+                                                    >
+                                                        {d.player_name}
+                                                    </Link>
                                                     <Badge variant="outline" className="text-[10px] h-5">{d.team}</Badge>
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">{d.position}</div>

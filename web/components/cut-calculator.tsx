@@ -7,6 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Lock, AlertTriangle, CheckCircle, Scissors, Save } from 'lucide-react';
 import { saveScenario } from '@/app/actions/scenario';
 import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 interface CutCalculatorProps {
     player: PlayerEfficiency;
@@ -68,7 +70,7 @@ export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorPr
                     </div>
                 </div>
                 <CardDescription className="text-slate-400">
-                    Simulate releasing {player.player_name}. {isPostJune1 ? "Spreads dead money over 2 years." : "Accelerates all dead money to current year."}
+                    Simulate releasing <Link href={`/player/${encodeURIComponent(slugify(player.player_name))}`} className="hover:underline hover:text-emerald-400 transition-colors">{player.player_name}</Link>. {isPostJune1 ? "Spreads dead money over 2 years." : "Accelerates all dead money to current year."}
                 </CardDescription>
             </CardHeader>
 

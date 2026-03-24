@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Clock, TrendingDown, MessageSquareWarning, ChevronLeft, ChevronRight, Twitter, Pause, Play, Heart, Repeat, MessageSquare, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 type Tweet = {
     text: string;
@@ -182,7 +184,14 @@ export function LandingHero({ receipts }: { receipts: Receipt[] }) {
                                             <Clock className="w-3 h-3 mr-2" />
                                             Point-in-Time: {currentReceipt.date}
                                         </Badge>
-                                        <h3 className="text-4xl font-black tracking-tight text-white mb-2">{currentReceipt.player_name}</h3>
+                                        <h3 className="text-4xl font-black tracking-tight text-white mb-2">
+                                            <Link 
+                                                href={`/player/${encodeURIComponent(slugify(currentReceipt.player_name))}`}
+                                                className="hover:underline hover:text-emerald-400 transition-colors pointer-events-auto"
+                                            >
+                                                {currentReceipt.player_name}
+                                            </Link>
+                                        </h3>
                                         <p className="text-emerald-500 font-mono text-sm mb-6">{currentReceipt.team} | TCV: {currentReceipt.contract_size}</p>
                                         <div className="mb-6">
                                             <span className="inline-flex items-center px-4 py-2 rounded-md text-sm font-bold bg-red-500/20 text-red-400 border border-red-500/30">

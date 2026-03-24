@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { TrendingUp, TrendingDown, Clock, CheckCircle2 } from "lucide-react";
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 export interface Receipt {
     id: number | string;
@@ -100,7 +102,14 @@ export function ProofOfAlphaCarousel({ receipts = [] }: ProofOfAlphaCarouselProp
                                 <Clock className="w-3 h-3 mr-1" /> POINT-IN-TIME
                             </Badge>
                             <div className="text-sm text-muted-foreground font-mono mb-1">{currentReceipt.date}</div>
-                            <div className="text-2xl font-bold">{currentReceipt.player_name}</div>
+                            <div className="text-2xl font-bold">
+                                <Link 
+                                    href={`/player/${encodeURIComponent(slugify(currentReceipt.player_name))}`}
+                                    className="hover:underline hover:text-emerald-400 transition-colors"
+                                >
+                                    {currentReceipt.player_name}
+                                </Link>
+                            </div>
                             <div className="text-sm text-muted-foreground">{currentReceipt.team}</div>
                         </div>
 

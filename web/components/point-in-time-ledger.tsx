@@ -5,6 +5,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, TrendingDown, Clock, MessageSquareWarning } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { slugify } from "@/lib/utils";
 
 const RECEIPTS = [
     {
@@ -78,7 +80,14 @@ export function PointInTimeLedger() {
                                 <Clock className="w-3 h-3 mr-2" />
                                 {currentReceipt.date}
                             </Badge>
-                            <h3 className="text-3xl font-black tracking-tight">{currentReceipt.player_name}</h3>
+                            <h3 className="text-3xl font-black tracking-tight">
+                                <Link 
+                                    href={`/player/${encodeURIComponent(slugify(currentReceipt.player_name))}`}
+                                    className="hover:underline hover:text-emerald-400 transition-colors"
+                                >
+                                    {currentReceipt.player_name}
+                                </Link>
+                            </h3>
                             <p className="text-muted-foreground font-mono text-sm mt-2">{currentReceipt.team} | TCV: {currentReceipt.contract_size}</p>
                             <div className="mt-6">
                                 <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-500/10 text-red-500 border border-red-500/20">

@@ -134,13 +134,12 @@ class SilverLayer:
         
         df['player_name'] = df['player_name'].apply(clean_doubled_name)
         
-        # Check if total_contract_value_millions exists
-        if 'total_contract_value_millions' in df.columns and 'cap_hit_millions' in df.columns:
-             logger.info("DEBUG: 'cap_hit_millions' already exists. Dropping 'total_contract_value_millions' to avoid overwrite.")
-             df = df.drop(columns=['total_contract_value_millions'])
+        # Ensure cap_hit_millions exists
+        if 'cap_hit_millions' not in df.columns:
+             logger.warning("cap_hit_millions missing. Setting to 0 to avoid massive outliers (do NOT fallback to total_contract_value).")
+             df['cap_hit_millions'] = 0.0
         
         df = df.rename(columns={
-            'total_contract_value_millions': 'cap_hit_millions',
             'guaranteed_money_millions': 'dead_cap_millions',
         })
         

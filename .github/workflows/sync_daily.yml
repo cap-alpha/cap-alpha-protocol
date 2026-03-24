@@ -39,7 +39,7 @@ jobs:
 
       - name: Step 1 - Execute Full Pipeline for Current Season
         run: |
-          export PYTHONPATH=$(pwd)
+          export PYTHONPATH=$(pwd)/pipeline:$(pwd)
           
           # Scrape Current Season Data
           python pipeline/src/spotrac_scraper_v2.py team-cap

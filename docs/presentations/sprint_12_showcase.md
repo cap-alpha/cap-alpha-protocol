@@ -25,9 +25,9 @@
 ### Slide 3: The Cap Alpha Oracle (Real-Time Hydration)
 **Visual**: A clean architecture diagram showing continuous automated ingestion.
 **Bullet Points**:
-- We have evolved past "Hobbyist Scripts" into a "Regulatory-Grade Data Pipeline."
-- A fully autonomous, serverless engine driving unparalleled execution speed.
-- Scans the Top 500 NFL Assets daily, monitoring for off-field volatility, hidden injury risk, and contract anomalies.
+- We have evolved past "Hobbyist Scripts" into a "Regulatory-Grade Data Pipeline." We track our accuracy honestly, and evolve our model based on our performance.
+- A fully autonomous, serverless engine driving unparalleled execution speed, designed to require much less maintenance.
+- Scans the Top NFL Assets daily, monitoring for off-field volatility, hidden injury risk, and contract anomalies.
 
 ---
 

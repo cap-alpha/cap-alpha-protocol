@@ -5,6 +5,7 @@ import { getMotherDuckDb } from '@/lib/motherduck';
 import { slugify } from '@/lib/utils';
 import historicalData from '../data/historical_predictions.json';
 import { unstable_cache } from 'next/cache';
+import { cache } from 'react';
 
 // --- SCHEMA DEFINITIONS (The Bridge) ---
 
@@ -112,13 +113,12 @@ async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
   }
 }
 
-const getCachedHydratedData = unstable_cache(
-  async () => fetchHydratedDataFromDb(),
-  ['system-hydrated-matrix'],
-  { revalidate: 3600 } 
+// The cache wrapper isolates this to EXACTLY 1 MotherDuck hit per Page Render
+const getCachedHydratedData = cache(
+  async () => fetchHydratedDataFromDb()
 );
 
-async function getHydratedData(): Promise<PlayerEfficiency[]> {
+export async function getHydratedData(): Promise<PlayerEfficiency[]> {
   return await getCachedHydratedData();
 }
 

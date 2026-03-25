@@ -1,8 +1,8 @@
 'use server';
 
 import { z } from 'zod';
-import { getMotherDuckDb } from '@/lib/motherduck';
 import { slugify } from '@/lib/utils';
+import { BigQuery } from '@google-cloud/bigquery';
 import historicalData from '../data/historical_predictions.json';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
@@ -57,17 +57,34 @@ export type PlayerHistory = z.infer<typeof HistorySchema>;
 
 // --- DATA HYDRATION ---
 
+const bigquery = new BigQuery({
+  projectId: process.env.GCP_PROJECT_ID,
+  credentials: process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY ? {
+    client_email: process.env.GCP_CLIENT_EMAIL,
+    private_key: process.env.GCP_PRIVATE_KEY.replace(/\\n/g, '\n'),
+  } : undefined,
+});
+
 async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
   try {
-    // 1. Attempt Cloud Sync (MotherDuck)
+    // 1. Attempt Cloud Sync (BigQuery)
     let rawData: any[] = [];
     try {
-      const db = await getMotherDuckDb();
-      const res = await db.all(`SELECT * FROM fact_player_efficiency WHERE year = (SELECT MAX(year) FROM fact_player_efficiency)`);
-      rawData = res as any[];
-      console.log(`[MotherDuck] Successfully fetched ${rawData.length} records from cloud.`);
+      const datasetId = 'nfl_dead_money';
+      const tableId = 'fact_player_efficiency';
+      const query = `
+        SELECT * 
+        FROM \`${datasetId}.${tableId}\`
+        WHERE year = (SELECT MAX(year) FROM \`${datasetId}.${tableId}\`)
+      `;
+      
+      const [job] = await bigquery.createQueryJob({ query: query });
+      const [rows] = await job.getQueryResults();
+      rawData = rows;
+      
+      console.log(`[BigQuery] Successfully fetched ${rawData.length} records from GCP.`);
     } catch (dbError) {
-      console.warn("[MotherDuck] Database connection failed. Returning empty state.", dbError);
+      console.warn("[BigQuery] Database connection failed. Returning empty state.", dbError);
       return [];
     }
 
@@ -321,9 +338,6 @@ export type TimelineEvent = {
 
 export async function getPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
   try {
-    const db = await getMotherDuckDb();
-
-    // Construct the Unified Timeline CTE
     const query = `
       -- 1. Contract / Financial Base
       SELECT 
@@ -332,8 +346,8 @@ export async function getPlayerTimeline(playerName: string): Promise<TimelineEve
           year || '-03-15' as date_of_event, 
           'CONTRACT' as event_type, 
           'Cap Hit: $' || ROUND(cap_hit_millions, 1) || 'M (Total: $' || ROUND(total_contract_value_millions, 1) || 'M)' as description 
-      FROM silver_spotrac_contracts 
-      WHERE player_name = ?
+      FROM \`nfl_dead_money.silver_spotrac_contracts\` 
+      WHERE player_name = @playerName
       
       UNION ALL
       
@@ -344,8 +358,8 @@ export async function getPlayerTimeline(playerName: string): Promise<TimelineEve
           NULL as date_of_event, 
           'ML_ALERT' as event_type, 
           '🚨 Alpha Protocol Alert: High Bust Probability Detected.' as description 
-      FROM prediction_results 
-      WHERE player_name = ? AND predicted_risk_score = 1
+      FROM \`nfl_dead_money.prediction_results\` 
+      WHERE player_name = @playerName AND predicted_risk_score = 1
       
       UNION ALL
       
@@ -356,13 +370,14 @@ export async function getPlayerTimeline(playerName: string): Promise<TimelineEve
           media_date_approx as date_of_event, 
           'MEDIA_CONSENSUS' as event_type, 
           '🗞️ Media Consensus Shift: ' || rationale as description 
-      FROM media_lag_metrics 
-      WHERE player_name = ?
+      FROM \`nfl_dead_money.media_lag_metrics\` 
+      WHERE player_name = @playerName
       
       ORDER BY year ASC, week ASC;
     `;
 
-    const results = await db.all(query, playerName, playerName, playerName);
+    const [job] = await bigquery.createQueryJob({ query, params: { playerName } });
+    const [results] = await job.getQueryResults();
     return results as unknown as TimelineEvent[];
 
   } catch (error) {
@@ -385,16 +400,19 @@ export type IntelligenceEvent = {
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
   try {
-    const db = await getMotherDuckDb();
     const feed: IntelligenceEvent[] = [];
 
     // 1. Predictions
-    const preds = await db.all(`
-      SELECT year, week, predicted_risk_score, high_uncertainty_flag 
-      FROM prediction_results 
-      WHERE player_name = ? 
-      ORDER BY year DESC, week DESC LIMIT 5
-    `, playerName);
+    const [predJob] = await bigquery.createQueryJob({
+      query: `
+        SELECT year, week, predicted_risk_score, high_uncertainty_flag 
+        FROM \`nfl_dead_money.prediction_results\` 
+        WHERE player_name = @playerName 
+        ORDER BY year DESC, week DESC LIMIT 5
+      `,
+      params: { playerName }
+    });
+    const [preds] = await predJob.getQueryResults();
 
     if (preds && preds.length > 0) {
       const latest = preds[0] as any;
@@ -406,12 +424,16 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
     }
 
     // 2. Media Consensus
-    const media = await db.all(`
-      SELECT media_date_approx as date_of_event, rationale
-      FROM media_lag_metrics
-      WHERE player_name = ?
-      ORDER BY year DESC, media_consensus_week DESC LIMIT 3
-    `, playerName);
+    const [mediaJob] = await bigquery.createQueryJob({
+      query: `
+        SELECT media_date_approx as date_of_event, rationale, source_url
+        FROM \`nfl_dead_money.media_lag_metrics\`
+        WHERE player_name = @playerName
+        ORDER BY year DESC, media_consensus_week DESC LIMIT 3
+      `,
+      params: { playerName }
+    });
+    const [media] = await mediaJob.getQueryResults();
 
     if (media && media.length > 0) {
       for (const m of media) {
@@ -427,12 +449,16 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
 
     // 3. Raw News / Tweets (Guarantees every player has a feed)
     try {
-      const rawNews = await db.all(`
-        SELECT headline as rationale, published_at as date_of_event, url as source_url, source_type, provenance_hash
-        FROM raw_media_mentions
-        WHERE player_name = ?
-        ORDER BY published_at DESC LIMIT 5
-      `, playerName);
+      const [rawNewsJob] = await bigquery.createQueryJob({
+        query: `
+          SELECT headline as rationale, published_at as date_of_event, url as source_url, source_type, provenance_hash
+          FROM \`nfl_dead_money.raw_media_mentions\`
+          WHERE player_name = @playerName
+          ORDER BY published_at DESC LIMIT 5
+        `,
+        params: { playerName }
+      });
+      const [rawNews] = await rawNewsJob.getQueryResults();
 
       if (rawNews && rawNews.length > 0) {
         for (const n of rawNews) {
@@ -482,8 +508,6 @@ export type WarRoomData = {
 
 export async function getWarRoomData(): Promise<WarRoomData> {
   try {
-    const db = await getMotherDuckDb();
-
     // 1. Red Alerts (Isolation Forest Anomalies)
     const redAlertsQuery = `
       SELECT DISTINCT
@@ -492,27 +516,28 @@ export async function getWarRoomData(): Promise<WarRoomData> {
           year,
           week,
           uncertainty_score
-      FROM prediction_results 
+      FROM \`nfl_dead_money.prediction_results\` 
       WHERE high_uncertainty_flag = 1
       ORDER BY uncertainty_score DESC, year DESC, week DESC
       LIMIT 10;
     `;
-    const redAlertsRes = await db.all(redAlertsQuery);
+    const [redAlertsJob] = await bigquery.createQueryJob({ query: redAlertsQuery });
+    const [redAlertsRes] = await redAlertsJob.getQueryResults();
 
     // 2. ROI Metrics (Media Lag)
     const roiQuery = `
       SELECT 
           AVG(alpha_lead_time_weeks) as avg_lead,
           COUNT(*) as total_validations
-      FROM media_lag_metrics
+      FROM \`nfl_dead_money.media_lag_metrics\`
       WHERE alpha_lead_time_weeks > 0;
     `;
-    const roiRes = await db.all(roiQuery);
+    const [roiJob] = await bigquery.createQueryJob({ query: roiQuery });
+    const [roiRes] = await roiJob.getQueryResults();
 
     let avgLead = 0;
     let totalValidations = 0;
     if (roiRes.length > 0) {
-      // DuckDB might return BigInts or Decimals, convert safely
       avgLead = Number(roiRes[0].avg_lead || 0);
       totalValidations = Number(roiRes[0].total_validations || 0);
     }
@@ -523,12 +548,13 @@ export async function getWarRoomData(): Promise<WarRoomData> {
           year,
           alpha_lead_time_weeks as lead_time,
           rationale
-      FROM media_lag_metrics
+      FROM \`nfl_dead_money.media_lag_metrics\`
       WHERE alpha_lead_time_weeks > 0
       ORDER BY alpha_lead_time_weeks DESC
       LIMIT 5;
     `;
-    const topRoiRes = await db.all(topRoiQuery);
+    const [topRoiJob] = await bigquery.createQueryJob({ query: topRoiQuery });
+    const [topRoiRes] = await topRoiJob.getQueryResults();
 
     return {
       redAlerts: redAlertsRes as any[],

@@ -58,7 +58,7 @@ export type PlayerHistory = z.infer<typeof HistorySchema>;
 // --- DATA HYDRATION ---
 
 const bigquery = new BigQuery({
-  projectId: process.env.GCP_PROJECT_ID,
+  projectId: process.env.GCP_PROJECT_ID || 'cap-alpha-protocol',
   credentials: process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY ? {
     client_email: process.env.GCP_CLIENT_EMAIL,
     private_key: process.env.GCP_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -593,7 +593,6 @@ export type AuditEntry = {
 
 export async function getPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
   try {
-    const db = await getMotherDuckDb();
     const query = `
             SELECT 
                 e.entry_id, 
@@ -602,15 +601,16 @@ export async function getPlayerAuditLedger(playerName: string): Promise<AuditEnt
                 e.payload, 
                 e.payload_type,
                 e.signature_hash, 
-                CAST(e.created_at AS VARCHAR) as created_at,
+                CAST(e.created_at AS STRING) as created_at,
                 b.merkle_root
-            FROM gold_layer.audit_ledger_entries e
-            LEFT JOIN gold_layer.audit_ledger_blocks b 
+            FROM \`nfl_dead_money.audit_ledger_entries\` e
+            LEFT JOIN \`nfl_dead_money.audit_ledger_blocks\` b 
                 ON e.year = b.year AND e.week = b.week
-            WHERE e.player_name = ?
+            WHERE e.player_name = @playerName
             ORDER BY e.year DESC, e.week DESC;
         `;
-    const res = await db.all(query, playerName);
+    const [job] = await bigquery.createQueryJob({ query, params: { playerName } });
+    const [res] = await job.getQueryResults();
     return res as unknown as AuditEntry[];
   } catch (error) {
     // Table might not exist yet

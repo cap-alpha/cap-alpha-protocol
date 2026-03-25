@@ -99,11 +99,15 @@ def sync():
             logger.info(f"Extracting {table_name} matrix into Pandas dataframe...")
             df = dump_con.execute(f"SELECT * FROM {table_name}").df()
             
+            # Sanitize column names for BigQuery compatibility (only letters, numbers, underscores)
+            df.columns = df.columns.astype(str).str.replace(r'[^a-zA-Z0-9_]', '_', regex=True)
+            
             # Prevent PyArrow Parquet serialization hangs on nested JSON structs
             for col in df.columns:
                 if df[col].dtype == 'object':
                     df[col] = df[col].astype(str)
             
+            table_ref = f"{project_id}.{dataset_id}.{table_name}"
             # Identify merge keys dynamically based on typical DDL
             merge_keys = []
             if 'player_name' in df.columns and 'team' in df.columns and 'year' in df.columns:

@@ -99,15 +99,74 @@ def sync():
             logger.info(f"Extracting {table_name} matrix into Pandas dataframe...")
             df = dump_con.execute(f"SELECT * FROM {table_name}").df()
             
-            table_ref = f"{project_id}.{dataset_id}.{table_name}"
-            # Force BigQuery replacement payload matching the MotherDuck truncation overwrite
-            job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+            # Prevent PyArrow Parquet serialization hangs on nested JSON structs
+            for col in df.columns:
+                if df[col].dtype == 'object':
+                    df[col] = df[col].astype(str)
             
-            logger.info(f"Pushing table {table_name} to GCP...")
-            job = client.load_table_from_dataframe(df, table_ref, job_config=job_config)
-            job.result()
-            
-            logger.info(f"✓ Merged {len(df)} records into exactly: {table_ref}")
+            # Identify merge keys dynamically based on typical DDL
+            merge_keys = []
+            if 'player_name' in df.columns and 'team' in df.columns and 'year' in df.columns:
+                merge_keys = ['player_name', 'team', 'year']
+            elif 'team' in df.columns and 'year' in df.columns:
+                merge_keys = ['team', 'year']
+            elif 'year' in df.columns:
+                merge_keys = ['year']
+            elif 'team' in df.columns:
+                merge_keys = ['team']
+                
+            if not merge_keys:
+                # Force BigQuery replacement payload fallback
+                job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+                logger.info(f"Pushing table {table_name} to GCP (Fallback TRUNCATE)...")
+                job = client.load_table_from_dataframe(df, table_ref, job_config=job_config)
+                job.result()
+                logger.info(f"✓ Replaced {len(df)} records into exactly: {table_ref}")
+            else:
+                # Deduplicate based on keys to prevent MERGE failure
+                df = df.drop_duplicates(subset=merge_keys)
+                temp_table_ref = f"{project_id}.{dataset_id}.{table_name}_temp"
+                job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+                client.load_table_from_dataframe(df, temp_table_ref, job_config=job_config).result()
+                
+                columns = df.columns.tolist()
+                join_cond = " AND ".join([f"T.{k} = S.{k}" for k in merge_keys])
+                update_cols = [col for col in columns if col not in merge_keys]
+                
+                if update_cols:
+                    update_cond = ", ".join([f"{col} = S.{col}" for col in update_cols])
+                    merge_query = f"""
+                        MERGE `{table_ref}` T
+                        USING `{temp_table_ref}` S
+                        ON {join_cond}
+                        WHEN MATCHED THEN
+                            UPDATE SET {update_cond}
+                        WHEN NOT MATCHED THEN
+                            INSERT ({", ".join(columns)})
+                            VALUES ({", ".join([f"S.{col}" for col in columns])})
+                    """
+                else:
+                    merge_query = f"""
+                        MERGE `{table_ref}` T
+                        USING `{temp_table_ref}` S
+                        ON {join_cond}
+                        WHEN NOT MATCHED THEN
+                            INSERT ({", ".join(columns)})
+                            VALUES ({", ".join([f"S.{col}" for col in columns])})
+                    """
+
+                try:
+                    # Check if table exists
+                    client.get_table(table_ref)
+                    logger.info(f"Merging table {table_name} into GCP using keys {merge_keys}...")
+                    client.query(merge_query).result()
+                except Exception:
+                    logger.info(f"Table {table_name} not found, creating via TRUNCATE...")
+                    job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
+                    client.load_table_from_dataframe(df, table_ref, job_config=job_config).result()
+                    
+                client.delete_table(temp_table_ref, not_found_ok=True)
+                logger.info(f"✓ Upserted {len(df)} records into: {table_ref}")
             
         dump_con.close()
         logger.info("=== Full Medallion Pipeline Migration Confirmed ===")

@@ -9,11 +9,14 @@ services:
       - ./scripts:/app/scripts
       - ./.duckdb_local:/app/.duckdb_local
       - ./dbt:/app/dbt
+      - ~/.config/gcloud:/app/.config/gcloud:ro
     environment:
       - PIPELINE_YEAR=2025
       - PYTHONPATH=/app/pipeline
       - MOTHERDUCK_TOKEN=${MOTHERDUCK_TOKEN}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GCP_PROJECT_ID=cap-alpha-protocol
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
     working_dir: /app
     # Run pip install on boot.
     command: >

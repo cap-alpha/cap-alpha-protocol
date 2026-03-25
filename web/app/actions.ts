@@ -130,9 +130,11 @@ async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
   }
 }
 
-// The cache wrapper isolates this to EXACTLY 1 MotherDuck hit per Page Render
-const getCachedHydratedData = cache(
-  async () => fetchHydratedDataFromDb()
+// The cache wrapper isolates this to exactly 1 BigQuery hit per revalidation period
+const getCachedHydratedData = unstable_cache(
+  async () => fetchHydratedDataFromDb(),
+  ['hydrated-roster-data-v1'],
+  { revalidate: 3600 }
 );
 
 export async function getHydratedData(): Promise<PlayerEfficiency[]> {
@@ -336,7 +338,7 @@ export type TimelineEvent = {
   description: string;
 };
 
-export async function getPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
+async function fetchPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
   try {
     const query = `
       -- 1. Contract / Financial Base
@@ -386,6 +388,15 @@ export async function getPlayerTimeline(playerName: string): Promise<TimelineEve
   }
 }
 
+export async function getPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPlayerTimeline(playerName),
+    [`player-timeline-v1-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
 // --- INTELLIGENCE FEED ACTIONS ---
 
 export type IntelligenceEvent = {
@@ -398,7 +409,7 @@ export type IntelligenceEvent = {
   timestamp?: string;
 };
 
-export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
+async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
   try {
     const feed: IntelligenceEvent[] = [];
 
@@ -484,6 +495,15 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
   }
 }
 
+export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchIntelligenceFeed(playerName),
+    [`intelligence-feed-v1-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
 // --- WAR ROOM ACTIONS ---
 
 export type WarRoomData = {
@@ -506,7 +526,7 @@ export type WarRoomData = {
   };
 };
 
-export async function getWarRoomData(): Promise<WarRoomData> {
+async function fetchWarRoomData(): Promise<WarRoomData> {
   try {
     // 1. Red Alerts (Isolation Forest Anomalies)
     const redAlertsQuery = `
@@ -578,6 +598,15 @@ export async function getWarRoomData(): Promise<WarRoomData> {
   }
 }
 
+export async function getWarRoomData(): Promise<WarRoomData> {
+  const cachedFn = unstable_cache(
+    async () => fetchWarRoomData(),
+    ['war-room-data-v1'],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
 // --- CRYPTOGRAPHIC LEDGER ACTIONS ---
 
 export type AuditEntry = {
@@ -591,7 +620,7 @@ export type AuditEntry = {
   merkle_root: string;
 };
 
-export async function getPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
+async function fetchPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
   try {
     const query = `
             SELECT 
@@ -617,4 +646,13 @@ export async function getPlayerAuditLedger(playerName: string): Promise<AuditEnt
     console.error(`[Data] Error loading audit ledger for ${playerName}:`, error);
     return [];
   }
+}
+
+export async function getPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPlayerAuditLedger(playerName),
+    [`player-audit-ledger-v1-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
 }

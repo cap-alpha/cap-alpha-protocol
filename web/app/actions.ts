@@ -77,6 +77,7 @@ async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
             SELECT *,
                 ROW_NUMBER() OVER(PARTITION BY player_name ORDER BY year DESC) as rn
             FROM \`${datasetId}.${tableId}\`
+            WHERE cap_hit_millions > 0 OR risk_score > 0
         )
         SELECT * EXCEPT(rn) 
         FROM RankedContracts 
@@ -141,7 +142,7 @@ async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
 // The cache wrapper isolates this to exactly 1 BigQuery hit per revalidation period
 const getCachedHydratedData = unstable_cache(
   async () => fetchHydratedDataFromDb(),
-  ['hydrated-roster-data-v2'],
+  ['hydrated-roster-data-v3'],
   { revalidate: 3600 }
 );
 
@@ -405,7 +406,7 @@ async function fetchPlayerTimeline(playerName: string): Promise<TimelineEvent[]>
 export async function getPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
   const cachedFn = unstable_cache(
     async () => fetchPlayerTimeline(playerName),
-    [`player-timeline-v1-${playerName}`],
+    [`player-timeline-v2-${playerName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();
@@ -512,7 +513,7 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
   const cachedFn = unstable_cache(
     async () => fetchIntelligenceFeed(playerName),
-    [`intelligence-feed-v1-${playerName}`],
+    [`intelligence-feed-v2-${playerName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();

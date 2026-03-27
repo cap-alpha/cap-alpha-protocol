@@ -60,12 +60,12 @@ export function Navbar() {
                         >
                             DASHBOARD
                         </Link>
-                        <button 
-                            onClick={() => setTeamSelectorOpen(true)}
+                        <Link 
+                            href="/dashboard/team-select"
                             className="transition-colors hover:text-emerald-400 text-slate-400 uppercase tracking-wide font-medium"
                         >
                             {activeTeam ? `TEAM: ${activeTeam}` : "SELECT TEAM"}
-                        </button>
+                        </Link>
                     </nav>
                 </div>
 

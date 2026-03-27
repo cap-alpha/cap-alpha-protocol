@@ -9,6 +9,7 @@ services:
       - ./scripts:/app/scripts
       - ./.duckdb_local:/app/.duckdb_local
       - ./dbt:/app/dbt
+      - ./data:/app/data
       - ~/.config/gcloud:/app/.config/gcloud:ro
     environment:
       - PIPELINE_YEAR=2025

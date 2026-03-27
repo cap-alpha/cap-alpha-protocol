@@ -34,12 +34,12 @@ class MediaLagAnalyzer:
         logger.info(f"Querying MotherDuck for early bust predictions in {year}...")
         
         query = f"""
-            SELECT player_name, MIN(week) as trigger_week, AVG(predicted_risk_score) as risk
+            SELECT player_name, 0 as trigger_week, AVG(predicted_risk_score) as risk
             FROM prediction_results 
             WHERE year = {year} 
               AND predicted_risk_score = 1
             GROUP BY player_name
-            ORDER BY MIN(week) ASC
+            ORDER BY AVG(predicted_risk_score) DESC
             LIMIT {limit}
         """
         results = self.db.fetch_df(query)

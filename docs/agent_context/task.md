@@ -1,16 +1,18 @@
-# Task List
+## Phase 8: Structural Fixes & Board Audit Execution
+- [x] Implement `ROW_NUMBER() OVER PARTITION` BigQuery query to resolve temporal data disparity.
+- [x] Inject `timeoutMs` connection hardening for Next.js caching timeouts.
+- [x] Build `global-error.tsx` to automatically intercept and hard-refresh Next.js chunk-loading timeouts (idle crash).
 
-## Optimization & Stabilization (Completed)
-- [x] Identify UI components displaying player names.
-- [x] Import `next/link` and `slugify` utility.
-- [x] Wrap player names in `<Link href={\`/player/\${encodeURIComponent(slugify(player_name))}\`}>`.
-- [x] Verify routing integrity across the application.
+## Phase 9: Graceful Error UX & Sanitization
+- [x] Deploy premium `error.tsx` component to safely fall back from database 500 crashes.
+- [x] Audit UI for dead elements and strip `SaveScenario` API loops.
+- [x] Draft 100-Point Master Execution Roadmap.
+- [x] Execute `npm run build` structural check (0 Type Errors).
 
-## Cap Hit Accuracy & 2025 Pipeline
-- [x] Fix data parsing in `medallion_pipeline.py` to prevent `total_contract_value_millions` from overwriting `cap_hit_millions`.
-- [x] Add explicit daily cron trigger in `.github/workflows/` or equivalent to sync 2025 data to MotherDuck automatically.
-- [x] Run full pipeline manually for 2025 (`medallion_pipeline.py --year 2025` and `sync_to_motherduck.py`) to verify data update.
-
-## Timeline Tufte Redesign
-- [x] Update layout in `player-detail-view.tsx` to mount `<VisualTimeline>` vertically on the right side of the screen on desktop.
-- [x] Refactor `visual-timeline.tsx` enforcing high data-ink ratio (Edward Tufte principles), removing heavy chartjunk, and creating a clean, tight, sparkline-inspired log.
+## Phase 9.5: Analytical UI Data Validation
+- [x] Fix `CutCalculator` to empirically derive pre-June 1 Net Cap Savings when `savings_pre_june1` is null/0.
+- [x] Add rendering boundaries to hide `Cap Hit Composition` visualization when base salaries and bonuses are unpopulated ($0M) due to Spotrac fallback scrapes.
+## Phase 10: Sprint 0 (Production Safety)
+- [ ] Configure Vercel Edge Feature Flags.
+- [ ] Inject PostHog Telemetry funnel capture.
+- [ ] Enable CI/CD deployment gating.

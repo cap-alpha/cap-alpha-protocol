@@ -27,5 +27,22 @@ test.describe('Production Pipeline Verification (No Auth)', () => {
         // Next.js returns 404 for unknown dynamic paths when properly coded
         expect(response?.status()).toBe(404);
     });
+    test('GM Persona: Team Roster loads successfully without errors (Dallas Cowboys)', async ({ page }) => {
+        const response = await page.goto('/team/DAL');
+        expect(response?.status()).toBe(200);
+        const errorBoundary = page.locator('text="Application Error"');
+        await expect(errorBoundary).toHaveCount(0);
+        const pageBody = await page.textContent('body');
+        expect(pageBody).not.toContain("Application Error");
+    });
+
+    test('Sharp Persona: Data Hydration & News rendering (Travis Kelce page)', async ({ page }) => {
+        const response = await page.goto('/player/travis-kelce');
+        expect(response?.status()).toBe(200);
+        const errorBoundary = page.locator('text="Application Error"');
+        await expect(errorBoundary).toHaveCount(0);
+        const pageBody = await page.textContent('body');
+        expect(pageBody).not.toContain("Application Error");
+    });
 
 });

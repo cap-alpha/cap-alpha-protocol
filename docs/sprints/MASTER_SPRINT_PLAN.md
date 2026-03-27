@@ -120,3 +120,9 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [ ] SP24-3: **Asset Pre-computation:** Shift any heavy client-side statistical aggregations dynamically calculated in UI edge functions entirely into the Python `medallion_pipeline.py` to offload compute costs to the pipeline runner rather than Vercel.
 - [ ] SP24-4: **DuckDB Client Upgrade:** Address the version deprecation warning: upgrade DuckDB from v1.1.1 to the recommended v1.5.1 to maintain MotherDuck compatibility. Determine implications for the Vercel pre-built binaries and Node 20.x limitations.
 - [ ] SP24-5: **MotherDuck Compute Limit Diagnosis:** Investigate the recent platform warning regarding reaching the daily compute limit. Audit query efficiency, caching frequency, and polling rates from Vercel Serverless Functions to reduce unnecessary database connections.
+
+### Sprint 25: Growth, Monetization & Agentic ROI
+**Goal:** Implement specific monetization targets while establishing strategic ROI mandates for Antigravity utilization.
+- [x] SP25-1: (Claimed by Agent) Establish the Productivity Tracking / ROI Audit Mandate to maximize API quota value.
+- [x] SP25-2: (Completed by Agent) Implemented Vercel edge-geolocation and cookie-based routing directly in TeamPage.
+- [/] SP25-3: (Claimed by Agent) Auto-generate the 'Personality Magnet' visual infographic component to attract analysts/creators.

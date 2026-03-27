@@ -58,7 +58,7 @@ export type PlayerHistory = z.infer<typeof HistorySchema>;
 // --- DATA HYDRATION ---
 
 const bigquery = new BigQuery({
-  projectId: process.env.GCP_PROJECT_ID || 'cap-alpha-protocol',
+  projectId: process.env.GCP_PROJECT_ID || 'my-project-1525668581184',
   credentials: process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY ? {
     client_email: process.env.GCP_CLIENT_EMAIL,
     private_key: process.env.GCP_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -73,13 +73,21 @@ async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
       const datasetId = 'nfl_dead_money';
       const tableId = 'fact_player_efficiency';
       const query = `
-        SELECT * 
-        FROM \`${datasetId}.${tableId}\`
-        WHERE year = (SELECT MAX(year) FROM \`${datasetId}.${tableId}\`)
+        WITH RankedContracts AS (
+            SELECT *,
+                ROW_NUMBER() OVER(PARTITION BY player_name ORDER BY year DESC) as rn
+            FROM \`${datasetId}.${tableId}\`
+        )
+        SELECT * EXCEPT(rn) 
+        FROM RankedContracts 
+        WHERE rn = 1
       `;
       
-      const [job] = await bigquery.createQueryJob({ query: query });
-      const [rows] = await job.getQueryResults();
+      const [job] = await bigquery.createQueryJob({ 
+        query: query,
+        jobTimeoutMs: 15000
+      });
+      const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
       rawData = rows;
       
       console.log(`[BigQuery] Successfully fetched ${rawData.length} records from GCP.`);
@@ -133,7 +141,7 @@ async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
 // The cache wrapper isolates this to exactly 1 BigQuery hit per revalidation period
 const getCachedHydratedData = unstable_cache(
   async () => fetchHydratedDataFromDb(),
-  ['hydrated-roster-data-v1'],
+  ['hydrated-roster-data-v2'],
   { revalidate: 3600 }
 );
 
@@ -162,6 +170,12 @@ export async function getRosterData() {
     }))
     .sort((a, b) => b.cap_hit_millions - a.cap_hit_millions);
 }
+
+export async function getTeamRoster(teamName: string) {
+  const fullRoster = await getRosterData();
+  return fullRoster.filter(p => p.team === teamName);
+}
+
 
 export async function getTeamCapSummary() {
   const data = await getHydratedData();
@@ -356,7 +370,7 @@ async function fetchPlayerTimeline(playerName: string): Promise<TimelineEvent[]>
       -- 2. ML Prediction Triggers
       SELECT 
           year, 
-          week, 
+          0 as week, 
           NULL as date_of_event, 
           'ML_ALERT' as event_type, 
           '🚨 Alpha Protocol Alert: High Bust Probability Detected.' as description 
@@ -416,10 +430,10 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
     // 1. Predictions
     const [predJob] = await bigquery.createQueryJob({
       query: `
-        SELECT year, week, predicted_risk_score, high_uncertainty_flag 
+        SELECT year, 0 as week, predicted_risk_score, 0 as high_uncertainty_flag 
         FROM \`nfl_dead_money.prediction_results\` 
         WHERE player_name = @playerName 
-        ORDER BY year DESC, week DESC LIMIT 5
+        ORDER BY year DESC LIMIT 5
       `,
       params: { playerName }
     });
@@ -440,7 +454,7 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
         SELECT media_date_approx as date_of_event, rationale, source_url
         FROM \`nfl_dead_money.media_lag_metrics\`
         WHERE player_name = @playerName
-        ORDER BY year DESC, media_consensus_week DESC LIMIT 3
+        ORDER BY year DESC LIMIT 3
       `,
       params: { playerName }
     });
@@ -534,11 +548,11 @@ async function fetchWarRoomData(): Promise<WarRoomData> {
           player_name, 
           team,
           year,
-          week,
-          uncertainty_score
+          0 as week,
+          0 as uncertainty_score
       FROM \`nfl_dead_money.prediction_results\` 
-      WHERE high_uncertainty_flag = 1
-      ORDER BY uncertainty_score DESC, year DESC, week DESC
+      WHERE predicted_risk_score = 1
+      ORDER BY year DESC
       LIMIT 10;
     `;
     const [redAlertsJob] = await bigquery.createQueryJob({ query: redAlertsQuery });

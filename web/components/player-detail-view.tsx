@@ -21,7 +21,7 @@ import {
     Area
 } from "recharts";
 import { CutCalculator } from './cut-calculator';
-import { SaveScenarioButton } from './save-scenario-button';
+// import { SaveScenarioButton } from './save-scenario-button';
 import { IntelligenceFeed } from './intelligence-feed';
 import { VisualTimeline } from './visual-timeline';
 import { VerifiableAudit } from './verifiable-audit';
@@ -84,18 +84,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                         <p className="text-slate-400 text-lg mt-1">{player.position} • {player.team} • {player.year}</p>
                     </div>
                 </div>
-                {/* Save Action */}
-                <SaveScenarioButton
-                    rosterState={{
-                        ...player,
-                        scenario_config: {
-                            is_post_june_1: isPostJune1,
-                            savings: isPostJune1 ? player.savings_post_june1 : player.savings_pre_june1,
-                            dead_cap: isPostJune1 ? player.dead_cap_post_june1 : player.dead_cap_pre_june1
-                        }
-                    }}
-                    defaultName={`Cut ${player.player_name} (${isPostJune1 ? 'Post-June 1' : 'Pre-June 1'})`}
-                />
+                {/* Save Action completely removed per UX sweep for dead layout elements */}
             </div>
 
             <div className="flex flex-col lg:flex-row gap-8 items-start relative">
@@ -161,6 +150,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                     </div>
 
                     {/* Deep Salary Cap Breakdown */}
+                    {(player.base_salary_millions > 0 || player.prorated_bonus_millions > 0 || player.roster_bonus_millions > 0 || player.guaranteed_salary_millions > 0) && (
                     <Card className="bg-zinc-900 border-zinc-800">
                         <CardHeader className="pb-4">
                             <CardTitle className="text-lg">Cap Hit Composition</CardTitle>
@@ -206,6 +196,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                             </div>
                         </CardContent>
                     </Card>
+                    )}
 
                     {/* Main Content: Calculator + Chart */}
                     <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 pb-12">
@@ -381,7 +372,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                             <div className="space-y-2">
                                                 {history.slice().reverse().slice(0, 5).map((h) => (
                                                     <div key={h.year} className="flex justify-between items-center text-sm p-2 hover:bg-white/5 rounded">
-                                                        <span className="font-mono text-zinc-500">{h.year}</span>
+                                                        <span className="font-mono text-zinc-500">{h.year} • {h.team}</span>
                                                         <div className="flex space-x-4">
                                                             <span className="text-zinc-300">${h.actual.toFixed(1)}M</span>
                                                             <span className={h.actual > h.predicted ? "text-red-500" : "text-emerald-500"}>

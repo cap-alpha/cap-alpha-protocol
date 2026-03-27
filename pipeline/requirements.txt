@@ -33,3 +33,5 @@ python-multipart
 feedparser
 tabulate
 praw
+google-cloud-bigquery
+pydantic

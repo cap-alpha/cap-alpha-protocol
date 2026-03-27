@@ -21,8 +21,17 @@ export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorPr
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
 
-    const deadCap = isPostJune1 ? player.dead_cap_post_june1 : player.dead_cap_pre_june1;
-    const savings = isPostJune1 ? player.savings_post_june1 : player.savings_pre_june1;
+    // Empirical fallbacks if DB columns are unpopulated (0)
+    const baseDeadCap = player.dead_cap_millions || 0;
+    const derivedSavingsPre = player.cap_hit_millions - baseDeadCap;
+
+    const deadCap = isPostJune1 
+        ? (player.dead_cap_post_june1 || baseDeadCap / 2) 
+        : (player.dead_cap_pre_june1 || baseDeadCap);
+        
+    const savings = isPostJune1 
+        ? (player.savings_post_june1 || (player.cap_hit_millions - (baseDeadCap / 2))) 
+        : (player.savings_pre_june1 || derivedSavingsPre);
 
     const handleToggle = (checked: boolean) => {
         if (checked) {

@@ -146,8 +146,14 @@ def main():
         # 7. Supplemental Reports
         run_step("Super Bowl Audit", "scripts/generate_sb_audit.py")
         run_step("Intelligence Report", "scripts/generate_intelligence_report.py")
+        run_step("Media Lag Analysis", "scripts/media_lag_analyzer.py")
+        run_step("Cryptographic Ledger Sync", "src/cryptographic_ledger.py")
     else:
          logger.info("⏭️  Skipping Audits (Reporting Layer)")
+    
+    # 8. Production Database Push
+    run_step("Sync to BigQuery", "scripts/sync_to_bigquery.py")
+
     
     logger.info("✓ Pipeline Execution Successful. Artifacts Updated.")
 

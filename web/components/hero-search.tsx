@@ -13,7 +13,7 @@ export function HeroSearch() {
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
         if (query) {
-            router.push(`/?search=${encodeURIComponent(query)}`)
+            window.dispatchEvent(new CustomEvent('open-global-search', { detail: query }));
         }
     }
 

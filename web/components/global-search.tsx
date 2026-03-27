@@ -21,7 +21,7 @@ export function GlobalSearch() {
     const [selectedIndex, setSelectedIndex] = React.useState(0)
     const router = useRouter()
 
-    // Keyboard shortcut to open search
+    // Keyboard shortcut and custom event to open search
     React.useEffect(() => {
         const down = (e: KeyboardEvent) => {
             if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
@@ -29,8 +29,21 @@ export function GlobalSearch() {
                 setOpen((open) => !open)
             }
         }
+        
+        const handleCustomOpen = (e: CustomEvent) => {
+            if (e.detail) {
+                setQuery(e.detail);
+            }
+            setOpen(true);
+        };
+
         document.addEventListener("keydown", down)
-        return () => document.removeEventListener("keydown", down)
+        window.addEventListener("open-global-search", handleCustomOpen as EventListener)
+        
+        return () => {
+            document.removeEventListener("keydown", down)
+            window.removeEventListener("open-global-search", handleCustomOpen as EventListener)
+        }
     }, [])
 
     // Fetch index lightweight representation when opened for first time
@@ -69,6 +82,7 @@ export function GlobalSearch() {
             </Button>
             <Dialog open={open} onOpenChange={setOpen}>
                 <DialogContent className="sm:max-w-[550px] bg-slate-950 border-slate-800 p-0 gap-0 overflow-hidden">
+                    <DialogTitle className="sr-only">Search Database</DialogTitle>
                     <div className="p-4 border-b border-slate-800 flex items-center gap-3">
                         <Search className="h-5 w-5 text-slate-400" />
                         <Input

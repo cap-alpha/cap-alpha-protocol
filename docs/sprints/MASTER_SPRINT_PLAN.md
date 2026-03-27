@@ -67,7 +67,15 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** Expose the web application securely to the public internet for continuous stakeholder review.
 - [x] SP17-1: Connect the repository to Vercel and configure the `MOTHERDUCK_TOKEN` and Auth Environment variables.
 - [x] SP17-2: Validate that GitHub Actions executes the `docker-compose run e2e` integration tests prior to approving the build.
-- [ ] SP17-3: Conduct User Acceptance Testing (UAT) on the deployed site across mobile and web interfaces.
+- [x] SP17-3: Conduct User Acceptance Testing (UAT) on the deployed site across mobile and web interfaces. (Completed: UAT generated Sprint 17.5 blockers).
+
+### Sprint 17.5: Executive UAT Hardening (Board Inspection Blockers)
+**Goal:** Resolve all critical UI, technical, and data integrity failures identified during the Executive Board UAT run to meet the "Bloomberg Terminal" / Cap Alpha Protocol standards.
+- [/] SP17.5-1: (Claimed by Agent) Enforce global Dark Mode and remove standard marketing images to establish the "Bloomberg Terminal" visualization aesthetic.
+- [ ] SP17.5-2: Repair the Search Modal (Cmd+K and click bindings) to instantly surface queried assets.
+- [ ] SP17.5-3: Fix broken navigation links (resolve 500 Error on `/dashboard` and 404 on `/select-team`).
+- [ ] SP17.5-4: Re-engineer the Cut Calculator to use actual math instead of mocked $0.0M static dead money outputs.
+- [ ] SP17.5-5: Repair the local image pipeline to halt 404s for player headshots (e.g. `daniel_jones.jpg`).
 
 ## Milestone 2: Production Launch & Data Independence
 ***Goal:*** Launch the production version of the web application to the public internet. Be able to respond to stakeholder requests for changes and updates. Automation fixes, which should have been ironed about by now, must take a back seat to addressing stakeholder requests.

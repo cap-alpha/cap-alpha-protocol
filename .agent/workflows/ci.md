@@ -36,11 +36,15 @@ Before you commit ANY feature, you must prove it works and is fully tested.
    - *Data Quality & Business Logic*: Run `pytest tests/data_quality` and `pytest tests/integration`
 4. **Verify 100% Coverage**: Review the coverage reports closely. If coverage of your *changed logic* is less than 100%, write the missing tests. Keep iterating until it hits 100% and all test suites pass green.
 
-## Step 4: Execute the Commits
-Once the isolated feature passes all tests and achieves 100% coverage:
-1. Stage the precise files/changes for this feature: `git add <file1> <file2>`
-2. Commit with a highly descriptive message, detailing *what* the commit does and *why*.
-   Example: `git commit -m "feat(data-pipeline): add dead money calculation rules" -m "Added business logic for cap casualty tracking. Includes end-to-end test validation against DuckDB without mocked data."`
+## Step 4: Draft the Commit Hand-off Script (Do NOT Auto-Commit)
+Once the isolated feature passes all tests and achieves 100% coverage, **you must explicitly HELD OFF from running `git commit`.**
+1. Stage the precise files/changes for this feature using `git add <file1> <file2>`. You are permitted to auto-stage the discrete files.
+2. **NEVER run `git commit` autonomously.**
+3. Create an explicit bash script (e.g., `/tmp/commit.sh` or outputting directly into the final chat handoff) that contains the strictly formatted `git commit` command for the user to review and execute themselves.
+   Example Handoff Output:
+   ```bash
+   git commit -m "feat(data-pipeline): add dead money calculation rules" -m "Added business logic for cap casualty tracking. Includes end-to-end test validation against DuckDB without mocked data."
+   ```
 
 ## Step 5: Repeat Until Clean
 Repeat Steps 2-4 until the working directory is clean (`git status` shows nothing to commit) and every single changed line has been safely committed, tested, and tracked.

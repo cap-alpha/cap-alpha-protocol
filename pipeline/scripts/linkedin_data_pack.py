@@ -1,7 +1,7 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 
-con = duckdb.connect("data/nfl_data.db")
+con = DBManager()
 
 # 1. Team Aggregate Risk (Top 10 most efficient vs wasteful teams)
 team_stats = con.execute("""

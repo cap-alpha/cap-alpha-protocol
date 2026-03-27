@@ -1,6 +1,5 @@
 
 import pandas as pd
-import duckdb
 import os
 
 # Try to find the database or use raw CSVs as backup

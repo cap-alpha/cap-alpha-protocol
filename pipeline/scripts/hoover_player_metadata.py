@@ -1,6 +1,6 @@
 
+from src.db_manager import DBManager
 import pandas as pd
-import duckdb
 import time
 import random
 import os
@@ -42,7 +42,7 @@ def get_roster_urls(year: int):
 
 def prioritized_hoover():
     """Hoover the top players first for immediate value."""
-    con = duckdb.connect(DB_PATH)
+    con = DBManager()
     # Target players in our fact table (Gold Layer)
     query = """
     SELECT DISTINCT player_name FROM fact_player_efficiency 

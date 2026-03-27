@@ -1,5 +1,5 @@
 
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import logging
 from pathlib import Path
@@ -14,7 +14,7 @@ class StrategicEngine:
 
     def _connect(self):
         if self.con is None:
-            self.con = duckdb.connect(self.db_path)
+            self.con = DBManager()
 
     def get_team_metrics(self, year: int = 2025) -> pd.DataFrame:
         """

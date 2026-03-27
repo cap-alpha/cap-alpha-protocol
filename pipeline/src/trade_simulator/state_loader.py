@@ -11,14 +11,14 @@ Logic:
 2. Market Players:
    - All active players with contracts in 2025.
 """
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 from typing import Dict, List
 from .state import LeagueState, TeamState
 
 class StateLoader:
     def __init__(self, db_path: str, year: int = 2025, min_cap_hit: float = None):
-        self.con = duckdb.connect(db_path)
+        self.con = DBManager()
         self.year = year
         self.SALARY_CAP = 255.0 # Millions (Should be dynamic map in future)
         

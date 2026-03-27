@@ -3,6 +3,7 @@
 Batch ingestion script for all historical years.
 Uses the Medallion bronze layer as source.
 """
+from src.db_manager import DBManager
 import subprocess
 import sys
 from pathlib import Path
@@ -57,7 +58,7 @@ def main():
     print()
     print("📊 Final table row counts:")
     import duckdb
-    con = duckdb.connect(DB_PATH)
+    con = DBManager()
     tables = con.execute("SHOW TABLES").fetchall()
     for (table,) in tables:
         count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]

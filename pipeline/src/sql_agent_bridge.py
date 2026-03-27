@@ -1,4 +1,4 @@
-import duckdb
+from src.db_manager import DBManager
 import argparse
 import json
 import os
@@ -61,7 +61,7 @@ def get_sql_from_llm(question: str) -> str:
 def execute_query(db_path: str, sql: str) -> str:
     """Executes the raw SQL against DuckDB with an error retry loop."""
     try:
-        con = duckdb.connect(db_path, read_only=True)
+        con = DBManager()
         # We cap results to avoid overflowing the LLM orchestrator context window
         if "LIMIT" not in sql.upper() and not sql.upper().startswith("SELECT COUNT"):
             sql = sql.rstrip(";") + " LIMIT 20;"

@@ -1,9 +1,9 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 from tabulate import tabulate
 
 def generate_report(year: int = 2025):
-    con = duckdb.connect("data/nfl_data.db", read_only=True)
+    con = DBManager()
     
     # Check if table exists
     tables = con.execute("SELECT table_name FROM information_schema.tables WHERE table_name = 'fact_player_efficiency'").fetchall()

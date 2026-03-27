@@ -1,4 +1,4 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 from sklearn.metrics import r2_score
 import sys
@@ -15,7 +15,7 @@ def analyze_r2_by_segment():
         sys.exit(1)
         
     try:
-        con = duckdb.connect(DB_PATH, read_only=True)
+        con = DBManager()
         
         # Query: Get Actual vs Predicted (Fair Market Value)
         # Assuming 'fair_market_value' is the 'prediction' and we need a ground truth 'production' value?

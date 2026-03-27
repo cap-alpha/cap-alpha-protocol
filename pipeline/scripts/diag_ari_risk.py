@@ -1,8 +1,8 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 
 DB_PATH = "data/nfl_belichick.db"
-con = duckdb.connect(DB_PATH)
+con = DBManager()
 
 print("--- ARIZONA CARDINALS: HIGH-RISK CONSTRUCITON (2024/2025) ---")
 # Check 2024/2025 High Risk Players

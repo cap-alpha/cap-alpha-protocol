@@ -1,5 +1,5 @@
 
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import logging
 from pathlib import Path
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 REPORT_PATH = Path("reports/super_bowl_lx_risk_audit.md")
 
 def generate_sb_audit():
-    con = duckdb.connect(get_db_path())
+    con = DBManager())
     
     # Target teams for SB LX
     teams = ['SEA', 'NE']

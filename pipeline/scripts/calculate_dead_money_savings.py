@@ -1,5 +1,5 @@
+from src.db_manager import DBManager
 import pandas as pd
-import duckdb
 import logging
 from pathlib import Path
 from src.config_loader import get_db_path
@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 def calculate_historical_savings():
     logger.info("Connecting to MotherDuck/DuckDB...")
     db_path = get_db_path()
-    con = duckdb.connect(db_path)
+    con = DBManager()
     
     # We query the prediction_results table (which holds our test folds from 2019-2024 for the is_bust_binary target)
     # We join it against fact_player_efficiency (which holds the base cap_hit_millions for that specific week/year)

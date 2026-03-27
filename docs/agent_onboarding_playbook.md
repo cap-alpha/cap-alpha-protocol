@@ -6,6 +6,6 @@
 - **Code Execution**: Always execute scripts from the virtual environment (e.g., `.venv/bin/python`).
 
 **Next Immediate Steps for Incoming Agent**:
-Review `docs/agent_context/task.md` and `docs/agent_context/implementation_plan.md` for the latest snapshot of the sprint backlog. The previous agent achieved full dynamic 2026 chronology (eliminating all hardcoded years), fixed the live news hydration action using `duckduckgo-search` bridging into MotherDuck, and resolved Next.js frontend crashing (via `crypto_ledger`).
+Review `docs/agent_context/task.md` and `docs/agent_context/implementation_plan.md` for the latest snapshot of the sprint backlog. We are currently operating in a **MULTI-AGENT** context. Check `MASTER_SPRINT_PLAN.md` to see which tasks are marked `[/]` to avoid stepping on other agents. We have claimed `SP20-1` (Sub-Second Latency & Performance Optimization - Frontend Edge Caching). If you are resuming this exact thread, execute SP20-1.
 
 **Critical Execution Constraint**: Do not attempt to run python scripts native to macOS. TCC/SIP File Locks (`Operation not permitted`) will severely block MotherDuck local writes or GitHub cache logs. You MUST use `docker compose exec pipeline bash -c "..."` or execute via GitHub Actions.

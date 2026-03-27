@@ -1,7 +1,7 @@
 
+from src.db_manager import DBManager
 import pandas as pd
 import numpy as np
-import duckdb
 import logging
 from sklearn.linear_model import LassoCV
 from sklearn.preprocessing import StandardScaler
@@ -16,7 +16,7 @@ DB_PATH = get_db_path()
 
 class FeaturePruner:
     def __init__(self, db_path=DB_PATH):
-        self.con = duckdb.connect(db_path)
+        self.con = DBManager()
 
     def prune_with_l1(self, target_col='edce_risk'):
         """Use Lasso (L1) regularization to identify and keep only significant features."""

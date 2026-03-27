@@ -1,9 +1,9 @@
 
+from src.db_manager import DBManager
 import json
 import logging
 from pathlib import Path
 import pandas as pd
-import duckdb
 from src.config_loader import get_db_path
 
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
@@ -14,7 +14,7 @@ EXPORT_PATH = Path("data/roster_dump.json")
 def export_roster_json():
     db_path = get_db_path()
     logger.info(f"Connecting to {db_path} for JSON export...")
-    con = duckdb.connect(db_path)
+    con = DBManager()
     
     # DEBUG: Print columns to log to understand available fields for Cut Calculator
     try:

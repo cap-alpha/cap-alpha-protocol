@@ -1,12 +1,12 @@
 
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import json
 import os
 from pathlib import Path
 
 def export_dashboard_data(db_path: str, output_path: str):
-    con = duckdb.connect(db_path)
+    con = DBManager()
     
     # Identify the 'High-Alpha' and 'High-Risk' players
     query = """

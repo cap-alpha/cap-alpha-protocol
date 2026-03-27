@@ -1,11 +1,11 @@
-import duckdb
+from src.db_manager import DBManager
 
 def analyze_wilson_trade():
     """
     Analyzes the Russell Wilson trade using pure DuckDB + Python (No Pandas/Numpy).
     This ensures portability across environments where binary compilation (numpy) is difficult.
     """
-    con = duckdb.connect("data/duckdb/nfl_production.db")
+    con = DBManager()
     
     print("🏈 Analyzing The Russell Wilson Trade Tree (2022-2025)...")
     

@@ -4,7 +4,7 @@ print("BOOTSTRAP", flush=True)
 Population Density Audit: High vs. Low Cap Coverage
 Hypothesis: Our "Data Gap" (123k targets vs 28k features) is driven by missing data for low-cap players.
 """
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import sys
 import numpy as np
@@ -14,7 +14,7 @@ DB_PATH = "data/duckdb/nfl_production.db"
 def run_audit():
     import sys
     print("Connecting to DB...", flush=True)
-    con = duckdb.connect(DB_PATH, read_only=True)
+    con = DBManager()
     
     # 1. Get ALL Targets (The Universe of Players we want to predict)
     print("Loading Target Population...")

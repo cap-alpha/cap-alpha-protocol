@@ -1,4 +1,4 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import numpy as np
 import logging
@@ -15,7 +15,7 @@ def create_synthetic_data():
     if os.path.exists(TEMP_DB):
         os.remove(TEMP_DB)
         
-    con = duckdb.connect(TEMP_DB)
+    con = DBManager()
     
     # Create synthetic features
     n_rows = 1000

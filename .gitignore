@@ -42,7 +42,6 @@ reports/chart_frames/
 # Database & Features (Large Binaries)
 data/*.db
 data/*.parquet
-nfl_dead_money.duckdb
 
 # System
 .DS_Store

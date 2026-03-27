@@ -1,5 +1,5 @@
 
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import os
 
@@ -18,7 +18,7 @@ if not DB_PATH:
 print(f"Using database: {DB_PATH}")
 
 def run_query():
-    con = duckdb.connect(DB_PATH)
+    con = DBManager()
     
     # Simple table listing
     print("\n--- Tables ---")

@@ -1,5 +1,5 @@
 
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import logging
 from pathlib import Path
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 REPORT_PATH = Path("reports/production_risk_intelligence_2025.md")
 
 def generate_world_class_report():
-    con = duckdb.connect(get_db_path())
+    con = DBManager())
     
     logger.info("Generating World-Class Production Intelligence Report...")
     

@@ -71,31 +71,31 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 17.5: Executive UAT Hardening (Board Inspection Blockers)
 **Goal:** Resolve all critical UI, technical, and data integrity failures identified during the Executive Board UAT run to meet the "Bloomberg Terminal" / Cap Alpha Protocol standards.
-- [/] SP17.5-1: (Claimed by Agent) Enforce global Dark Mode and remove standard marketing images to establish the "Bloomberg Terminal" visualization aesthetic.
-- [ ] SP17.5-2: Repair the Search Modal (Cmd+K and click bindings) to instantly surface queried assets.
-- [ ] SP17.5-3: Fix broken navigation links (resolve 500 Error on `/dashboard` and 404 on `/select-team`).
-- [ ] SP17.5-4: Re-engineer the Cut Calculator to use actual math instead of mocked $0.0M static dead money outputs.
-- [ ] SP17.5-5: Repair the local image pipeline to halt 404s for player headshots (e.g. `daniel_jones.jpg`).
+- [x] SP17.5-1: (Claimed by Agent) Enforce global Dark Mode and remove standard marketing images to establish the "Bloomberg Terminal" visualization aesthetic.
+- [x] SP17.5-2: Repair the Search Modal (Cmd+K and click bindings) to instantly surface queried assets.
+- [x] SP17.5-3: Fix broken navigation links (resolve 500 Error on `/dashboard` and 404 on `/select-team`).
+- [x] SP17.5-4: Re-engineer the Cut Calculator to use actual math instead of mocked $0.0M static dead money outputs.
+- [x] SP17.5-5: Repair the local image pipeline to halt 404s for player headshots (e.g. `daniel_jones.jpg`).
 
 ## Milestone 2: Production Launch & Data Independence
 ***Goal:*** Launch the production version of the web application to the public internet. Be able to respond to stakeholder requests for changes and updates. Automation fixes, which should have been ironed about by now, must take a back seat to addressing stakeholder requests.
 
 ### Sprint 18: Official Data Vendor Integration (Data Independence)
 **Goal:** Sever reliance on scraped/competitor data by integrating official, deterministic data feeds (e.g., Sportradar, official NFL API, or premium vendor) to ensure we own our pipeline and can scale without rate-limits or adversarial blocking.
-- [ ] SP18-1: Select and procure an official data vendor API for real-time and historical NFL player/contract data (e.g., Sportradar API, Stats Perform).
-- [ ] SP18-2: Build a robust Python ingestion client to hydrate the MotherDuck Bronze layer directly from the official authenticated API.
-- [ ] SP18-3: Validate the new official feed against our internal predictions and backtests, ensuring schema compatibility and resolving any data discrepancies.
-- [ ] SP18-4: Deprecate legacy web scraper pipelines and reroute all downstream Silver/Gold transformations to rely exclusively on the new official Bronze data.
+- [b] SP18-1: Select and procure an official data vendor API for real-time and historical NFL player/contract data (e.g., Sportradar API, Stats Perform). (Blocked on User Procurement)
+- [b] SP18-2: Build a robust Python ingestion client to hydrate the MotherDuck Bronze layer directly from the official authenticated API.
+- [b] SP18-3: Validate the new official feed against our internal predictions and backtests, ensuring schema compatibility and resolving any data discrepancies.
+- [b] SP18-4: Deprecate legacy web scraper pipelines and reroute all downstream Silver/Gold transformations to rely exclusively on the new official Bronze data.
 
 ### Sprint 19: Immutable Auditability (Cryptographic Ledger)
 **Goal:** Prove absolute honesty in historical Fair Market Value predictions by eliminating hindsight bias. Implement a verifiable cryptographic ledger.
-- [ ] SP19-1: Hash nightly predictions and intelligence signals into a Merkle tree or public ledger interface.
+- [/] SP19-1: (Claimed by Agent) Hash nightly predictions and intelligence signals into a Merkle tree or public ledger interface.
 - [ ] SP19-2: Build `<VerifiableAudit />` component to render the cryptographic signature for any historical player event.
 - [ ] SP19-3: Architect a "Regulatory-Grade" data tier strictly enforcing append-only writes for prediction artifacts.
 
 ### Sprint 20: Sub-Second Latency & Performance Optimization
 **Goal:** Ensure every page load across the entire web application resolves in under 1.0s to deliver an elite, lightning-fast executive UX.
-- [ ] SP20-1: Implement edge caching strategies and static site generation (SSG) for static assets, team directories, and global search index.
+- [/] SP20-1: (Claimed by Agent) Implement edge caching strategies and static site generation (SSG) for static assets, team directories, and global search index.
 - [ ] SP20-2: Optimize MotherDuck query execution paths (e.g., query caching, materialized views) for complex models and aggregations.
 - [ ] SP20-3: Audit React rendering loops to eliminate unnecessary re-renders in heavy visualization components (`<ComposedChart />`, `<RosterGrid />`).
 - [ ] SP20-4: Enforce an automated performance budget in CI/CD pipeline (Lighthouse scores > 95 for Performance, Accessibility, and SEO).

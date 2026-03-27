@@ -1,4 +1,4 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -12,7 +12,7 @@ DB_PATH = "data/nfl_belichick.db"
 OUTPUT_PATH = "reports/real_discipline_frontier.png"
 
 def generate_frontier_plot():
-    con = duckdb.connect(DB_PATH)
+    con = DBManager()
     
     # Query the 2025 Gold Layer
     query = """

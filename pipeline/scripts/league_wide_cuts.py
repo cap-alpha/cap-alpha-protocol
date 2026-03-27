@@ -5,7 +5,7 @@ Author: Cap Alpha Protocol (Automated)
 
 Objective: Generate a team-by-team audit of High-Cap Liabilities (> $10M) for potential release/trade.
 """
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import sys
 
@@ -14,7 +14,7 @@ def format_currency(val_millions):
 
 def run_league_audit():
     DB_PATH = "data/duckdb/nfl_production.db"
-    con = duckdb.connect(DB_PATH)
+    con = DBManager()
     
     print("running League-Wide Cut Audit...", file=sys.stderr)
     

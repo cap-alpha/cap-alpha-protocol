@@ -1,7 +1,7 @@
 require('dotenv').config({ path: '.env.local' });
 const { BigQuery } = require('@google-cloud/bigquery');
 const bq = new BigQuery({
-  projectId: process.env.GCP_PROJECT_ID || 'my-project-1525668581184',
+  projectId: process.env.GCP_PROJECT_ID,
   credentials: process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY ? {
     client_email: process.env.GCP_CLIENT_EMAIL,
     private_key: process.env.GCP_PRIVATE_KEY.replace(/\\n/g, '\n'),

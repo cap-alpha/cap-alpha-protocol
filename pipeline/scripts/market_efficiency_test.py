@@ -1,4 +1,4 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 import statsmodels.api as sm
 import numpy as np
@@ -7,7 +7,7 @@ DB_PATH = "data/nfl_belichick.db"
 OUTPUT_FILE = "reports/market_efficiency_findings.md"
 
 def run_efficiency_test():
-    con = duckdb.connect(DB_PATH)
+    con = DBManager()
     
     print("Running Market Efficiency Test on 15 Years of Data...")
     

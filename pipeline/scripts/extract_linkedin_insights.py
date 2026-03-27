@@ -1,7 +1,7 @@
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 
-con = duckdb.connect("data/nfl_data.db")
+con = DBManager()
 
 print("--- TOP OVERPAID PLAYERS (Gap between Cap Hit and Fair Market Value) ---")
 overpaid = con.execute("""

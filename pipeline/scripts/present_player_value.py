@@ -1,11 +1,11 @@
 
-import duckdb
+from src.db_manager import DBManager
 import pandas as pd
 
 DB_PATH = "data/nfl_data.db"
 
 def present_value(year):
-    con = duckdb.connect(DB_PATH)
+    con = DBManager()
     
     print(f"\n==================== {year} SEASON AUDIT ====================")
     print(f"🏆 Top 10 'High Value' Players ({year}) - High Production, Low Cap Hit")

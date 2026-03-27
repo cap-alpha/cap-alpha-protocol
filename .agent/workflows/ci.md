@@ -27,7 +27,8 @@ This workflow ensures that all code changes are cleanly separated into highly co
 
 ## Step 3: Enforce 100% Test Coverage (No Mocks)
 Before you commit ANY feature, you must prove it works and is fully tested.
-1. **Write/Update Tests**: Ensure the feature has corresponding Unit, Integration, Data Quality, and Playwright E2E tests, depending on the affected layers.
+0. Ensure you have covered all aspects of the spec for the feature. If the specs were ambiguous, then this is your LAST chance to double-check if what you did matched what was desired. If you want to show quick mocks for UI features to show a UX, as long as they are not intended to be put into production as is, this is ok.
+1. **Write/Update Tests**: Ensure the feature has corresponding Unit, Integration, Data Quality, Data Freshness, and Playwright E2E tests, depending on the affected layers.
 2. **Minimize Mocks**: Do NOT use mocked data for internal database queries, internal service calls, or business logic. You may only mock strict 3rd-party external API boundaries (where rate limits or sandboxes demand it).
 3. **Execute the Test Suites**:
    - *Unit & Integration (Backend)*: Run `pytest --cov=. --cov-report=term-missing`

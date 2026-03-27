@@ -81,7 +81,7 @@ def main():
             if candidate:
                 # Load candidate and validation data
                 model = joblib.load(candidate["path"])
-                con = duckdb.connect(get_db_path())
+                con = DBManager())
                 df = con.execute("SELECT * FROM staging_feature_matrix").df()
                 con.close()
                 

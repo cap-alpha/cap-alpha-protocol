@@ -55,7 +55,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** Solidify confidence in the prediction engine against historical point-in-time facts (Out-of-sample backtesting).
 - [x] SP15-1: Build out out-of-sample temporal backtesting capabilities to validate the prediction engine against historical point-in-time facts.
 - [x] SP15-2: Perform a post-mortem on severe model misses (e.g., highly rated players who busted, low rated players who popped).
-- [ ] SP15-3: Create an explicit architectural roadmap for algorithmic improvements to address identified weaknesses.
+- [x] SP15-3: (Completed by Agent) Create an explicit architectural roadmap for algorithmic improvements to address identified weaknesses.
 
 ### Sprint 16: Player Visual Timeline Experience 
 **Goal:** Empower users with a single unified chronological view of all events affecting a player's market value.
@@ -115,11 +115,11 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 24: Vercel Expenditure & Build Cycle Optimization
 **Goal:** Drastically reduce accrued Vercel build time and hosting expenditures by decoupling the Next.js frontend builds from backend/pipeline monorepo commits.
-- [ ] SP24-1: **Monorepo Build Isolation:** Configure Vercel's `Ignored Build Step` (`git diff --quiet HEAD^ HEAD ./web/`) to ensure non-UI commits (Python pipeline, documentation, GitHub Actions) automatically skip web compilation.
-- [ ] SP24-2: **Cache Architecture Audit:** Audit the Next.js data hooks to ensure MotherDuck fetches utilize maximum valid `revalidate` periods (ISR) rather than forced SSR on every page hit, saving Serverless Function execution time.
+- [x] SP24-1: (Completed by Agent) **Monorepo Build Isolation:** Configure Vercel's `Ignored Build Step` (`git diff --quiet HEAD^ HEAD ./web/`) to ensure non-UI commits (Python pipeline, documentation, GitHub Actions) automatically skip web compilation.
+- [x] SP24-2: (Completed by Agent) **Cache Architecture Audit:** Audit the Next.js data hooks to ensure fetches utilize maximum valid `revalidate` periods (ISR) rather than forced SSR on every page hit, saving Serverless Function execution time.
 - [ ] SP24-3: **Asset Pre-computation:** Shift any heavy client-side statistical aggregations dynamically calculated in UI edge functions entirely into the Python `medallion_pipeline.py` to offload compute costs to the pipeline runner rather than Vercel.
-- [ ] SP24-4: **DuckDB Client Upgrade:** Address the version deprecation warning: upgrade DuckDB from v1.1.1 to the recommended v1.5.1 to maintain MotherDuck compatibility. Determine implications for the Vercel pre-built binaries and Node 20.x limitations.
-- [ ] SP24-5: **MotherDuck Compute Limit Diagnosis:** Investigate the recent platform warning regarding reaching the daily compute limit. Audit query efficiency, caching frequency, and polling rates from Vercel Serverless Functions to reduce unnecessary database connections.
+- [-] SP24-4: (Deferred) **DuckDB Client Upgrade:** Address the version deprecation warning. (N/A: Platform fully migrated to BigQuery).
+- [-] SP24-5: (Deferred) **MotherDuck Compute Limit Diagnosis:** Investigate the recent platform warning regarding reaching the daily compute limit. (N/A: Platform fully migrated to BigQuery).
 
 ### Sprint 25: Growth, Monetization & Agentic ROI
 **Goal:** Implement specific monetization targets while establishing strategic ROI mandates for Antigravity utilization.

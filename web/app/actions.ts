@@ -671,3 +671,69 @@ export async function getPlayerAuditLedger(playerName: string): Promise<AuditEnt
   );
   return await cachedFn();
 }
+
+// --- EXACT MATH CAP CALCULATOR ---
+export type DeadMoneyMath = {
+  pre_june1_dead_cap: number;
+  pre_june1_savings: number;
+  post_june1_dead_cap: number;
+  post_june1_savings: number;
+};
+
+export async function calculateExactDeadMoney(playerName: string, currentYear: number = 2026): Promise<DeadMoneyMath | null> {
+  try {
+    const query = `
+      SELECT 
+        year,
+        cap_hit_millions,
+        base_salary_millions,
+        guaranteed_salary_millions,
+        prorated_bonus_millions
+      FROM \`nfl_dead_money.silver_spotrac_contracts\`
+      WHERE player_name = @playerName AND year >= @currentYear
+      ORDER BY year ASC
+    `;
+    const [job] = await bigquery.createQueryJob({ query, params: { playerName, currentYear } });
+    const [rows] = await job.getQueryResults();
+
+    if (!rows || rows.length === 0) return null;
+
+    let current_guaranteed = 0;
+    let current_prorated = 0;
+    let total_future_guaranteed = 0;
+    let total_future_prorated = 0;
+    
+    rows.forEach((row, index) => {
+      // Treat year 0 as the current immediate year, all others as future
+      if (index === 0) {
+        current_guaranteed = Number(row.guaranteed_salary_millions) || 0;
+        current_prorated = Number(row.prorated_bonus_millions) || 0;
+      } else {
+        total_future_guaranteed += Number(row.guaranteed_salary_millions) || 0;
+        total_future_prorated += Number(row.prorated_bonus_millions) || 0;
+      }
+    });
+
+    const current_cap_hit = Number(rows[0].cap_hit_millions) || 0;
+
+    // PRE-JUNE 1: Accelerate all future guaranteed + all future prorated bonuses to current year
+    const pre_june1_dead = current_prorated + total_future_prorated + current_guaranteed + total_future_guaranteed;
+    const pre_june1_savings = current_cap_hit - pre_june1_dead;
+
+    // POST-JUNE 1: Current year dead cap is only THIS year's prorated bonus and THIS year's guaranteed.
+    // The rest is deferred to NEXT year's cap.
+    const post_june1_dead = current_prorated + current_guaranteed;
+    const post_june1_savings = current_cap_hit - post_june1_dead;
+
+    return {
+      pre_june1_dead_cap: pre_june1_dead,
+      pre_june1_savings: pre_june1_savings,
+      post_june1_dead_cap: post_june1_dead,
+      post_june1_savings: post_june1_savings
+    };
+  } catch(e) {
+    console.error("Failed mathematical dead money calculation:", e);
+    return null;
+  }
+}
+

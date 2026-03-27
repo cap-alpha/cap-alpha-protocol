@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PlayerEfficiency } from '@/app/actions';
+import { PlayerEfficiency, DeadMoneyMath } from '@/app/actions';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Lock, AlertTriangle, CheckCircle, Scissors, Save } from 'lucide-react';
@@ -12,26 +12,42 @@ import { slugify } from "@/lib/utils";
 
 interface CutCalculatorProps {
     player: PlayerEfficiency;
+    deadMoneyMath?: DeadMoneyMath;
     isPostJune1: boolean;
     onToggle: (val: boolean) => void;
 }
 
-export function CutCalculator({ player, isPostJune1, onToggle }: CutCalculatorProps) {
+export function CutCalculator({ player, deadMoneyMath, isPostJune1, onToggle }: CutCalculatorProps) {
     const [showPaywall, setShowPaywall] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [saved, setSaved] = useState(false);
 
-    // Empirical fallbacks if DB columns are unpopulated (0)
-    const baseDeadCap = player.dead_cap_millions || 0;
-    const derivedSavingsPre = player.cap_hit_millions - baseDeadCap;
+    let deadCap = 0;
+    let savings = 0;
 
-    const deadCap = isPostJune1 
-        ? (player.dead_cap_post_june1 || baseDeadCap / 2) 
-        : (player.dead_cap_pre_june1 || baseDeadCap);
-        
-    const savings = isPostJune1 
-        ? (player.savings_post_june1 || (player.cap_hit_millions - (baseDeadCap / 2))) 
-        : (player.savings_pre_june1 || derivedSavingsPre);
+    // EXACT MATHEMATICAL LOGIC: 
+    // Always prioritize the mathematically sound model from `silver_spotrac_contracts`.
+    if (deadMoneyMath) {
+        if (isPostJune1) {
+            deadCap = deadMoneyMath.post_june1_dead_cap;
+            savings = deadMoneyMath.post_june1_savings;
+        } else {
+            deadCap = deadMoneyMath.pre_june1_dead_cap;
+            savings = deadMoneyMath.pre_june1_savings;
+        }
+    } else {
+        // Fallback for players without mapped Spotrac math
+        const baseDeadCap = player.dead_cap_millions || 0;
+        const derivedSavingsPre = player.cap_hit_millions - baseDeadCap;
+
+        deadCap = isPostJune1 
+            ? (player.dead_cap_post_june1 || baseDeadCap / 2) 
+            : (player.dead_cap_pre_june1 || baseDeadCap);
+            
+        savings = isPostJune1 
+            ? (player.savings_post_june1 || (player.cap_hit_millions - (baseDeadCap / 2))) 
+            : (player.savings_pre_june1 || derivedSavingsPre);
+    }
 
     const handleToggle = (checked: boolean) => {
         if (checked) {

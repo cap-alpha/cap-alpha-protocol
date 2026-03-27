@@ -25,7 +25,7 @@ import { CutCalculator } from './cut-calculator';
 import { IntelligenceFeed } from './intelligence-feed';
 import { VisualTimeline } from './visual-timeline';
 import { VerifiableAudit } from './verifiable-audit';
-import { TimelineEvent, IntelligenceEvent, AuditEntry } from "@/app/actions";
+import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath } from "@/app/actions";
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
@@ -33,9 +33,11 @@ interface PlayerDetailViewProps {
     timeline?: TimelineEvent[];
     feed?: IntelligenceEvent[];
     ledger?: AuditEntry[];
+    deadMoneyMath?: DeadMoneyMath;
+    hasHeadshot?: boolean;
 }
 
-export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [] }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false }: PlayerDetailViewProps) {
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -204,6 +206,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                         <div className="xl:col-span-1 space-y-6">
                             <CutCalculator
                                 player={player}
+                                deadMoneyMath={deadMoneyMath}
                                 isPostJune1={isPostJune1}
                                 onToggle={setIsPostJune1}
                             />

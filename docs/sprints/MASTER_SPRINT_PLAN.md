@@ -134,3 +134,10 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [x] SP25-1: (Claimed by Agent) Establish the Productivity Tracking / ROI Audit Mandate to maximize API quota value.
 - [x] SP25-2: (Completed by Agent) Implemented Vercel edge-geolocation and cookie-based routing directly in TeamPage.
 - [/] SP25-3: (Claimed by Agent) Auto-generate the 'Personality Magnet' visual infographic component to attract analysts/creators.
+
+### Sprint 26: Agile Workflow & GitHub Migration
+**Goal:** Migrate the textual Master Sprint Plan into a dynamic, industry-standard GitHub Projects Kanban board for enhanced visibility, milestone tracking, and seamless AI agent collaboration.
+- [ ] SP26-1: Execute `/setup_github` workflow to ensure CLI is authenticated with full repository and project board access.
+- [ ] SP26-2: Execute `/sync_issues` workflow (`scripts/sync_issues.py`) to parse this `MASTER_SPRINT_PLAN.md` file and dynamically generate GitHub Issues for each defined task.
+- [ ] SP26-3: Group synced issues into GitHub Milestones corresponding to the specific Sprints defined in the backlog.
+- [ ] SP26-4: Add state tracking native integration so that closing a pull request automatically shifts the GitHub Issue status to 'Done'.

@@ -1,0 +1,5 @@
+outs:
+- md5: a84bd7997ffe8fe1b221992a2873688e
+  size: 4067530
+  hash: md5
+  path: xgboost_risk_model_20260203_113330.pkl

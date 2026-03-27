@@ -58,7 +58,7 @@ export type PlayerHistory = z.infer<typeof HistorySchema>;
 // --- DATA HYDRATION ---
 
 const bigquery = new BigQuery({
-  projectId: process.env.GCP_PROJECT_ID || 'my-project-1525668581184',
+  projectId: process.env.GCP_PROJECT_ID || 'cap-alpha-protocol',
   credentials: process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY ? {
     client_email: process.env.GCP_CLIENT_EMAIL,
     private_key: process.env.GCP_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -83,14 +83,14 @@ async function fetchHydratedDataFromDb(): Promise<PlayerEfficiency[]> {
         FROM RankedContracts 
         WHERE rn = 1
       `;
-      
-      const [job] = await bigquery.createQueryJob({ 
+
+      const [job] = await bigquery.createQueryJob({
         query: query,
         jobTimeoutMs: 15000
       });
       const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
       rawData = rows;
-      
+
       console.log(`[BigQuery] Successfully fetched ${rawData.length} records from GCP.`);
     } catch (dbError) {
       console.warn("[BigQuery] Database connection failed. Returning empty state.", dbError);
@@ -625,33 +625,25 @@ export async function getWarRoomData(): Promise<WarRoomData> {
 // --- CRYPTOGRAPHIC LEDGER ACTIONS ---
 
 export type AuditEntry = {
-  entry_id: string;
-  year: number;
-  week: number;
-  payload: string;
-  payload_type: string;
-  signature_hash: string;
-  created_at: string;
-  merkle_root: string;
+    predictionPayload: string;
+    recordedHash: string;
+    timestamp: string;
+    year: number;
+    playerName: string;
 };
 
 async function fetchPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
   try {
     const query = `
             SELECT 
-                e.entry_id, 
-                e.year, 
-                e.week, 
-                e.payload, 
-                e.payload_type,
-                e.signature_hash, 
-                CAST(e.created_at AS STRING) as created_at,
-                b.merkle_root
-            FROM \`nfl_dead_money.audit_ledger_entries\` e
-            LEFT JOIN \`nfl_dead_money.audit_ledger_blocks\` b 
-                ON e.year = b.year AND e.week = b.week
-            WHERE e.player_name = @playerName
-            ORDER BY e.year DESC, e.week DESC;
+                year, 
+                player_name as playerName,
+                prediction_payload as predictionPayload, 
+                sha256_hash as recordedHash, 
+                CAST(timestamp AS STRING) as timestamp
+            FROM \`nfl_dead_money.immutable_prediction_ledger\`
+            WHERE player_name = @playerName
+            ORDER BY year DESC, timestamp DESC;
         `;
     const [job] = await bigquery.createQueryJob({ query, params: { playerName } });
     const [res] = await job.getQueryResults();
@@ -702,7 +694,7 @@ export async function calculateExactDeadMoney(playerName: string, currentYear: n
     let current_prorated = 0;
     let total_future_guaranteed = 0;
     let total_future_prorated = 0;
-    
+
     rows.forEach((row, index) => {
       // Treat year 0 as the current immediate year, all others as future
       if (index === 0) {
@@ -731,7 +723,7 @@ export async function calculateExactDeadMoney(playerName: string, currentYear: n
       post_june1_dead_cap: post_june1_dead,
       post_june1_savings: post_june1_savings
     };
-  } catch(e) {
+  } catch (e) {
     console.error("Failed mathematical dead money calculation:", e);
     return null;
   }

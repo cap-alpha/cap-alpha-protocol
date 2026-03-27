@@ -7,9 +7,16 @@ import { ArrowLeft, ShieldAlert, TrendingUp, MapPin } from 'lucide-react';
 import { IntelligenceFeed } from '@/components/intelligence-feed';
 import { TEAM_LOGOS, TEAM_NAMES } from '@/lib/team-logos';
 import { PositionalSpendingChart } from '@/components/positional-spending-chart';
-import { headers, cookies } from 'next/headers';
+import { TeamPersonalizationBanner } from '@/components/team-personalization-banner';
 
 export const revalidate = 3600; // Cache for 1 hour (ISR)
+
+export async function generateStaticParams() {
+    const teams = await getTeams();
+    return teams.map((team: string) => ({
+        id: team,
+    }));
+}
 
 export default async function TeamPage({ params }: { params: { id: string } }) {
     const teamName = decodeURIComponent(params.id);
@@ -17,16 +24,6 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
     const allTeamsSummary = await getTeamCapSummary();
     const fullRoster = await getRosterData(); // Still needed for league pos averages
     
-    // SP25-2: Instant Personalization Inference
-    const headersList = headers();
-    const userCity = headersList.get('x-vercel-ip-city');
-    const fullTeamName = TEAM_NAMES[teamName] || teamName;
-    const isLocalMarket = userCity && fullTeamName.toLowerCase().includes(userCity.toLowerCase());
-
-    const cookieStore = cookies();
-    const trackedTeam = cookieStore.get('nfl_tracked_team')?.value;
-    const isTrackedTeam = trackedTeam === teamName;
-
     const teamSummary = allTeamsSummary.find((t) => t.team === teamName);
 
     if (!teamRoster.length || !teamSummary) {
@@ -84,21 +81,7 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
                 </div>
 
                 {/* Instant Personalization Banner */}
-                {(isLocalMarket || isTrackedTeam) && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-lg flex items-center gap-3 mb-6 animate-in slide-in-from-top-4 fade-in duration-700">
-                        {isLocalMarket ? <MapPin className="h-5 w-5 text-emerald-500" /> : <ShieldAlert className="h-5 w-5 text-emerald-500" />}
-                        <div>
-                            <p className="font-bold text-sm text-emerald-400">
-                                {isLocalMarket ? `${userCity} Local Market Intel` : 'Direct Portfolio Analytics'}
-                            </p>
-                            <p className="text-xs text-emerald-500/80 mt-0.5">
-                                {isLocalMarket 
-                                    ? `Displaying deep cap liabilities tailored for the ${userCity} broadcast region.` 
-                                    : `High-priority cap alerts enabled. Rendering absolute portfolio risk for your synced franchise.`}
-                            </p>
-                        </div>
-                    </div>
-                )}
+                <TeamPersonalizationBanner teamName={teamName} />
 
                 {/* Top Metrics Cards */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

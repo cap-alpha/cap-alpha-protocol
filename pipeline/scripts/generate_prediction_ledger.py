@@ -40,11 +40,11 @@ def generate_ledger(year: int):
         query = f"""
             SELECT 
                 player_name, team, year,
-                cap_hit_millions, dead_cap_millions,
-                potential_dead_cap_millions, 
-                ytd_performance_value,
-                efficiency_ratio,
-                is_bust_binary
+                cap_hit_millions, potential_dead_cap_millions, 
+                fair_market_value,
+                ied_overpayment,
+                edce_risk,
+                combined_roi_score
             FROM fact_player_efficiency
             WHERE year = {year}
         """
@@ -64,11 +64,11 @@ def generate_ledger(year: int):
         for _, row in df.iterrows():
             payload = {
                 "cap_hit_millions": row.get("cap_hit_millions", 0),
-                "dead_cap_millions": row.get("dead_cap_millions", 0),
                 "potential_dead_cap_millions": row.get("potential_dead_cap_millions", 0),
-                "ytd_performance_value": row.get("ytd_performance_value", 0),
-                "efficiency_ratio": row.get("efficiency_ratio", 0),
-                "is_bust_binary": row.get("is_bust_binary", 0),
+                "fair_market_value": row.get("fair_market_value", 0),
+                "ied_overpayment": row.get("ied_overpayment", 0),
+                "edce_risk": row.get("edce_risk", 0),
+                "combined_roi_score": row.get("combined_roi_score", 0),
             }
             # Canonical JSON serialization (sorted keys, no spaces)
             payload_str = json.dumps(payload, sort_keys=True, separators=(',', ':'))

@@ -1,0 +1,4 @@
+[core]
+    remote = gcs_remote
+['remote "gcs_remote"']
+    url = gs://rl-trading-strategy-flywheel-data/nfl_dead_money_dvc_storage

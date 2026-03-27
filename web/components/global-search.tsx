@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { getSearchIndex, SearchIndexItem } from "@/app/actions"
+import { SearchIndexItem } from "@/app/actions"
 
 export function GlobalSearch() {
     const [open, setOpen] = React.useState(false)
@@ -49,7 +49,10 @@ export function GlobalSearch() {
     // Fetch index lightweight representation when opened for first time
     React.useEffect(() => {
         if (open && index.length === 0) {
-            getSearchIndex().then(setIndex).catch(console.error)
+            fetch("/api/search-index")
+                .then(res => res.json())
+                .then(setIndex)
+                .catch(console.error)
         }
     }, [open, index.length])
 

@@ -17,9 +17,13 @@ airflow/*.cfg
 airflow/*.json
 
 # Data
-data/
+data/*
+!data/raw/
+data/raw/*
 !data/raw/logos/
 !data/roster_dump.json
+!data/*.dvc
+!data/**/*.dvc
 
 # Notebook Outputs
 notebooks/outputs/

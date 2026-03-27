@@ -104,7 +104,8 @@ class DBManager:
             # Warning: BigQuery python SDK expects parameters via QueryJobConfig, if complex params are passed we'd setup a JobConfig here.
             # For this pipeline, usually params are purely DataFrames {"df": df} which we intercepted above!
             
-            job = self.client.query(processed_query)
+            job_config = bigquery.QueryJobConfig(default_dataset=self.client.dataset(self.dataset_id))
+            job = self.client.query(processed_query, job_config=job_config)
             return BQResultProxy(job)
         except Exception as e:
             logger.error(f"Query execution failed: {e}\nQuery: {query}")
@@ -114,7 +115,8 @@ class DBManager:
         """Executes a query and returns a Pandas DataFrame."""
         try:
             processed_query, bind_params = self._handle_dataframe_params(query, params)
-            job = self.client.query(processed_query)
+            job_config = bigquery.QueryJobConfig(default_dataset=self.client.dataset(self.dataset_id))
+            job = self.client.query(processed_query, job_config=job_config)
             return job.to_dataframe()
         except Exception as e:
             logger.error(f"Failed to fetch DataFrame: {e}")

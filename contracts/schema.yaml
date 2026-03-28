@@ -9,6 +9,7 @@ tables:
       player_name: { type: "VARCHAR", description: "Player active name" }
       team: { type: "VARCHAR", description: "Team abbreviation" }
       year: { type: "INTEGER", description: "Season year" }
+      week: { type: "INTEGER", description: "NFL Week integer" }
       game_url: { type: "VARCHAR", description: "Unique URL per game" }
       Passing_Yds: { type: "VARCHAR", description: "Passing Yards (raw)" }
       Rushing_Yds: { type: "VARCHAR", description: "Rushing Yards (raw)" }
@@ -91,7 +92,7 @@ tables:
       team: { type: "VARCHAR", description: "Team abbreviation" }
       year: { type: "INTEGER", description: "Season year" }
       position: { type: "VARCHAR", description: "Player position" }
-      "dead cap": { type: "VARCHAR", description: "Raw dead cap string" }
+      dead_cap: { type: "VARCHAR", description: "Raw dead cap string" }
 
   silver_pfr_draft_history:
     description: "Draft history data"

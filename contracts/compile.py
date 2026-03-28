@@ -11,9 +11,9 @@ TYPES_TS = CONTRACTS_DIR / "types.ts"
 # Type Mappings
 # YAML Type -> SQL Type
 SQL_TYPE_MAP = {
-    "VARCHAR": "VARCHAR",
+    "VARCHAR": "STRING",
     "INTEGER": "INTEGER",
-    "FLOAT": "FLOAT", 
+    "FLOAT": "FLOAT64", 
     "BOOLEAN": "BOOLEAN",
     "DATE": "DATE",
     "TIMESTAMP": "TIMESTAMP"

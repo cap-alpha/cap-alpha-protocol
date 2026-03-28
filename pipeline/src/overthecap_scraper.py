@@ -116,10 +116,22 @@ class OverTheCapScraper:
     def _scrape_team(self, team_code: str, year: int) -> Optional[pd.DataFrame]:
         """Scrape contracts for a single team."""
         
-        # Over The Cap uses lowercase team names in URLs
-        team_name_lower = TEAM_MAP[team_code].lower()
-        url = f"{self.BASE_URL}/nfl/{team_name_lower}/{year}/contracts/"
+        OTC_SLUGS = {
+            'ARI': 'arizona-cardinals', 'ATL': 'atlanta-falcons', 'BAL': 'baltimore-ravens', 'BUF': 'buffalo-bills',
+            'CAR': 'carolina-panthers', 'CHI': 'chicago-bears', 'CIN': 'cincinnati-bengals', 'CLE': 'cleveland-browns',
+            'DAL': 'dallas-cowboys', 'DEN': 'denver-broncos', 'DET': 'detroit-lions', 'GB': 'green-bay-packers',
+            'HOU': 'houston-texans', 'IND': 'indianapolis-colts', 'JAX': 'jacksonville-jaguars', 'KC': 'kansas-city-chiefs',
+            'LAC': 'los-angeles-chargers', 'LAR': 'los-angeles-rams', 'LV': 'las-vegas-raiders', 'MIA': 'miami-dolphins',
+            'MIN': 'minnesota-vikings', 'NE': 'new-england-patriots', 'NO': 'new-orleans-saints', 'NYG': 'new-york-giants',
+            'NYJ': 'new-york-jets', 'PHI': 'philadelphia-eagles', 'PIT': 'pittsburgh-steelers', 'SF': 'san-francisco-49ers',
+            'SEA': 'seattle-seahawks', 'TB': 'tampa-bay-buccaneers', 'TEN': 'tennessee-titans', 'WAS': 'washington-commanders'
+        }
         
+        slug = OTC_SLUGS.get(team_code)
+        if not slug:
+            return None
+            
+        url = f"{self.BASE_URL}/salary-cap/{slug}"
         logger.debug(f"    Fetching: {url}")
         
         response = self.session.get(url, timeout=self.timeout)
@@ -127,44 +139,33 @@ class OverTheCapScraper:
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Find contracts table - Over The Cap uses different class names
-        # Look for table containing contract data
-        table = None
-        for tbl in soup.find_all('table'):
-            # Check if table has contract-like headers
-            headers = [th.get_text().strip().lower() for th in tbl.find_all('th')]
-            if any(h in ['player', 'name'] for h in headers) and any(h in ['guaranteed', 'bonus', 'cap'] for h in headers):
-                table = tbl
-                break
-        
-        if not table:
-            logger.debug(f"    No contract table found for {team_code}")
-            return None
-        
         contracts = []
-        tbody = table.find('tbody')
-        if not tbody:
-            tbody = table  # Some tables don't have tbody
         
-        for row in tbody.find_all('tr'):
-            cells = row.find_all('td')
-            if len(cells) < 5:
-                continue
-            
-            try:
-                contract = self._parse_contract_row(cells, team_code, year)
-                if contract:
-                    contracts.append(contract)
-            except Exception as e:
-                logger.debug(f"    Error parsing row: {e}")
-                continue
-        
+        for tbl in soup.find_all('table'):
+            headers = [th.text.strip() for th in tbl.find_all('th')]
+            if 'Player' in headers and 'CapNumber' in headers:
+                tbody = tbl.find('tbody')
+                if not tbody:
+                    tbody = tbl
+                
+                for row in tbody.find_all('tr'):
+                    cells = row.find_all('td')
+                    if not cells: continue
+                    
+                    try:
+                        contract = self._parse_contract_row(cells, headers, team_code, year)
+                        if contract:
+                            contracts.append(contract)
+                    except Exception as e:
+                        logger.debug(f"    Error parsing row: {e}")
+                        continue
+                        
         if contracts:
             return pd.DataFrame(contracts)
         return None
     
-    def _parse_contract_row(self, cells: List, team_code: str, year: int) -> Optional[Dict]:
-        """Parse a single contract table row."""
+    def _parse_contract_row(self, cells: List, headers: List[str], team_code: str, year: int) -> Optional[Dict]:
+        """Parse a single contract table row from the salary cap page."""
         
         def _parse_money(text: str) -> Optional[float]:
             """Parse money value (e.g., '$5,000,000' → 5.0)"""
@@ -177,49 +178,33 @@ class OverTheCapScraper:
                 return value_dollars / 1_000_000  # Convert to millions
             except ValueError:
                 return None
+                
+        # Find cell indices
+        idx_player = headers.index('Player') if 'Player' in headers else -1
+        idx_cap = headers.index('CapNumber') if 'CapNumber' in headers else -1
+        idx_guar = headers.index('Guaranteed Salary') if 'Guaranteed Salary' in headers else -1
+        idx_prorated = headers.index('Prorated Bonus') if 'Prorated Bonus' in headers else -1
         
-        # Over The Cap table structure varies, but typically:
-        # [Player] [Position] [Contract Length] [Signing Bonus] [Guaranteed Money] [Cap Hit] [Dead Cap]
-        
-        player_name = cells[0].get_text().strip() if len(cells) > 0 else None
-        position = cells[1].get_text().strip() if len(cells) > 1 else None
-        
+        if idx_player == -1 or idx_player >= len(cells):
+            return None
+            
+        player_name = cells[idx_player].text.strip()
         if not player_name:
             return None
-        
-        # Try to find guaranteed and signing bonus columns by header context
-        row_text = ' '.join([c.get_text().strip() for c in cells])
-        
-        # Extract monetary values from all cells
-        money_values = []
-        for cell in cells[2:]:  # Skip player and position
-            val = _parse_money(cell.get_text())
-            if val is not None:
-                money_values.append(val)
-        
-        # Assign values (heuristic: typically guaranteed is largest, signing bonus next)
-        guaranteed = money_values[0] if len(money_values) > 0 else None
-        signing_bonus = money_values[1] if len(money_values) > 1 else None
-        cap_hit = money_values[2] if len(money_values) > 2 else None
-        
-        # Try to extract contract length (years)
-        years_text = cells[2].get_text().strip() if len(cells) > 2 else ""
-        years_contracted = None
-        if any(c.isdigit() for c in years_text):
-            try:
-                years_contracted = int(''.join(filter(str.isdigit, years_text.split()[0])))
-            except:
-                years_contracted = None
+            
+        cap_hit = _parse_money(cells[idx_cap].text) if idx_cap != -1 and idx_cap < len(cells) else 0.0
+        guar_salary = _parse_money(cells[idx_guar].text) if idx_guar != -1 and idx_guar < len(cells) else 0.0
+        signing_bonus = _parse_money(cells[idx_prorated].text) if idx_prorated != -1 and idx_prorated < len(cells) else 0.0
         
         return {
             'player_name': player_name,
             'team': team_code,
-            'position': position,
+            'position': None,  # Not fully available on this table
             'year': year,
-            'total_value_millions': guaranteed,  # Use guaranteed as proxy for total
-            'guaranteed_money_millions': guaranteed,
+            'total_value_millions': 0.0, 
+            'guaranteed_money_millions': guar_salary,
             'signing_bonus_millions': signing_bonus,
-            'years_contracted': years_contracted,
+            'years_contracted': 0,
             'year_cap_hit_millions': cap_hit
         }
     

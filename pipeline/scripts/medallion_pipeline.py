@@ -12,6 +12,7 @@ from src.db_manager import DBManager
 from src.config_loader import get_db_path, get_bronze_dir
 from src.financial_ingestion import load_team_financials, load_player_merch
 from src.spotrac_scraper_v2 import scrape_and_save_player_contracts, scrape_and_save_player_rankings
+from src.overthecap_scraper import OverTheCapScraper
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -35,7 +36,29 @@ def clean_doubled_name(name):
     return name
 
 class BronzeLayer:
-    """Bronze Layer: Raw Data Discovery & Reading."""
+    """Bronze Layer: Raw Data Architecture (Direct to BigQuery)"""
+    def __init__(self, db: DBManager):
+        self.db = db
+
+    def ingest_contracts(self, year: int):
+        import datetime
+        logger.info(f"BronzeLayer: Scraping OverTheCap contracts for {year} to bypass Spotrac 403 blocks...")
+        try:
+            scraper = OverTheCapScraper()
+            df = scraper.scrape_team_contracts(year)
+            if df is None or df.empty:
+                logger.error("Scraper returned empty DataFrame.")
+                return
+            
+            # Inject Iceberg-like versioning timestamp
+            df['_ingestion_timestamp'] = pd.Timestamp.utcnow()
+            
+            # Append directly to BigQuery Bronze Table
+            self.db.append_dataframe_to_table(df, "bronze_overthecap_contracts")
+            logger.info("BronzeLayer: Successfully materialized contracts to bronze_overthecap_contracts.")
+        except Exception as e:
+            logger.error(f"BronzeLayer: Failed to ingest OTC contracts: {e}")
+
     @staticmethod
     def find_files(pattern: str, year: int) -> List[Path]:
         possible_globs = [
@@ -53,15 +76,6 @@ class BronzeLayer:
                 files.sort(key=lambda x: x.stat().st_mtime)
                 return [files[-1]]
                 
-        return []
-        # HARDCODED FALLBACK FOR 2025 CONTRACTS (Debug Fix)
-        if pattern == "spotrac_player_contracts" and year == 2025:
-             fallback = Path("data/raw/spotrac_player_contracts_2025_20260202_181248.csv")
-             if fallback.exists():
-                 print(f"DEBUG: Using Hardcoded Fallback for {pattern}: {fallback}")
-                 return [fallback]
-                 
-        return []
         return []
 
 class SilverLayer:
@@ -91,102 +105,61 @@ class SilverLayer:
             except Exception as e:
                 logger.warning(f"Failed to execute schema statement: {e}. Statement: {sql[:50]}...")
 
-    def ingest_spotrac(self, year: int):
-        logger.info(f"SilverLayer: Ingesting Spotrac data for {year}")
-        # Try to find file with year in filename first
-        files = BronzeLayer.find_files(f"spotrac_player_contracts_{year}", year)
-        
-        if not files:
-             logger.info(f"Missing Spotrac Contracts for {year}. Initiating SCRAPE...")
-             try:
-                 output_dir = BRONZE_DIR / 'spotrac' / str(year)
-                 scrape_and_save_player_contracts(year, output_dir=output_dir)
-                 files = BronzeLayer.find_files(f"spotrac_player_contracts_{year}", year)
-             except Exception as e:
-                 logger.error(f"Scrape failed for contracts {year}: {e}")
-
-        if not files:
-             # Fallback to generic search if specific year file not found
-             logger.info(f"Specific year file not found, trying generic search...")
-             files = BronzeLayer.find_files("spotrac_player_contracts", year)
-        
-        if files:
-            logger.info(f"Loading Spotrac Contracts from: {files[0]}")
-            df = pd.read_csv(files[0])
-        else:
-            logger.info(f"Contracts file missing. Trying Rankings...")
-            files = BronzeLayer.find_files("spotrac_player_rankings", year)
-            
-            if not files:
-                logger.info(f"Missing Spotrac Rankings for {year}. Initiating SCRAPE...")
-                try:
-                    output_dir = BRONZE_DIR / 'spotrac' / str(year)
-                    scrape_and_save_player_rankings(year, output_dir=output_dir)
-                    files = BronzeLayer.find_files("spotrac_player_rankings", year)
-                except Exception as e:
-                     logger.error(f"Scrape failed for rankings {year}: {e}")
-
-            if not files:
-                logger.warning(f"No Spotrac files found for {year} even after scrape attempt.")
+    def ingest_contracts(self, year: int):
+        logger.info(f"SilverLayer: Ingesting Contracts data from Bronze for {year}")
+        try:
+            # Emulate Iceberg logic: fetch the LATEST ingestion 
+            # We use MAX(_ingestion_timestamp) partitioned by year to get the newest snapshot.
+            query = f"""
+                WITH latest_scrape AS (
+                    SELECT MAX(_ingestion_timestamp) as latest_ts 
+                    FROM {self.db.project_id}.{self.db.dataset_id}.bronze_overthecap_contracts
+                    WHERE year = {year}
+                )
+                SELECT *
+                FROM {self.db.project_id}.{self.db.dataset_id}.bronze_overthecap_contracts
+                WHERE year = {year}
+                  AND _ingestion_timestamp = (SELECT latest_ts FROM latest_scrape)
+            """
+            df = self.db.fetch_df(query)
+            if df.empty:
+                logger.warning(f"No Bronze OverTheCap records found for {year}.")
                 return
-
-            df = pd.read_csv(files[0])
-        
+        except Exception as e:
+            logger.error(f"Failed to query bronze_overthecap_contracts: {e}")
+            return
+            
         df['player_name'] = df['player_name'].apply(clean_doubled_name)
         
-        # Ensure cap_hit_millions exists
-        if 'cap_hit_millions' not in df.columns:
-             logger.warning("cap_hit_millions missing. Setting to 0 to avoid massive outliers (do NOT fallback to total_contract_value).")
-             df['cap_hit_millions'] = 0.0
+        # Map OverTheCap columns to the expected Silver schema (which previously relied on Spotrac)
+        df['cap_hit_millions'] = df['year_cap_hit_millions'].fillna(0.0)
+        df['dead_cap_millions'] = df['guaranteed_money_millions'].fillna(0.0)
+        df['signing_bonus_millions'] = df['signing_bonus_millions'].fillna(0.0)
+        df['total_contract_value_millions'] = df['total_value_millions'].fillna(0.0)
         
-        df = df.rename(columns={
-            'guaranteed_money_millions': 'dead_cap_millions',
-        })
-        
+        # OverTheCap does not provide granular base_salary or age on the generic table layout
         required_cols = [
-            'cap_hit_millions', 'dead_cap_millions', 'age', 
-            'signing_bonus_millions', 'guaranteed_money_millions', 'total_contract_value_millions',
-            'base_salary_millions', 'prorated_bonus_millions', 'roster_bonus_millions', 'guaranteed_salary_millions'
+            'age', 'base_salary_millions', 'prorated_bonus_millions', 
+            'roster_bonus_millions', 'guaranteed_salary_millions'
         ]
         for col in required_cols:
-            if col not in df.columns: df[col] = None
+            df[col] = None
 
+        logger.info(f"SilverLayer: Upserting {len(df)} contract records for {year} into silver_spotrac_contracts...")
         self.db.execute(f"DELETE FROM silver_spotrac_contracts WHERE year = {year}")
         self.db.execute("""
             INSERT INTO silver_spotrac_contracts (player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, age, base_salary_millions, prorated_bonus_millions, roster_bonus_millions, guaranteed_salary_millions)
-            SELECT player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, age, base_salary_millions, prorated_bonus_millions, roster_bonus_millions, guaranteed_salary_millions FROM df
+            SELECT player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, SAFE_CAST(age AS INT64), SAFE_CAST(base_salary_millions AS FLOAT64), SAFE_CAST(prorated_bonus_millions AS FLOAT64), SAFE_CAST(roster_bonus_millions AS FLOAT64), SAFE_CAST(guaranteed_salary_millions AS FLOAT64) FROM df
         """, {"df": df})
 
-        # Salaries
-        sal_files = BronzeLayer.find_files("spotrac_player_salaries", year)
-        if sal_files:
-            df_sal = pd.read_csv(sal_files[0])
-            if 'player_name' in df_sal.columns:
-                df_sal['player_name'] = df_sal['player_name'].apply(clean_doubled_name)
-            # Normalize columns to match schema
-            col_map = {
-                "dead_money_millions": "dead cap",
-                "Dead Cap": "dead cap",
-                "DeadCap": "dead cap",
-                "dead_cap": "dead cap"
-            }
-            df_sal = df_sal.rename(columns=col_map)
-            
-            # Ensure "dead cap" column exists, fill with 0/None if missing
-            if "dead cap" not in df_sal.columns:
-                 logger.warning(f"Could not find 'dead cap' column in Spotrac Salaries {year}. Columns: {df_sal.columns.tolist()}")
-                 df_sal["dead cap"] = "0"
-
-            # Ensure columns exist
-            if 'position' not in df_sal.columns:
-                 # Try to infer or leave null
-                 df_sal['position'] = None
-                 
-            self.db.execute(f"DELETE FROM silver_spotrac_salaries WHERE year = {year}")
-            self.db.execute("""
-                INSERT INTO silver_spotrac_salaries (player_name, team, year, position, "dead cap")
-                SELECT player_name, team, year, position, "dead cap" FROM df_sal
-            """, {"df_sal": df_sal})
+        # Emulate Spotrac Salaries schema using OverTheCap guaranteed money so Gold Layer dependencies don't break
+        df_sal = df.copy()
+        df_sal['dead_cap'] = df_sal['dead_cap_millions'].astype(str)
+        self.db.execute(f"DELETE FROM silver_spotrac_salaries WHERE year = {year}")
+        self.db.execute("""
+            INSERT INTO silver_spotrac_salaries (player_name, team, year, position, dead_cap)
+            SELECT player_name, team, year, position, dead_cap FROM df_sal
+        """, {"df_sal": df_sal})
 
     def ingest_pfr(self, year: int):
         logger.info(f"SilverLayer: Ingesting PFR Data for {year}")
@@ -315,13 +288,13 @@ class GoldLayer:
             SELECT 
                 player_name, team, year, week,
                 COUNT(DISTINCT game_url) as games_played,
-                SUM(TRY_CAST(Passing_Yds AS FLOAT)) as total_pass_yds,
-                SUM(TRY_CAST(Rushing_Yds AS FLOAT)) as total_rush_yds,
-                SUM(TRY_CAST(Receiving_Yds AS FLOAT)) as total_rec_yds,
-                SUM(TRY_CAST(Passing_TD AS INT) + TRY_CAST(Rushing_TD AS INT) + TRY_CAST(Receiving_TD AS INT)) as total_tds,
+                SUM(SAFE_CAST(Passing_Yds AS FLOAT64)) as total_pass_yds,
+                SUM(SAFE_CAST(Rushing_Yds AS FLOAT64)) as total_rush_yds,
+                SUM(SAFE_CAST(Receiving_Yds AS FLOAT64)) as total_rec_yds,
+                SUM(SAFE_CAST(Passing_TD AS INT64) + SAFE_CAST(Rushing_TD AS INT64) + SAFE_CAST(Receiving_TD AS INT64)) as total_tds,
                 -- Defensive Aggregations
-                SUM(TRY_CAST(Sacks AS FLOAT)) as total_sacks,
-                SUM(TRY_CAST(Interceptions AS FLOAT)) as total_int
+                SUM(SAFE_CAST(Sacks AS FLOAT64)) as total_sacks,
+                SUM(SAFE_CAST(Interceptions AS FLOAT64)) as total_int
             FROM silver_pfr_game_logs
             GROUP BY 1, 2, 3, 4
         ),
@@ -336,8 +309,8 @@ class GoldLayer:
         dedup_contracts AS (
             SELECT 
                 CASE 
-                    WHEN LENGTH(s.player_name) % 2 = 0 AND SUBSTRING(s.player_name, 1, CAST(LENGTH(s.player_name)/2 AS BIGINT)) = SUBSTRING(s.player_name, CAST(LENGTH(s.player_name)/2 + 1 AS BIGINT))
-                    THEN SUBSTRING(s.player_name, 1, CAST(LENGTH(s.player_name)/2 AS BIGINT))
+                    WHEN MOD(LENGTH(s.player_name), 2) = 0 AND SUBSTRING(s.player_name, 1, CAST(LENGTH(s.player_name)/2 AS INT64)) = SUBSTRING(s.player_name, CAST(LENGTH(s.player_name)/2 + 1 AS INT64))
+                    THEN SUBSTRING(s.player_name, 1, CAST(LENGTH(s.player_name)/2 AS INT64))
                     ELSE s.player_name 
                 END as player_name, 
                 s.team, s.year, 
@@ -359,14 +332,14 @@ class GoldLayer:
                 FROM silver_spotrac_rankings 
                 GROUP BY 1, 2
             ) r 
-              ON LOWER(TRIM(CAST(s.player_name AS VARCHAR))) = LOWER(TRIM(CAST(r.player_name AS VARCHAR)))
+              ON LOWER(TRIM(CAST(s.player_name AS STRING))) = LOWER(TRIM(CAST(r.player_name AS STRING)))
               AND s.year = r.year
             GROUP BY 1, 2, 3
         ),
         salary_dead_cap AS (
             SELECT 
                 player_name, team, year,
-                MAX(TRY_CAST(REPLACE(REPLACE(REPLACE("dead cap", '$', ''), ',', ''), 'M', '') AS FLOAT)) as salaries_dead_cap_millions
+                MAX(SAFE_CAST(REPLACE(REPLACE(REPLACE(dead_cap, '$', ''), ',', ''), 'M', '') AS FLOAT64)) as salaries_dead_cap_millions
             FROM silver_spotrac_salaries
             GROUP BY 1, 2, 3
         ),
@@ -379,7 +352,7 @@ class GoldLayer:
                 p.week as week,
                 -- YTD Aggregation Window Functions
                 COALESCE(SUM(p.games_played) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as games_played,
-                CAST(COALESCE(SUM(p.games_played) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) AS FLOAT) / 17.0 as availability_rating,
+                SAFE_CAST(COALESCE(SUM(p.games_played) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) AS FLOAT64) / 17.0 as availability_rating,
                 COALESCE(SUM(p.total_pass_yds) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_pass_yds,
                 COALESCE(SUM(p.total_rush_yds) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_rush_yds,
                 COALESCE(SUM(p.total_rec_yds) OVER (PARTITION BY s.player_name, s.year ORDER BY p.week), 0) as total_rec_yds,
@@ -396,11 +369,11 @@ class GoldLayer:
                 m.draft_pick,
                 m.experience_years
             FROM dedup_contracts s
-            LEFT JOIN pfr_agg p ON LOWER(TRIM(CAST(s.player_name AS VARCHAR))) = LOWER(TRIM(CAST(p.player_name AS VARCHAR))) 
+            LEFT JOIN pfr_agg p ON LOWER(TRIM(CAST(s.player_name AS STRING))) = LOWER(TRIM(CAST(p.player_name AS STRING))) 
                 AND s.year = p.year AND s.team = p.team
             LEFT JOIN penalties_agg pen ON s.year = pen.year AND s.team = pen.team
-                AND (LOWER(s.player_name) LIKE LOWER(LEFT(pen.player_name_short, 1)) || '%' AND LOWER(s.player_name) LIKE '%' || LOWER(SUBSTRING(pen.player_name_short, 3)))
-            LEFT JOIN player_meta m ON LOWER(TRIM(CAST(s.player_name AS VARCHAR))) = LOWER(TRIM(CAST(m.full_name AS VARCHAR)))
+                AND (LOWER(s.player_name) LIKE CONCAT(LOWER(LEFT(pen.player_name_short, 1)), '%') AND LOWER(s.player_name) LIKE CONCAT('%', LOWER(SUBSTRING(pen.player_name_short, 3))))
+            LEFT JOIN player_meta m ON LOWER(TRIM(CAST(s.player_name AS STRING))) = LOWER(TRIM(CAST(m.full_name AS STRING)))
         )
         SELECT 
             f.*,
@@ -464,7 +437,7 @@ class GoldLayer:
             END as is_bust_binary
             
         FROM fact_long_fallback f
-        LEFT JOIN salary_dead_cap sdc ON LOWER(TRIM(CAST(f.player_name AS VARCHAR))) = LOWER(TRIM(CAST(sdc.player_name AS VARCHAR))) AND f.year = sdc.year AND LOWER(TRIM(CAST(f.team AS VARCHAR))) = LOWER(TRIM(CAST(sdc.team AS VARCHAR)))
+        LEFT JOIN salary_dead_cap sdc ON LOWER(TRIM(CAST(f.player_name AS STRING))) = LOWER(TRIM(CAST(sdc.player_name AS STRING))) AND f.year = sdc.year AND LOWER(TRIM(CAST(f.team AS STRING))) = LOWER(TRIM(CAST(sdc.team AS STRING)))
         """)
         logger.info("✓ Gold Layer populated: fact_player_efficiency")
 
@@ -489,7 +462,9 @@ def main():
 
         if not args.gold_only:
             silver.provision_schemas()
-            silver.ingest_spotrac(target_year)
+            bronze = BronzeLayer(db)
+            bronze.ingest_contracts(target_year)
+            silver.ingest_contracts(target_year)
             silver.ingest_pfr(target_year)
             silver.ingest_penalties(target_year)
             silver.ingest_team_cap()

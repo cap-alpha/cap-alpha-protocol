@@ -89,8 +89,8 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 19: Immutable Auditability (Cryptographic Ledger)
 **Goal:** Prove absolute honesty in historical Fair Market Value predictions by eliminating hindsight bias. Implement a verifiable cryptographic ledger.
-- [/] SP19-1: (Claimed by Agent) Hash nightly predictions and intelligence signals into a Merkle tree or public ledger interface.
-- [ ] SP19-2: Build `<VerifiableAudit />` component to render the cryptographic signature for any historical player event.
+- [x] SP19-1: (Completed by Agent) Hash nightly predictions and intelligence signals into a Merkle tree or public ledger interface.
+- [x] SP19-2: (Completed by Agent) Build `<VerifiableAudit />` component to render the cryptographic signature for any historical player event.
 - [ ] SP19-3: Architect a "Regulatory-Grade" data tier strictly enforcing append-only writes for prediction artifacts.
 
 ### Sprint 20: Sub-Second Latency & Performance Optimization

@@ -3,24 +3,25 @@
 
 -- Raw game logs from Pro-Football-Reference
 CREATE TABLE IF NOT EXISTS silver_pfr_game_logs (
-    player_name VARCHAR,
-    team VARCHAR,
+    player_name STRING,
+    team STRING,
     year INTEGER,
-    game_url VARCHAR,
-    Passing_Yds VARCHAR,
-    Rushing_Yds VARCHAR,
-    Receiving_Yds VARCHAR,
-    Passing_TD VARCHAR,
-    Rushing_TD VARCHAR,
-    Receiving_TD VARCHAR,
-    Sacks VARCHAR,
-    Interceptions VARCHAR
+    week INTEGER,
+    game_url STRING,
+    Passing_Yds STRING,
+    Rushing_Yds STRING,
+    Receiving_Yds STRING,
+    Passing_TD STRING,
+    Rushing_TD STRING,
+    Receiving_TD STRING,
+    Sacks STRING,
+    Interceptions STRING
 );
 
 -- Player penalty statistics
 CREATE TABLE IF NOT EXISTS silver_penalties (
-    player_name_short VARCHAR,
-    team VARCHAR,
+    player_name_short STRING,
+    team STRING,
     year INTEGER,
     penalty_count INTEGER,
     penalty_yards INTEGER
@@ -28,41 +29,41 @@ CREATE TABLE IF NOT EXISTS silver_penalties (
 
 -- Contract data from Spotrac
 CREATE TABLE IF NOT EXISTS silver_spotrac_contracts (
-    player_name VARCHAR,
-    team VARCHAR,
+    player_name STRING,
+    team STRING,
     year INTEGER,
-    position VARCHAR,
-    cap_hit_millions FLOAT,
-    dead_cap_millions FLOAT,
-    signing_bonus_millions FLOAT,
-    guaranteed_money_millions FLOAT,
-    total_contract_value_millions FLOAT,
-    base_salary_millions FLOAT,
-    prorated_bonus_millions FLOAT,
-    roster_bonus_millions FLOAT,
-    guaranteed_salary_millions FLOAT,
+    position STRING,
+    cap_hit_millions FLOAT64,
+    dead_cap_millions FLOAT64,
+    signing_bonus_millions FLOAT64,
+    guaranteed_money_millions FLOAT64,
+    total_contract_value_millions FLOAT64,
+    base_salary_millions FLOAT64,
+    prorated_bonus_millions FLOAT64,
+    roster_bonus_millions FLOAT64,
+    guaranteed_salary_millions FLOAT64,
     age INTEGER
 );
 
 -- Positional ranking data
 CREATE TABLE IF NOT EXISTS silver_spotrac_rankings (
-    player_name VARCHAR,
+    player_name STRING,
     year INTEGER,
-    ranking_cap_hit_millions FLOAT
+    ranking_cap_hit_millions FLOAT64
 );
 
 -- Team-level cap and performance data
 CREATE TABLE IF NOT EXISTS silver_team_cap (
-    team VARCHAR,
+    team STRING,
     year INTEGER,
-    win_pct FLOAT
+    win_pct FLOAT64
 );
 
 -- Static player attributes
 CREATE TABLE IF NOT EXISTS silver_player_metadata (
-    full_name VARCHAR,
-    birth_date VARCHAR,
-    college VARCHAR,
+    full_name STRING,
+    birth_date STRING,
+    college STRING,
     draft_round INTEGER,
     draft_pick INTEGER,
     experience_years INTEGER
@@ -70,31 +71,31 @@ CREATE TABLE IF NOT EXISTS silver_player_metadata (
 
 -- NFLPA Merchandise sales rankings
 CREATE TABLE IF NOT EXISTS silver_player_merch (
-    Player VARCHAR,
+    Player STRING,
     Rank INTEGER
 );
 
 -- Forbes team valuation data
 CREATE TABLE IF NOT EXISTS silver_team_finance (
-    Team VARCHAR,
+    Team STRING,
     Year INTEGER,
-    Revenue_M FLOAT,
-    OperatingIncome_M FLOAT
+    Revenue_M FLOAT64,
+    OperatingIncome_M FLOAT64
 );
 
 -- Salary breakdown
 CREATE TABLE IF NOT EXISTS silver_spotrac_salaries (
-    player_name VARCHAR,
-    team VARCHAR,
+    player_name STRING,
+    team STRING,
     year INTEGER,
-    position VARCHAR,
-    "dead cap" VARCHAR
+    position STRING,
+    dead_cap STRING
 );
 
 -- Draft history data
 CREATE TABLE IF NOT EXISTS silver_pfr_draft_history (
-    player_name VARCHAR,
-    team VARCHAR,
+    player_name STRING,
+    team STRING,
     year INTEGER,
     draft_round INTEGER,
     draft_pick INTEGER
@@ -102,35 +103,35 @@ CREATE TABLE IF NOT EXISTS silver_pfr_draft_history (
 
 -- Gold Layer: Player Efficiency Analytics
 CREATE TABLE IF NOT EXISTS fact_player_efficiency (
-    player_name VARCHAR,
-    team VARCHAR,
+    player_name STRING,
+    team STRING,
     year INTEGER,
-    position VARCHAR,
+    position STRING,
     age INTEGER,
-    college VARCHAR,
+    college STRING,
     draft_round INTEGER,
     draft_pick INTEGER,
     experience_years INTEGER,
     games_played INTEGER,
-    availability_rating FLOAT,
-    total_pass_yds FLOAT,
-    total_rush_yds FLOAT,
-    total_rec_yds FLOAT,
+    availability_rating FLOAT64,
+    total_pass_yds FLOAT64,
+    total_rush_yds FLOAT64,
+    total_rec_yds FLOAT64,
     total_tds INTEGER,
     total_penalty_count INTEGER,
     total_penalty_yards INTEGER,
-    total_sacks FLOAT,
-    total_int FLOAT,
-    cap_hit_millions FLOAT,
-    dead_cap_millions FLOAT,
-    signing_bonus_millions FLOAT,
-    guaranteed_money_millions FLOAT,
-    base_salary_millions FLOAT,
-    prorated_bonus_millions FLOAT,
-    roster_bonus_millions FLOAT,
-    guaranteed_salary_millions FLOAT,
-    potential_dead_cap_millions FLOAT,
-    edce_risk FLOAT,
-    fair_market_value FLOAT,
-    ml_risk_score FLOAT
+    total_sacks FLOAT64,
+    total_int FLOAT64,
+    cap_hit_millions FLOAT64,
+    dead_cap_millions FLOAT64,
+    signing_bonus_millions FLOAT64,
+    guaranteed_money_millions FLOAT64,
+    base_salary_millions FLOAT64,
+    prorated_bonus_millions FLOAT64,
+    roster_bonus_millions FLOAT64,
+    guaranteed_salary_millions FLOAT64,
+    potential_dead_cap_millions FLOAT64,
+    edce_risk FLOAT64,
+    fair_market_value FLOAT64,
+    ml_risk_score FLOAT64
 );

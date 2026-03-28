@@ -9,6 +9,8 @@ export interface SilverPfrGameLogs {
   team: string;
   /** Season year */
   year: number;
+  /** NFL Week integer */
+  week: number;
   /** Unique URL per game */
   game_url: string;
   /** Passing Yards (raw) */
@@ -142,7 +144,7 @@ export interface SilverSpotracSalaries {
   /** Player position */
   position: string;
   /** Raw dead cap string */
-  "dead cap": string;
+  dead_cap: string;
 }
 
 /** Draft history data */

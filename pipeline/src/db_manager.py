@@ -106,6 +106,7 @@ class DBManager:
             
             job_config = bigquery.QueryJobConfig(default_dataset=self.client.dataset(self.dataset_id))
             job = self.client.query(processed_query, job_config=job_config)
+            job.result()  # Wait for query to complete to catch errors and prevent premature temp table deletion
             return BQResultProxy(job)
         except Exception as e:
             logger.error(f"Query execution failed: {e}\nQuery: {query}")
@@ -120,6 +121,32 @@ class DBManager:
             return job.to_dataframe()
         except Exception as e:
             logger.error(f"Failed to fetch DataFrame: {e}")
+            raise
+
+    def append_dataframe_to_table(self, df: pd.DataFrame, table_name: str):
+        """Appends a Pandas DataFrame directly to a BigQuery table."""
+        if self.client is None:
+            raise RuntimeError("Database connection not initialized.")
+            
+        try:
+            logger.info(f"DBManager: Appending dataframe to '{table_name}'...")
+            table_ref = f"{self.project_id}.{self.dataset_id}.{table_name}"
+            
+            # Sanitize column names for BigQuery compatibility
+            df_cleaned = df.copy()
+            df_cleaned.columns = df_cleaned.columns.astype(str).str.replace(r'[^a-zA-Z0-9_]', '_', regex=True)
+            
+            # Cast object types to string to avoid Parquet type mismatch exceptions
+            for col in df_cleaned.columns:
+                if df_cleaned[col].dtype == 'object':
+                    df_cleaned[col] = df_cleaned[col].astype(str)
+                    
+            job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
+            job = self.client.load_table_from_dataframe(df_cleaned, table_ref, job_config=job_config)
+            job.result()  # Wait for upload to complete
+            logger.info(f"DBManager: Successfully appended {len(df_cleaned)} rows to '{table_name}'.")
+        except Exception as e:
+            logger.error(f"Failed to append DataFrame to table '{table_name}': {e}")
             raise
 
     def table_exists(self, table_name: str) -> bool:

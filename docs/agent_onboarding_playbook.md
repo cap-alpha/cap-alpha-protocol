@@ -5,7 +5,9 @@
 > The human operator's top-level imperative is to **maximally leverage Agentic compute quota**. Across all projects, you MUST proactively recommend high-ROI autonomous tasks, suggest parallel workflows, and offer to run deep, computationally expensive tasks (like adversarial fuzzing, data backfills, or UI/UX audits) when the user steps away. Never wait idly if compute can be burned on infrastructure hardening.
 
 **System Architecture State**:
-- **Data Ingestion**: Moved from explicit scheduled Github Actions for heavy ETL to **Google Cloud Run Jobs**. We are in the process of automating the `pipeline/run_daily.py` job via Google Cloud Scheduler.
+- **Data Backend**: Transitioned completely from MotherDuck local files to **Google BigQuery Native**. The Medallion pipeline (Bronze -> Silver -> Gold) successfully hydrates 2026 data. Schemas are strictly compiled via `contracts/compile.py`.
+- **Data Scrapers**: Swapped Spotrac for **OverTheCap** (`/salary-cap/{slug}`) as the primary contracts source to completely bypass Cloudflare bot mitigation (403s). 
+- **BigQuery Dialect**: All internally generated SQL MUST compile natively for BigQuery. This means mapping `VARCHAR` to `STRING`, using `FLOAT64`/`INT64`, bypassing `%` with `MOD()`, and leveraging `SAFE_CAST()` over `TRY_CAST()`.
 - **Social Media**: Omnichannel Social Hydration is active. We are using `praw` (Reddit API) over Apify/Official APIs for cost and stability. A new `player_timeline_events` schema in MotherDuck replaces `media_lag_metrics` to support native Z-1 (High-Level) and Z-2 (Detailed) "semantic zooming" for the UI.
 - **Data Versioning**: DVC (Data Version Control) is now enabled. `data/raw` and `models/*.pkl` are tracked by DVC, backed by Google Cloud Storage bucket `gs://rl-trading-strategy-flywheel-data/nfl_dead_money_dvc_storage`. Ensure `dvc pull` is executed if you need local access to heavy ML assets or raw CSV datasets.
 - **Code Execution**: Always execute scripts from the virtual environment (e.g., `.venv/bin/python`).

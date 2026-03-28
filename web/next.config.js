@@ -21,6 +21,10 @@ const nextConfig = {
                 source: '/(.*)',
                 headers: [
                     {
+                        key: 'Content-Security-Policy',
+                        value: "worker-src 'self' blob:;",
+                    },
+                    {
                         key: 'Strict-Transport-Security',
                         value: 'max-age=63072000; includeSubDomains; preload',
                     },

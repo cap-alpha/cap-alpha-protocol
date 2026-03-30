@@ -12,9 +12,9 @@ with team_cap as (
 
 select
   year,
-  round(sum(dead_money_millions)::numeric, 2) as total_dead_money_millions,
-  round(avg(dead_money_millions)::numeric, 2) as avg_dead_money_per_team,
-  round(max(dead_money_millions)::numeric, 2) as max_dead_money_millions,
+  round(CAST(sum(dead_money_millions) AS NUMERIC), 2) as total_dead_money_millions,
+  round(CAST(avg(dead_money_millions) AS NUMERIC), 2) as avg_dead_money_per_team,
+  round(CAST(max(dead_money_millions) AS NUMERIC), 2) as max_dead_money_millions,
   count(distinct team) as teams_with_data
 from team_cap
 group by year

@@ -2,15 +2,20 @@ nfl_dead_money:
   target: dev
   outputs:
     dev:
-      type: duckdb
-      path: 'nfl_dead_money.duckdb'
-      schema: main
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: nfl_dead_money_dev
       threads: 4
-      memory_limit: 4gb
+      location: US
+      timeout_seconds: 300
     prod:
-      type: duckdb
-      path: 'md:nfl_dead_money'
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('GCP_PROJECT_ID') }}"
+      dataset: nfl_dead_money
+      keyfile: "{{ env_var('GCP_KEYFILE_PATH') }}"
       threads: 4
-      settings:
-        motherduck_token: "{{ env_var('MOTHERDUCK_TOKEN') }}"
+      location: US
+      timeout_seconds: 300
 

@@ -18,7 +18,7 @@ team_cap_totals as (
     null as player,
     team,
     'TEAM' as position,
-    total_dead_money as cap_value,
+    dead_money_million as cap_value,
     year,
     'team' as level
   from {{ ref('stg_team_dead_money') }}

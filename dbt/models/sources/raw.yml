@@ -1,4 +1,4 @@
-# Raw data sources (CSV-based for now)
+# Raw data sources
 
 version: 2
 
@@ -8,6 +8,18 @@ sources:
     tables:
       - name: team_dead_money_raw
         description: Team-level dead money aggregates
-        
+
       - name: player_dead_money_raw
         description: Player-level dead money data
+
+      - name: player_rankings_raw
+        description: Player cap value rankings from Spotrac
+
+      - name: pfr_rosters_raw
+        description: Pro Football Reference roster data with player performance metrics
+
+      - name: player_contracts_raw
+        description: Player contract details from Spotrac (value, guarantees, bonuses)
+
+      - name: raw_media_sentiment
+        description: News and media sentiment data for player timeline events

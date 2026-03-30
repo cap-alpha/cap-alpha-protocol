@@ -8,10 +8,10 @@ WITH contracts AS (
     SELECT
         player_name,
         team,
-        MAKE_DATE(year, 3, 1) as event_date, -- Start of league year
+        DATE(year, 3, 1) as event_date, -- Start of league year
         'Contract' as event_type,
-        'Signed ' || CAST(contract_length_years AS VARCHAR) || ' yr / $' || CAST(total_contract_value_millions AS VARCHAR) || 'M contract' as event_description,
-        CAST(total_contract_value_millions AS DECIMAL(10,2)) as financial_impact_millions
+        CONCAT('Signed ', CAST(contract_length_years AS STRING), ' yr / $', CAST(total_contract_value_millions AS STRING), 'M contract') as event_description,
+        CAST(total_contract_value_millions AS NUMERIC) as financial_impact_millions
     FROM {{ ref('stg_player_contracts') }}
     WHERE total_contract_value_millions > 0
 ),
@@ -20,10 +20,10 @@ cap_hits AS (
     SELECT
         player_name,
         team,
-        MAKE_DATE(year, 9, 1) as event_date, -- Start of season
+        DATE(year, 9, 1) as event_date, -- Start of season
         'Dead Money' as event_type,
-        'Dead Cap Hit: $' || CAST(dead_cap_millions AS VARCHAR) || 'M' as event_description,
-        CAST(dead_cap_millions AS DECIMAL(10,2)) as financial_impact_millions
+        CONCAT('Dead Cap Hit: $', CAST(dead_cap_millions AS STRING), 'M') as event_description,
+        CAST(dead_cap_millions AS NUMERIC) as financial_impact_millions
     FROM {{ ref('stg_spotrac_dead_money') }}
     WHERE dead_cap_millions > 0
 ),
@@ -31,7 +31,7 @@ cap_hits AS (
 news AS (
     SELECT
         player_name,
-        NULL::VARCHAR as team,
+        CAST(NULL AS STRING) as team,
         CAST(ingested_at AS DATE) as event_date,
         CASE
             WHEN LOWER(raw_text) LIKE '%injur%' OR LOWER(raw_text) LIKE '%surgery%' OR LOWER(raw_text) LIKE '%torn%' THEN 'Injury'
@@ -41,8 +41,8 @@ news AS (
             ELSE 'News Intel'
         END as event_type,
         raw_text as event_description,
-        0.0::DECIMAL(10,2) as financial_impact_millions
-    FROM bronze_layer.raw_media_sentiment
+        CAST(0.0 AS NUMERIC) as financial_impact_millions
+    FROM {{ source('raw', 'raw_media_sentiment') }}
 ),
 
 combined AS (

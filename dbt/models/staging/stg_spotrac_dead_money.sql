@@ -9,8 +9,8 @@
 select
   player_name,
   team,
-  cast(year as integer) as year,
-  cast(dead_cap_hit as decimal(10, 2)) as dead_cap_millions,
+  cast(year as INT64) as year,
+  SAFE_CAST(dead_cap_hit AS NUMERIC) as dead_cap_millions,
   position,
   is_king
 from {{ source('spotrac', 'spotrac_dead_money') }}

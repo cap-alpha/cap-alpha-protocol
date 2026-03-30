@@ -34,14 +34,14 @@ SELECT
     player_name,
     team,
     position,
-    CAST(year AS INT) as year,
-    COALESCE(CAST(total_contract_value_millions AS DECIMAL(10,2)), 0) as total_contract_value_millions,
-    COALESCE(CAST(guaranteed_money_millions AS DECIMAL(10,2)), 0) as guaranteed_money_millions,
-    COALESCE(CAST(signing_bonus_millions AS DECIMAL(10,2)), 0) as signing_bonus_millions,
-    CAST(contract_length_years AS INT) as contract_length_years,
-    CAST(years_remaining AS INT) as years_remaining,
-    COALESCE(CAST(cap_hit_millions AS DECIMAL(10,2)), 0) as cap_hit_millions,
-    COALESCE(CAST(dead_cap_millions AS DECIMAL(10,2)), 0) as dead_cap_millions,
+    CAST(year AS INT64) as year,
+    COALESCE(CAST(total_contract_value_millions AS NUMERIC), 0) as total_contract_value_millions,
+    COALESCE(CAST(guaranteed_money_millions AS NUMERIC), 0) as guaranteed_money_millions,
+    COALESCE(CAST(signing_bonus_millions AS NUMERIC), 0) as signing_bonus_millions,
+    CAST(contract_length_years AS INT64) as contract_length_years,
+    CAST(years_remaining AS INT64) as years_remaining,
+    COALESCE(CAST(cap_hit_millions AS NUMERIC), 0) as cap_hit_millions,
+    COALESCE(CAST(dead_cap_millions AS NUMERIC), 0) as dead_cap_millions,
     -- Derived features
     CASE 
         WHEN guaranteed_money_millions > 0 AND total_contract_value_millions > 0

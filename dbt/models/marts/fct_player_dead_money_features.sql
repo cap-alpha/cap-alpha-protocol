@@ -31,10 +31,10 @@ rosters AS (
         player_name,
         team,
         year,
-        CAST(age AS INT) as age_at_year,
-        CAST(games_played AS INT) as games_played,
-        CAST(approximate_value AS DECIMAL(10,2)) as performance_av,
-        CAST(years_experience AS INT) as years_experience
+        CAST(age AS INT64) as age_at_year,
+        CAST(games_played AS INT64) as games_played,
+        CAST(approximate_value AS NUMERIC) as performance_av,
+        CAST(years_experience AS INT64) as years_experience
     FROM {{ ref('stg_player_rosters') }}  -- Will be created as companion model
     WHERE age IS NOT NULL
 ),

@@ -3,7 +3,7 @@ version: 2
 sources:
   - name: spotrac
     description: Spotrac scraped data sources
-    schema: main
+    schema: staging
     
     tables:
       - name: spotrac_team_cap

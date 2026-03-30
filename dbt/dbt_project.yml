@@ -47,14 +47,14 @@ seeds:
       +schema: staging
       +quote_columns: false
       +column_types:
-        team_name: varchar
-        team: varchar
-        year: int
-        active_cap_millions: numeric
-        dead_money_millions: numeric
-        salary_cap_millions: numeric
-        cap_space_millions: numeric
-        dead_cap_pct: numeric
+        team_name: STRING
+        team: STRING
+        year: INT64
+        active_cap_millions: NUMERIC
+        dead_money_millions: NUMERIC
+        salary_cap_millions: NUMERIC
+        cap_space_millions: NUMERIC
+        dead_cap_pct: NUMERIC
 
 # TODO: Configure additional variables and project-specific settings
 vars:

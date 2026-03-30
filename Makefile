@@ -1,4 +1,44 @@
-.PHONY: up down pipeline web e2e shell-pipeline check
+.PHONY: up down pipeline web e2e shell-pipeline check preflight test test-unit lint help
+
+# -----------------------------------------------------------------------------
+# PREFLIGHT & VALIDATION
+# -----------------------------------------------------------------------------
+
+preflight: lint test-unit dbt-compile
+	@echo "\n✅ Preflight passed. Safe to commit."
+
+lint:
+	@echo "Running lint (black --check + isort --check)..."
+	docker compose --env-file docker_env.txt exec pipeline bash -c "black --check pipeline/src/ && isort --check-only pipeline/src/"
+
+test-unit:
+	@echo "Running unit tests (pytest, no integration)..."
+	docker compose --env-file docker_env.txt exec pipeline bash -c "PYTHONPATH=pipeline/libs:pipeline/src pytest pipeline/tests/ -v -m 'not integration'"
+
+test:
+	@echo "Running full test suite..."
+	docker compose --env-file docker_env.txt exec pipeline bash -c "PYTHONPATH=pipeline/libs:pipeline/src pytest pipeline/tests/ -v"
+
+dbt-compile:
+	@echo "Checking dbt SQL compilation (syntax validation)..."
+	docker compose --env-file docker_env.txt exec pipeline bash -c "cd dbt && dbt compile --profiles-dir . --project-dir ."
+
+help:
+	@echo "NFL Dead Money - Available Commands"
+	@echo "===================================="
+	@echo "  make preflight        - Run lint + unit tests + dbt compile (pre-commit gate)"
+	@echo "  make lint             - Check code formatting (black, isort)"
+	@echo "  make test-unit        - Run unit tests only (fast)"
+	@echo "  make test             - Run full test suite (unit + integration)"
+	@echo "  make dbt-compile      - Validate dbt SQL syntax"
+	@echo "  make up               - Start all Docker services"
+	@echo "  make down             - Stop all Docker services"
+	@echo "  make pipeline-scrape  - Run full Spotrac scraping pipeline"
+	@echo "  make pipeline-train   - Train XGBoost risk model"
+	@echo "  make pipeline-nlp     - Hydrate NLP sentiment vectors"
+	@echo "  make pipeline-validate - Run target leakage diagnostics"
+	@echo "  make test-e2e         - Run Playwright E2E tests"
+	@echo "  make shell-pipeline   - Shell into pipeline container"
 
 # -----------------------------------------------------------------------------
 # CORE COMMANDS (IMMUTABLE EXECUTION ONLY)
@@ -33,7 +73,8 @@ pipeline-validate:
 
 pipeline-factcheck:
 	@echo "Running Automated Gemini Search Grounding on Top 50 Predictions..."
-	docker compose exec -e MOTHERDUCK_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6ImFuZHJldy5wYXRyaWNrLnNtaXRoQGljbG91ZC5jb20iLCJtZFJlZ2lvbiI6ImF3cy11cy1lYXN0LTEiLCJzZXNzaW9uIjoiYW5kcmV3LnBhdHJpY2suc21pdGguaWNsb3VkLmNvbSIsInBhdCI6IndaSkdSa2x3WVJNU3FpbjdLdXJZYXNXTHpmaG9peGhLX1p4c1RwRmFSbDgiLCJ1c2VySWQiOiJmOTM0MjI4Ni04NDNhLTQ5ZTctYTI1My1kOTU2YmU5NjM3OTMiLCJpc3MiOiJtZF9wYXQiLCJyZWFkT25seSI6ZmFsc2UsInRva2VuVHlwZSI6InJlYWRfd3JpdGUiLCJpYXQiOjE3NzM1MTM5ODN9.yRpp_mw929DqO9_DzYe55BIjUAw2q9-gAhc322_5iR8" -e GEMINI_API_KEY="AIzaSyDv0cMQwS-EMgMKF2CB3iiNWQd4rLTzw3E" -e GEMINI_MODEL="$(if $(MODEL),$(MODEL),gemini-2.5-flash)" pipeline bash -c "python scripts/fact_check_top_50.py $(if $(TEAM),\"$(TEAM)\",)"
+	@echo "(Requires MOTHERDUCK_TOKEN and GEMINI_API_KEY in docker_env.txt)"
+	docker compose --env-file docker_env.txt exec -e GEMINI_MODEL="$(if $(MODEL),$(MODEL),gemini-2.5-flash)" pipeline bash -c "python scripts/fact_check_top_50.py $(if $(TEAM),\"$(TEAM)\",)"
 
 # -----------------------------------------------------------------------------
 # WEB & TESTING

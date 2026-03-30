@@ -4,9 +4,9 @@
 
 **Purpose**: Analyze NFL salary cap dead money (money paid to non-contributing players) to identify patterns and predictability.
 
-**Tech Stack**: Python 3.x | Apache Airflow (CeleryExecutor) | dbt (DuckDB backend) | Pytest | Plotly
+**Tech Stack**: Python 3.x | Docker Compose | dbt (BigQuery backend) | XGBoost | Pytest | Plotly | Next.js 14
 
-**Architecture**: Data pipeline with 4 layers (scraping → staging → normalization → marts) + CI/CD + validation
+**Architecture**: Medallion pipeline (Bronze → Silver → Gold) in BigQuery + ML feature store + Next.js frontend
 
 ---
 
@@ -14,51 +14,55 @@
 
 ### Testing & Validation (Use Makefile)
 ```bash
-make test              # Run full pytest suite (8 tests)
-make test-coverage     # With HTML coverage report
-make validate          # Run DeadMoneyValidator (cross-validation of team vs player sums)
-make format            # Auto-fix code (black + isort)
-make install-hooks     # Pre-commit hooks (runs tests on commit)
+make preflight         # Pre-commit gate: lint + unit tests + dbt compile
+make test-unit         # Fast unit tests only
+make test              # Full test suite (unit + integration)
+make lint              # Check formatting (black, isort)
+make dbt-compile       # Validate dbt SQL syntax against BigQuery
+make help              # Show all available targets
 ```
 
-### Data Pipeline
+### Data Pipeline (Docker-based)
 ```bash
-# From workspace root:
-PYTHONPATH=. ./.venv/bin/python src/spotrac_scraper_v2.py backfill 2015 2024  # Scrape team caps
-PYTHONPATH=. ./.venv/bin/python src/historical_scraper.py                     # Scrape player rankings
-./.venv/bin/dbt seed --project-dir ./dbt --profiles-dir ./dbt                 # Load seeds
-./.venv/bin/dbt run --project-dir ./dbt --profiles-dir ./dbt                  # Transform data
+make up                           # Start all Docker services
+make pipeline-scrape              # Scrape Spotrac (team-cap, salaries, rankings, contracts)
+make pipeline-train               # Train XGBoost risk model
+make pipeline-nlp                 # Hydrate 768-D NLP sentiment vectors
+make pipeline-validate            # Run target leakage diagnostics
+make test-e2e                     # Playwright E2E tests in container
 ```
 
 ### Notebooks & Analysis
 - **Production**: `notebooks/07_production_dead_money_dashboard.ipynb` (loads scraped data, visualizations)
-- **Decision Tree Analysis**: Cells added for predicting dead money by position/team (scikit-learn DecisionTreeRegressor)
+- **Exploratory Analysis**: Notebook includes a lightweight DecisionTreeRegressor for EDA; the production model is XGBoost (see `pipeline/src/train_model.py`)
 
 ---
 
 ## Architecture Layers & Data Flow
 
-### 1. **Scraping** → `data/raw/`
-- `spotrac_scraper_v2.py`: Team cap data (team, active_cap, dead_money, cap_space)
-- `historical_scraper.py`: Player rankings by year
-- Files timestamped: `spotrac_team_cap_2024_20251218.csv`
+### 1. **Bronze (Scraping/Ingestion)** → BigQuery `bronze_*` tables
+- `pipeline/src/spotrac_scraper_v2.py`: Team cap, player salaries, rankings, contracts
+- `pipeline/src/overthecap_scraper.py`: Contract guaranteed money (backup source)
+- `pipeline/src/pfr_roster_scraper.py`, `pfr_draft_scraper.py`, `pfr_game_logs.py`: Historical performance
+- `pipeline/src/sportsdataio_client.py`: Official API feed for player metadata
+- `scripts/hydrate_live_news.py`: Gemini-powered news/sentiment ingestion
 
-### 2. **Staging** → `data/staging/`
-- Raw CSVs validated & loaded via `dbt seed` + `src/ingestion.py`
-- Schema: lowercase, standardized column names
+### 2. **Silver (Transformation)** → BigQuery `silver_*` tables
+- `pipeline/src/silver_sportsdataio_transform.py`: Player metadata normalization
+- `pipeline/src/feature_factory.py`: 308-feature matrix (financial, performance, NLP sentiment vectors)
+- `pipeline/src/generate_sentiment_features.py`: 768-D NLP embeddings
+- dbt staging models: `dbt/models/staging/` (type normalization, dedup)
 
-### 3. **Normalization** → `data/processed/compensation/`
-- Python transforms in `src/normalization.py`
-- Key files: `player_dead_money.csv` (181 records with synthetic player flag), `team_dead_money_by_year.csv`
+### 3. **Gold (Analytics/ML)** → BigQuery `gold_*` tables + dbt marts
+- dbt mart models: `dbt/models/marts/` (fact tables, dimensions)
+- `pipeline/src/train_model.py`: XGBoost risk model (walk-forward validation)
+- `pipeline/src/simulate_history.py`: Historical backtesting
+- `pipeline/src/strategic_engine.py`: Team-level strategic audit reports
 
-### 4. **dbt Marts** → DuckDB `nfl_dead_money.duckdb`
-- `mart_player_cap_impact`, `mart_team_summary` (fact tables)
-- Materialized as tables, schema `marts`
-
-### 5. **Validation & Alerting**
-- `DeadMoneyValidator`: Cross-validates team vs player sums (CSV-based, no DB locks)
-- `Airflow DAG` with `slack_on_task_failure()` callback (all 12+ operators wired)
-- GitHub Actions: Pytest runs on every push (Python 3.10+)
+### 4. **Serving**
+- Next.js 14 frontend (`web/`) reading from BigQuery
+- Model artifacts tracked via DVC in `models/` with `registry.json`
+- Reports and visualizations in `reports/` and `notebooks/`
 
 ---
 
@@ -67,12 +71,12 @@ PYTHONPATH=. ./.venv/bin/python src/historical_scraper.py                     # 
 ### Data Quality Approach
 - **Synthetic Players**: Dataset includes synthetic/placeholder names (e.g., "Von Walker 5"). Flag with `is_king=False` prefix; **retained by design** (not filtered).
 - **Team vs Player Reconciliation**: `DeadMoneyValidator.test_team_player_reconciliation_csv()` allows ±5% variance (legitimate due to accounting differences).
-- **Salary Cap Reference**: `src/salary_cap_reference.py` hardcodes official NFL caps (2011-2024) for validation. Base cap ≠ Spotrac "Total Cap" (latter includes carryover).
+- **Salary Cap Reference**: `pipeline/src/salary_cap_reference.py` hardcodes official NFL caps (2011-2024) for validation. Base cap ≠ Spotrac "Total Cap" (latter includes carryover).
 
 ### Testing Philosophy
-- **Pytest fixtures** in `tests/test_*.py` load real CSVs from `data/processed/` (not mocked)
+- **Pytest fixtures** in `pipeline/tests/test_*.py` load real CSVs from `data/processed/` (not mocked)
 - **Validator tests**: Data file availability checks + logic tests (e.g., cap components, dead % ranges)
-- **Pre-commit**: Runs pytest before every commit (configurable in `.pre-commit-config.yaml`)
+- **Pre-commit**: `make preflight` runs lint + unit tests + dbt compile before commit
 
 ### Naming Conventions
 - Variables: `snake_case`; CSV columns: `snake_case` (converted from Spotrac title case)
@@ -81,7 +85,7 @@ PYTHONPATH=. ./.venv/bin/python src/historical_scraper.py                     # 
 
 ### Error Handling
 - Scrapers log detailed progress; raise `DataQualityError` on validation failure (not silent)
-- Airflow fails task on non-zero exit code; Slack alert fires automatically
+- Docker pipeline fails on non-zero exit code; logs captured via `make` targets
 - Validator exits code 0 even with warnings (non-blocking design)
 
 ---
@@ -89,38 +93,38 @@ PYTHONPATH=. ./.venv/bin/python src/historical_scraper.py                     # 
 ## Integration Points & Dependencies
 
 ### External Data Sources
-1. **Spotrac** (`www.spotrac.com/nfl/cap/`): Selenium-scraped team caps + player rankings
-2. **Pro Football Reference**: Rosters (via `historical_scraper.py`)
-3. **NFL.com**: Official salary caps (hardcoded reference in `salary_cap_reference.py`)
+1. **Spotrac** (`www.spotrac.com`): Selenium-scraped team caps, player salaries, rankings, contracts (primary source)
+2. **OverTheCap** (`www.overthecap.com`): Contract guaranteed money, signing bonuses (supplementary)
+3. **Pro Football Reference**: Rosters, game logs, draft data (via `pfr_*.py` scrapers)
+4. **SportsDataIO** (`api.sportsdata.io`): Official API feed for player metadata
+5. **Google News / Gemini**: Live news sentiment via `hydrate_live_news.py`
+6. **NFL.com**: Official salary caps (hardcoded reference in `salary_cap_reference.py`)
 
 ### Cross-Component Communication
-- **Airflow → dbt**: Bash operators trigger `dbt seed/run`; logs captured
-- **Airflow → Slack**: `slack_on_task_failure()` fires on task error (requires `SLACK_WEBHOOK_URL` env var)
-- **dbt → DuckDB**: Local `.duckdb` file (no separate database)
-
-### CI/CD Pipeline
-- **GitHub Actions** (`.github/workflows/tests.yml`): Pytest + coverage on push/PR
-- **Pre-commit**: Black, isort, flake8 run locally before commit
-- **Linting**: Continue-on-error in GH Actions (non-blocking)
+- **Docker Compose**: All pipeline execution runs inside containers via `make` targets
+- **Pipeline → BigQuery**: Python scripts write directly to BigQuery bronze/silver/gold datasets
+- **dbt → BigQuery**: Transforms silver→gold layer; profiles configured for BigQuery
+- **GitHub Actions**: CI pipeline (`.github/workflows/ci.yml`) runs pytest on push/PR
+- **Model artifacts**: XGBoost `.pkl` files tracked with DVC, metadata in `models/model_meta_*.json`
 
 ---
 
 ## Common Tasks & Examples
 
 ### Add a New Validation Test
-1. Add test function to `tests/test_dead_money_validator.py` (pytest class-based)
+1. Add test function to `pipeline/tests/test_dead_money_validator.py` (pytest class-based)
 2. Use pytest fixtures to load CSVs: `dead_money_df = pd.read_csv('data/processed/compensation/player_dead_money.csv')`
-3. Run locally: `make test-verbose`; commit triggers pre-commit hooks
+3. Run locally: `make test-unit`; commit triggers pre-commit hooks
 
 ### Investigate Data Anomaly
 1. Check `docs/SALARY_CAP_ANOMALY_INVESTIGATION.md` for known issues (e.g., 2016 CLE, 2019 SF)
-2. Run `make validate-verbose` to see cross-validation results
-3. For salary cap: Compare Spotrac total vs official NFL cap via `src/salary_cap_reference.py` (±15% tolerance expected due to carryover)
+2. Run `make pipeline-validate` to see cross-validation results
+3. For salary cap: Compare Spotrac total vs official NFL cap via `pipeline/src/salary_cap_reference.py` (±15% tolerance expected due to carryover)
 
 ### Update Salary Cap Reference
-1. Edit `src/salary_cap_reference.py` dict (official caps from NFL.com)
-2. Update `tests/test_salary_cap_validation.py` expectations
-3. Run: `make test && make validate`
+1. Edit `pipeline/src/salary_cap_reference.py` dict (official caps from NFL.com)
+2. Update `pipeline/tests/test_salary_cap_validation.py` expectations
+3. Run: `make preflight`
 
 ### Add Notebook Analysis
 1. Work in `notebooks/07_production_dead_money_dashboard.ipynb` (production analysis)
@@ -131,11 +135,13 @@ PYTHONPATH=. ./.venv/bin/python src/historical_scraper.py                     # 
 
 ## Important Context & Gotchas
 
+- **BigQuery SQL dialect**: All dbt models must use BigQuery types (`STRING` not `VARCHAR`, `INT64`/`FLOAT64`, `SAFE_CAST()`, `NUMERIC` not `DECIMAL`).
 - **Spotrac "Total Cap" ≠ Official NFL Salary Cap**: Spotrac includes carryover credits; base cap is fixed per year. Individual teams can vary ±15-20%.
-- **CSV-based validation**: DeadMoneyValidator uses processed CSVs, not dbt models (intentional: no DB locks, portable).
-- **Synthetic data**: 82.9% of player records are synthetic (detected by numbered name suffixes). Kept for analysis (not filtered).
-- **No Postgres**: Project uses DuckDB locally; Postgres is optional/skipped in setup.
-- **Airflow local mode**: CeleryExecutor configured but may fall back to SequentialExecutor if Redis unavailable.
+- **Docker-first execution**: All pipeline scripts run inside containers. Use `make` targets, not raw Python.
+- **XGBoost production model**: 308-feature matrix trained with walk-forward validation. Model metadata in `models/model_meta_*.json`.
+- **Synthetic data**: Some player records are synthetic (detected by numbered name suffixes). Kept for analysis (not filtered).
+- **DVC for large files**: Model `.pkl` files and raw data tracked with DVC, not committed to git directly.
+- **Sprint plan is source of truth**: All work is tracked in `docs/sprints/MASTER_SPRINT_PLAN.md`. Update it as you work.
 
 ---
 
@@ -143,22 +149,26 @@ PYTHONPATH=. ./.venv/bin/python src/historical_scraper.py                     # 
 
 | Component | Location | Key Files |
 |-----------|----------|-----------|
-| Scraping | `src/` | `spotrac_scraper_v2.py`, `historical_scraper.py` |
-| Staging | `src/` | `ingestion.py`, `pipeline_tasks.py` |
-| Validation | `src/` | `dead_money_validator.py`, `data_quality_tests.py` |
+| Scraping | `pipeline/src/` | `spotrac_scraper_v2.py`, `overthecap_scraper.py`, `pfr_*.py` |
+| ML Training | `pipeline/src/` | `train_model.py`, `feature_factory.py`, `simulate_history.py` |
+| NLP/Sentiment | `pipeline/src/`, `scripts/` | `generate_sentiment_features.py`, `hydrate_live_news.py` |
 | dbt Models | `dbt/models/` | staging, intermediate, marts layers |
-| Tests | `tests/` | `test_dead_money_validator.py`, `test_salary_cap_validation.py` |
-| Pipeline | `dags/` | `nfl_dead_money_pipeline.py` (Airflow DAG) |
+| Tests | `pipeline/tests/` | `test_spotrac_scraper_v2.py`, `test_data_quality.py`, etc. |
+| Model Artifacts | `models/` | `registry.json`, `model_meta_*.json`, `*.pkl.dvc` |
+| Frontend | `web/` | Next.js 14 App Router |
+| Sprint Plan | `docs/sprints/` | `MASTER_SPRINT_PLAN.md` (canonical work tracker) |
 | Reference | `docs/` | `SALARY_CAP_SOURCES.md`, `SALARY_CAP_ANOMALY_INVESTIGATION.md` |
 
 ---
 
 ## Execution Guidelines for AI Agents
 
-- **Start with `make` commands**: Most workflows available via `make help`
-- **Check data first**: Load `data/processed/compensation/*.csv` to understand structure
-- **Reference existing patterns**: Look at `src/dead_money_validator.py` for validation structure, `tests/test_*.py` for test patterns
+- **Start with `make help`**: All workflows available via Makefile targets
+- **Run `make preflight` before committing**: Validates lint, tests, and dbt SQL syntax
+- **All execution inside Docker**: Use `make` targets, never run raw Python outside containers
+- **Check sprint plan first**: Read `docs/sprints/MASTER_SPRINT_PLAN.md` to understand current priorities
+- **Update sprint plan as you work**: Mark tasks `[x]` when complete, `[/]` when in-progress
+- **SQL must be BigQuery dialect**: `STRING`, `INT64`, `FLOAT64`, `SAFE_CAST()`, `NUMERIC`
 - **Respect data retention policy**: Keep synthetic players in dataset; flag them, don't filter
-- **Test locally before pushing**: `make test && make validate` before git commit
 - **Document anomalies**: Add to `docs/SALARY_CAP_ANOMALY_INVESTIGATION.md` if discovering new issues
-- **Use pytest fixtures**: Don't hardcode paths; load data via fixture with Path resolution
+- **Reference `pipeline/src/` for patterns**: Look at existing scrapers, transforms, and tests for conventions

@@ -34,4 +34,7 @@ feedparser
 tabulate
 praw
 google-cloud-bigquery
+google-genai
+duckdb
+duckduckgo-search
 pydantic

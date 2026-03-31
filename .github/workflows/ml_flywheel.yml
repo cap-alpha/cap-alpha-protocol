@@ -40,25 +40,33 @@ jobs:
           echo "CHROMEDRIVER_BIN=/usr/bin/chromedriver" >> $GITHUB_ENV
 
       - name: Step 1 - Scrape Spotrac & Data Ingestion
+        env:
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
         run: |
           # Fetch the latest Cap/Salary data
           python pipeline/src/spotrac_scraper_v2.py team-cap
           python pipeline/src/spotrac_scraper_v2.py player-salaries
 
       - name: Step 2 - Medallion Bronze/Silver Hydration
+        env:
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
         run: |
           # Ensure raw files are pushed directly to MotherDuck MotherDuck Bronze/Silver tables
           python pipeline/src/feature_factory.py
 
       - name: Step 3 - ML Model Training & Inference (Uncertainty Quantification)
+        env:
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
         run: |
           # Train XGBoost with Isolation Forest Uncertainty scoring
           # Scored metrics deduplicated on terminal weeks (R-squared fix)
           python pipeline/src/train_model.py
-          
+
       - name: Step 4 - Gemini Error Analysis Loop
+        env:
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
         run: |
-          # Hit the Gemini API to analyze False Positives/Negatives 
+          # Hit the Gemini API to analyze False Positives/Negatives
           python pipeline/src/analyze_model_misses.py
           
       - name: Open Diagnostic Issue (Optional/Future)

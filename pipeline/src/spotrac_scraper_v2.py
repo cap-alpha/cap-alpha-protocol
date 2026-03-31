@@ -161,7 +161,12 @@ class SpotracParser:
 
     def parse_money(self, value) -> float:
         """Parse money string like '$255.4M' or '$60,985,272' to millions"""
-        if pd.isna(value) is True or value is None or value == '-' or value == '':
+        try:
+            if pd.isna(value):
+                return 0.0
+        except (ValueError, TypeError):
+            pass
+        if value is None or value == '-' or value == '':
             return 0.0
         
         # Ensure we are dealing with a string scalar

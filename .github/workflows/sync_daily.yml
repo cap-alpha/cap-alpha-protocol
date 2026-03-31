@@ -38,24 +38,28 @@ jobs:
           echo "CHROME_BIN=/usr/bin/chromium-browser" >> $GITHUB_ENV
           echo "CHROMEDRIVER_BIN=/usr/bin/chromedriver" >> $GITHUB_ENV
 
-      - name: Step 1 - Execute Full Pipeline for Current Season
+      - name: Step 1a - Scrape Current Season Data (best-effort)
+        continue-on-error: true
+        env:
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
         run: |
-          export PYTHONPATH=$(pwd)/pipeline:$(pwd)
-          
-          # Scrape Current Season Data
           python pipeline/src/spotrac_scraper_v2.py team-cap
           python pipeline/src/spotrac_scraper_v2.py player-salaries
           python pipeline/src/spotrac_scraper_v2.py player-rankings
           python pipeline/src/spotrac_scraper_v2.py player-contracts
-          
+
+      - name: Step 1b - Ingest, Transform, and Sync
+        env:
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+        run: |
           # Ingest data into DuckDB for Current Season
           python pipeline/scripts/medallion_pipeline.py
-          
+
           # Materialize logic
           python pipeline/scripts/materialize_features.py
-          
+
           # Regenerate cryptographic audit ledger to prevent UI crashes
           python pipeline/src/cryptographic_ledger.py
-          
+
           # Sync output to GCP BigQuery
           python pipeline/scripts/sync_to_bigquery.py

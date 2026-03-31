@@ -1,61 +1,75 @@
-name: Daily Data Sync (2025 Pipeline)
+name: Daily Data Pipeline
 
 on:
   schedule:
-    - cron: '0 8 * * *' # Daily at 3 AM EST (8 AM UTC)
+    - cron: '0 9 * * *'  # 9 AM UTC / 5 AM EDT — after overnight API refreshes
   workflow_dispatch:
 
 jobs:
-  sync_data:
+  pipeline:
     runs-on: ubuntu-latest
-    
+    timeout-minutes: 30
+
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
           cache: 'pip'
-          
+
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r pipeline/requirements.txt
-          pip install bs4 lxml selenium duckdb pandas-gbq google-cloud-bigquery
+          pip install \
+            google-cloud-bigquery \
+            google-auth \
+            db-dtypes \
+            pandas \
+            requests \
+            lxml \
+            "beautifulsoup4>=4.12" \
+            cloudscraper
 
-      - name: Setup Chrome and ChromeDriver
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
-          
-      - name: Setup Environment Variables
+      - name: Set Environment
         run: |
           echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
           echo "GCP_SERVICE_ACCOUNT_JSON=${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" >> $GITHUB_ENV
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> $GITHUB_ENV
-          echo "CHROME_BIN=/usr/bin/chromium-browser" >> $GITHUB_ENV
-          echo "CHROMEDRIVER_BIN=/usr/bin/chromedriver" >> $GITHUB_ENV
+          echo "PYTHONPATH=$GITHUB_WORKSPACE/pipeline:$GITHUB_WORKSPACE" >> $GITHUB_ENV
 
-      - name: Step 1 - Execute Full Pipeline for Current Season
+      # Determine the most recently completed NFL season.
+      # Before September → previous calendar year (e.g. March 2026 → 2025).
+      # September or later → current calendar year.
+      - name: Resolve Season Year
         run: |
-          export PYTHONPATH=$(pwd)/pipeline:$(pwd)
-          
-          # Scrape Current Season Data
-          python pipeline/src/spotrac_scraper_v2.py team-cap
-          python pipeline/src/spotrac_scraper_v2.py player-salaries
-          python pipeline/src/spotrac_scraper_v2.py player-rankings
-          python pipeline/src/spotrac_scraper_v2.py player-contracts
-          
-          # Ingest data into DuckDB for Current Season
+          SEASON_YEAR=$(python -c "
+          from datetime import datetime
+          now = datetime.utcnow()
+          print(now.year - 1 if now.month < 9 else now.year)
+          ")
+          echo "SEASON_YEAR=$SEASON_YEAR" >> $GITHUB_ENV
+          echo "Resolved season year: $SEASON_YEAR"
+
+      # Step 1 — PFR: scrape season-level offense + defense stats to local CSV.
+      # medallion_pipeline.py reads this file; if it's missing, silver_pfr_game_logs stays empty.
+      - name: Step 1 — Scrape PFR Stats
+        run: |
+          python pipeline/scripts/scrape_pfr.py --year ${{ env.SEASON_YEAR }}
+        # Non-fatal: PFR can block scrapers. Gold still builds from OTC data.
+        continue-on-error: true
+
+      # Step 2 — Full medallion run:
+      #   Bronze: OTC contracts scraped fresh → BigQuery
+      #   Silver: contracts, PFR game logs, penalties, team cap normalized → BigQuery
+      #   Gold:   fact_player_efficiency built → BigQuery
+      - name: Step 2 — Run Medallion Pipeline (Bronze → Silver → Gold)
+        run: |
           python pipeline/scripts/medallion_pipeline.py
-          
-          # Materialize logic
-          python pipeline/scripts/materialize_features.py
-          
-          # Regenerate cryptographic audit ledger to prevent UI crashes
-          python pipeline/src/cryptographic_ledger.py
-          
-          # Sync output to GCP BigQuery
+
+      # Step 3 — Verify critical tables exist and are non-empty.
+      - name: Step 3 — BigQuery Health Check
+        run: |
           python pipeline/scripts/sync_to_bigquery.py

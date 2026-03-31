@@ -27,8 +27,10 @@ CREATE TABLE IF NOT EXISTS silver_penalties (
     penalty_yards INTEGER
 );
 
--- Contract data from Spotrac
+-- Contract data from Spotrac (SCD Type 2 Ledger)
 CREATE TABLE IF NOT EXISTS silver_spotrac_contracts (
+    contract_id STRING,
+    player_id STRING,
     player_name STRING,
     team STRING,
     year INTEGER,
@@ -42,7 +44,11 @@ CREATE TABLE IF NOT EXISTS silver_spotrac_contracts (
     prorated_bonus_millions FLOAT64,
     roster_bonus_millions FLOAT64,
     guaranteed_salary_millions FLOAT64,
-    age INTEGER
+    age INTEGER,
+    effective_start_date TIMESTAMP,
+    effective_end_date TIMESTAMP,
+    is_current BOOLEAN,
+    system_ingest_time TIMESTAMP
 );
 
 -- Positional ranking data

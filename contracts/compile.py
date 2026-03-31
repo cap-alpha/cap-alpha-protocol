@@ -12,6 +12,7 @@ TYPES_TS = CONTRACTS_DIR / "types.ts"
 # YAML Type -> SQL Type
 SQL_TYPE_MAP = {
     "VARCHAR": "STRING",
+    "STRING": "STRING",   # Native BigQuery String support
     "INTEGER": "INTEGER",
     "FLOAT": "FLOAT64", 
     "BOOLEAN": "BOOLEAN",
@@ -22,6 +23,7 @@ SQL_TYPE_MAP = {
 # YAML Type -> TypeScript Type
 TS_TYPE_MAP = {
     "VARCHAR": "string",
+    "STRING": "string",
     "INTEGER": "number",
     "FLOAT": "number",
     "BOOLEAN": "boolean",

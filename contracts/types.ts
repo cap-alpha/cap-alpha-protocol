@@ -45,8 +45,12 @@ export interface SilverPenalties {
   penalty_yards: number;
 }
 
-/** Contract data from Spotrac */
+/** Contract data from Spotrac (SCD Type 2 Ledger) */
 export interface SilverSpotracContracts {
+  /** Surrogate key (MD5 of name+team+year) */
+  contract_id: string;
+  /** Foreign key to player dimension */
+  player_id: string;
   /** Player full name */
   player_name: string;
   /** Team abbreviation */
@@ -75,6 +79,14 @@ export interface SilverSpotracContracts {
   guaranteed_salary_millions: number;
   /** Player age */
   age: number;
+  /** SCD2: Date row became active */
+  effective_start_date: string;
+  /** SCD2: Date row was superseded (NULL if active) */
+  effective_end_date: string;
+  /** SCD2: Is this the current active record? */
+  is_current: boolean;
+  /** SCD2: Time record was ingested into BigQuery */
+  system_ingest_time: string;
 }
 
 /** Positional ranking data */

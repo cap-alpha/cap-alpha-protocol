@@ -130,8 +130,17 @@ def run_audit():
         
         print(perf.to_string(index=False))
         
+        # --- SACROSANCT OBSERVABILITY GATE ---
+        high_cap_r2 = perf[perf['cap_bucket'] == 'High Cap (>$10M)']['r2_score'].values
+        if len(high_cap_r2) > 0 and not np.isnan(high_cap_r2[0]) and high_cap_r2[0] < 0.85:
+            # Deliberately raise Exception so Dagster/Airflow halts all downstream deployments
+            raise Exception(f"CRITICAL QUALITY FAILURE: High Cap ML Predictive Accuracy R² dropped to {high_cap_r2[0]:.3f} (Threshold >= 0.85). Pipeline execution halted manually via population_audit.")
+        
+        print("✓ Observability Gate Passed: High-Cap Model precision is highly predictive.")
+        
     except Exception as e:
         print(f"Could not analyze predictions: {e}")
+        raise e
 
 if __name__ == "__main__":
     run_audit()

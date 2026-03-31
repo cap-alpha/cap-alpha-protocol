@@ -30,18 +30,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
           
-      - name: Setup Environment Variables
-        run: |
-          echo "GCP_PROJECT_ID=${{ secrets.GCP_PROJECT_ID }}" >> $GITHUB_ENV
-          echo "GCP_SERVICE_ACCOUNT_JSON=${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}" >> $GITHUB_ENV
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> $GITHUB_ENV
-          echo "CHROME_BIN=/usr/bin/chromium-browser" >> $GITHUB_ENV
-          echo "CHROMEDRIVER_BIN=/usr/bin/chromedriver" >> $GITHUB_ENV
-
       - name: Step 1a - Scrape Current Season Data (best-effort)
         continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+          CHROME_BIN: /usr/bin/chromium-browser
+          CHROMEDRIVER_BIN: /usr/bin/chromedriver
         run: |
           python pipeline/src/spotrac_scraper_v2.py team-cap
           python pipeline/src/spotrac_scraper_v2.py player-salaries
@@ -51,6 +45,9 @@ jobs:
       - name: Step 1b - Ingest, Transform, and Sync
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           # Ingest data into DuckDB for Current Season
           python pipeline/scripts/medallion_pipeline.py

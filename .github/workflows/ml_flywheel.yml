@@ -32,16 +32,12 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
           
-      - name: Setup Environment Variables
-        run: |
-          echo "MOTHERDUCK_TOKEN=${{ secrets.MOTHERDUCK_TOKEN }}" >> $GITHUB_ENV
-          echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" >> $GITHUB_ENV
-          echo "CHROME_BIN=/usr/bin/chromium-browser" >> $GITHUB_ENV
-          echo "CHROMEDRIVER_BIN=/usr/bin/chromedriver" >> $GITHUB_ENV
-
       - name: Step 1 - Scrape Spotrac & Data Ingestion
+        continue-on-error: true
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+          CHROME_BIN: /usr/bin/chromium-browser
+          CHROMEDRIVER_BIN: /usr/bin/chromedriver
         run: |
           # Fetch the latest Cap/Salary data
           python pipeline/src/spotrac_scraper_v2.py team-cap
@@ -50,13 +46,15 @@ jobs:
       - name: Step 2 - Medallion Bronze/Silver Hydration
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
         run: |
-          # Ensure raw files are pushed directly to MotherDuck MotherDuck Bronze/Silver tables
+          # Ensure raw files are pushed directly to MotherDuck Bronze/Silver tables
           python pipeline/src/feature_factory.py
 
       - name: Step 3 - ML Model Training & Inference (Uncertainty Quantification)
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
         run: |
           # Train XGBoost with Isolation Forest Uncertainty scoring
           # Scored metrics deduplicated on terminal weeks (R-squared fix)
@@ -65,6 +63,7 @@ jobs:
       - name: Step 4 - Gemini Error Analysis Loop
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           # Hit the Gemini API to analyze False Positives/Negatives
           python pipeline/src/analyze_model_misses.py

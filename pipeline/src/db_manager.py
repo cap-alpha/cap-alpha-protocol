@@ -104,7 +104,8 @@ class DBManager:
             # Warning: BigQuery python SDK expects parameters via QueryJobConfig, if complex params are passed we'd setup a JobConfig here.
             # For this pipeline, usually params are purely DataFrames {"df": df} which we intercepted above!
             
-            job_config = bigquery.QueryJobConfig(default_dataset=self.client.dataset(self.dataset_id))
+            dataset_ref = bigquery.DatasetReference(self.project_id, self.dataset_id)
+            job_config = bigquery.QueryJobConfig(default_dataset=dataset_ref)
             job = self.client.query(processed_query, job_config=job_config)
             job.result()  # Wait for query to complete to catch errors and prevent premature temp table deletion
             return BQResultProxy(job)
@@ -116,7 +117,8 @@ class DBManager:
         """Executes a query and returns a Pandas DataFrame."""
         try:
             processed_query, bind_params = self._handle_dataframe_params(query, params)
-            job_config = bigquery.QueryJobConfig(default_dataset=self.client.dataset(self.dataset_id))
+            dataset_ref = bigquery.DatasetReference(self.project_id, self.dataset_id)
+            job_config = bigquery.QueryJobConfig(default_dataset=dataset_ref)
             job = self.client.query(processed_query, job_config=job_config)
             return job.to_dataframe()
         except Exception as e:

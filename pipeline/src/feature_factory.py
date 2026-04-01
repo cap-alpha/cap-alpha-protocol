@@ -23,22 +23,26 @@ class FeatureFactory:
     def _validate_point_in_time(self, df):
         """Validate that lag features do not leak future data (Principal MLE Standard)."""
         logger.info("🔍 Validating Point-in-Time Correctness...")
-        
+
         # For each player, verify lag_1 data comes from year-1
         sample_players = df['player_name'].dropna().unique()[:10]
         violations = 0
-        
+
         for player in sample_players:
             player_df = df[df['player_name'] == player].sort_values(['year', 'week'])
             if len(player_df) < 2:
                 continue
-            
+
             for i in range(1, len(player_df)):
                 current_year = player_df.iloc[i]['year']
                 current_week = player_df.iloc[i]['week']
                 lag_year = player_df.iloc[i-1]['year']
                 lag_week = player_df.iloc[i-1]['week']
-                
+
+                # Skip rows with null year/week values
+                if pd.isna(current_year) or pd.isna(current_week) or pd.isna(lag_year) or pd.isna(lag_week):
+                    continue
+
                 # The lag should be from a prior week
                 if lag_year > current_year or (lag_year == current_year and lag_week >= current_week):
                     violations += 1

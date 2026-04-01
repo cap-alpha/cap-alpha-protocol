@@ -17,9 +17,9 @@ from typing import Optional
 
 import pandas as pd
 
-from src.historical_scraper import scrape_all_years
-from src.data_quality_tests import DataQualityTester
 from src.cryptographic_ledger import hash_predictions_to_ledger
+from src.data_quality_tests import DataQualityTester
+from src.historical_scraper import scrape_all_years
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +27,26 @@ BASE_PROCESSED = Path("data/processed/compensation")
 DEFAULT_DM_CSV = Path("data/raw/player_dead_money_sample.csv")
 
 
-def scrape_rosters(start_year: int = 2015, end_year: Optional[int] = None, output_dir: Path = BASE_PROCESSED) -> None:
+def scrape_rosters(
+    start_year: int = 2015,
+    end_year: Optional[int] = None,
+    output_dir: Path = BASE_PROCESSED,
+) -> None:
     """Scrape PFR rosters for a range of years and export normalized tables."""
     end_year = end_year or datetime.now().year
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     logger.info("Scraping rosters %s-%s", start_year, end_year)
-    scrape_all_years(start_year=start_year, end_year=end_year, output_dir=str(output_dir))
+    scrape_all_years(
+        start_year=start_year, end_year=end_year, output_dir=str(output_dir)
+    )
     logger.info("Rosters scraped and exported to %s", output_dir)
 
 
-def merge_dead_money(dead_money_csv: Path = DEFAULT_DM_CSV, processed_dir: Path = BASE_PROCESSED) -> None:
+def merge_dead_money(
+    dead_money_csv: Path = DEFAULT_DM_CSV, processed_dir: Path = BASE_PROCESSED
+) -> None:
     """Merge dead money CSV into normalized contracts and recompute cap impact."""
     processed_dir = Path(processed_dir)
     dead_money_csv = Path(dead_money_csv)
@@ -58,13 +66,21 @@ def merge_dead_money(dead_money_csv: Path = DEFAULT_DM_CSV, processed_dir: Path 
         player_name = str(row.get("player_name", "")).strip().upper()
         team = str(row.get("team", "")).strip().upper()
         year = int(row.get("year", 0)) if pd.notna(row.get("year")) else 0
-        dead_cap = float(row.get("dead_cap_hit", 0)) if pd.notna(row.get("dead_cap_hit")) else 0.0
+        dead_cap = (
+            float(row.get("dead_cap_hit", 0))
+            if pd.notna(row.get("dead_cap_hit"))
+            else 0.0
+        )
 
         if not player_name or not team or year == 0:
             continue
 
         matching = players_df[
-            (players_df["player_name"].str.upper().str.contains(player_name[:5], na=False))
+            (
+                players_df["player_name"]
+                .str.upper()
+                .str.contains(player_name[:5], na=False)
+            )
             & (players_df["player_id"].str.contains(f"_{team}_", na=False))
             & (players_df["player_id"].str.contains(f"_{year}$", na=False, regex=True))
         ]
@@ -92,7 +108,9 @@ def merge_dead_money(dead_money_csv: Path = DEFAULT_DM_CSV, processed_dir: Path 
         contracts_df = pd.concat([contracts_df, new_contracts], ignore_index=True)
 
     cap_impact_list = []
-    for (player_id, team, year), group in contracts_df.groupby(["player_id", "team", "year"]):
+    for (player_id, team, year), group in contracts_df.groupby(
+        ["player_id", "team", "year"]
+    ):
         cap_impact = {
             "impact_id": f"{player_id}_impact",
             "player_id": player_id,
@@ -139,7 +157,9 @@ def merge_dead_money(dead_money_csv: Path = DEFAULT_DM_CSV, processed_dir: Path 
     contracts_df.to_csv(processed_dir / "fact_player_contracts.csv", index=False)
     cap_impact_df.to_csv(processed_dir / "mart_player_cap_impact.csv", index=False)
 
-    team_dead_money = cap_impact_df.groupby(["year", "team"]).dead_money_millions.sum().reset_index()
+    team_dead_money = (
+        cap_impact_df.groupby(["year", "team"]).dead_money_millions.sum().reset_index()
+    )
     team_dead_money = team_dead_money.sort_values("year")
     team_dead_money.to_csv(processed_dir / "team_dead_money_by_year.csv", index=False)
 
@@ -153,42 +173,52 @@ def run_data_quality(data_dir: Path = BASE_PROCESSED) -> dict:
     tester.print_summary()
     return results
 
+
 def validate_staging():
     """Basic validations on staging tables to ensure ingestion loaded correctly."""
-    import pandas as pd
     from pathlib import Path
-    staging = Path('data/staging')
+
+    import pandas as pd
+
+    staging = Path("data/staging")
     issues = []
 
     # Team cap staging
-    team_caps = list(staging.glob('stg_spotrac_team_cap_*.csv'))
+    team_caps = list(staging.glob("stg_spotrac_team_cap_*.csv"))
     for f in team_caps:
         df = pd.read_csv(f)
-        if df['team_name'].nunique() < 30:
+        if df["team_name"].nunique() < 30:
             issues.append(f"Low team count in {f}: {df['team_name'].nunique()}")
-        if df['year'].isna().any():
+        if df["year"].isna().any():
             issues.append(f"Null year values in {f}")
 
     # Player rankings staging
-    rankings = list(staging.glob('stg_spotrac_player_rankings_*.csv'))
+    rankings = list(staging.glob("stg_spotrac_player_rankings_*.csv"))
     for f in rankings:
         df = pd.read_csv(f)
-        if {'player_name','team','cap_total_millions'}.difference(df.columns):
+        if {"player_name", "team", "cap_total_millions"}.difference(df.columns):
             issues.append(f"Missing columns in {f}")
 
     # Dead money staging
-    dead_money = list(staging.glob('stg_spotrac_dead_money_*.csv'))
+    dead_money = list(staging.glob("stg_spotrac_dead_money_*.csv"))
     for f in dead_money:
         df = pd.read_csv(f)
-        if (df['dead_cap_millions'] < 0).any():
+        if (df["dead_cap_millions"] < 0).any():
             issues.append(f"Negative dead money in {f}")
 
     if issues:
         raise RuntimeError("Staging validation failed:\n" + "\n".join(issues))
-    return {"status":"PASS","checked_files":len(team_caps)+len(rankings)+len(dead_money)}
+    return {
+        "status": "PASS",
+        "checked_files": len(team_caps) + len(rankings) + len(dead_money),
+    }
 
 
-def pipeline_daily(dead_money_csv: Path = DEFAULT_DM_CSV, start_year: int = 2015, end_year: Optional[int] = None) -> None:
+def pipeline_daily(
+    dead_money_csv: Path = DEFAULT_DM_CSV,
+    start_year: int = 2015,
+    end_year: Optional[int] = None,
+) -> None:
     """End-to-end daily pipeline wrapper."""
     scrape_rosters(start_year=start_year, end_year=end_year)
     merge_dead_money(dead_money_csv=dead_money_csv)

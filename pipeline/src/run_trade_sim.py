@@ -6,29 +6,34 @@ Author: Cap Alpha Protocol
 Objective: Scan ALL 32 teams for mutually beneficial trades based on finding "Surplus" to meet "Needs".
 Constraint: No forced narratives. Data driven only.
 """
+
 import sys
-from trade_simulator import StateLoader, Agent, TeamPersona, CONTENDER
 
 import pandas as pd
 
+from trade_simulator import CONTENDER, Agent, StateLoader, TeamPersona
+
+
 def run_league_scan():
     print("🏈 Initializing League-Wide Trade Scanner (No Narratives)...")
-    
+
     # 1. Hydrate Real State
     DB_PATH = "data/duckdb/nfl_production.db"
     # Use Dynamic Threshold (Default ~0.75% of Cap)
     loader = StateLoader(DB_PATH, year=2025)
     initial_state = loader.load_league_state()
-    
+
     # 2. Setup Agents (Dynamic Thresholds)
     # Calculate Cap Percentiles
     caps = [t.cap_space for t in initial_state.teams.values()]
     cap_series = pd.Series(caps)
-    low_cap_threshold = cap_series.quantile(0.25) # Bottom 25% = Cap Stressed
-    high_cap_threshold = cap_series.quantile(0.75) # Top 25% = Cap Rich
-    
-    print(f"💰 Dynamic Thresholds | Stressed < ${low_cap_threshold:.1f}M | Rich > ${high_cap_threshold:.1f}M")
-    
+    low_cap_threshold = cap_series.quantile(0.25)  # Bottom 25% = Cap Stressed
+    high_cap_threshold = cap_series.quantile(0.75)  # Top 25% = Cap Rich
+
+    print(
+        f"💰 Dynamic Thresholds | Stressed < ${low_cap_threshold:.1f}M | Rich > ${high_cap_threshold:.1f}M"
+    )
+
     agents = {}
     for team_name, team_data in initial_state.teams.items():
         if team_data.cap_space < low_cap_threshold:
@@ -36,75 +41,92 @@ def run_league_scan():
             agents[team_name] = Agent(team_name, CONTENDER)
         elif team_data.cap_space > high_cap_threshold:
             # Rebuilder Mode
-            agents[team_name] = Agent(team_name, TeamPersona(win_weight=0.2, cap_weight=0.6, draft_weight=0.2))
+            agents[team_name] = Agent(
+                team_name, TeamPersona(win_weight=0.2, cap_weight=0.6, draft_weight=0.2)
+            )
         else:
             # Balanced
-            agents[team_name] = Agent(team_name, TeamPersona(win_weight=0.5, cap_weight=0.3, draft_weight=0.2))
+            agents[team_name] = Agent(
+                team_name, TeamPersona(win_weight=0.5, cap_weight=0.3, draft_weight=0.2)
+            )
 
     print(f"🕵️ Scanning {len(initial_state.teams)} Teams for Trade Opportunities...")
-    
+
     # Create Risk Map for O(1) Lookup
-    risk_map = {p['name']: p.get('risk_factors') for p in initial_state.market_players}
-    
+    risk_map = {p["name"]: p.get("risk_factors") for p in initial_state.market_players}
+
     potential_trades = []
 
     # 3. Iterate Every Team as a Potential "Buyer"
     for buyer_name in initial_state.teams.keys():
         buyer_agent = agents[buyer_name]
-        
+
         # Get Candidate Trades (Buyer Needs matching Market Surplus)
         candidates = initial_state.get_legal_actions(buyer_name)
-        
+
         for trade in candidates:
             # 4. Evaluate Mutual Benefit
             # Buyer's Perspective
             # Apply Action to get "Post-Trade State"
             # NOTE: For speed, we just approximate utility delta here
             # But the 'State.apply_action' is robust.
-            
+
             post_trade_state = initial_state.apply_action(trade)
-            
+
             buyer_delta = buyer_agent.evaluate_trade(initial_state, post_trade_state)
-            
+
             # Seller's Perspective
             seller_name = trade.source_team
             seller_agent = agents[seller_name]
             seller_delta = seller_agent.evaluate_trade(initial_state, post_trade_state)
-            
+
             # 5. Filter: MUST be positive for BOTH
             # (Adversarial Logic: No one makes a losing trade)
             if buyer_delta > 0 and seller_delta > 0:
                 # Generate Rationale
-                buyer_motive = "Needed Starter" if buyer_agent.persona.win_weight > 0.5 else "Acquiring Asset"
-                seller_motive = "Clearing Cap" if seller_agent.persona.cap_weight > 0.4 else "Gaining Capital"
-                
+                buyer_motive = (
+                    "Needed Starter"
+                    if buyer_agent.persona.win_weight > 0.5
+                    else "Acquiring Asset"
+                )
+                seller_motive = (
+                    "Clearing Cap"
+                    if seller_agent.persona.cap_weight > 0.4
+                    else "Gaining Capital"
+                )
+
                 # Append Risk Factors (SHAP)
                 risk_info = risk_map.get(trade.player_name)
                 risk_str = f" Risk Factors: {risk_info}" if risk_info else ""
-                
+
                 reason = f"**{buyer_name} ({buyer_motive})**: +{buyer_delta:.2f} Utility. **{seller_name} ({seller_motive})**: +{seller_delta:.2f} Utility.{risk_str}"
-                
-                potential_trades.append({
-                    "buyer": buyer_name,
-                    "seller": seller_name,
-                    "player": trade.player_name,
-                    "cap": trade.cap_hit,
-                    "cost": trade.compensation_picks,
-                    "buyer_gain": buyer_delta,
-                    "seller_gain": seller_delta,
-                    "rationale": reason
-                })
+
+                potential_trades.append(
+                    {
+                        "buyer": buyer_name,
+                        "seller": seller_name,
+                        "player": trade.player_name,
+                        "cap": trade.cap_hit,
+                        "cost": trade.compensation_picks,
+                        "buyer_gain": buyer_delta,
+                        "seller_gain": seller_delta,
+                        "rationale": reason,
+                    }
+                )
 
     # 6. Report Generation (Per Team)
-    print(f"\n✅ Scan Complete. Found {len(potential_trades)} Mutually Beneficial Scenarios.\n")
-    
+    print(
+        f"\n✅ Scan Complete. Found {len(potential_trades)} Mutually Beneficial Scenarios.\n"
+    )
+
     # Group by Buyer
     from collections import defaultdict
+
     team_trades = defaultdict(list)
     for pt in potential_trades:
-        pt['score'] = pt['buyer_gain'] + pt['seller_gain']
-        team_trades[pt['buyer']].append(pt)
-        
+        pt["score"] = pt["buyer_gain"] + pt["seller_gain"]
+        team_trades[pt["buyer"]].append(pt)
+
     # Generate Markdown Report
     report_path = "reports/TRADE_RECOMMENDATIONS_2026.md"
     with open(report_path, "w") as f:
@@ -112,75 +134,86 @@ def run_league_scan():
         f.write("**Generated by Cap Alpha Protocol (Adversarial Trade Engine)**\n\n")
         f.write(f"**Total Scenarios Analyzed**: {len(potential_trades)}\n")
         f.write(f"**Threshold Strategy**: Dynamic Inflation Adjustment\n\n")
-        
+
         sorted_teams = sorted(team_trades.keys())
         for team in sorted_teams:
             trades = team_trades[team]
             # Top 3 per team
-            trades.sort(key=lambda x: x['score'], reverse=True)
+            trades.sort(key=lambda x: x["score"], reverse=True)
             top_3 = trades[:3]
-            
+
             f.write(f"## 🛡️ {team}\n")
             if not top_3:
                 f.write("_No mutually beneficial trades found._\n\n")
                 continue
-                
+
             f.write("| Target Player | Current Team | Cap Hit | Cost | Rationale |\n")
             f.write("|---------------|--------------|---------|------|-----------|\n")
-            
+
             for t in top_3:
-                f.write(f"| **{t['player']}** | {t['seller']} | ${t['cap']:.1f}M | {t['cost']} | {t['rationale']} |\n")
+                f.write(
+                    f"| **{t['player']}** | {t['seller']} | ${t['cap']:.1f}M | {t['cost']} | {t['rationale']} |\n"
+                )
             f.write("\n")
-            
+
     print(f"📄 Report Generated: {report_path}")
 
     # 6b. Export to JSON for Web App
     import json
     import os
-    
+
     # Write to local data volume (mapped to ./data on host)
     # The Make/Deploy process will copy this to web/data
     json_export_path = "data/trade_scenarios.json"
-    
+
     os.makedirs(os.path.dirname(json_export_path), exist_ok=True)
-    
+
     with open(json_export_path, "w") as f:
         json.dump(potential_trades, f, indent=2)
-        
-    print(f"💾 JSON Data Exported: {json_export_path} ({len(potential_trades)} scenarios)")
+
+    print(
+        f"💾 JSON Data Exported: {json_export_path} ({len(potential_trades)} scenarios)"
+    )
 
     # 7. Report Generation (Per Player / Market Heat)
     print(f"Generating Player Market Report...")
     player_trades = defaultdict(list)
     for pt in potential_trades:
-        player_trades[pt['player']].append(pt)
-    
+        player_trades[pt["player"]].append(pt)
+
     player_report_path = "reports/PLAYER_TRADE_MARKET_2026.md"
     with open(player_report_path, "w") as f:
         f.write("# 🏈 NFL 2026 Player Trade Market\n")
         f.write("**Generated by Cap Alpha Protocol**\n\n")
         f.write(f"**Total Tradeable Assets Analyzed**: {len(player_trades)}\n\n")
-        
+
         # Sort by Number of Suitors (Market Heat)
-        sorted_players = sorted(player_trades.items(), key=lambda x: len(x[1]), reverse=True)
-        
+        sorted_players = sorted(
+            player_trades.items(), key=lambda x: len(x[1]), reverse=True
+        )
+
         for player, trades in sorted_players:
             # Get seller from first trade (should be same for all)
-            seller = trades[0]['seller']
-            cap_hit = trades[0]['cap']
+            seller = trades[0]["seller"]
+            cap_hit = trades[0]["cap"]
             f.write(f"## {player} ({seller}) - ${cap_hit:.1f}M Cap Hit\n")
             f.write(f"**Interested Teams**: {len(trades)}\n\n")
             f.write("| Interested Team | Utility Score | Cost | Rationale |\n")
             f.write("|-----------------|---------------|------|-----------|\n")
-            
+
             # Sort suitors by utility score
-            trades.sort(key=lambda x: x['score'], reverse=True)
-            
+            trades.sort(key=lambda x: x["score"], reverse=True)
+
             for t in trades:
-                f.write(f"| **{t['buyer']}** | {t['score']:.2f} | {t['cost']} | {t['rationale']} |\n")
+                f.write(
+                    f"| **{t['buyer']}** | {t['score']:.2f} | {t['cost']} | {t['rationale']} |\n"
+                )
             f.write("\n")
 
-    print(f"Top Recommendation: {potential_trades[0]['buyer']} acquires {potential_trades[0]['player']} (Score: {potential_trades[0]['score']:.2f})")
+    print(
+        f"Top Recommendation: {potential_trades[0]['buyer']} acquires {potential_trades[0]['player']} (Score: {potential_trades[0]['score']:.2f})"
+    )
+
 
 if __name__ == "__main__":
     run_league_scan()

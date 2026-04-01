@@ -1,4 +1,12 @@
-.PHONY: up down pipeline web e2e shell-pipeline check
+.PHONY: up down pipeline web e2e shell-pipeline check setup
+
+# -----------------------------------------------------------------------------
+# SETUP
+# -----------------------------------------------------------------------------
+
+setup:
+	git config core.hooksPath .githooks
+	@echo "Git hooks configured. Run 'make up' to start Docker."
 
 # -----------------------------------------------------------------------------
 # CORE COMMANDS (IMMUTABLE EXECUTION ONLY)
@@ -34,6 +42,20 @@ pipeline-validate:
 pipeline-factcheck:
 	@echo "Running Automated Gemini Search Grounding on Top 50 Predictions..."
 	docker compose --env-file docker_env.txt exec -e GEMINI_MODEL="$(if $(MODEL),$(MODEL),gemini-2.5-flash)" pipeline bash -c "python scripts/fact_check_top_50.py $(if $(TEAM),\"$(TEAM)\",)"
+
+# -----------------------------------------------------------------------------
+# WEB & TESTING
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# LINTING
+# -----------------------------------------------------------------------------
+
+lint:
+	docker compose --env-file docker_env.txt exec -T pipeline bash -c "black --check pipeline/src/ && isort --check pipeline/src/ && cd pipeline && flake8 src/"
+
+lint-fix:
+	docker compose --env-file docker_env.txt exec -T pipeline bash -c "black pipeline/src/ && isort pipeline/src/"
 
 # -----------------------------------------------------------------------------
 # WEB & TESTING

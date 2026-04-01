@@ -2,12 +2,16 @@
 Shared configuration loader for the NFL Dead Money project.
 Centralizes access to settings.yaml to avoid hardcoded paths.
 """
-import yaml
-from pathlib import Path
-import os
+
 import logging
+import os
+from pathlib import Path
+
+import yaml
+
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -21,6 +25,7 @@ _CONFIG_PATHS = [
 ]
 
 _config = None
+
 
 def get_config():
     """Load and cache the project configuration."""
@@ -51,7 +56,9 @@ def get_db_path():
 
     config = get_config()
     # Support both legacy 'database.path' and current 'database.dataset'
-    db_path = config.get("database", {}).get("dataset") or config.get("database", {}).get("path")
+    db_path = config.get("database", {}).get("dataset") or config.get(
+        "database", {}
+    ).get("path")
 
     if not db_path:
         db_path = "nfl_dead_money"

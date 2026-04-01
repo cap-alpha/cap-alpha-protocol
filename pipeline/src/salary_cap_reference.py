@@ -15,11 +15,11 @@ from typing import Dict
 # Official NFL salary cap per team (in millions of dollars)
 # Source: NFL Communications press releases
 NFL_SALARY_CAPS: Dict[int, float] = {
-    2024: 255.4,   # Announced March 2024
-    2023: 224.8,   # Announced March 2023
-    2022: 208.2,   # Announced March 2022
-    2021: 182.5,   # COVID-reduced cap
-    2020: 198.2,   # Pre-COVID
+    2024: 255.4,  # Announced March 2024
+    2023: 224.8,  # Announced March 2023
+    2022: 208.2,  # Announced March 2022
+    2021: 182.5,  # COVID-reduced cap
+    2020: 198.2,  # Pre-COVID
     2019: 188.2,
     2018: 177.2,
     2017: 167.0,
@@ -28,7 +28,7 @@ NFL_SALARY_CAPS: Dict[int, float] = {
     2014: 133.0,
     2013: 123.0,
     2012: 120.6,
-    2011: 120.0,   # Post-lockout
+    2011: 120.0,  # Post-lockout
 }
 
 # Player benefit pools (in millions per team)
@@ -66,33 +66,33 @@ def get_official_cap(year: int) -> float:
     """
     Get the official NFL salary cap for a given year.
     If the year is in the future, project it based on the latest known year.
-    
+
     Args:
         year: NFL season year
-    
+
     Returns:
         Salary cap in millions of dollars
-    
+
     Raises:
         KeyError: If year is not in reference data (and prior to known history)
     """
     if year in NFL_SALARY_CAPS:
         return NFL_SALARY_CAPS[year]
-    
+
     max_year = max(NFL_SALARY_CAPS.keys())
     if year > max_year:
         return NFL_SALARY_CAPS[max_year]
-        
+
     raise KeyError(f"Salary cap data unrecorded for historical year {year}")
 
 
 def get_league_total_cap(year: int) -> float:
     """
     Get the total league-wide salary cap (32 teams × cap).
-    
+
     Args:
         year: NFL season year
-    
+
     Returns:
         Total league cap in millions of dollars
     """
@@ -102,16 +102,16 @@ def get_league_total_cap(year: int) -> float:
 def validate_team_cap(team_cap: float, year: int) -> bool:
     """
     Validate that a team's cap is within reasonable range of official cap.
-    
+
     Teams can exceed the base cap due to:
     - Unused cap space carried over from prior year
     - Performance-based pay credits
     - Salary cap adjustments
-    
+
     Args:
         team_cap: Team's reported cap in millions
         year: NFL season year
-    
+
     Returns:
         True if cap is within tolerance, False otherwise
     """
@@ -124,11 +124,11 @@ def validate_team_cap(team_cap: float, year: int) -> bool:
 def validate_league_total(total_cap: float, year: int) -> bool:
     """
     Validate that league-wide total cap is near expected value.
-    
+
     Args:
         total_cap: Sum of all team caps in millions
         year: NFL season year
-    
+
     Returns:
         True if total is within tolerance, False otherwise
     """
@@ -140,10 +140,10 @@ def validate_league_total(total_cap: float, year: int) -> bool:
 def get_expected_range(year: int) -> tuple[float, float]:
     """
     Get expected range for a team's cap in a given year.
-    
+
     Args:
         year: NFL season year
-    
+
     Returns:
         Tuple of (min_cap, max_cap) in millions
     """
@@ -153,20 +153,20 @@ def get_expected_range(year: int) -> tuple[float, float]:
     return (min_cap, max_cap)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # Print reference data
     print("NFL Salary Cap Reference Data")
     print("=" * 70)
     print(f"{'Year':<6} {'Cap (per team)':<20} {'League Total':<20} {'Benefits':<15}")
     print("-" * 70)
-    
+
     for year in sorted(NFL_SALARY_CAPS.keys(), reverse=True):
         cap = NFL_SALARY_CAPS[year]
         league_total = get_league_total_cap(year)
         benefits = NFL_BENEFIT_POOLS.get(year, 0)
-        
+
         print(f"{year:<6} ${cap:<18.2f}M  ${league_total:<18.2f}M  ${benefits:<13.2f}M")
-    
+
     print("\n" + "=" * 70)
     print(f"Total teams: {NFL_TEAMS_COUNT}")
     print(f"Team cap tolerance: ±{TEAM_CAP_TOLERANCE_PCT}%")

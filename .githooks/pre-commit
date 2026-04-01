@@ -1,0 +1,34 @@
+#!/bin/sh
+#
+# Pre-commit hook: lint + tests inside Docker
+# All pipeline tools live in the Docker container (see AGENTS.md).
+#
+
+DOCKER_CMD="docker compose --env-file docker_env.txt exec -T pipeline bash -c"
+
+# Verify the pipeline container is running
+if ! docker compose --env-file docker_env.txt ps --format '{{.Name}}' 2>/dev/null | grep -q pipeline; then
+    echo "ERROR: Docker pipeline container not running."
+    echo "Run 'make up' first, then retry your commit."
+    exit 1
+fi
+
+echo "=== Pre-commit: Format check (Docker) ==="
+$DOCKER_CMD "black --check pipeline/src/ && isort --check pipeline/src/"
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Format check failed. Run: make lint-fix"
+    exit 1
+fi
+
+echo "=== Pre-commit: Flake8 (Docker, warnings only) ==="
+$DOCKER_CMD "cd pipeline && flake8 src/ --count -q" || true
+
+echo "=== Pre-commit: Tests (Docker) ==="
+$DOCKER_CMD "python -m pytest pipeline/tests/ -x -q --tb=short"
+if [ $? -ne 0 ]; then
+    echo "Tests failed! Aborting commit."
+    exit 1
+fi
+
+echo "Pre-commit checks passed."

@@ -1,6 +1,8 @@
+from pathlib import Path
+
 import duckdb
 import pandas as pd
-from pathlib import Path
+
 
 def load_team_financials(con: duckdb.DuckDBPyConnection, file_path: Path):
     """
@@ -16,6 +18,7 @@ def load_team_financials(con: duckdb.DuckDBPyConnection, file_path: Path):
         SELECT * FROM read_csv_auto('{file_path}', header=True)
     """)
 
+
 def load_player_merch(con: duckdb.DuckDBPyConnection, file_path: Path):
     """
     Loads Player Merch CSV into DuckDB silver layer.
@@ -23,7 +26,7 @@ def load_player_merch(con: duckdb.DuckDBPyConnection, file_path: Path):
     if not file_path.exists():
         print(f"Warning: Merch data file not found at {file_path}")
         return
-    
+
     print(f"Loading Merch Rank from {file_path}")
     con.execute(f"""
         CREATE OR REPLACE TABLE silver_player_merch AS 

@@ -1,5 +1,5 @@
 # Trade Simulator Package
-from .state import LeagueState, TeamState, TradeAction
-from .agent import Agent, TeamPersona, CONTENDER
+from .agent import CONTENDER, Agent, TeamPersona
 from .mcts import MCTS
+from .state import LeagueState, TeamState, TradeAction
 from .state_loader import StateLoader

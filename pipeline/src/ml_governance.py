@@ -1,16 +1,20 @@
 import json
 import logging
 import os
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
 import yaml
 
 logger = logging.getLogger(__name__)
 
+
 class MLGovernance:
     def __init__(self, config_path=None):
         if config_path is None:
-            config_path = Path(__file__).resolve().parent.parent / "config" / "ml_config.yaml"
+            config_path = (
+                Path(__file__).resolve().parent.parent / "config" / "ml_config.yaml"
+            )
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
         self.registry_path = Path(self.config["model_registry"]["registry_path"])
@@ -22,11 +26,7 @@ class MLGovernance:
             with open(self.registry_path, "r") as f:
                 self.registry = json.load(f)
         else:
-            self.registry = {
-                "production_model": None,
-                "candidates": [],
-                "history": []
-            }
+            self.registry = {"production_model": None, "candidates": [], "history": []}
 
     def _save_registry(self):
         with open(self.registry_path, "w") as f:
@@ -35,10 +35,10 @@ class MLGovernance:
     def _get_git_sha(self):
         """Get current git commit SHA for artifact lineage."""
         import subprocess
+
         try:
             result = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                capture_output=True, text=True, check=True
+                ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
             )
             return result.stdout.strip()
         except Exception:
@@ -51,11 +51,13 @@ class MLGovernance:
             "git_sha": self._get_git_sha(),
             "metrics": metrics,
             "feature_names": feature_names,
-            "status": "candidate"
+            "status": "candidate",
         }
         self.registry["candidates"].append(entry)
         self._save_registry()
-        logger.info(f"Registered new candidate model: {model_path} (SHA: {entry['git_sha'][:8]})")
+        logger.info(
+            f"Registered new candidate model: {model_path} (SHA: {entry['git_sha'][:8]})"
+        )
 
     def promote_to_production(self, model_path):
         # Archive current production if it exists
@@ -73,7 +75,7 @@ class MLGovernance:
                 self._save_registry()
                 logger.info(f"🚀 PROMOTED {model_path} to PRODUCTION")
                 return True
-        
+
         logger.error(f"Failed to promote {model_path}: Not found in candidates.")
         return False
 

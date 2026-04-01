@@ -24,16 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r pipeline/requirements.txt
 
-      - name: Execute Pipeline and Sync to BigQuery
+      - name: Execute Medallion Pipeline
         env:
-          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
         run: |
-          # 1. Run the core transformation layers
           python pipeline/scripts/medallion_pipeline.py
-
-          # 2. Push fully sanitized analytics data to BigQuery
-          python pipeline/scripts/sync_to_bigquery.py

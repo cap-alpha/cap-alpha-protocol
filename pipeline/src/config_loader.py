@@ -42,25 +42,20 @@ def get_config():
 def get_db_path():
     """
     Get the database path from config or environment.
-    Environment variable DB_PATH takes precedence over config.
-    Fails explicitly if neither is set.
+    Returns the dataset name for BigQuery (connection handled by DBManager via GCP_PROJECT_ID).
     """
-    # Environment override takes precedence
     env_path = os.getenv("DB_PATH")
     if env_path:
         logger.info(f"Using DB_PATH from environment: {env_path}")
         return env_path
-    
-    # Fall back to config
+
     config = get_config()
-    db_path = config.get("database", {}).get("path")
-    
+    # Support both legacy 'database.path' and current 'database.dataset'
+    db_path = config.get("database", {}).get("dataset") or config.get("database", {}).get("path")
+
     if not db_path:
-        raise ValueError(
-            "Database path not configured. Set DB_PATH environment variable "
-            "or configure database.path in config/settings.yaml"
-        )
-    
+        db_path = "nfl_dead_money"
+
     logger.info(f"Using DB path from config: {db_path}")
     return db_path
 

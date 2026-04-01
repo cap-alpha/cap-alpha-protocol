@@ -10,7 +10,7 @@ on:
 jobs:
   ml_flywheel:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: '3.11'
           cache: 'pip'
-          
+
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y chromium-browser chromium-chromedriver
-          
+
       - name: Step 1 - Scrape Spotrac & Data Ingestion
         continue-on-error: true
         env:
@@ -39,35 +39,34 @@ jobs:
           CHROME_BIN: /usr/bin/chromium-browser
           CHROMEDRIVER_BIN: /usr/bin/chromedriver
         run: |
-          # Fetch the latest Cap/Salary data
           python pipeline/src/spotrac_scraper_v2.py team-cap
           python pipeline/src/spotrac_scraper_v2.py player-salaries
 
       - name: Step 2 - Medallion Bronze/Silver Hydration
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
-          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: |
-          # Ensure raw files are pushed directly to MotherDuck Bronze/Silver tables
           python pipeline/src/feature_factory.py
 
-      - name: Step 3 - ML Model Training & Inference (Uncertainty Quantification)
+      - name: Step 3 - ML Model Training & Inference
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
-          MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: |
-          # Train XGBoost with Isolation Forest Uncertainty scoring
-          # Scored metrics deduplicated on terminal weeks (R-squared fix)
           python pipeline/src/train_model.py
 
       - name: Step 4 - Gemini Error Analysis Loop
         env:
           PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
         run: |
-          # Hit the Gemini API to analyze False Positives/Negatives
           python pipeline/src/analyze_model_misses.py
-          
+
       - name: Open Diagnostic Issue (Optional/Future)
         if: always()
         run: |

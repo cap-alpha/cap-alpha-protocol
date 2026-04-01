@@ -20,7 +20,7 @@ _config = load_config()
 DATA_BRONZE_DIR = BASE_DIR / _config.get("data", {}).get("bronze", "data/bronze")
 DATA_SILVER_DIR = BASE_DIR / _config.get("data", {}).get("silver", "data/silver")
 DATA_GOLD_DIR = BASE_DIR / _config.get("data", {}).get("gold", "data/gold")
-DATA_DUCKDB_DIR = BASE_DIR / _config.get("data", {}).get("duckdb", "data/duckdb")
+DATA_DUCKDB_DIR = BASE_DIR / "data/duckdb"  # Legacy path, BigQuery is sole warehouse
 
 # Legacy aliases for backward compatibility
 DATA_RAW_DIR = DATA_BRONZE_DIR

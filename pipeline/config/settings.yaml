@@ -8,11 +8,9 @@ data:
   bronze: "data/bronze"      # Raw, immutable source data
   silver: "data/silver"      # Cleaned, typed, normalized
   gold: "data/gold"          # Feature-ready for ML
-  duckdb: "data/duckdb"      # DuckDB database files
-
 database:
-  # Primary production database - contains Silver and Gold layers
-  path: "md:nfl_dead_money"
+  # BigQuery is the sole data warehouse — connection via GCP_PROJECT_ID env var
+  dataset: "nfl_dead_money"
 
 models:
   directory: "models"

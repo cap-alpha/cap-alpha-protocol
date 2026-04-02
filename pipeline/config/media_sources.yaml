@@ -1,0 +1,123 @@
+# Media Sources Registry — Pundit Prediction Ingestion
+#
+# Each source defines where to fetch pundit content and how to identify it.
+# The daily ingestor iterates over all enabled sources, fetches new content,
+# and lands it in bronze_layer.raw_pundit_media.
+#
+# Adding a new source: just add an entry here. No code changes needed.
+
+sources:
+  # ── RSS Feeds ──────────────────────────────────────────────────────────────
+  - id: pft_nbc
+    name: "ProFootballTalk (NBC)"
+    type: rss
+    url: "https://profootballtalk.nbcsports.com/feed/"
+    enabled: true
+    pundits:
+      - id: mike_florio
+        name: "Mike Florio"
+        match_authors: ["Mike Florio", "mflorio"]
+
+  - id: espn_nfl
+    name: "ESPN NFL"
+    type: rss
+    url: "https://www.espn.com/espn/rss/nfl/news"
+    enabled: true
+    pundits:
+      - id: adam_schefter
+        name: "Adam Schefter"
+        match_authors: ["Adam Schefter", "Schefter"]
+      - id: dan_graziano
+        name: "Dan Graziano"
+        match_authors: ["Dan Graziano"]
+      - id: jeremy_fowler
+        name: "Jeremy Fowler"
+        match_authors: ["Jeremy Fowler"]
+
+  - id: theringer_nfl
+    name: "The Ringer NFL"
+    type: rss
+    url: "https://www.theringer.com/rss/nfl/index.xml"
+    enabled: true
+    pundits:
+      - id: bill_simmons
+        name: "Bill Simmons"
+        match_authors: ["Bill Simmons"]
+      - id: kevin_clark
+        name: "Kevin Clark"
+        match_authors: ["Kevin Clark"]
+
+  - id: theathletic_nfl
+    name: "The Athletic NFL"
+    type: rss
+    url: "https://theathletic.com/feeds/rss/news/?sport=football"
+    enabled: true
+    pundits:
+      - id: dianna_russini
+        name: "Dianna Russini"
+        match_authors: ["Dianna Russini"]
+      - id: jeff_howe
+        name: "Jeff Howe"
+        match_authors: ["Jeff Howe"]
+
+  - id: nfl_official
+    name: "NFL.com News"
+    type: rss
+    url: "https://www.nfl.com/rss/rsslanding?searchString=home"
+    enabled: true
+    pundits:
+      - id: ian_rapoport
+        name: "Ian Rapoport"
+        match_authors: ["Ian Rapoport", "Rapoport"]
+      - id: tom_pelissero
+        name: "Tom Pelissero"
+        match_authors: ["Tom Pelissero"]
+
+  - id: si_nfl
+    name: "Sports Illustrated NFL"
+    type: rss
+    url: "https://www.si.com/rss/si_nfl.rss"
+    enabled: true
+    pundits:
+      - id: albert_breer
+        name: "Albert Breer"
+        match_authors: ["Albert Breer"]
+
+  # ── YouTube Channels (transcript-based) ────────────────────────────────────
+  - id: pat_mcafee_show
+    name: "The Pat McAfee Show"
+    type: youtube_rss
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
+    enabled: true
+    pundits:
+      - id: pat_mcafee
+        name: "Pat McAfee"
+        match_authors: ["Pat McAfee"]
+
+  - id: undisputed
+    name: "Undisputed"
+    type: youtube_rss
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCuF2PqOvMBKBVi9JvtC3GqA"
+    enabled: true
+    pundits:
+      - id: skip_bayless
+        name: "Skip Bayless"
+        match_authors: ["Skip Bayless"]
+
+  - id: first_take
+    name: "First Take"
+    type: youtube_rss
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
+    enabled: true
+    pundits:
+      - id: stephen_a_smith
+        name: "Stephen A. Smith"
+        match_authors: ["Stephen A. Smith", "Stephen A"]
+
+# Default settings applied to all sources unless overridden
+defaults:
+  fetch_timeout_seconds: 30
+  max_retries: 3
+  retry_backoff_seconds: 5
+  max_items_per_feed: 50
+  dedup_window_days: 7

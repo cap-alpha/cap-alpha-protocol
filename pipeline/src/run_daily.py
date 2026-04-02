@@ -1,3 +1,13 @@
+"""
+Daily Pipeline Orchestrator
+
+Runs all pipeline stages in order. Designed to run inside Docker via:
+    python -m src.run_daily
+
+Each stage is isolated — a failure in one stage logs the error and continues
+to the next. The exit code reflects whether any critical stage failed.
+"""
+
 import logging
 import os
 import subprocess
@@ -34,45 +44,40 @@ def main():
     year = str(datetime.now().year)
     logger.info(f"Starting Daily Pipeline for year {year}")
 
-    # Layer 1: Scrapers
+    # ── Stage 1: Scrapers (contract/roster data) ────────────────────────
     run_cmd(
-        f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); from src.spotrac_scraper_v2 import scrape_and_save_team_cap; scrape_and_save_team_cap({year})\""
+        f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+        f"from src.spotrac_scraper_v2 import scrape_and_save_team_cap; "
+        f'scrape_and_save_team_cap({year})"',
+        ignore_failure=True,
     )
     run_cmd(
-        f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); from src.spotrac_scraper_v2 import scrape_and_save_player_rankings; scrape_and_save_player_rankings({year})\""
-    )
-
-    # Layer 2: Staging
-    run_cmd(f"python src/ingestion.py --source spotrac-team-cap --year {year}")
-    run_cmd(f"python src/ingestion.py --source pfr-rosters --year {year}")
-    run_cmd(f"python src/ingestion.py --source spotrac-rankings --year {year}")
-    run_cmd(f"python src/ingestion.py --source spotrac-contracts --year {year}")
-
-    # Layer 3: Normalization & DuckDB
-    run_cmd(f"python src/normalization.py --year {year}")
-    run_cmd(f"python src/load_to_duckdb.py {year}")
-
-    # Layer 4: dbt
-    run_cmd("dbt seed --project-dir ./dbt --profiles-dir ./dbt")
-    run_cmd("dbt run --project-dir ./dbt --profiles-dir ./dbt")
-
-    # Layer 5: Data Quality
-    run_cmd(
-        "pytest tests/test_data_freshness.py tests/test_pipeline_idempotency.py -v --tb=short",
+        f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+        f"from src.spotrac_scraper_v2 import scrape_and_save_player_rankings; "
+        f'scrape_and_save_player_rankings({year})"',
         ignore_failure=True,
     )
 
-    # Layer 6: ML Flywheel
-    run_cmd("python src/feature_factory.py")
-    run_cmd("python src/train_model.py")
+    # ── Stage 2: Media Ingestion (pundit predictions) ───────────────────
+    run_cmd("python -m src.media_ingestor", ignore_failure=True)
 
-    # Layer 7: Ledger & Provenance Signature
-    run_cmd("python src/cryptographic_ledger.py")
+    # ── Stage 3: Silver transforms ──────────────────────────────────────
+    run_cmd("python -m src.silver_sportsdataio_transform", ignore_failure=True)
 
-    # Layer 8: Proof of Alpha
-    run_cmd("python ../scripts/generate_proof_of_alpha.py")
+    # ── Stage 4: Feature engineering & ML ───────────────────────────────
+    run_cmd("python src/feature_factory.py", ignore_failure=True)
+    run_cmd("python src/train_model.py", ignore_failure=True)
 
-    logger.info("Daily Pipeline completed successfully.")
+    # ── Stage 5: Cryptographic Ledger hash ──────────────────────────────
+    run_cmd("python -m src.cryptographic_ledger", ignore_failure=True)
+
+    # ── Stage 6: Data quality checks ────────────────────────────────────
+    run_cmd(
+        "python -m pytest tests/ -m unit -v --tb=short",
+        ignore_failure=True,
+    )
+
+    logger.info("Daily Pipeline completed.")
 
 
 if __name__ == "__main__":

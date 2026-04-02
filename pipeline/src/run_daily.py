@@ -61,7 +61,10 @@ def main():
     # ── Stage 2: Media Ingestion (pundit predictions) ───────────────────
     run_cmd("python -m src.media_ingestor", ignore_failure=True)
 
-    # ── Stage 3: Silver transforms ──────────────────────────────────────
+    # ── Stage 3: NLP Assertion Extraction (Gemini) ────────────────────
+    run_cmd("python -m src.assertion_extractor --limit 50", ignore_failure=True)
+
+    # ── Stage 4: Silver transforms ──────────────────────────────────────
     run_cmd("python -m src.silver_sportsdataio_transform", ignore_failure=True)
 
     # ── Stage 4: Feature engineering & ML ───────────────────────────────

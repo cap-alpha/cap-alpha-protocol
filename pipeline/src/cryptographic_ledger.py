@@ -1,150 +1,260 @@
+"""
+Cryptographic Hashing Pipeline for Prediction Integrity (Issue #111)
+
+Ingests pundit predictions into the append-only gold_layer.prediction_ledger
+BigQuery table with SHA-256 hashing for tamper-evident record keeping.
+
+Immutability is enforced at two layers:
+  1. Application layer: only WRITE_APPEND via append_dataframe_to_table()
+  2. IAM layer: service account lacks bigquery.tables.delete/update on this table
+"""
+
 import hashlib
-import json
 import logging
-from datetime import datetime
+import os
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from typing import Optional
+
+import pandas as pd
+from google.cloud import bigquery
 
 from src.db_manager import DBManager
 
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
-)
 logger = logging.getLogger(__name__)
 
-
-def generate_merkle_root(hashes: list) -> str:
-    if not hashes:
-        return ""
-    if len(hashes) == 1:
-        return hashes[0]
-
-    new_level = []
-    for i in range(0, len(hashes), 2):
-        left = hashes[i]
-        right = hashes[i + 1] if i + 1 < len(hashes) else left
-        combined = left + right
-        new_level.append(hashlib.sha256(combined.encode("utf-8")).hexdigest())
-
-    return generate_merkle_root(new_level)
+LEDGER_TABLE = "gold_layer.prediction_ledger"
+HASH_SEED = ""  # Empty string seed for the first chain_hash
 
 
-def hash_predictions_to_ledger():
-    db = DBManager()
+@dataclass
+class PunditPrediction:
+    """
+    A single pundit prediction to be written to the ledger.
+    Fields marked Optional are nullable in BigQuery.
+    """
 
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS audit_ledger_entries (
-            entry_id VARCHAR PRIMARY KEY,
-            player_name VARCHAR,
-            year INTEGER,
-            week INTEGER,
-            payload JSON,
-            payload_type VARCHAR,
-            signature_hash VARCHAR,
-            created_at TIMESTAMP
-        );
-    """)
+    pundit_id: str
+    pundit_name: str
+    source_url: str
+    raw_assertion_text: str
+    extracted_claim: Optional[str] = None
+    claim_category: Optional[str] = (
+        None  # player_performance|game_outcome|trade|draft_pick|injury|contract
+    )
+    season_year: Optional[int] = None
+    target_player_id: Optional[str] = None
+    target_team: Optional[str] = None
+    ingestion_timestamp: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
-    db.execute("""
-        CREATE TABLE IF NOT EXISTS audit_ledger_blocks (
-            block_id VARCHAR PRIMARY KEY,
-            year INTEGER,
-            week INTEGER,
-            merkle_root VARCHAR,
-            transaction_count INTEGER,
-            created_at TIMESTAMP
-        );
-    """)
+
+def _canonical_payload(prediction: PunditPrediction) -> str:
+    """Returns the deterministic string that is SHA-256 hashed for prediction_hash."""
+    ts = prediction.ingestion_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    return "|".join(
+        [ts, prediction.source_url, prediction.pundit_id, prediction.raw_assertion_text]
+    )
+
+
+def compute_prediction_hash(prediction: PunditPrediction) -> str:
+    """SHA-256 of the canonical payload."""
+    payload = _canonical_payload(prediction)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def compute_chain_hash(prediction_hash: str, previous_chain_hash: str) -> str:
+    """SHA-256 of prediction_hash concatenated with the previous row's chain_hash."""
+    combined = prediction_hash + previous_chain_hash
+    return hashlib.sha256(combined.encode("utf-8")).hexdigest()
+
+
+def get_latest_chain_hash(db: DBManager) -> str:
+    """
+    Fetches the chain_hash of the most recently ingested ledger row.
+    Returns HASH_SEED if the table is empty.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    query = f"""
+        SELECT chain_hash
+        FROM `{project_id}.{LEDGER_TABLE}`
+        ORDER BY ingestion_timestamp DESC
+        LIMIT 1
+    """
+    try:
+        df = db.fetch_df(query)
+        if df.empty:
+            return HASH_SEED
+        return str(df.iloc[0]["chain_hash"])
+    except Exception as e:
+        # Table may not exist yet — return seed
+        logger.warning(f"Could not fetch latest chain_hash (table may be empty): {e}")
+        return HASH_SEED
+
+
+def _append_to_ledger(df: pd.DataFrame, db: DBManager) -> None:
+    """
+    Writes rows to gold_layer.prediction_ledger using WRITE_APPEND.
+    Uses the BQ client directly because the table lives in a different dataset
+    (gold_layer) than the default nfl_dead_money dataset in DBManager.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    table_ref = f"{project_id}.{LEDGER_TABLE}"
+    job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
+    job = db.client.load_table_from_dataframe(df, table_ref, job_config=job_config)
+    job.result()
+
+
+def ingest_prediction(
+    prediction: PunditPrediction, db: Optional[DBManager] = None
+) -> str:
+    """
+    Hash a single PunditPrediction and append it to the ledger.
+
+    Returns the prediction_hash of the newly ingested record.
+    """
+    close_db = db is None
+    if db is None:
+        db = DBManager()
 
     try:
-        latest = db.fetch_df(
-            "SELECT MAX(year) as y, 0 as w FROM prediction_results"
-        ).to_dict("records")
-        if not latest or not latest[0]["y"]:
-            logger.warning("No predictions found to hash.")
-            return
+        previous_chain_hash = get_latest_chain_hash(db)
+        prediction_hash = compute_prediction_hash(prediction)
+        chain_hash = compute_chain_hash(prediction_hash, previous_chain_hash)
 
-        year = latest[0]["y"]
-        week = latest[0]["w"]
+        row = {
+            "prediction_hash": prediction_hash,
+            "chain_hash": chain_hash,
+            "ingestion_timestamp": prediction.ingestion_timestamp,
+            "source_url": prediction.source_url,
+            "pundit_id": prediction.pundit_id,
+            "pundit_name": prediction.pundit_name,
+            "raw_assertion_text": prediction.raw_assertion_text,
+            "extracted_claim": prediction.extracted_claim,
+            "claim_category": prediction.claim_category,
+            "season_year": prediction.season_year,
+            "target_player_id": prediction.target_player_id,
+            "target_team": prediction.target_team,
+            "resolution_status": "PENDING",
+            "resolved_at": None,
+            "resolution_notes": None,
+        }
 
-        existing = db.fetch_df(
-            f"SELECT block_id FROM audit_ledger_blocks WHERE year = {year} AND week = {week}"
-        ).to_dict("records")
-        if existing and len(existing) > 0:
-            logger.info(
-                f"Block for {year} W{week} already exists in ledger. Skipping hashing."
-            )
-            return
+        _append_to_ledger(pd.DataFrame([row]), db)
 
         logger.info(
-            f"Hashing predictions for {year} W{week} into Cryptographic Ledger..."
+            f"Ingested prediction {prediction_hash[:16]}… "
+            f"pundit={prediction.pundit_id} chain={chain_hash[:16]}…"
         )
+        return prediction_hash
+    finally:
+        if close_db:
+            db.close()
 
-        preds = db.fetch_df(f"""
-            SELECT player_name, predicted_risk_score
-            FROM prediction_results
-            WHERE year = {year}
-        """).to_dict("records")
 
-        if not preds:
-            return
+def ingest_batch(
+    predictions: list[PunditPrediction], db: Optional[DBManager] = None
+) -> list[str]:
+    """
+    Hash and append a batch of predictions sequentially (order matters for chain integrity).
+    Returns list of prediction_hashes in ingestion order.
+    """
+    close_db = db is None
+    if db is None:
+        db = DBManager()
 
-        signatures = []
-        timestamp = datetime.utcnow().isoformat()
+    hashes = []
+    try:
+        previous_chain_hash = get_latest_chain_hash(db)
+        rows = []
 
-        for p in preds:
-            payload = {
-                "player_name": p["player_name"],
-                "year": year,
-                "week": week,
-                "risk_score": (
-                    float(p["predicted_risk_score"])
-                    if pd.notna(p["predicted_risk_score"])
-                    else 0.0
-                ),
-                "fmv": 0.0,
-                "edce": 0.0,
-                "timestamp": timestamp,
-            }
-            payload_str = json.dumps(payload, sort_keys=True)
-            signature = hashlib.sha256(payload_str.encode("utf-8")).hexdigest()
-            signatures.append(signature)
+        for prediction in predictions:
+            prediction_hash = compute_prediction_hash(prediction)
+            chain_hash = compute_chain_hash(prediction_hash, previous_chain_hash)
 
-            db.execute(f"""
-                INSERT INTO audit_ledger_entries
-                VALUES (
-                    '{signature[:16]}', 
-                    '{p['player_name'].replace("'", "''")}', 
-                    {year}, 
-                    {week}, 
-                    '{payload_str.replace("'", "''")}', 
-                    'PREDICTION',
-                    '{signature}',
-                    CURRENT_TIMESTAMP
+            rows.append(
+                {
+                    "prediction_hash": prediction_hash,
+                    "chain_hash": chain_hash,
+                    "ingestion_timestamp": prediction.ingestion_timestamp,
+                    "source_url": prediction.source_url,
+                    "pundit_id": prediction.pundit_id,
+                    "pundit_name": prediction.pundit_name,
+                    "raw_assertion_text": prediction.raw_assertion_text,
+                    "extracted_claim": prediction.extracted_claim,
+                    "claim_category": prediction.claim_category,
+                    "season_year": prediction.season_year,
+                    "target_player_id": prediction.target_player_id,
+                    "target_team": prediction.target_team,
+                    "resolution_status": "PENDING",
+                    "resolved_at": None,
+                    "resolution_notes": None,
+                }
+            )
+            hashes.append(prediction_hash)
+            previous_chain_hash = chain_hash  # advance chain
+
+        _append_to_ledger(pd.DataFrame(rows), db)
+
+        logger.info(f"Ingested batch of {len(predictions)} predictions into ledger.")
+        return hashes
+    finally:
+        if close_db:
+            db.close()
+
+
+def verify_chain_integrity(db: Optional[DBManager] = None) -> dict:
+    """
+    Walks the full ledger in chronological order and re-derives each chain_hash.
+    Returns a dict with:
+      - verified: bool
+      - total_records: int
+      - first_break_at: prediction_hash of first tampered record (or None)
+    """
+    close_db = db is None
+    if db is None:
+        db = DBManager()
+
+    try:
+        project_id = os.environ.get("GCP_PROJECT_ID")
+        query = f"""
+            SELECT prediction_hash, chain_hash, ingestion_timestamp,
+                   source_url, pundit_id, raw_assertion_text
+            FROM `{project_id}.{LEDGER_TABLE}`
+            ORDER BY ingestion_timestamp ASC
+        """
+        df = db.fetch_df(query)
+
+        if df.empty:
+            return {"verified": True, "total_records": 0, "first_break_at": None}
+
+        previous_chain_hash = HASH_SEED
+        for _, row in df.iterrows():
+            stored_prediction_hash = row["prediction_hash"]
+            stored_chain_hash = row["chain_hash"]
+
+            expected_chain = compute_chain_hash(
+                stored_prediction_hash, previous_chain_hash
+            )
+            if expected_chain != stored_chain_hash:
+                logger.error(
+                    f"Chain integrity BROKEN at prediction_hash={stored_prediction_hash}"
                 )
-            """)
+                return {
+                    "verified": False,
+                    "total_records": len(df),
+                    "first_break_at": stored_prediction_hash,
+                }
+            previous_chain_hash = stored_chain_hash
 
-        merkle_root = generate_merkle_root(signatures)
-        block_id = f"BLK_{year}_{week}_{merkle_root[:8]}"
-
-        db.execute(f"""
-            INSERT INTO audit_ledger_blocks
-            VALUES (
-                '{block_id}',
-                {year},
-                {week},
-                '{merkle_root}',
-                {len(signatures)},
-                CURRENT_TIMESTAMP
-            )
-        """)
-
-        logger.info(
-            f"Successfully minted Block {block_id} with {len(signatures)} prediction hashes."
-        )
-    except Exception as e:
-        logger.error(f"Failed to hash ledger: {e}")
+        logger.info(f"Chain integrity verified: {len(df)} records intact.")
+        return {"verified": True, "total_records": len(df), "first_break_at": None}
+    finally:
+        if close_db:
+            db.close()
 
 
 if __name__ == "__main__":
-    import pandas as pd
-
-    hash_predictions_to_ledger()
+    result = verify_chain_integrity()
+    print(result)

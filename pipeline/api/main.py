@@ -1,27 +1,35 @@
+import logging
+import os
+import sys
+from typing import Any, Dict, List, Optional
+
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, List, Optional
-import uvicorn
-import logging
 
 try:
     from src.adversarial_engine import AdversarialEngine
     from src.win_probability import WinProbabilityModel
     from src.trade_partner_finder import TradePartnerFinder
+    from api.pundit_router import router as pundit_router
 except ImportError:
-    # Handle running from different directories
-    import sys
-    import os
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from src.adversarial_engine import AdversarialEngine
     from src.win_probability import WinProbabilityModel
     from src.trade_partner_finder import TradePartnerFinder
+    from api.pundit_router import router as pundit_router
 
 # Setup Logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Cap Alpha Protocol - Adversarial Engine")
+app = FastAPI(
+    title="Pundit Prediction Ledger API",
+    description="Cryptographically verified NFL pundit prediction tracking",
+    version="1.0.0",
+)
+
+app.include_router(pundit_router)
 
 # Initialize Engine
 engine = AdversarialEngine()

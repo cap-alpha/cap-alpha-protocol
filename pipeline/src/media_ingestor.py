@@ -65,6 +65,7 @@ class MediaItem:
     ingested_at: datetime
     content_type: str
     fetch_source_type: str
+    sport: str = "NFL"  # NFL|MLB|NBA|NHL|NCAAF|NCAAB — set from media_sources.yaml
     raw_metadata: Optional[str] = None
 
 
@@ -152,6 +153,7 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
     url = source["url"]
     source_id = source["id"]
     pundits = source.get("pundits", [])
+    sport = source.get("sport", "NFL")
     max_items = defaults.get("max_items_per_feed", 50)
     timeout = defaults.get("fetch_timeout_seconds", 30)
 
@@ -220,6 +222,7 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
                 ingested_at=now,
                 content_type=content_type,
                 fetch_source_type=source.get("type", "rss"),
+                sport=sport,
                 raw_metadata=json.dumps(metadata) if metadata else None,
             )
         )
@@ -309,6 +312,7 @@ def ingest_source(
                 "ingested_at": item.ingested_at,
                 "content_type": item.content_type,
                 "fetch_source_type": item.fetch_source_type,
+                "sport": item.sport,
                 "raw_metadata": item.raw_metadata,
             }
             for item in new_items

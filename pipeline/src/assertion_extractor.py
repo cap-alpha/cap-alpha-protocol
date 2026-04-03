@@ -50,14 +50,14 @@ VALID_CATEGORIES = {
     "contract",
 }
 
-EXTRACTION_PROMPT = """You are an NFL prediction extraction system. Analyze the following media content and extract any testable predictions or assertions the author makes.
+EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Analyze the following media content and extract any testable predictions or assertions the author makes.
 
 For each prediction found, return a JSON array of objects with these fields:
 - "extracted_claim": A concise, testable statement (e.g. "Patrick Mahomes will win MVP in 2025")
 - "claim_category": One of: player_performance, game_outcome, trade, draft_pick, injury, contract
-- "season_year": The NFL season year the prediction applies to (integer, or null if unclear)
+- "season_year": The {sport} season year the prediction applies to (integer, or null if unclear)
 - "target_player": Player name if the prediction is about a specific player (or null)
-- "target_team": NFL team abbreviation if about a specific team (or null)
+- "target_team": {sport} team abbreviation if about a specific team (or null)
 - "confidence_note": Brief note on how explicit/confident the prediction is (e.g. "strong assertion", "hedged", "speculative")
 
 Rules:
@@ -98,6 +98,7 @@ def extract_assertions(
     title: str = "",
     author: str = "",
     source_name: str = "",
+    sport: str = "NFL",
     client: Optional[genai.Client] = None,
 ) -> ExtractionResult:
     """
@@ -108,6 +109,7 @@ def extract_assertions(
         client = _get_gemini_client()
 
     prompt = EXTRACTION_PROMPT.format(
+        sport=sport,
         source_name=source_name or "Unknown",
         author=author or "Unknown",
         title=title or "Untitled",
@@ -194,7 +196,8 @@ def get_unprocessed_media(db: DBManager, limit: int = 100) -> pd.DataFrame:
         query = f"""
             SELECT r.content_hash, r.source_id, r.title, r.raw_text,
                    r.source_url, r.author, r.matched_pundit_id,
-                   r.matched_pundit_name, r.published_at
+                   r.matched_pundit_name, r.published_at,
+                   COALESCE(r.sport, 'NFL') AS sport
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}` r
             LEFT JOIN `{project_id}.nfl_dead_money.{PROCESSED_TABLE}` p
                 ON r.content_hash = p.content_hash
@@ -211,7 +214,8 @@ def get_unprocessed_media(db: DBManager, limit: int = 100) -> pd.DataFrame:
         query = f"""
             SELECT content_hash, source_id, title, raw_text,
                    source_url, author, matched_pundit_id,
-                   matched_pundit_name, published_at
+                   matched_pundit_name, published_at,
+                   COALESCE(sport, 'NFL') AS sport
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
             WHERE raw_text IS NOT NULL
               AND LENGTH(raw_text) > 50
@@ -238,6 +242,7 @@ def mark_as_processed(content_hashes: list[str], db: DBManager) -> None:
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
+    sport: str = "NFL",
     db: Optional[DBManager] = None,
     gemini_client: Optional[genai.Client] = None,
 ) -> dict:
@@ -295,6 +300,7 @@ def run_extraction(
                 title=str(row.get("title", "")),
                 author=str(row.get("author", "")),
                 source_name=str(row.get("source_id", "")),
+                sport=str(row.get("sport", sport)),
                 client=gemini_client,
             )
 
@@ -334,6 +340,7 @@ def run_extraction(
                         season_year=pred.get("season_year"),
                         target_player_id=pred.get("target_player"),
                         target_team=pred.get("target_team"),
+                        sport=str(row.get("sport", sport)),
                     )
                 )
 
@@ -394,7 +401,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Preview without calling Gemini or writing",
     )
+    parser.add_argument(
+        "--sport",
+        type=str,
+        default="NFL",
+        help="Sport context for extraction (NFL, MLB, NBA, etc.)",
+    )
     args = parser.parse_args()
 
-    result = run_extraction(limit=args.limit, dry_run=args.dry_run)
+    result = run_extraction(limit=args.limit, dry_run=args.dry_run, sport=args.sport)
     print(json.dumps(result, indent=2))

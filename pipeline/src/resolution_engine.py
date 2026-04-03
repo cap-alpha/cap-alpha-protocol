@@ -260,10 +260,13 @@ def void_prediction(
     return result
 
 
-def get_pending_predictions(db: Optional[DBManager] = None) -> pd.DataFrame:
+def get_pending_predictions(
+    sport: Optional[str] = None, db: Optional[DBManager] = None
+) -> pd.DataFrame:
     """
     Returns all PENDING predictions from the ledger that don't yet have a resolution.
     Used by automated resolution jobs to find work to do.
+    Pass sport='NFL' to filter to a specific sport; omit for all sports.
     """
     close_db = db is None
     if db is None:
@@ -271,6 +274,7 @@ def get_pending_predictions(db: Optional[DBManager] = None) -> pd.DataFrame:
 
     try:
         project_id = os.environ.get("GCP_PROJECT_ID")
+        sport_filter = f"AND COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
         query = f"""
             SELECT
                 l.prediction_hash,
@@ -281,12 +285,13 @@ def get_pending_predictions(db: Optional[DBManager] = None) -> pd.DataFrame:
                 l.season_year,
                 l.target_player_id,
                 l.target_team,
+                COALESCE(l.sport, 'NFL') AS sport,
                 l.ingestion_timestamp
             FROM `{project_id}.{LEDGER_TABLE}` l
             LEFT JOIN `{project_id}.{RESOLUTIONS_TABLE}` r
                 ON l.prediction_hash = r.prediction_hash
-            WHERE r.prediction_hash IS NULL
-               OR r.resolution_status = 'PENDING'
+            WHERE (r.prediction_hash IS NULL OR r.resolution_status = 'PENDING')
+              {sport_filter}
             ORDER BY l.ingestion_timestamp ASC
         """
         return db.fetch_df(query)
@@ -295,10 +300,13 @@ def get_pending_predictions(db: Optional[DBManager] = None) -> pd.DataFrame:
             db.close()
 
 
-def get_pundit_accuracy_summary(db: Optional[DBManager] = None) -> pd.DataFrame:
+def get_pundit_accuracy_summary(
+    sport: Optional[str] = None, db: Optional[DBManager] = None
+) -> pd.DataFrame:
     """
     Returns per-pundit accuracy metrics from resolved predictions.
     Used by the Scorecard API to power leaderboard and pundit profiles.
+    Pass sport='NFL' to filter to a specific sport; omit for cross-sport summary.
     """
     close_db = db is None
     if db is None:
@@ -306,10 +314,12 @@ def get_pundit_accuracy_summary(db: Optional[DBManager] = None) -> pd.DataFrame:
 
     try:
         project_id = os.environ.get("GCP_PROJECT_ID")
+        sport_filter = f"WHERE COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
         query = f"""
             SELECT
                 l.pundit_id,
                 l.pundit_name,
+                COALESCE(l.sport, 'NFL') AS sport,
                 COUNT(*) AS total_predictions,
                 COUNTIF(r.resolution_status IN ('CORRECT', 'INCORRECT')) AS resolved_count,
                 COUNTIF(r.resolution_status = 'CORRECT') AS correct_count,
@@ -322,7 +332,8 @@ def get_pundit_accuracy_summary(db: Optional[DBManager] = None) -> pd.DataFrame:
             FROM `{project_id}.{LEDGER_TABLE}` l
             LEFT JOIN `{project_id}.{RESOLUTIONS_TABLE}` r
                 ON l.prediction_hash = r.prediction_hash
-            GROUP BY l.pundit_id, l.pundit_name
+            {sport_filter}
+            GROUP BY l.pundit_id, l.pundit_name, sport
             ORDER BY avg_weighted_score DESC NULLS LAST
         """
         return db.fetch_df(query)

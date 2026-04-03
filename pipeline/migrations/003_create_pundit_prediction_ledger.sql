@@ -25,9 +25,12 @@ CREATE TABLE IF NOT EXISTS `{project_id}.gold_layer.prediction_ledger`
   claim_category      STRING    OPTIONS(description="One of: player_performance|game_outcome|trade|draft_pick|injury|contract"),
 
   -- Targeting
-  season_year         INT64     OPTIONS(description="NFL season year the prediction applies to"),
+  season_year         INT64     OPTIONS(description="Season year the prediction applies to"),
   target_player_id    STRING    OPTIONS(description="FK to silver_sportsdataio_players.player_id if claim targets a specific player"),
-  target_team         STRING    OPTIONS(description="NFL team abbreviation if claim targets a specific team"),
+  target_team         STRING    OPTIONS(description="Team abbreviation if claim targets a specific team"),
+
+  -- Sport context (multi-sport expansion)
+  sport               STRING    OPTIONS(description="Sport: NFL|MLB|NBA|NHL|NCAAF|NCAAB. Default NFL.") DEFAULT 'NFL',
 
   -- Resolution (populated by Prediction Resolution Engine, issue #112)
   resolution_status   STRING    OPTIONS(description="PENDING|CORRECT|INCORRECT|VOID") DEFAULT 'PENDING',

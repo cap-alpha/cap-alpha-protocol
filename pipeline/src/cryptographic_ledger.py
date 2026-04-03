@@ -45,6 +45,7 @@ class PunditPrediction:
     season_year: Optional[int] = None
     target_player_id: Optional[str] = None
     target_team: Optional[str] = None
+    sport: str = "NFL"  # NFL|MLB|NBA|NHL|NCAAF|NCAAB
     ingestion_timestamp: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -136,6 +137,7 @@ def ingest_prediction(
             "season_year": prediction.season_year,
             "target_player_id": prediction.target_player_id,
             "target_team": prediction.target_team,
+            "sport": prediction.sport,
             "resolution_status": "PENDING",
             "resolved_at": None,
             "resolution_notes": None,
@@ -187,6 +189,7 @@ def ingest_batch(
                     "season_year": prediction.season_year,
                     "target_player_id": prediction.target_player_id,
                     "target_team": prediction.target_team,
+                    "sport": prediction.sport,
                     "resolution_status": "PENDING",
                     "resolved_at": None,
                     "resolution_notes": None,

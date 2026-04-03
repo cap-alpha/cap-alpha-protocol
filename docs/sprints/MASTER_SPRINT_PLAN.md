@@ -61,7 +61,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 19: Immutable Auditability (Cryptographic Ledger)
 **Goal:** Prove absolute honesty in Fair Market Value predictions by eliminating hindsight bias. Implement a verifiable cryptographic ledger.
-- [ ] SP19-3: Architect a "Regulatory-Grade" data tier strictly enforcing append-only writes for prediction artifacts. (GH-#69)
+- [x] SP19-3: Architect a "Regulatory-Grade" data tier strictly enforcing append-only writes for prediction artifacts. (GH-#69)
 
 ---
 
@@ -75,7 +75,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 20: Sub-Second Latency & Backend Performance
 **Goal:** Ensure backend data is served immediately, ready to be cached by edge consumers or UI platforms.
-- [/] SP20-1: (Claimed by Agent) Architect backend caching layers leveraging Redis or Edge logic to prevent BigQuery cost-overruns on read-heavy routes. (GH-#70)
+- [x] SP20-1: (Claimed by Agent) Architect backend caching layers leveraging Redis or Edge logic to prevent BigQuery cost-overruns on read-heavy routes. (GH-#70)
 - [ ] SP20-2: Optimize BigQuery/MotherDuck query execution paths (e.g., materialized views) for complex models and aggregations before they hit the API. (GH-#71)
 
 ### Sprint 24: Cloud Expenditure & Compute Optimization

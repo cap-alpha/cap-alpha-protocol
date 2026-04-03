@@ -1,3 +1,7 @@
+> **[DEPRECATED — 2026-04-02]**
+> Superseded by `strategy/MONETIZATION.md`. Tracks 1-2 were never implemented. Track 3 evolved into the Pundit Prediction Ledger.
+> Retained for historical context only. Do not use for strategic planning.
+
 # Advanced Intelligence & Monetization Tracks (Tracks 1-3)
 
 ## Track 1: The "Rumor Mill" Ingestion Pipeline

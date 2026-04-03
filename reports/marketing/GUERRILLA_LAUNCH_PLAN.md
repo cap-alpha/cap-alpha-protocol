@@ -1,3 +1,7 @@
+> **[DEPRECATED — 2026-04-02]**
+> Superseded by `strategy/MONETIZATION.md` (Section 7: Customer Acquisition). The target audience has shifted from NFL GMs/hiring managers to B2C bettors and sports media consumers.
+> Retained for historical context only. Do not use for strategic planning.
+
 # Guerrilla Launch Plan (Budget: $200)
 **Objective:** Reach Hiring Managers & NFL Personnel.
 **Constraint:** $200 Total Spend.

@@ -1,3 +1,7 @@
+> **[DEPRECATED — 2026-04-02]**
+> Superseded by `strategy/MONETIZATION.md`. The B2B "$20M per team" pitch is now the aspirational Enterprise tier.
+> Retained for historical context only. Do not use for strategic planning.
+
 # Strategic Roundtable: Realistic Monetization Limits
 
 **Topic:** Translating the $14.2B "Theoretical" Savings into Realistic Business ROI.

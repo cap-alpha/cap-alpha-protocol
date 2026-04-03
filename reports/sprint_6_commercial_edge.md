@@ -1,3 +1,7 @@
+> **[DEPRECATED — 2026-04-02]**
+> Superseded by `strategy/MONETIZATION.md`. The B2B front-office pitch is now the aspirational "Enterprise" tier, not the primary GTM.
+> Retained for historical context only. Do not use for strategic planning.
+
 # Commercial Edge Brief: The Cap Alpha Protocol
 
 **To:** NFL Front Office Strategist / GM Persona

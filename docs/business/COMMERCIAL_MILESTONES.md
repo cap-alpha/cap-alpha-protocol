@@ -1,3 +1,7 @@
+> **[DEPRECATED — 2026-04-02]**
+> Superseded by `strategy/MONETIZATION.md`. The "Cut Calculator" freemium model has been replaced by the Pundit Prediction Ledger tiered model.
+> Retained for historical context only. Do not use for strategic planning.
+
 # Commercial Milestones: The Path to "Ramen Profitable"
 
 **Objective**: Move from "Side Project" to "Micro-SaaS" by validating value with strangers' wallets.

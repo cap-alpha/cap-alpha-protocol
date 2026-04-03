@@ -1,7 +1,11 @@
+> **[DEPRECATED — 2026-04-02]**
+> Superseded by `strategy/MONETIZATION.md`. This document reflects the pre-pivot "Cap Alpha Protocol" era.
+> Retained for historical context only. Do not use for strategic planning.
+
 # Strategic Roadmap: The "0 to 1" Growth Engine
 
-**Prepared by:** Chief Financial Officer (CFO)  
-**Status:** EXECUTION PHASE  
+**Prepared by:** Chief Financial Officer (CFO)
+**Status:** ~~EXECUTION PHASE~~ DEPRECATED
 **Objective:** Generate the first dollar of revenue from Cap Alpha Protocol while maintaining the primary job search momentum.
 
 ---

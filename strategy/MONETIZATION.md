@@ -146,11 +146,16 @@ Ship the free leaderboard with big-name pundits and current season data. This is
 - [ ] NLP assertion extraction (GH-#79)
 - [ ] Landing page & email waitlist (GH-#116)
 
-### Phase 2: Stripe & Pro Tier
+### Phase 2: Stripe + Crypto & Pro Tier
 Wire in payments. The goal is first dollar of revenue from a stranger.
+
+**Payment processors (both before launch):**
+- **Stripe** — primary, card-based, standard checkout flow
+- **Coinbase Commerce, USDC only** — crypto option for privacy-conscious bettors. USDC (stablecoin) only — subscribers shouldn't be exposed to BTC/ETH price volatility on a monthly subscription. No KYC burden on our end.
 
 **Dependencies:**
 - [ ] Stripe integration (part of GH-#115)
+- [ ] Coinbase Commerce integration, USDC (GH-#121)
 - [ ] Pro feature gating (full history, full roster, export)
 - [ ] User accounts / auth (Clerk)
 
@@ -234,7 +239,22 @@ The guerrilla launch plan targeting NFL GMs and hiring managers is no longer the
 
 ---
 
-## 9. Key Decisions Log
+## 9. Known Risks & Mitigations
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| **X blocks scraper mid-season** | High | Accepted for now. Fix when it breaks. Long-term: add podcast/YouTube/media site ingestion as redundancy. |
+| **Cryptographic ledger not yet live** | High | Competitors can claim the same provenance guarantee if they launch before we ship the ledger. Priority: ship before a competitor emerges. |
+| **Prediction ambiguity undermines credibility** | High | Strict eligibility criteria (resolvable, actionable picks only). Published methodology page. Public flag/correction system. |
+| **NFL seasonality causes February churn** | Medium | Offseason NFL content (draft, FA, contracts) + MLB expansion. Monthly-only pricing lets churned users re-subscribe frictionlessly. |
+| **Free tier too generous — low Pro conversion** | Medium | Defer to early user behavior. Trigger formal pricing research round before making changes. No gut-feel nerfing. |
+| **Competitor (PFF/Action Network) copies the product** | Medium | First-mover + cryptographic ledger (backdating-proof) + Pundit Credit Score brand are the moats. Move fast. |
+| **Legal action from pundits or networks** | Low-Medium | Published objective methodology is primary defense. Cross bridge when/if it arrives. No legal spend at launch. |
+| **Coinbase Commerce integration complexity** | Low | Well-documented API. USDC only keeps it simple. Stripe remains primary fallback. |
+
+---
+
+## 10. Key Decisions Log
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
@@ -249,3 +269,13 @@ The guerrilla launch plan targeting NFL GMs and hiring managers is no longer the
 | Competitor platform scoring | Track other sites (PFF, ESPN, Action Network) alongside pundits | Positions us as the neutral arbiter of the entire prediction ecosystem. Creates direct "why pay them when we scored higher?" comparisons that drive conversions. Also generates press: "PFF's model ranked 14th behind three random podcasters." |
 | Epithet naming | Archetype-based, not real-pundit-named | Original plan to name tiers after real pundits (e.g., "The Bayless") was viral but legally risky. Archetype epithets ("The Surgeon", "Fade Material") are safer, still fun, and can be rotated/A/B tested over time. |
 | Score + epithet on free tier | Yes — visible to all | The composite score and epithet are the single most shareable elements. Gating them behind Pro would cripple the viral loop. The detailed 6-axis breakdown is the Pro upgrade, not the headline number. |
+| Annual pricing | No — monthly only | Bettors are active, high-intent buyers. Monthly pricing maximizes willingness to pay and doesn't penalize users who churn in the offseason and re-subscribe when the season starts. |
+| Payment processors | Stripe + Coinbase Commerce (USDC only) | Stripe for mainstream users; Coinbase Commerce for privacy-conscious bettors who don't want card records tied to betting-adjacent services. USDC stablecoin only — no BTC/ETH volatility exposure on a recurring subscription. Both live before launch. |
+| Ingestion source at launch | X only | Accepted risk. Fix when it breaks. Building multi-source redundancy before launch adds complexity without proven need. |
+| Prediction eligibility | Resolvable, actionable picks only | Only score predictions a bettor could act on — spreads, totals, moneylines, win totals, props with explicit numbers. Vague narrative takes ("I like the Chiefs") are excluded. Applies to all sports. Start strict, loosen only if too few pundits qualify. |
+| Dispute mechanism | Public flag system | Users can flag scoring errors; team reviews and corrects if warranted. No disputes from pundits at launch — cross that bridge if/when legal pressure arrives. |
+| Offseason churn | Accept + mitigate with content | Accept that NFL subscribers will churn in February. Mitigate by running NFL offseason prediction content (draft picks, free agency, contract predictions — all resolvable) to retain the stickiest users. MLB expansion is the structural fix. |
+| Free tier optimization | Data-driven, not intuition-driven | Do not nerf or expand the free tier based on gut feel. Trigger a formal pricing research round when conversion data is available (free MAU vs. Pro conversion rate). Seek expert input before making changes. |
+| Multi-sport schema | Sport-agnostic from day one | Add `sport` field to all tables and API responses before Phase 2. Backfill existing NFL data. MLB is the first expansion. Never retrofit under load. (GH-#120) |
+| Cryptographic ledger | Build it — it's the moat | Currently a design concept. Must be shipped before a competitor can retroactively claim the same. The ledger proves we didn't backdate scores — a competitor launching after us can never make that claim for historical data. (GH-#69 completed architecture; full implementation is a priority.) |
+| Legal/defamation risk | Cross bridge when it comes | No legal counsel lined up at launch. The scoring methodology page (published, objective, factual) is the primary defense. If a pundit's network sends a C&D, respond then. |

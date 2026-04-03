@@ -48,7 +48,7 @@ export function Navbar() {
                 <div className="flex items-center gap-6">
                     <Link href="/" className="flex items-center gap-2">
                         <span className="font-black text-xl tracking-tighter uppercase text-emerald-500">
-                            Cap Alpha
+                            Pundit Ledger
                         </span>
                     </Link>
                     
@@ -60,11 +60,17 @@ export function Navbar() {
                         >
                             DASHBOARD
                         </Link>
-                        <Link 
+                        <Link
                             href="/dashboard/team-select"
                             className="transition-colors hover:text-emerald-400 text-slate-400 uppercase tracking-wide font-medium"
                         >
                             {activeTeam ? `TEAM: ${activeTeam}` : "SELECT TEAM"}
+                        </Link>
+                        <Link
+                            href="/ledger"
+                            className={`transition-colors hover:text-emerald-400 ${pathname?.includes('/ledger') ? 'text-emerald-500' : 'text-slate-400'}`}
+                        >
+                            LEDGER
                         </Link>
                     </nav>
                 </div>

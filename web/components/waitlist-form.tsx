@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckCircle2, ChevronRight } from "lucide-react";
 
-export function WaitlistForm() {
+export function WaitlistForm({ source }: { source?: string } = {}) {
     const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
     const [message, setMessage] = useState("");
     const [submittedEmail, setSubmittedEmail] = useState("");
@@ -18,7 +18,8 @@ export function WaitlistForm() {
         setSubmittedEmail(email);
 
         // Grab the current URL path to infer persona context, or default to general
-        formData.append("persona", window.location.pathname.includes("agent") ? "Agent" : "General");
+        const persona = source || (window.location.pathname.includes("agent") ? "Agent" : "General");
+        formData.append("persona", persona);
 
         const result = await submitWaitlist(formData);
 

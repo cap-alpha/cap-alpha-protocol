@@ -20,7 +20,6 @@ from src.assertion_extractor import (
     run_extraction,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -94,12 +93,17 @@ class TestExtractAssertions:
         )
 
         assert len(result.predictions) == 1
-        assert result.predictions[0]["extracted_claim"] == "Patrick Mahomes will win MVP in 2025"
+        assert (
+            result.predictions[0]["extracted_claim"]
+            == "Patrick Mahomes will win MVP in 2025"
+        )
         assert result.predictions[0]["claim_category"] == "player_performance"
         assert result.error is None
 
     def test_handles_empty_array_response(self, mock_gemini_client):
-        mock_gemini_client.models.generate_content.return_value = make_gemini_response([])
+        mock_gemini_client.models.generate_content.return_value = make_gemini_response(
+            []
+        )
 
         result = extract_assertions(
             content_hash="abc123",
@@ -213,7 +217,9 @@ class TestExtractAssertions:
         assert len(result.predictions) == 1
 
     def test_truncates_long_text(self, mock_gemini_client):
-        mock_gemini_client.models.generate_content.return_value = make_gemini_response([])
+        mock_gemini_client.models.generate_content.return_value = make_gemini_response(
+            []
+        )
 
         long_text = "x" * 10000
         extract_assertions(

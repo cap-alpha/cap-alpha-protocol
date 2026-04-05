@@ -160,7 +160,7 @@ class TestPunditDetail:
 
     def test_returns_404_for_unknown_pundit(self, client, mock_db):
         mock_db.fetch_df.side_effect = [
-            pd.DataFrame(),   # empty breakdown
+            pd.DataFrame(),  # empty breakdown
             make_summary_df(),  # summary (doesn't contain unknown_pundit)
         ]
         resp = client.get("/v1/pundits/unknown_pundit")

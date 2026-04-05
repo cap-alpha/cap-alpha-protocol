@@ -3,7 +3,6 @@ import pandas as pd
 import os
 from src.db_manager import DBManager
 
-
 # These tests require GCP_PROJECT_ID to be set (runs against real BigQuery)
 pytestmark = pytest.mark.skipif(
     not os.environ.get("GCP_PROJECT_ID"),
@@ -38,9 +37,7 @@ def test_db_manager_initialization():
 
 def test_execute_query(db_manager):
     """Test executing a simple query."""
-    db_manager.execute(
-        f"CREATE OR REPLACE TABLE {TEST_TABLE} (id INT64, name STRING)"
-    )
+    db_manager.execute(f"CREATE OR REPLACE TABLE {TEST_TABLE} (id INT64, name STRING)")
     db_manager.execute(f"INSERT INTO {TEST_TABLE} VALUES (1, 'Alice')")
     result = db_manager.execute(f"SELECT * FROM {TEST_TABLE}").fetchall()
     assert result == [(1, "Alice")]
@@ -62,9 +59,7 @@ def test_fetch_df(db_manager):
 def test_table_exists(db_manager):
     """Test checking if a table exists."""
     assert not db_manager.table_exists("non_existent_table_random_xyz")
-    db_manager.execute(
-        f"CREATE OR REPLACE TABLE {TEST_TABLE} (id INT64)"
-    )
+    db_manager.execute(f"CREATE OR REPLACE TABLE {TEST_TABLE} (id INT64)")
     assert db_manager.table_exists(TEST_TABLE)
 
 
@@ -72,9 +67,7 @@ def test_execute_with_dataframe_registration(db_manager):
     """Test executing a query that joins against a registered DataFrame."""
     df = pd.DataFrame({"id": [1, 2], "val": ["a", "b"]})
 
-    db_manager.execute(
-        f"CREATE OR REPLACE TABLE {TEST_TABLE} (id INT64, name STRING)"
-    )
+    db_manager.execute(f"CREATE OR REPLACE TABLE {TEST_TABLE} (id INT64, name STRING)")
     db_manager.execute(f"INSERT INTO {TEST_TABLE} VALUES (1, 'One'), (2, 'Two')")
 
     result_df = db_manager.fetch_df(

@@ -25,7 +25,6 @@ from src.media_ingestor import (
     run_daily_ingestion,
 )
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -116,7 +115,11 @@ class TestContentHash:
 
 class TestPunditMatching:
     PUNDITS = [
-        {"id": "adam_schefter", "name": "Adam Schefter", "match_authors": ["Adam Schefter", "Schefter"]},
+        {
+            "id": "adam_schefter",
+            "name": "Adam Schefter",
+            "match_authors": ["Adam Schefter", "Schefter"],
+        },
         {"id": "pat_mcafee", "name": "Pat McAfee", "match_authors": ["Pat McAfee"]},
     ]
 
@@ -181,7 +184,9 @@ class TestFetchRSS:
         feed.entries = entries
         return feed
 
-    def _make_entry(self, title="Test Article", link="https://example.com/1", author="Adam Schefter"):
+    def _make_entry(
+        self, title="Test Article", link="https://example.com/1", author="Adam Schefter"
+    ):
         entry = MagicMock()
         entry.get = lambda k, d=None: {
             "title": title,
@@ -274,10 +279,10 @@ class TestIngestSource:
         mock_db.append_dataframe_to_table.assert_called_once()
 
     def test_deduplicates_existing_items(self, mock_db):
-        mock_fetcher = MagicMock(return_value=[self._make_item(content_hash="already_seen")])
-        mock_db.fetch_df.return_value = pd.DataFrame(
-            {"content_hash": ["already_seen"]}
+        mock_fetcher = MagicMock(
+            return_value=[self._make_item(content_hash="already_seen")]
         )
+        mock_db.fetch_df.return_value = pd.DataFrame({"content_hash": ["already_seen"]})
 
         source = SAMPLE_CONFIG["sources"][0]
         with patch.dict("src.media_ingestor.FETCHERS", {"rss": mock_fetcher}):
@@ -289,12 +294,16 @@ class TestIngestSource:
         mock_db.append_dataframe_to_table.assert_not_called()
 
     def test_dry_run_does_not_write(self, mock_db):
-        mock_fetcher = MagicMock(return_value=[self._make_item(content_hash="hash_new")])
+        mock_fetcher = MagicMock(
+            return_value=[self._make_item(content_hash="hash_new")]
+        )
         mock_db.fetch_df.return_value = pd.DataFrame()
 
         source = SAMPLE_CONFIG["sources"][0]
         with patch.dict("src.media_ingestor.FETCHERS", {"rss": mock_fetcher}):
-            result = ingest_source(source, SAMPLE_CONFIG["defaults"], mock_db, dry_run=True)
+            result = ingest_source(
+                source, SAMPLE_CONFIG["defaults"], mock_db, dry_run=True
+            )
 
         assert result.items_new == 1
         mock_db.append_dataframe_to_table.assert_not_called()
@@ -334,9 +343,7 @@ class TestRunDailyIngestion:
         mock_ingest.return_value = SourceResult(
             source_id="test_feed", source_name="Test Feed", items_new=5
         )
-        results = run_daily_ingestion(
-            config_path=config_file, db=mock_db
-        )
+        results = run_daily_ingestion(config_path=config_file, db=mock_db)
         # Only 1 source should be ingested (disabled_feed is skipped)
         assert len(results) == 1
         assert results[0].source_id == "test_feed"
@@ -365,9 +372,7 @@ class TestRunDailyIngestion:
     @patch("src.media_ingestor.ingest_source")
     def test_catches_unexpected_errors(self, mock_ingest, mock_db, config_file):
         mock_ingest.side_effect = RuntimeError("Unexpected crash")
-        results = run_daily_ingestion(
-            config_path=config_file, db=mock_db
-        )
+        results = run_daily_ingestion(config_path=config_file, db=mock_db)
         assert len(results) == 1
         assert results[0].error is not None
 
@@ -380,9 +385,7 @@ class TestRunDailyIngestion:
             items_new=3,
             items_deduped=7,
         )
-        results = run_daily_ingestion(
-            config_path=config_file, db=mock_db
-        )
+        results = run_daily_ingestion(config_path=config_file, db=mock_db)
         assert results[0].items_fetched == 10
         assert results[0].items_new == 3
         assert results[0].items_deduped == 7

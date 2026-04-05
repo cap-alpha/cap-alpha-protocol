@@ -182,8 +182,11 @@ class TestResolveBinary:
         pred_ts = datetime(2025, 9, 1, tzinfo=timezone.utc)
         outcome_ts = pred_ts + timedelta(days=400)
         result = resolve_binary(
-            FAKE_HASH, True, "pfr",
-            prediction_ts=pred_ts, outcome_ts=outcome_ts,
+            FAKE_HASH,
+            True,
+            "pfr",
+            prediction_ts=pred_ts,
+            outcome_ts=outcome_ts,
             db=mock_db,
         )
         assert result.timeliness_weight == 2.0
@@ -198,16 +201,17 @@ class TestResolveBinary:
 class TestResolveProbabilistic:
     def test_brier_score_computed(self, mock_db):
         result = resolve_probabilistic(
-            FAKE_HASH, predicted_prob=0.8, actual_outcome=True,
-            outcome_source="sportsdataio", db=mock_db,
+            FAKE_HASH,
+            predicted_prob=0.8,
+            actual_outcome=True,
+            outcome_source="sportsdataio",
+            db=mock_db,
         )
         assert result.brier_score is not None
         assert abs(result.brier_score - 0.04) < 1e-9  # (0.8-1)^2 = 0.04
 
     def test_correct_status_when_outcome_true(self, mock_db):
-        result = resolve_probabilistic(
-            FAKE_HASH, 0.9, True, "sportsdataio", db=mock_db
-        )
+        result = resolve_probabilistic(FAKE_HASH, 0.9, True, "sportsdataio", db=mock_db)
         assert result.resolution_status == "CORRECT"
 
     def test_incorrect_status_when_outcome_false(self, mock_db):
@@ -224,7 +228,9 @@ class TestResolveProbabilistic:
 
 class TestResolveManual:
     def test_manual_correct(self, mock_db):
-        result = resolve_manual(FAKE_HASH, True, "Mahomes won MVP per AP vote", db=mock_db)
+        result = resolve_manual(
+            FAKE_HASH, True, "Mahomes won MVP per AP vote", db=mock_db
+        )
         assert result.resolution_status == "CORRECT"
         assert result.resolver == "manual"
 

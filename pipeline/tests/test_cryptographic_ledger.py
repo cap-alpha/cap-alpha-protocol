@@ -25,10 +25,10 @@ from src.cryptographic_ledger import (
 )
 from unittest.mock import call
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 @pytest.fixture
 def sample_prediction():

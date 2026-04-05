@@ -15,11 +15,14 @@ from unittest.mock import MagicMock, call, patch
 import pandas as pd
 import pytest
 
-from src.assertion_extractor import EXTRACTION_PROMPT, extract_assertions, run_extraction
+from src.assertion_extractor import (
+    EXTRACTION_PROMPT,
+    extract_assertions,
+    run_extraction,
+)
 from src.cryptographic_ledger import PunditPrediction, ingest_batch, ingest_prediction
 from src.media_ingestor import MediaItem, fetch_rss, ingest_source
 from src.resolution_engine import get_pending_predictions, get_pundit_accuracy_summary
-
 
 # ---------------------------------------------------------------------------
 # PunditPrediction dataclass
@@ -134,16 +137,22 @@ class TestExtractionPromptSport:
 
     def test_prompt_renders_nfl(self):
         rendered = EXTRACTION_PROMPT.format(
-            sport="NFL", source_name="ESPN", author="Adam Schefter",
-            title="Test", text="some text"
+            sport="NFL",
+            source_name="ESPN",
+            author="Adam Schefter",
+            title="Test",
+            text="some text",
         )
         assert "NFL" in rendered
         assert "{sport}" not in rendered
 
     def test_prompt_renders_mlb(self):
         rendered = EXTRACTION_PROMPT.format(
-            sport="MLB", source_name="MLB.com", author="Ken Rosenthal",
-            title="Test", text="some text"
+            sport="MLB",
+            source_name="MLB.com",
+            author="Ken Rosenthal",
+            title="Test",
+            text="some text",
         )
         assert "MLB" in rendered
         assert "{sport}" not in rendered
@@ -210,23 +219,31 @@ class TestRunExtractionSport:
             return ["hash_" + str(i) for i in range(len(predictions))]
 
         gemini_client = MagicMock()
-        gemini_client.models.generate_content.return_value.text = json.dumps([
-            {
-                "extracted_claim": "Mahomes wins MVP",
-                "claim_category": "player_performance",
-                "season_year": 2025,
-                "target_player": "P. Mahomes",
-                "target_team": "KC",
-                "confidence_note": "strong",
-            }
-        ])
+        gemini_client.models.generate_content.return_value.text = json.dumps(
+            [
+                {
+                    "extracted_claim": "Mahomes wins MVP",
+                    "claim_category": "player_performance",
+                    "season_year": 2025,
+                    "target_player": "P. Mahomes",
+                    "target_team": "KC",
+                    "confidence_note": "strong",
+                }
+            ]
+        )
 
         mock_db = MagicMock()
-        mock_db.fetch_df.return_value = pd.DataFrame([self._make_media_row(sport="NFL")])
+        mock_db.fetch_df.return_value = pd.DataFrame(
+            [self._make_media_row(sport="NFL")]
+        )
 
-        with patch("src.assertion_extractor.ingest_batch", side_effect=fake_ingest_batch):
+        with patch(
+            "src.assertion_extractor.ingest_batch", side_effect=fake_ingest_batch
+        ):
             with patch("src.assertion_extractor.mark_as_processed"):
-                run_extraction(limit=1, sport="NFL", db=mock_db, gemini_client=gemini_client)
+                run_extraction(
+                    limit=1, sport="NFL", db=mock_db, gemini_client=gemini_client
+                )
 
         assert len(ingested) == 1
         assert ingested[0].sport == "NFL"
@@ -243,18 +260,29 @@ class TestRunExtractionSport:
         del row["sport"]  # simulate missing sport column on old rows
 
         gemini_client = MagicMock()
-        gemini_client.models.generate_content.return_value.text = json.dumps([
-            {"extracted_claim": "Chiefs win", "claim_category": "game_outcome",
-             "season_year": 2025, "target_player": None, "target_team": "KC",
-             "confidence_note": "strong"}
-        ])
+        gemini_client.models.generate_content.return_value.text = json.dumps(
+            [
+                {
+                    "extracted_claim": "Chiefs win",
+                    "claim_category": "game_outcome",
+                    "season_year": 2025,
+                    "target_player": None,
+                    "target_team": "KC",
+                    "confidence_note": "strong",
+                }
+            ]
+        )
 
         mock_db = MagicMock()
         mock_db.fetch_df.return_value = pd.DataFrame([row])
 
-        with patch("src.assertion_extractor.ingest_batch", side_effect=fake_ingest_batch):
+        with patch(
+            "src.assertion_extractor.ingest_batch", side_effect=fake_ingest_batch
+        ):
             with patch("src.assertion_extractor.mark_as_processed"):
-                run_extraction(limit=1, sport="NFL", db=mock_db, gemini_client=gemini_client)
+                run_extraction(
+                    limit=1, sport="NFL", db=mock_db, gemini_client=gemini_client
+                )
 
         assert len(ingested) == 1
         assert ingested[0].sport == "NFL"
@@ -310,7 +338,11 @@ class TestMediaItemSport:
 class TestFetchRSSSport:
     def _make_feed_entry(self, title="Test", link="https://espn.com/1"):
         entry = MagicMock()
-        entry.get = lambda k, d=None: {"title": title, "link": link, "author": None}.get(k, d)
+        entry.get = lambda k, d=None: {
+            "title": title,
+            "link": link,
+            "author": None,
+        }.get(k, d)
         entry.published_parsed = None
         entry.summary = "Some article text"
         return entry
@@ -323,35 +355,49 @@ class TestFetchRSSSport:
 
     def test_sport_from_source_config_nfl(self):
         source = {
-            "id": "espn_nfl", "name": "ESPN NFL", "type": "rss",
-            "url": "https://espn.com/rss", "sport": "NFL",
+            "id": "espn_nfl",
+            "name": "ESPN NFL",
+            "type": "rss",
+            "url": "https://espn.com/rss",
+            "sport": "NFL",
             "pundits": [],
         }
         with patch("src.media_ingestor.feedparser.parse") as mock_parse:
             mock_parse.return_value = self._mock_feed([self._make_feed_entry()])
-            items = fetch_rss(source, {"max_items_per_feed": 50, "fetch_timeout_seconds": 30})
+            items = fetch_rss(
+                source, {"max_items_per_feed": 50, "fetch_timeout_seconds": 30}
+            )
         assert all(item.sport == "NFL" for item in items)
 
     def test_sport_from_source_config_mlb(self):
         source = {
-            "id": "mlb_news", "name": "MLB News", "type": "rss",
-            "url": "https://mlb.com/rss", "sport": "MLB",
+            "id": "mlb_news",
+            "name": "MLB News",
+            "type": "rss",
+            "url": "https://mlb.com/rss",
+            "sport": "MLB",
             "pundits": [],
         }
         with patch("src.media_ingestor.feedparser.parse") as mock_parse:
             mock_parse.return_value = self._mock_feed([self._make_feed_entry()])
-            items = fetch_rss(source, {"max_items_per_feed": 50, "fetch_timeout_seconds": 30})
+            items = fetch_rss(
+                source, {"max_items_per_feed": 50, "fetch_timeout_seconds": 30}
+            )
         assert all(item.sport == "MLB" for item in items)
 
     def test_sport_defaults_to_nfl_when_absent_from_config(self):
         source = {
-            "id": "some_source", "name": "Some Source", "type": "rss",
+            "id": "some_source",
+            "name": "Some Source",
+            "type": "rss",
             "url": "https://example.com/rss",
             "pundits": [],  # no sport key
         }
         with patch("src.media_ingestor.feedparser.parse") as mock_parse:
             mock_parse.return_value = self._mock_feed([self._make_feed_entry()])
-            items = fetch_rss(source, {"max_items_per_feed": 50, "fetch_timeout_seconds": 30})
+            items = fetch_rss(
+                source, {"max_items_per_feed": 50, "fetch_timeout_seconds": 30}
+            )
         assert all(item.sport == "NFL" for item in items)
 
 
@@ -363,12 +409,18 @@ class TestFetchRSSSport:
 class TestIngestSourceSport:
     def test_sport_written_to_bq_row(self):
         source = {
-            "id": "espn_nfl", "name": "ESPN NFL", "type": "rss",
-            "url": "https://espn.com/rss", "sport": "NFL", "pundits": [],
+            "id": "espn_nfl",
+            "name": "ESPN NFL",
+            "type": "rss",
+            "url": "https://espn.com/rss",
+            "sport": "NFL",
+            "pundits": [],
         }
         defaults = {
-            "max_retries": 1, "retry_backoff_seconds": 0,
-            "dedup_window_days": 7, "max_items_per_feed": 10,
+            "max_retries": 1,
+            "retry_backoff_seconds": 0,
+            "dedup_window_days": 7,
+            "max_items_per_feed": 10,
             "fetch_timeout_seconds": 30,
         }
         mock_db = MagicMock()
@@ -406,14 +458,20 @@ class TestIngestSourceSport:
 class TestResolutionEngineSportFilter:
     def _make_mock_db(self, return_df=None):
         db = MagicMock()
-        db.fetch_df.return_value = return_df if return_df is not None else pd.DataFrame()
+        db.fetch_df.return_value = (
+            return_df if return_df is not None else pd.DataFrame()
+        )
         return db
 
     def test_get_pending_no_sport_filter(self):
         db = self._make_mock_db()
         get_pending_predictions(db=db)
         query = db.fetch_df.call_args[0][0]
-        assert "sport" not in query.lower().split("where")[1] if "where" in query.lower() else True
+        assert (
+            "sport" not in query.lower().split("where")[1]
+            if "where" in query.lower()
+            else True
+        )
 
     def test_get_pending_with_nfl_filter(self):
         db = self._make_mock_db()

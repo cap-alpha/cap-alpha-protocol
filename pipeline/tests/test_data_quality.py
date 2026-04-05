@@ -62,15 +62,15 @@ def test_duplicate_signature_detection(con):
     """
     if not con.table_exists("fact_player_efficiency"):
         pytest.skip("fact_player_efficiency not found")
-    dupes_df = con.fetch_df(
-        """
+    dupes_df = con.fetch_df("""
         SELECT player_name, year, team, COUNT(*) as cnt
         FROM fact_player_efficiency
         GROUP BY 1, 2, 3
         HAVING COUNT(*) > 3
-    """
-    )
-    assert len(dupes_df) == 0, f"Gold Mart has suspicious duplicates (>3 per player/year/team):\n{dupes_df}"
+    """)
+    assert (
+        len(dupes_df) == 0
+    ), f"Gold Mart has suspicious duplicates (>3 per player/year/team):\n{dupes_df}"
 
 
 # --- 3. Gold Mart Validation ---
@@ -78,7 +78,9 @@ def test_duplicate_signature_detection(con):
 
 def test_gold_table_existence(con):
     """Ensures the Gold mart table exists and is populated."""
-    assert con.table_exists("fact_player_efficiency"), "Missing Gold table: fact_player_efficiency"
+    assert con.table_exists(
+        "fact_player_efficiency"
+    ), "Missing Gold table: fact_player_efficiency"
     count = con.execute("SELECT COUNT(*) FROM fact_player_efficiency").fetchone()[0]
     assert count > 0, "fact_player_efficiency is empty"
 
@@ -100,14 +102,12 @@ def test_cross_layer_consistency(con):
         "silver_spotrac_contracts"
     ):
         pytest.skip("Required tables not found")
-    orphan_count = con.execute(
-        """
+    orphan_count = con.execute("""
         SELECT COUNT(*)
         FROM fact_player_efficiency g
         LEFT JOIN silver_spotrac_contracts s ON g.player_name = s.player_name AND g.year = s.year
         WHERE s.player_name IS NULL
-    """
-    ).fetchone()[0]
+    """).fetchone()[0]
     total = con.execute("SELECT COUNT(*) FROM fact_player_efficiency").fetchone()[0]
     orphan_rate = orphan_count / total if total > 0 else 0
     assert (

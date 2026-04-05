@@ -30,6 +30,7 @@ VALID_SPORTS = {"NFL", "MLB", "NBA", "NHL", "NCAAF", "NCAAB"}
 @pytest.fixture(scope="module")
 def bq_client():
     from google.cloud import bigquery
+
     return bigquery.Client(project=os.environ.get("GCP_PROJECT_ID"))
 
 
@@ -88,9 +89,16 @@ class TestSchemaColumns:
     def test_prediction_ledger_core_columns(self, bq_client, project):
         cols = _schema_columns(bq_client, f"{project}.gold_layer.prediction_ledger")
         required = {
-            "prediction_hash", "chain_hash", "ingestion_timestamp",
-            "pundit_id", "pundit_name", "raw_assertion_text",
-            "extracted_claim", "claim_category", "resolution_status", "sport",
+            "prediction_hash",
+            "chain_hash",
+            "ingestion_timestamp",
+            "pundit_id",
+            "pundit_name",
+            "raw_assertion_text",
+            "extracted_claim",
+            "claim_category",
+            "resolution_status",
+            "sport",
         }
         missing = required - set(cols.keys())
         assert not missing, f"prediction_ledger missing columns: {missing}"
@@ -101,15 +109,23 @@ class TestSchemaColumns:
         assert cols["chain_hash"] == "STRING"
 
     def test_prediction_resolutions_has_sport(self, bq_client, project):
-        cols = _schema_columns(bq_client, f"{project}.gold_layer.prediction_resolutions")
+        cols = _schema_columns(
+            bq_client, f"{project}.gold_layer.prediction_resolutions"
+        )
         assert "sport" in cols, "sport column missing from prediction_resolutions"
         assert cols["sport"] == "STRING"
 
     def test_prediction_resolutions_scoring_columns(self, bq_client, project):
-        cols = _schema_columns(bq_client, f"{project}.gold_layer.prediction_resolutions")
+        cols = _schema_columns(
+            bq_client, f"{project}.gold_layer.prediction_resolutions"
+        )
         required = {
-            "prediction_hash", "resolution_status", "brier_score",
-            "binary_correct", "timeliness_weight", "weighted_score",
+            "prediction_hash",
+            "resolution_status",
+            "brier_score",
+            "binary_correct",
+            "timeliness_weight",
+            "weighted_score",
         }
         missing = required - set(cols.keys())
         assert not missing, f"prediction_resolutions missing columns: {missing}"
@@ -122,8 +138,12 @@ class TestSchemaColumns:
     def test_raw_pundit_media_core_columns(self, bq_client, project):
         cols = _schema_columns(bq_client, f"{project}.nfl_dead_money.raw_pundit_media")
         required = {
-            "content_hash", "source_id", "raw_text", "source_url",
-            "ingested_at", "sport",
+            "content_hash",
+            "source_id",
+            "raw_text",
+            "source_url",
+            "ingested_at",
+            "sport",
         }
         missing = required - set(cols.keys())
         assert not missing, f"raw_pundit_media missing columns: {missing}"
@@ -136,9 +156,11 @@ class TestSchemaColumns:
 
 class TestDataFreshness:
     def test_raw_pundit_media_has_rows(self, bq_client, project):
-        row = next(bq_client.query(
-            f"SELECT COUNT(*) AS cnt FROM `{project}.nfl_dead_money.raw_pundit_media`"
-        ).result())
+        row = next(
+            bq_client.query(
+                f"SELECT COUNT(*) AS cnt FROM `{project}.nfl_dead_money.raw_pundit_media`"
+            ).result()
+        )
         assert row.cnt > 0, "raw_pundit_media is empty — ingestion has never run"
 
     def test_raw_pundit_media_ingested_within_48h(self, bq_client, project):
@@ -160,9 +182,9 @@ class TestDataFreshness:
             SELECT COUNT(DISTINCT source_id) AS cnt
             FROM `{project}.nfl_dead_money.raw_pundit_media`
         """).result())
-        assert row.cnt >= 2, (
-            f"Only {row.cnt} source(s) in raw_pundit_media — expected multiple feeds"
-        )
+        assert (
+            row.cnt >= 2
+        ), f"Only {row.cnt} source(s) in raw_pundit_media — expected multiple feeds"
 
 
 # ---------------------------------------------------------------------------
@@ -193,11 +215,13 @@ class TestSportFieldDataQuality:
             WHERE sport IS NOT NULL
         """).result())
         for row in rows:
-            assert row.sport in VALID_SPORTS, (
-                f"Unknown sport value '{row.sport}' in raw_pundit_media"
-            )
+            assert (
+                row.sport in VALID_SPORTS
+            ), f"Unknown sport value '{row.sport}' in raw_pundit_media"
 
-    def test_prediction_ledger_sport_values_valid_if_populated(self, bq_client, project):
+    def test_prediction_ledger_sport_values_valid_if_populated(
+        self, bq_client, project
+    ):
         """If the ledger has rows, all sport values must be valid."""
         rows = list(bq_client.query(f"""
             SELECT DISTINCT sport
@@ -205,9 +229,9 @@ class TestSportFieldDataQuality:
             WHERE sport IS NOT NULL
         """).result())
         for row in rows:
-            assert row.sport in VALID_SPORTS, (
-                f"Unknown sport value '{row.sport}' in prediction_ledger"
-            )
+            assert (
+                row.sport in VALID_SPORTS
+            ), f"Unknown sport value '{row.sport}' in prediction_ledger"
 
 
 # ---------------------------------------------------------------------------
@@ -218,9 +242,11 @@ class TestSportFieldDataQuality:
 class TestCryptographicLedger:
     def test_prediction_ledger_accessible(self, bq_client, project):
         """Basic smoke test — table is queryable."""
-        row = next(bq_client.query(
-            f"SELECT COUNT(*) AS cnt FROM `{project}.gold_layer.prediction_ledger`"
-        ).result())
+        row = next(
+            bq_client.query(
+                f"SELECT COUNT(*) AS cnt FROM `{project}.gold_layer.prediction_ledger`"
+            ).result()
+        )
         assert row.cnt >= 0  # 0 is fine (empty table), just must not error
 
     def test_prediction_ledger_no_duplicate_hashes(self, bq_client, project):
@@ -248,9 +274,9 @@ class TestCryptographicLedger:
                 HAVING c > 1
             )
         """).result())
-        assert row.cnt == 0, (
-            f"{row.cnt} duplicate prediction_hash(es) in prediction_resolutions"
-        )
+        assert (
+            row.cnt == 0
+        ), f"{row.cnt} duplicate prediction_hash(es) in prediction_resolutions"
 
 
 # ---------------------------------------------------------------------------
@@ -268,9 +294,9 @@ class TestReferentialIntegrity:
                 ON r.prediction_hash = l.prediction_hash
             WHERE l.prediction_hash IS NULL
         """).result())
-        assert row.orphan_count == 0, (
-            f"{row.orphan_count} orphaned resolution(s) with no matching ledger row"
-        )
+        assert (
+            row.orphan_count == 0
+        ), f"{row.orphan_count} orphaned resolution(s) with no matching ledger row"
 
     def test_content_hash_is_unique_per_source_in_raw_media(self, bq_client, project):
         """Dedup logic should prevent the same content_hash from being written twice."""

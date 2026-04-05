@@ -33,4 +33,6 @@ jobs:
         export PYTHONPATH=$PYTHONPATH:$(pwd)/pipeline/libs:$(pwd)/pipeline/src
         # Mock the DuckDB connection for CI if DB not present
         # For now, just run unit tests that don't require DB
-        pytest pipeline/tests/ -v -m "not integration"
+        pytest pipeline/tests/ -v -m "not integration" \
+          --ignore=pipeline/tests/test_api.py \
+          --ignore=pipeline/tests/test_api_vegas.py

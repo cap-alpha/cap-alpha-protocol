@@ -182,8 +182,9 @@ class TestExtractAssertions:
     def test_schema_enforces_valid_categories(self, mock_gemini_client):
         """response_schema enum prevents invalid categories at the model level.
         In production the model can only output VALID_CATEGORIES values."""
-        from src.assertion_extractor import VALID_CATEGORIES, _PREDICTION_SCHEMA
         from google.genai import types
+
+        from src.assertion_extractor import _PREDICTION_SCHEMA, VALID_CATEGORIES
 
         # The schema's enum field lists exactly the valid categories
         enum_values = set(_PREDICTION_SCHEMA.items.properties["claim_category"].enum)
@@ -345,7 +346,7 @@ class TestRunExtraction:
     def test_no_work_when_empty(self, mock_db):
         mock_db.fetch_df.return_value = pd.DataFrame()
 
-        summary = run_extraction(limit=10, db=mock_db)
+        summary = run_extraction(limit=10, db=mock_db, gemini_client=MagicMock())
 
         assert summary["total_processed"] == 0
 

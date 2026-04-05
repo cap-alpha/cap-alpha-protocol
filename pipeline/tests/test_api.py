@@ -2,8 +2,9 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-import sys
 import os
+import sys
+
 from fastapi.testclient import TestClient
 
 # Add parent dir to path

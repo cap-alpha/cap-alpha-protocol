@@ -1,6 +1,8 @@
-import pytest
-import pandas as pd
 from unittest.mock import MagicMock, patch
+
+import pandas as pd
+import pytest
+
 from src.trade_partner_finder import TradePartnerFinder
 
 # Mock Data

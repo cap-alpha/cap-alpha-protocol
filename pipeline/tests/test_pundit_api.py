@@ -268,7 +268,7 @@ class TestIntegrityCheck:
         assert data["total_records"] == 0
 
     def test_returns_verified_false_when_tampered(self, client, mock_db):
-        from src.cryptographic_ledger import compute_chain_hash, HASH_SEED
+        from src.cryptographic_ledger import HASH_SEED, compute_chain_hash
 
         h0 = "a" * 64
         mock_db.fetch_df.return_value = pd.DataFrame(

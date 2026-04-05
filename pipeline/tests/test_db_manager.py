@@ -1,6 +1,8 @@
-import pytest
-import pandas as pd
 import os
+
+import pandas as pd
+import pytest
+
 from src.db_manager import DBManager
 
 # These tests require GCP_PROJECT_ID to be set (runs against real BigQuery)

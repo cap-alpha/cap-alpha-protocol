@@ -1,6 +1,6 @@
-import unittest
-import sys
 import os
+import sys
+import unittest
 
 # Add scripts to path to import scrape_penalties
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../scripts")))

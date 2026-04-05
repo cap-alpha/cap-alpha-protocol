@@ -1,9 +1,11 @@
-import pytest
-import pandas as pd
 import os
-from unittest.mock import MagicMock
-from src.strategic_engine import StrategicEngine
 from pathlib import Path
+from unittest.mock import MagicMock
+
+import pandas as pd
+import pytest
+
+from src.strategic_engine import StrategicEngine
 
 # Skip if DB missing in CI environment
 DB_PATH = os.getenv("DB_PATH", "data/nfl_data.db")

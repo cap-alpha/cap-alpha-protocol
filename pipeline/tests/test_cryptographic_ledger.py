@@ -7,7 +7,7 @@ Unit tests run without BigQuery. Integration tests require GCP_PROJECT_ID.
 import hashlib
 import os
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
@@ -23,7 +23,6 @@ from src.cryptographic_ledger import (
     ingest_prediction,
     verify_chain_integrity,
 )
-from unittest.mock import call
 
 # ---------------------------------------------------------------------------
 # Fixtures

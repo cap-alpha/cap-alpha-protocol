@@ -2,9 +2,10 @@ import pytest
 
 pytest.importorskip("fastapi")
 
-from fastapi.testclient import TestClient
-import sys
 import os
+import sys
+
+from fastapi.testclient import TestClient
 
 # Add pipeline root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../../")))

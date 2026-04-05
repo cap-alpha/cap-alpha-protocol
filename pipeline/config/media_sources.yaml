@@ -51,12 +51,14 @@ sources:
         name: "Kevin Clark"
         match_authors: ["Kevin Clark"]
 
+  # DISABLED: RSS URL pulls all sports (soccer, NHL, NBA, tennis, cycling),
+  # not just NFL. Re-enable once we find the correct NFL-only feed.
   - id: theathletic_nfl
     name: "The Athletic NFL"
     sport: "NFL"
     type: rss
     url: "https://theathletic.com/feeds/rss/news/?sport=football"
-    enabled: true
+    enabled: false
     pundits:
       - id: dianna_russini
         name: "Dianna Russini"
@@ -113,12 +115,13 @@ sources:
         name: "Skip Bayless"
         match_authors: ["Skip Bayless"]
 
+  # DISABLED: YouTube channel is mostly NBA game highlights, not prediction content.
   - id: first_take
     name: "First Take"
     sport: "NFL"
     type: youtube_rss
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
-    enabled: true
+    enabled: false
     pundits:
       - id: stephen_a_smith
         name: "Stephen A. Smith"

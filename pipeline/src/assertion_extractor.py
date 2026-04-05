@@ -170,12 +170,20 @@ def extract_assertions(
         )
 
 
-def get_unprocessed_media(db: DBManager, limit: int = 100) -> pd.DataFrame:
+def get_unprocessed_media(
+    db: DBManager, limit: int = 100, include_unmatched: bool = False
+) -> pd.DataFrame:
     """
     Fetches raw_pundit_media rows that haven't been processed yet.
     Uses a processed_media_hashes tracking table to know what's been done.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
+
+    pundit_filter = (
+        ""
+        if include_unmatched
+        else "\n              AND r.matched_pundit_id IS NOT NULL"
+    )
 
     # Check if tracking table exists; if not, return all raw media
     try:
@@ -189,7 +197,7 @@ def get_unprocessed_media(db: DBManager, limit: int = 100) -> pd.DataFrame:
                 ON r.content_hash = p.content_hash
             WHERE p.content_hash IS NULL
               AND r.raw_text IS NOT NULL
-              AND LENGTH(r.raw_text) > 50
+              AND LENGTH(r.raw_text) > 50{pundit_filter}
             ORDER BY r.ingested_at DESC
             LIMIT {limit}
         """
@@ -197,6 +205,11 @@ def get_unprocessed_media(db: DBManager, limit: int = 100) -> pd.DataFrame:
     except Exception as e:
         # Tracking table may not exist — fall back to just raw media
         logger.warning(f"Could not query processed_media_hashes (may not exist): {e}")
+        fallback_pundit_filter = (
+            ""
+            if include_unmatched
+            else "\n              AND matched_pundit_id IS NOT NULL"
+        )
         query = f"""
             SELECT content_hash, source_id, title, raw_text,
                    source_url, author, matched_pundit_id,
@@ -204,7 +217,7 @@ def get_unprocessed_media(db: DBManager, limit: int = 100) -> pd.DataFrame:
                    COALESCE(sport, 'NFL') AS sport
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
             WHERE raw_text IS NOT NULL
-              AND LENGTH(raw_text) > 50
+              AND LENGTH(raw_text) > 50{fallback_pundit_filter}
             ORDER BY ingested_at DESC
             LIMIT {limit}
         """
@@ -229,6 +242,7 @@ def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
     sport: str = "NFL",
+    include_unmatched: bool = False,
     db: Optional[DBManager] = None,
     gemini_client: Optional[genai.Client] = None,
 ) -> dict:
@@ -259,7 +273,9 @@ def run_extraction(
     }
 
     try:
-        media_df = get_unprocessed_media(db, limit=limit)
+        media_df = get_unprocessed_media(
+            db, limit=limit, include_unmatched=include_unmatched
+        )
         if media_df.empty:
             logger.info("No unprocessed media found.")
             return summary
@@ -393,7 +409,17 @@ if __name__ == "__main__":
         default="NFL",
         help="Sport context for extraction (NFL, MLB, NBA, etc.)",
     )
+    parser.add_argument(
+        "--include-unmatched",
+        action="store_true",
+        help="Include media rows without a matched pundit (skipped by default)",
+    )
     args = parser.parse_args()
 
-    result = run_extraction(limit=args.limit, dry_run=args.dry_run, sport=args.sport)
+    result = run_extraction(
+        limit=args.limit,
+        dry_run=args.dry_run,
+        sport=args.sport,
+        include_unmatched=args.include_unmatched,
+    )
     print(json.dumps(result, indent=2))

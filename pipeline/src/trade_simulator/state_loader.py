@@ -16,6 +16,7 @@ from typing import Dict, List
 
 import pandas as pd
 from google.api_core.exceptions import NotFound
+
 from src.db_manager import DBManager
 
 from .state import LeagueState, TeamState
@@ -35,7 +36,7 @@ class StateLoader:
             self.min_cap_hit = min_cap_hit
 
     def load_league_state(self) -> LeagueState:
-        print(f"🏈 Loading League State from BigQuery (Year: {self.year})...")
+        print(f"🏈 Loading League State from DuckDB (Year: {self.year})...")
 
         # 1. Load Financials (Cap Space)
         fin_query = f"""

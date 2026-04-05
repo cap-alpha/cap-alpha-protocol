@@ -255,6 +255,40 @@ class TestGetUnprocessedMedia:
         assert len(df) == 2
         assert mock_db.fetch_df.call_count == 2
 
+    def test_default_filters_to_matched_pundit(self, mock_db):
+        """Default query requires matched_pundit_id IS NOT NULL."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db)
+        query = mock_db.fetch_df.call_args[0][0]
+        assert "matched_pundit_id IS NOT NULL" in query
+
+    def test_include_unmatched_skips_pundit_filter(self, mock_db):
+        """When include_unmatched=True, the matched_pundit_id filter is absent."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db, include_unmatched=True)
+        query = mock_db.fetch_df.call_args[0][0]
+        assert "matched_pundit_id IS NOT NULL" not in query
+
+    def test_fallback_query_also_filters_matched_pundit(self, mock_db):
+        """Fallback query (no tracking table) also requires matched_pundit_id."""
+        mock_db.fetch_df.side_effect = [
+            Exception("Table not found"),
+            pd.DataFrame(),
+        ]
+        get_unprocessed_media(mock_db)
+        fallback_query = mock_db.fetch_df.call_args_list[1][0][0]
+        assert "matched_pundit_id IS NOT NULL" in fallback_query
+
+    def test_fallback_query_include_unmatched(self, mock_db):
+        """Fallback query skips pundit filter when include_unmatched=True."""
+        mock_db.fetch_df.side_effect = [
+            Exception("Table not found"),
+            pd.DataFrame(),
+        ]
+        get_unprocessed_media(mock_db, include_unmatched=True)
+        fallback_query = mock_db.fetch_df.call_args_list[1][0][0]
+        assert "matched_pundit_id IS NOT NULL" not in fallback_query
+
 
 # ---------------------------------------------------------------------------
 # mark_as_processed

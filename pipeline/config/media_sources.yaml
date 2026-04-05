@@ -57,8 +57,10 @@ sources:
     name: "The Athletic NFL"
     sport: "NFL"
     type: rss
+    # Disabled: ?sport=football returns all sports (soccer, NHL, NBA, tennis, cycling).
+    # Re-enable once a working NFL-only feed URL is confirmed. (#128)
     url: "https://theathletic.com/feeds/rss/news/?sport=football"
-    enabled: true
+    enabled: false
     pundits:
       - id: dianna_russini
         name: "Dianna Russini"
@@ -121,8 +123,10 @@ sources:
     name: "First Take"
     sport: "NFL"
     type: youtube_rss
+    # Disabled: UCEjOSbbaOfgnfRODEEMYlCw is an NBA game highlights channel, not the
+    # First Take debate/opinion show. Re-enable with correct channel ID. (#128)
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
-    enabled: false  # NBA highlights, not NFL pundit content
+    enabled: false
     pundits:
       - id: stephen_a_smith
         name: "Stephen A. Smith"

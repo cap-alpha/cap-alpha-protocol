@@ -114,15 +114,17 @@ class TestExtractAssertions:
         assert len(result.predictions) == 0
         assert result.error is None
 
-    def test_handles_markdown_code_fences(self, mock_gemini_client):
+    def test_handles_clean_json_array(self, mock_gemini_client):
+        """Structured output returns clean JSON — no fence stripping needed."""
         predictions = [
             {
                 "extracted_claim": "Josh Allen wins Super Bowl",
                 "claim_category": "game_outcome",
+                "confidence_note": "strong",
             }
         ]
         resp = MagicMock()
-        resp.text = f"```json\n{json.dumps(predictions)}\n```"
+        resp.text = json.dumps(predictions)
         mock_gemini_client.models.generate_content.return_value = resp
 
         result = extract_assertions(
@@ -147,9 +149,9 @@ class TestExtractAssertions:
 
         assert len(result.predictions) == 0
         assert result.error is not None
-        assert "JSON parse error" in result.error
 
     def test_handles_non_array_json(self, mock_gemini_client):
+        """Schema prevents this in production; error is surfaced gracefully."""
         resp = MagicMock()
         resp.text = json.dumps({"not": "an array"})
         mock_gemini_client.models.generate_content.return_value = resp
@@ -161,7 +163,7 @@ class TestExtractAssertions:
         )
 
         assert len(result.predictions) == 0
-        assert result.error == "Gemini returned non-array JSON"
+        assert result.error is not None
 
     def test_handles_api_error(self, mock_gemini_client):
         mock_gemini_client.models.generate_content.side_effect = Exception(
@@ -177,24 +179,15 @@ class TestExtractAssertions:
         assert len(result.predictions) == 0
         assert "API quota exceeded" in result.error
 
-    def test_normalizes_invalid_category(self, mock_gemini_client):
-        predictions = [
-            {
-                "extracted_claim": "Something will happen",
-                "claim_category": "invalid_category",
-            }
-        ]
-        mock_gemini_client.models.generate_content.return_value = make_gemini_response(
-            predictions
-        )
+    def test_schema_enforces_valid_categories(self, mock_gemini_client):
+        """response_schema enum prevents invalid categories at the model level.
+        In production the model can only output VALID_CATEGORIES values."""
+        from src.assertion_extractor import VALID_CATEGORIES, _PREDICTION_SCHEMA
+        from google.genai import types
 
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some text",
-            client=mock_gemini_client,
-        )
-
-        assert result.predictions[0]["claim_category"] == "player_performance"
+        # The schema's enum field lists exactly the valid categories
+        enum_values = set(_PREDICTION_SCHEMA.items.properties["claim_category"].enum)
+        assert enum_values == VALID_CATEGORIES
 
     def test_skips_predictions_without_claim(self, mock_gemini_client):
         predictions = [

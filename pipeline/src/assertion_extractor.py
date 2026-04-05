@@ -28,6 +28,7 @@ from typing import Optional
 import pandas as pd
 from google import genai
 from google.cloud import bigquery
+from google.genai import types
 
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
@@ -50,30 +51,57 @@ VALID_CATEGORIES = {
     "contract",
 }
 
-EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Analyze the following media content and extract any testable predictions or assertions the author makes.
-
-For each prediction found, return a JSON array of objects with these fields:
-- "extracted_claim": A concise, testable statement (e.g. "Patrick Mahomes will win MVP in 2025")
-- "claim_category": One of: player_performance, game_outcome, trade, draft_pick, injury, contract
-- "season_year": The {sport} season year the prediction applies to (integer, or null if unclear)
-- "target_player": Player name if the prediction is about a specific player (or null)
-- "target_team": {sport} team abbreviation if about a specific team (or null)
-- "confidence_note": Brief note on how explicit/confident the prediction is (e.g. "strong assertion", "hedged", "speculative")
+EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the content below.
 
 Rules:
-- Only extract TESTABLE predictions that can be verified against future outcomes
-- Ignore opinions that aren't predictions (e.g. "Mahomes is the best QB" is not testable)
-- Ignore historical statements about past events
-- If the text contains NO testable predictions, return an empty array: []
-- Be conservative — only extract clear predictions, not vague commentary
+- Only extract TESTABLE predictions verifiable against future outcomes
+- Ignore opinions ("Mahomes is the best QB") and historical statements
+- Be conservative — clear predictions only, not vague commentary
+- Return an empty list if no testable predictions exist
 
 SOURCE: {source_name}
 AUTHOR: {author}
 TITLE: {title}
 TEXT:
-{text}
+{text}"""
 
-Return ONLY a valid JSON array, no other text."""
+# Response schema — model writes directly to this; no JSON parsing or fence stripping needed.
+_PREDICTION_SCHEMA = types.Schema(
+    type=types.Type.ARRAY,
+    items=types.Schema(
+        type=types.Type.OBJECT,
+        properties={
+            "extracted_claim": types.Schema(
+                type=types.Type.STRING,
+                description="Concise, testable statement e.g. 'Mahomes wins MVP in 2025'",
+            ),
+            "claim_category": types.Schema(
+                type=types.Type.STRING,
+                enum=list(VALID_CATEGORIES),
+            ),
+            "season_year": types.Schema(
+                type=types.Type.INTEGER,
+                description="Season year the prediction applies to",
+                nullable=True,
+            ),
+            "target_player": types.Schema(
+                type=types.Type.STRING,
+                description="Player name if prediction is about a specific player",
+                nullable=True,
+            ),
+            "target_team": types.Schema(
+                type=types.Type.STRING,
+                description="Team abbreviation if prediction is about a specific team",
+                nullable=True,
+            ),
+            "confidence_note": types.Schema(
+                type=types.Type.STRING,
+                description="How explicit/confident e.g. 'strong assertion', 'hedged'",
+            ),
+        },
+        required=["extracted_claim", "claim_category", "confidence_note"],
+    ),
+)
 
 
 @dataclass
@@ -118,64 +146,22 @@ def extract_assertions(
 
     try:
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=_PREDICTION_SCHEMA,
+            ),
         )
 
-        raw_text = response.text.strip()
-
-        # Strip markdown code fences if present
-        if raw_text.startswith("```"):
-            lines = raw_text.split("\n")
-            # Remove first and last lines (```json and ```)
-            raw_text = "\n".join(
-                lines[1:-1] if lines[-1].strip() == "```" else lines[1:]
-            )
-
-        predictions = json.loads(raw_text)
-
-        if not isinstance(predictions, list):
-            return ExtractionResult(
-                content_hash=content_hash,
-                predictions=[],
-                error="Gemini returned non-array JSON",
-                raw_response=raw_text,
-            )
-
-        # Validate and normalize each prediction
-        valid = []
-        for pred in predictions:
-            claim = pred.get("extracted_claim", "").strip()
-            category = pred.get("claim_category", "").strip().lower()
-            if not claim:
-                continue
-            if category not in VALID_CATEGORIES:
-                category = "player_performance"  # default fallback
-
-            valid.append(
-                {
-                    "extracted_claim": claim,
-                    "claim_category": category,
-                    "season_year": pred.get("season_year"),
-                    "target_player": pred.get("target_player"),
-                    "target_team": pred.get("target_team"),
-                    "confidence_note": pred.get("confidence_note", ""),
-                }
-            )
-
+        predictions = json.loads(response.text)
         return ExtractionResult(
             content_hash=content_hash,
-            predictions=valid,
-            raw_response=raw_text,
+            predictions=[
+                p for p in predictions if p.get("extracted_claim", "").strip()
+            ],
         )
 
-    except json.JSONDecodeError as e:
-        return ExtractionResult(
-            content_hash=content_hash,
-            predictions=[],
-            error=f"JSON parse error: {e}",
-            raw_response=raw_text if "raw_text" in dir() else None,
-        )
     except Exception as e:
         return ExtractionResult(
             content_hash=content_hash,

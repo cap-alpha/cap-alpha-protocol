@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -34,6 +35,7 @@ import requests
 import yaml
 from bs4 import BeautifulSoup
 from google.cloud import bigquery
+from youtube_transcript_api import YouTubeTranscriptApi
 
 from src.db_manager import DBManager
 
@@ -230,9 +232,142 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
     return items
 
 
+TRANSCRIPT_CHUNK_SIZE = 3500
+
+
+def _chunk_transcript(text: str, max_chars: int = TRANSCRIPT_CHUNK_SIZE) -> list[str]:
+    """Split transcript text into chunks of ~max_chars, splitting at sentence boundaries."""
+    if len(text) <= max_chars:
+        return [text]
+
+    chunks = []
+    remaining = text
+    while remaining:
+        if len(remaining) <= max_chars:
+            chunks.append(remaining)
+            break
+
+        # Find last sentence boundary within the limit
+        split_at = max_chars
+        # Look for sentence-ending punctuation followed by a space
+        last_sentence = -1
+        for match in re.finditer(r"[.!?]\s", remaining[:max_chars]):
+            last_sentence = match.end()
+
+        if last_sentence > 0:
+            split_at = last_sentence
+        else:
+            # Fall back to last space
+            last_space = remaining[:max_chars].rfind(" ")
+            if last_space > 0:
+                split_at = last_space + 1
+
+        chunks.append(remaining[:split_at].strip())
+        remaining = remaining[split_at:].strip()
+
+    return chunks
+
+
+def _extract_video_id(url: str) -> str | None:
+    """Extract video ID from a YouTube URL."""
+    match = re.search(r"[?&]v=([a-zA-Z0-9_-]{11})", url)
+    return match.group(1) if match else None
+
+
+def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
+    """
+    Fetches recent videos from a YouTube channel via RSS, then downloads
+    auto-generated transcripts for each video.
+    """
+    url = source["url"]
+    source_id = source["id"]
+    pundits = source.get("pundits", [])
+    sport = source.get("sport", "NFL")
+    max_items = defaults.get("max_items_per_feed", 50)
+
+    # Default pundit for YouTube channels (usually single-pundit channels)
+    default_pundit = pundits[0] if pundits else {}
+    author = default_pundit.get("name")
+    pundit_id = default_pundit.get("id")
+    pundit_name = default_pundit.get("name")
+
+    logger.info(f"Fetching YouTube transcripts: {source['name']} ({url})")
+    feed = feedparser.parse(url, request_headers={"User-Agent": "PunditLedger/1.0"})
+
+    if feed.bozo and not feed.entries:
+        raise ValueError(f"Feed parse error for {source_id}: {feed.bozo_exception}")
+
+    items = []
+    now = datetime.now(timezone.utc)
+
+    for entry in feed.entries[:max_items]:
+        title = entry.get("title", "")
+        link = entry.get("link", "")
+        if not link:
+            continue
+
+        video_id = _extract_video_id(link)
+        if not video_id:
+            logger.warning(f"[{source_id}] Could not extract video ID from {link}")
+            continue
+
+        # Parse published date
+        published = None
+        if hasattr(entry, "published_parsed") and entry.published_parsed:
+            try:
+                published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
+            except Exception:
+                pass
+
+        # Download transcript
+        try:
+            transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+            transcript_text = " ".join(segment["text"] for segment in transcript_data)
+        except Exception as e:
+            logger.warning(
+                f"[{source_id}] Transcript unavailable for {video_id} "
+                f"({title}): {e}"
+            )
+            continue
+
+        if not transcript_text.strip():
+            continue
+
+        # Chunk if needed
+        chunks = _chunk_transcript(transcript_text)
+
+        for i, chunk in enumerate(chunks):
+            is_chunked = len(chunks) > 1
+            chunk_suffix = f"|chunk_{i}" if is_chunked else ""
+            chunk_title = f"{title} (part {i + 1})" if is_chunked else title
+
+            content_hash = compute_content_hash(link + chunk_suffix)
+
+            items.append(
+                MediaItem(
+                    content_hash=content_hash,
+                    source_id=source_id,
+                    title=chunk_title,
+                    raw_text=chunk,
+                    source_url=link,
+                    author=author,
+                    matched_pundit_id=pundit_id,
+                    matched_pundit_name=pundit_name,
+                    published_at=published,
+                    ingested_at=now,
+                    content_type="transcript",
+                    fetch_source_type="youtube_transcript",
+                    sport=sport,
+                )
+            )
+
+    return items
+
+
 FETCHERS = {
     "rss": fetch_rss,
     "youtube_rss": fetch_rss,  # YouTube Atom feeds work with feedparser
+    "youtube_transcript": fetch_youtube_transcripts,
 }
 
 

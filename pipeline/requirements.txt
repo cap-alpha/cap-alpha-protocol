@@ -38,3 +38,4 @@ google-genai
 duckdb
 duckduckgo-search
 pydantic
+youtube-transcript-api

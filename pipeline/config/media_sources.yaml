@@ -13,6 +13,7 @@ sources:
     name: "ProFootballTalk (NBC)"
     sport: "NFL"
     type: rss
+    scrape_full_text: true
     url: "https://profootballtalk.nbcsports.com/feed/"
     enabled: true
     pundits:
@@ -24,6 +25,7 @@ sources:
     name: "ESPN NFL"
     sport: "NFL"
     type: rss
+    scrape_full_text: true
     url: "https://www.espn.com/espn/rss/nfl/news"
     enabled: true
     pundits:
@@ -69,6 +71,7 @@ sources:
     name: "NFL.com News"
     sport: "NFL"
     type: rss
+    scrape_full_text: true
     url: "https://www.nfl.com/rss/rsslanding?searchString=home"
     enabled: true
     pundits:
@@ -83,6 +86,7 @@ sources:
     name: "Sports Illustrated NFL"
     sport: "NFL"
     type: rss
+    scrape_full_text: true
     url: "https://www.si.com/rss/si_nfl.rss"
     enabled: true
     pundits:

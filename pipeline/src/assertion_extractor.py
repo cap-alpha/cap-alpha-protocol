@@ -27,6 +27,7 @@ from typing import Optional
 
 import pandas as pd
 from google import genai
+from google.api_core.exceptions import NotFound
 from google.cloud import bigquery
 from google.genai import types
 
@@ -179,13 +180,13 @@ def get_unprocessed_media(
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
 
-    pundit_filter = (
-        ""
-        if include_unmatched
-        else "\n              AND r.matched_pundit_id IS NOT NULL"
-    )
+    if include_unmatched:
+        pundit_filter = ""
+        fallback_pundit_filter = ""
+    else:
+        pundit_filter = "\n              AND r.matched_pundit_id IS NOT NULL"
+        fallback_pundit_filter = "\n              AND matched_pundit_id IS NOT NULL"
 
-    # Check if tracking table exists; if not, return all raw media
     try:
         query = f"""
             SELECT r.content_hash, r.source_id, r.title, r.raw_text,
@@ -202,14 +203,9 @@ def get_unprocessed_media(
             LIMIT {limit}
         """
         return db.fetch_df(query)
-    except Exception as e:
-        # Tracking table may not exist — fall back to just raw media
+    except NotFound as e:
+        # processed_media_hashes table doesn't exist yet — fall back to raw media only
         logger.warning(f"Could not query processed_media_hashes (may not exist): {e}")
-        fallback_pundit_filter = (
-            ""
-            if include_unmatched
-            else "\n              AND matched_pundit_id IS NOT NULL"
-        )
         query = f"""
             SELECT content_hash, source_id, title, raw_text,
                    source_url, author, matched_pundit_id,
@@ -236,6 +232,40 @@ def mark_as_processed(content_hashes: list[str], db: DBManager) -> None:
         }
     )
     db.append_dataframe_to_table(df, PROCESSED_TABLE)
+
+
+def reset_processed_hashes(db: DBManager, source_id: Optional[str] = None) -> int:
+    """
+    Clears processed_media_hashes so those items are re-extracted on the next run.
+
+    Args:
+        source_id: If set, only clear hashes for items from that source.
+                   If None, clears all processed hashes (full reset).
+    Returns:
+        Number of rows deleted.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    if source_id:
+        query = f"""
+            DELETE FROM `{project_id}.nfl_dead_money.{PROCESSED_TABLE}` p
+            WHERE p.content_hash IN (
+                SELECT content_hash FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
+                WHERE source_id = '{source_id}'
+            )
+        """
+        logger.info(f"Clearing processed hashes for source_id={source_id!r}...")
+    else:
+        query = (
+            f"DELETE FROM `{project_id}.nfl_dead_money.{PROCESSED_TABLE}` WHERE TRUE"
+        )
+        logger.warning(
+            "Clearing ALL processed hashes — full re-extraction on next run."
+        )
+
+    result = db.execute(query)
+    rows_deleted = result.job.num_dml_affected_rows or 0
+    logger.info(f"Deleted {rows_deleted} rows from {PROCESSED_TABLE}.")
+    return rows_deleted
 
 
 def run_extraction(
@@ -414,12 +444,28 @@ if __name__ == "__main__":
         action="store_true",
         help="Include media rows without a matched pundit (skipped by default)",
     )
+    parser.add_argument(
+        "--reset-processed",
+        metavar="SOURCE_ID",
+        nargs="?",
+        const="__all__",
+        help=(
+            "Clear processed_media_hashes for SOURCE_ID (or all sources if omitted) "
+            "so those items are re-extracted on the next run. Exits after reset."
+        ),
+    )
     args = parser.parse_args()
 
-    result = run_extraction(
-        limit=args.limit,
-        dry_run=args.dry_run,
-        sport=args.sport,
-        include_unmatched=args.include_unmatched,
-    )
-    print(json.dumps(result, indent=2))
+    if args.reset_processed is not None:
+        db = DBManager()
+        source = None if args.reset_processed == "__all__" else args.reset_processed
+        deleted = reset_processed_hashes(db, source_id=source)
+        print(json.dumps({"reset": True, "rows_deleted": deleted}))
+    else:
+        result = run_extraction(
+            limit=args.limit,
+            dry_run=args.dry_run,
+            sport=args.sport,
+            include_unmatched=args.include_unmatched,
+        )
+        print(json.dumps(result, indent=2))

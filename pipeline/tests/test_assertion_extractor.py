@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+from google.api_core.exceptions import NotFound
 
 from src.assertion_extractor import (
     VALID_CATEGORIES,
@@ -17,6 +18,7 @@ from src.assertion_extractor import (
     extract_assertions,
     get_unprocessed_media,
     mark_as_processed,
+    reset_processed_hashes,
     run_extraction,
 )
 
@@ -248,7 +250,7 @@ class TestGetUnprocessedMedia:
 
     def test_falls_back_on_missing_tracking_table(self, mock_db):
         mock_db.fetch_df.side_effect = [
-            Exception("Table not found"),
+            NotFound("processed_media_hashes"),
             make_raw_media_df(2),
         ]
         df = get_unprocessed_media(mock_db)
@@ -272,7 +274,7 @@ class TestGetUnprocessedMedia:
     def test_fallback_query_also_filters_matched_pundit(self, mock_db):
         """Fallback query (no tracking table) also requires matched_pundit_id."""
         mock_db.fetch_df.side_effect = [
-            Exception("Table not found"),
+            NotFound("processed_media_hashes"),
             pd.DataFrame(),
         ]
         get_unprocessed_media(mock_db)
@@ -282,7 +284,7 @@ class TestGetUnprocessedMedia:
     def test_fallback_query_include_unmatched(self, mock_db):
         """Fallback query skips pundit filter when include_unmatched=True."""
         mock_db.fetch_df.side_effect = [
-            Exception("Table not found"),
+            NotFound("processed_media_hashes"),
             pd.DataFrame(),
         ]
         get_unprocessed_media(mock_db, include_unmatched=True)
@@ -308,6 +310,43 @@ class TestMarkAsProcessed:
     def test_no_op_on_empty_list(self, mock_db):
         mark_as_processed([], mock_db)
         mock_db.append_dataframe_to_table.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# reset_processed_hashes
+# ---------------------------------------------------------------------------
+
+
+class TestResetProcessedHashes:
+    def test_full_reset_executes_delete_all(self, mock_db):
+        mock_result = MagicMock()
+        mock_result.job.num_dml_affected_rows = 5
+        mock_db.execute.return_value = mock_result
+
+        deleted = reset_processed_hashes(mock_db)
+
+        assert deleted == 5
+        query = mock_db.execute.call_args[0][0]
+        assert "DELETE FROM" in query
+        assert "WHERE TRUE" in query
+
+    def test_source_reset_filters_by_source_id(self, mock_db):
+        mock_result = MagicMock()
+        mock_result.job.num_dml_affected_rows = 3
+        mock_db.execute.return_value = mock_result
+
+        deleted = reset_processed_hashes(mock_db, source_id="espn_nfl")
+
+        assert deleted == 3
+        query = mock_db.execute.call_args[0][0]
+        assert "source_id = 'espn_nfl'" in query
+
+    def test_handles_zero_rows(self, mock_db):
+        mock_result = MagicMock()
+        mock_result.job.num_dml_affected_rows = None
+        mock_db.execute.return_value = mock_result
+
+        assert reset_processed_hashes(mock_db) == 0
 
 
 # ---------------------------------------------------------------------------

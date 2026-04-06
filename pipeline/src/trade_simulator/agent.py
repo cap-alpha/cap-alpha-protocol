@@ -9,6 +9,8 @@ Teams maximize different metrics based on their lifecycle phase:
 3. MIDDLE: Balanced approach.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 

@@ -38,8 +38,6 @@ def calculate_value_metrics(df: pd.DataFrame) -> pd.DataFrame:
 
     return df
 
-    return top_players, bottom_players
-
 
 def calculate_edce(df: pd.DataFrame) -> pd.DataFrame:
     """

@@ -12,6 +12,10 @@ Teams maximize different metrics based on their lifecycle phase:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.trade_simulator.state import LeagueState
 
 
 @dataclass

@@ -94,7 +94,7 @@ sources:
   - id: pat_mcafee_show
     name: "The Pat McAfee Show"
     sport: "NFL"
-    type: youtube_rss
+    type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
     enabled: true
     pundits:
@@ -105,7 +105,7 @@ sources:
   - id: undisputed
     name: "Undisputed"
     sport: "NFL"
-    type: youtube_rss
+    type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCuF2PqOvMBKBVi9JvtC3GqA"
     enabled: true
     pundits:
@@ -118,7 +118,7 @@ sources:
     sport: "NFL"
     type: youtube_rss
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
-    enabled: true
+    enabled: false  # NBA highlights, not NFL pundit content
     pundits:
       - id: stephen_a_smith
         name: "Stephen A. Smith"

@@ -128,6 +128,63 @@ sources:
         name: "Stephen A. Smith"
         match_authors: ["Stephen A. Smith", "Stephen A"]
 
+  # ── Tier 1 YouTube Expansion (issue #129) ──────────────────────────────────
+  - id: the_herd
+    name: "The Herd with Colin Cowherd"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCFDidMd82mpDkKijLUqHp7A"
+    enabled: true
+    pundits:
+      - id: colin_cowherd
+        name: "Colin Cowherd"
+        match_authors: ["Colin Cowherd", "Cowherd"]
+
+  - id: club_shay_shay
+    name: "Club Shay Shay"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCQoxJOkwaCgyzQtiuAIDcuw"
+    enabled: true
+    pundits:
+      - id: shannon_sharpe
+        name: "Shannon Sharpe"
+        match_authors: ["Shannon Sharpe", "Sharpe"]
+
+  - id: whats_wright
+    name: "What's Wright? with Nick Wright"
+    sport: "NFL"
+    type: youtube_transcript
+    # TODO: verify channel_id — could not confirm via web search
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
+    enabled: false
+    pundits:
+      - id: nick_wright
+        name: "Nick Wright"
+        match_authors: ["Nick Wright", "Wright"]
+
+  - id: dan_patrick_show
+    name: "The Dan Patrick Show"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCORy0Yqzd8bVj2Gb4xyq6HA"
+    enabled: true
+    pundits:
+      - id: dan_patrick
+        name: "Dan Patrick"
+        match_authors: ["Dan Patrick"]
+
+  - id: rich_eisen_show
+    name: "The Rich Eisen Show"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCqMtxjKnR7ySbEZSs2N-v0Q"
+    enabled: true
+    pundits:
+      - id: rich_eisen
+        name: "Rich Eisen"
+        match_authors: ["Rich Eisen"]
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

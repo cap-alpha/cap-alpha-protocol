@@ -3,19 +3,11 @@ name: Data Quality Tests
 on:
   push:
     branches: [ main, develop ]
-    paths:
-      - 'pipeline/src/**'
-      - 'pipeline/tests/**'
-      - 'data/processed/**'
-      - 'pipeline/requirements.txt'
-      - '.github/workflows/tests.yml'
   pull_request:
     branches: [ main ]
-    paths:
-      - 'pipeline/src/**'
-      - 'pipeline/tests/**'
-      - 'data/processed/**'
-      - 'pipeline/requirements.txt'
+  # Merge queue — re-runs CI on the combined state of queued PRs before landing on main
+  merge_group:
+    branches: [ main ]
 
 jobs:
   test:

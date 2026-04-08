@@ -39,3 +39,5 @@ duckdb
 duckduckgo-search
 pydantic
 youtube-transcript-api
+readability-lxml
+lxml_html_clean

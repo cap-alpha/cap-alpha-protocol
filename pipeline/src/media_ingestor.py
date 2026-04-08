@@ -24,7 +24,7 @@ import logging
 import os
 import re
 import time
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -364,6 +364,45 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
     return items
 
 
+def _scrape_article_text(url: str, timeout: int = 15) -> Optional[str]:
+    """Fetch a URL and extract article body text using readability-lxml."""
+    try:
+        from readability import Document
+
+        resp = requests.get(
+            url, timeout=timeout, headers={"User-Agent": "PunditLedger/1.0"}
+        )
+        resp.raise_for_status()
+        doc = Document(resp.text)
+        from lxml.html import fromstring
+
+        clean = fromstring(doc.summary())
+        text = clean.text_content().strip()
+        return text if len(text) > 100 else None  # skip if extraction failed
+    except Exception as e:
+        logger.warning(f"Failed to scrape {url}: {e}")
+        return None
+
+
+def _enrich_with_full_text(items: list[MediaItem], source: dict) -> list[MediaItem]:
+    """If source has scrape_full_text enabled, fetch full article text for each item."""
+    if not source.get("scrape_full_text"):
+        return items
+
+    scrape_delay = source.get("scrape_delay_seconds", 0.5)
+    enriched = []
+    for i, item in enumerate(items):
+        full_text = _scrape_article_text(item.source_url)
+        if full_text:
+            item = replace(item, raw_text=full_text)
+        enriched.append(item)
+        # Rate-limit between requests (skip delay after last item)
+        if i < len(items) - 1:
+            time.sleep(scrape_delay)
+
+    return enriched
+
+
 FETCHERS = {
     "rss": fetch_rss,
     "youtube_rss": fetch_rss,  # YouTube Atom feeds work with feedparser
@@ -425,6 +464,9 @@ def ingest_source(
     if not items:
         result.duration_seconds = time.time() - start
         return result
+
+    # Enrich with full article text if configured
+    items = _enrich_with_full_text(items, source)
 
     # Dedup against existing BQ data
     existing_hashes = get_existing_hashes(db, source_id, dedup_window)

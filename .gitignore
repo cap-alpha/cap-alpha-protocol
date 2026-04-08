@@ -10,6 +10,8 @@ pipeline/local_libs/
 
 # Logs
 *.log
+# Agent coordination audit log must be tracked (negation must come after *.log)
+!.agent/activity.log
 dbt/logs/
 airflow/logs/
 airflow/*.db*

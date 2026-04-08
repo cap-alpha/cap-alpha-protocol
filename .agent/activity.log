@@ -1,0 +1,8 @@
+# Agent Activity Log — append-only coordination audit trail
+# Format: ISO_TIMESTAMP | AGENT_ID | ACTION | RESOURCE
+# Actions: CLAIM, RELEASE, STALE-CLAIM, CLEANUP
+# Resources: issue:<n>  pr:<n>  file:<path>  branch:<name>
+# Rotation: entries older than 7 days are pruned weekly via .agent/claim.sh
+#
+2026-04-08T03:03:50Z | agent-test | CLAIM | issue:test-coord
+2026-04-08T03:03:50Z | agent-test | RELEASE | issue:test-coord

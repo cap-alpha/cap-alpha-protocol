@@ -4,6 +4,10 @@ on:
   pull_request:
     branches:
       - main
+  # Merge queue — re-runs TS build check on combined state before landing on main
+  merge_group:
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:

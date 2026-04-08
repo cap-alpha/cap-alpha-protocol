@@ -15,6 +15,7 @@ Logic:
 from typing import Dict, List
 
 import pandas as pd
+from google.api_core.exceptions import NotFound
 
 from src.db_manager import DBManager
 
@@ -152,7 +153,7 @@ class StateLoader:
         # Handle case where table doesn't exist yet (during CI or early init)
         try:
             df_players = self.con.execute(player_query).df()
-        except duckdb.CatalogException:
+        except NotFound:
             # Fallback if explanation table missing
             print("⚠️ 'prediction_explanations' table missing. Skipping risk factors.")
             fallback_query = (

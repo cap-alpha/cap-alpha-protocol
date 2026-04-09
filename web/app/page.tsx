@@ -198,6 +198,7 @@ export default function LandingPage() {
                         <Link href="/methodology" className="hover:text-zinc-400 transition-colors">Methodology</Link>
                         <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms</Link>
                         <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
+                        <Link href="/legal/acceptable-use" className="hover:text-zinc-400 transition-colors">Acceptable Use</Link>
                     </div>
                     <span>© {new Date().getFullYear()} Pundit Ledger. All predictions verified.</span>
                 </div>

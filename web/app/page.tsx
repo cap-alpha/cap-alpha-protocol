@@ -81,7 +81,10 @@ export default function LandingPage() {
                             <h3 className="font-semibold text-white">We score the results</h3>
                             <p className="text-sm text-zinc-400 leading-relaxed">
                                 Predictions are resolved against official outcomes. The Pundit Credit
-                                Score weights accuracy, magnitude of misses, and prediction volume.
+                                Score weights accuracy, magnitude of misses, and prediction volume.{" "}
+                                <Link href="/methodology" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    Read the methodology &rarr;
+                                </Link>
                             </p>
                         </div>
                         <div className="space-y-3">

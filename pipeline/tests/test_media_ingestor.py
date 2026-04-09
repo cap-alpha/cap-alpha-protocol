@@ -16,6 +16,7 @@ import pytest
 from src.media_ingestor import (
     MediaItem,
     SourceResult,
+    _passes_keyword_filter,
     compute_content_hash,
     fetch_rss,
     get_existing_hashes,
@@ -145,6 +146,85 @@ class TestPunditMatching:
         pid, pname = match_pundit(None, self.PUNDITS)
         assert pid is None
         assert pname is None
+
+
+# ---------------------------------------------------------------------------
+# Keyword filter
+# ---------------------------------------------------------------------------
+
+
+class TestKeywordFilter:
+    def test_matches_title(self):
+        assert _passes_keyword_filter("NFL Draft Preview", "", ["NFL", "football"])
+
+    def test_matches_text(self):
+        assert _passes_keyword_filter(
+            "", "The quarterback threw a touchdown", ["touchdown"]
+        )
+
+    def test_case_insensitive(self):
+        assert _passes_keyword_filter("nfl news", "", ["NFL"])
+
+    def test_no_match(self):
+        assert not _passes_keyword_filter(
+            "Premier League Recap", "Soccer highlights", ["NFL", "football", "draft"]
+        )
+
+    def test_empty_keywords_returns_false(self):
+        # Empty keyword list means any() over empty iterable → False.
+        # Callers guard with `if keyword_filter and ...` so this is safe.
+        assert not _passes_keyword_filter("Anything", "at all", [])
+
+    def test_partial_word_match(self):
+        """'football' in keyword list matches 'football' in text."""
+        assert _passes_keyword_filter("", "Great football game today", ["football"])
+
+    @patch("src.media_ingestor.feedparser")
+    def test_fetch_rss_skips_filtered_entries(self, mock_fp):
+        """Entries not matching keyword_filter should be skipped."""
+        entry_nfl = MagicMock()
+        entry_nfl.get = lambda k, d=None: {
+            "title": "NFL Draft Big Board",
+            "link": "https://example.com/nfl",
+            "author": "Test Author",
+        }.get(k, d)
+        entry_nfl.published_parsed = (2025, 9, 1, 12, 0, 0, 0, 0, 0)
+        type(entry_nfl).summary = property(lambda self: "<p>NFL draft content</p>")
+        entry_nfl.content = []
+        entry_nfl.tags = []
+
+        entry_soccer = MagicMock()
+        entry_soccer.get = lambda k, d=None: {
+            "title": "Premier League Weekend Recap",
+            "link": "https://example.com/soccer",
+            "author": "Test Author",
+        }.get(k, d)
+        entry_soccer.published_parsed = (2025, 9, 1, 12, 0, 0, 0, 0, 0)
+        type(entry_soccer).summary = property(
+            lambda self: "<p>Soccer match highlights</p>"
+        )
+        entry_soccer.content = []
+        entry_soccer.tags = []
+
+        feed = MagicMock()
+        feed.bozo = False
+        feed.entries = [entry_nfl, entry_soccer]
+        mock_fp.parse.return_value = feed
+
+        source = {
+            "id": "theathletic_nfl",
+            "name": "The Athletic NFL",
+            "type": "rss",
+            "url": "https://example.com/feed",
+            "sport": "NFL",
+            "keyword_filter": ["NFL", "football", "draft"],
+            "pundits": [],
+        }
+        defaults = {"max_items_per_feed": 50, "fetch_timeout_seconds": 30}
+
+        items = fetch_rss(source, defaults)
+        assert len(items) == 1
+        assert items[0].title == "NFL Draft Big Board"
 
 
 # ---------------------------------------------------------------------------

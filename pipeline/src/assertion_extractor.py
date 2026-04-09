@@ -177,9 +177,12 @@ def get_unprocessed_media(
     """
     Fetches raw_pundit_media rows that haven't been processed yet.
     Uses a processed_media_hashes tracking table to know what's been done.
+
+    By default, only returns rows with a matched pundit to avoid wasting
+    Gemini API calls on unattributed content. Pass include_unmatched=True
+    to override and process all content regardless of pundit match.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
-
     if include_unmatched:
         pundit_filter = ""
         fallback_pundit_filter = ""
@@ -275,6 +278,7 @@ def run_extraction(
     include_unmatched: bool = False,
     db: Optional[DBManager] = None,
     gemini_client: Optional[genai.Client] = None,
+    include_unmatched: bool = False,
 ) -> dict:
     """
     Main extraction entry point.

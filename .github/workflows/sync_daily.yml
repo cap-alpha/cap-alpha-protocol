@@ -50,4 +50,5 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           python pipeline/scripts/medallion_pipeline.py
+          python pipeline/scripts/materialize_features.py
           python pipeline/src/cryptographic_ledger.py

@@ -1,7 +1,7 @@
 """
 Feature Store: Point-in-Time Feature Management
 
-This module provides a DuckDB-based feature store that prevents temporal data leakage
+This module provides a BigQuery-based feature store that prevents temporal data leakage
 by ensuring features are retrieved with strict point-in-time semantics.
 
 Key Concepts:
@@ -19,75 +19,63 @@ Usage:
     store.materialize_lag_features(source_table='fact_player_efficiency')
 
     # Retrieve for training (point-in-time)
-    features = store.get_training_matrix(as_of_year=2024)
+    features = store.get_training_matrix(as_of_date=date(2024, 9, 1))
 """
 
 import logging
 from datetime import date
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
 import pandas as pd
 
-from src.config_loader import get_db_path
 from src.db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DB_PATH = get_db_path()
-
 
 class FeatureStore:
-    """DuckDB-based Feature Store with point-in-time semantics."""
+    """BigQuery-based Feature Store with point-in-time semantics."""
 
-    def __init__(self, db_path: str = DB_PATH, read_only: bool = False):
-        self.db = DBManager(db_path)
-        self.con = self.db.con
+    def __init__(self, db: Optional[DBManager] = None, read_only: bool = False):
+        self.db = db or DBManager()
         self.read_only = read_only
 
     def initialize_schema(self):
         """Create feature store tables if they don't exist."""
         if self.read_only:
-            logger.info("Database is read-only. Skipping schema initialization.")
+            logger.info("Read-only mode. Skipping schema initialization.")
             return
 
         logger.info("Initializing Feature Store schema...")
 
         # Feature Registry: Metadata about each feature
-        self.con.execute("""
+        self.db.execute("""
             CREATE TABLE IF NOT EXISTS feature_registry (
-                feature_name VARCHAR PRIMARY KEY,
-                feature_type VARCHAR,  -- 'lag', 'derived', 'raw', 'interaction'
-                source_column VARCHAR,
-                lag_periods INTEGER,
-                description VARCHAR,
+                feature_name STRING NOT NULL,
+                feature_type STRING,
+                source_column STRING,
+                lag_periods INT64,
+                description STRING,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
         # Feature Values: The actual feature data with temporal validity
-        # Changed: valid_from is DATE, added valid_until
-        self.con.execute("""
+        self.db.execute("""
             CREATE TABLE IF NOT EXISTS feature_values (
-                entity_key VARCHAR,           -- player_name||'_'||year
-                player_name VARCHAR,
-                prediction_year INTEGER,      -- Year we're making a prediction for
-                feature_name VARCHAR,
-                feature_value DOUBLE,
-                valid_from DATE,              -- Date feature became known
-                valid_until DATE,             -- Date feature became superseded (NULL if current)
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                PRIMARY KEY (entity_key, feature_name, valid_from)
+                entity_key STRING,
+                player_name STRING,
+                prediction_year INT64,
+                feature_name STRING,
+                feature_value FLOAT64,
+                valid_from DATE,
+                valid_until DATE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
-        # Create index for efficient point-in-time queries
-        self.con.execute("""
-            CREATE INDEX IF NOT EXISTS idx_feature_pit 
-            ON feature_values (player_name, valid_from, valid_until)
-        """)
-
-        logger.info("✓ Feature Store schema initialized.")
+        logger.info("Feature Store schema initialized.")
 
     def register_feature(
         self,
@@ -97,15 +85,28 @@ class FeatureStore:
         lag_periods: int = None,
         description: str = None,
     ):
-        """Register a feature in the registry."""
-        self.con.execute(
-            """
-            INSERT OR REPLACE INTO feature_registry 
-            (feature_name, feature_type, source_column, lag_periods, description)
-            VALUES (?, ?, ?, ?, ?)
-        """,
-            [feature_name, feature_type, source_column, lag_periods, description],
-        )
+        """Register a feature in the registry (upsert via MERGE)."""
+        self.db.execute(f"""
+            MERGE INTO feature_registry AS target
+            USING (
+                SELECT
+                    '{feature_name}' AS feature_name,
+                    '{feature_type}' AS feature_type,
+                    {_bq_str(source_column)} AS source_column,
+                    {_bq_int(lag_periods)} AS lag_periods,
+                    {_bq_str(description)} AS description
+            ) AS src
+            ON target.feature_name = src.feature_name
+            WHEN MATCHED THEN UPDATE SET
+                feature_type = src.feature_type,
+                source_column = src.source_column,
+                lag_periods = src.lag_periods,
+                description = src.description
+            WHEN NOT MATCHED THEN INSERT
+                (feature_name, feature_type, source_column, lag_periods, description)
+                VALUES (src.feature_name, src.feature_type, src.source_column,
+                        src.lag_periods, src.description)
+        """)
 
     def materialize_lag_features(self, source_table: str = "fact_player_efficiency"):
         """
@@ -128,17 +129,23 @@ class FeatureStore:
             "age",
         ]
 
+        # Get available columns from source table
+        cols_df = self.db.fetch_df(f"""
+            SELECT column_name
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE table_name = '{source_table}'
+        """)
+        available_cols = set(cols_df["column_name"].values)
+
         # Clear existing lag features
-        self.con.execute("""
-            DELETE FROM feature_values 
+        self.db.execute("""
+            DELETE FROM feature_values
             WHERE feature_name LIKE '%_lag_%'
         """)
 
         # Register and materialize each lag feature
         for col in lag_columns:
-            # Check if column exists in source
-            cols_df = self.con.execute(f"DESCRIBE {source_table}").df()
-            if col not in cols_df["column_name"].values:
+            if col not in available_cols:
                 logger.warning(f"Column {col} not in {source_table}, skipping.")
                 continue
 
@@ -158,35 +165,31 @@ class FeatureStore:
                 # Lag 1: Target Year 2024. Source Year 2023.
                 # Valid From: 2024-02-15 (After 2023 season ends)
                 # Valid Until: 2025-02-15 (When 2024 season data becomes available)
-
-                self.con.execute(f"""
-                    INSERT INTO feature_values (entity_key, player_name, prediction_year, 
-                                                feature_name, feature_value, valid_from, valid_until)
-                    SELECT 
-                        target.player_name || '_' || target.year as entity_key,
+                self.db.execute(f"""
+                    INSERT INTO feature_values
+                        (entity_key, player_name, prediction_year,
+                         feature_name, feature_value, valid_from, valid_until)
+                    SELECT
+                        CONCAT(target.player_name, '_', CAST(target.year AS STRING))
+                            AS entity_key,
                         target.player_name,
-                        target.year as prediction_year,
-                        '{feature_name}' as feature_name,
-                        source.{col} as feature_value,
-                        -- Validity Logic:
-                        -- If source year is Y, data is known in Feb of Y+1
-                        -- Example: 2022 stats known 2023-02-15.
-                        -- Valid for predicting 2023 season (which starts Sept 2023).
-                        make_date(source.year + 1, 2, 15) as valid_from,
-                        make_date(source.year + 2, 2, 15) as valid_until
+                        target.year AS prediction_year,
+                        '{feature_name}' AS feature_name,
+                        source.{col} AS feature_value,
+                        DATE(source.year + 1, 2, 15) AS valid_from,
+                        DATE(source.year + 2, 2, 15) AS valid_until
                     FROM {source_table} target
                     INNER JOIN {source_table} source
                         ON target.player_name = source.player_name
                         AND source.year = target.year - {lag}
                     WHERE source.{col} IS NOT NULL
-                    ON CONFLICT (entity_key, feature_name, valid_from) DO UPDATE 
-                        SET feature_value = EXCLUDED.feature_value,
-                            valid_until = EXCLUDED.valid_until
                 """)
 
         # Log summary
-        count = self.con.execute("SELECT COUNT(*) FROM feature_values").fetchone()[0]
-        logger.info(f"✓ Materialized {count:,} feature values in store.")
+        count = self.db.execute(
+            "SELECT COUNT(*) AS cnt FROM feature_values"
+        ).fetchone()[0]
+        logger.info(f"Materialized {count:,} feature values in store.")
 
     def materialize_interaction_features(
         self, source_table: str = "fact_player_efficiency"
@@ -198,9 +201,9 @@ class FeatureStore:
             (
                 "age_cap_interaction",
                 "age * cap_hit_millions",
-                "Age × Cap Hit interaction",
+                "Age x Cap Hit interaction",
             ),
-            ("experience_risk", "draft_round * age", "Draft round × Age risk"),
+            ("experience_risk", "draft_round * age", "Draft round x Age risk"),
         ]
 
         for feature_name, formula, description in interactions:
@@ -211,46 +214,40 @@ class FeatureStore:
             )
 
             try:
-                # Interactions are instantaneous for the target year (derived from other features normally)
-                # But here we are deriving from raw source table for simplicity.
-                # These are "known" when the component parts are known.
-                # Assuming these are static traits or current contract info known at start of league year.
-                # We'll set valid_from to March 1st of the year (start of league year approx).
-
-                self.con.execute(f"""
-                    INSERT INTO feature_values (entity_key, player_name, prediction_year, 
-                                                feature_name, feature_value, valid_from, valid_until)
-                    SELECT 
-                        player_name || '_' || year as entity_key,
+                first_operand = formula.split("*")[0].strip()
+                self.db.execute(f"""
+                    INSERT INTO feature_values
+                        (entity_key, player_name, prediction_year,
+                         feature_name, feature_value, valid_from, valid_until)
+                    SELECT
+                        CONCAT(player_name, '_', CAST(year AS STRING))
+                            AS entity_key,
                         player_name,
-                        year as prediction_year,
-                        '{feature_name}' as feature_name,
-                        {formula} as feature_value,
-                        make_date(year, 3, 15) as valid_from, -- known mid-March (League Year)
-                        make_date(year + 1, 3, 15) as valid_until
+                        year AS prediction_year,
+                        '{feature_name}' AS feature_name,
+                        {formula} AS feature_value,
+                        DATE(year, 3, 15) AS valid_from,
+                        DATE(year + 1, 3, 15) AS valid_until
                     FROM {source_table}
-                    WHERE {formula.split('*')[0].strip()} IS NOT NULL
-                    ON CONFLICT (entity_key, feature_name, valid_from) DO UPDATE 
-                        SET feature_value = EXCLUDED.feature_value
+                    WHERE {first_operand} IS NOT NULL
                 """)
             except Exception as e:
                 logger.warning(f"Could not compute {feature_name}: {e}")
 
-        count = self.con.execute("""
-            SELECT COUNT(*) FROM feature_values 
+        count = self.db.execute("""
+            SELECT COUNT(*) AS cnt FROM feature_values
             WHERE feature_name IN ('age_cap_interaction', 'experience_risk')
         """).fetchone()[0]
-        logger.info(f"✓ Materialized {count:,} interaction features.")
+        logger.info(f"Materialized {count:,} interaction features.")
 
     def get_training_matrix(
         self, as_of_date: date, min_year: int = 2015
     ) -> pd.DataFrame:
         """
         Get feature matrix for training with strict point-in-time semantics as of a SINGLE date.
-        Useful for Inference or specific backtest folds.
 
         Args:
-            as_of_date: The 'knowledge cutoff' date. We only use data valid on or before this date.
+            as_of_date: The 'knowledge cutoff' date. Only data valid on or before this date.
             min_year: Minimum prediction year to include
 
         Returns:
@@ -258,25 +255,24 @@ class FeatureStore:
         """
         logger.info(f"Retrieving training matrix (as of {as_of_date})...")
 
-        # Pivot features to wide format with point-in-time constraint
         query = f"""
             WITH base AS (
-                SELECT DISTINCT player_name, year 
-                FROM fact_player_efficiency 
+                SELECT DISTINCT player_name, year
+                FROM fact_player_efficiency
                 WHERE year >= {min_year}
             ),
             pit_features AS (
-                SELECT 
+                SELECT
                     fv.player_name,
                     fv.prediction_year,
                     fv.feature_name,
                     fv.feature_value
                 FROM feature_values fv
                 WHERE fv.prediction_year >= {min_year}
-                  AND fv.valid_from <= '{as_of_date}' -- Known by cutoff
-                  AND (fv.valid_until > '{as_of_date}' OR fv.valid_until IS NULL) -- Not yet superseded
+                  AND fv.valid_from <= '{as_of_date}'
+                  AND (fv.valid_until > '{as_of_date}' OR fv.valid_until IS NULL)
             )
-            SELECT 
+            SELECT
                 b.player_name,
                 b.year,
                 pf.feature_name,
@@ -287,7 +283,7 @@ class FeatureStore:
                 AND b.year = pf.prediction_year
         """
 
-        df = self.con.execute(query).df()
+        df = self.db.fetch_df(query)
 
         if df.empty:
             logger.warning("No features found. Run materialize_* methods first.")
@@ -307,7 +303,7 @@ class FeatureStore:
         ]
 
         logger.info(
-            f"✓ Retrieved {len(pivot_df):,} rows × {len(pivot_df.columns)} features"
+            f"Retrieved {len(pivot_df):,} rows x {len(pivot_df.columns)} features"
         )
         return pivot_df
 
@@ -319,7 +315,7 @@ class FeatureStore:
 
         Reconstructs what was known at the start of EACH season (Sept 1st) for that season.
         Unlike get_training_matrix (which uses one as_of_date), this uses a dynamic
-        as_of_date = make_date(prediction_year, 9, 1).
+        as_of_date = DATE(prediction_year, 9, 1).
 
         Args:
             min_year: Start year
@@ -331,24 +327,23 @@ class FeatureStore:
 
         query = f"""
             WITH base AS (
-                SELECT DISTINCT player_name, year 
-                FROM fact_player_efficiency 
+                SELECT DISTINCT player_name, year
+                FROM fact_player_efficiency
                 WHERE year BETWEEN {min_year} AND {max_year}
             ),
             pit_features AS (
-                SELECT 
+                SELECT
                     fv.player_name,
                     fv.prediction_year,
                     fv.feature_name,
                     fv.feature_value
                 FROM feature_values fv
                 WHERE fv.prediction_year BETWEEN {min_year} AND {max_year}
-                  -- DIAGONAL JOIN LOGIC:
-                  -- Valid at the start of the prediction season (Sept 1st)
-                  AND fv.valid_from <= make_date(fv.prediction_year, 9, 1)
-                  AND (fv.valid_until > make_date(fv.prediction_year, 9, 1) OR fv.valid_until IS NULL)
+                  AND fv.valid_from <= DATE(fv.prediction_year, 9, 1)
+                  AND (fv.valid_until > DATE(fv.prediction_year, 9, 1)
+                       OR fv.valid_until IS NULL)
             )
-            SELECT 
+            SELECT
                 b.player_name,
                 b.year,
                 pf.feature_name,
@@ -359,7 +354,7 @@ class FeatureStore:
                 AND b.year = pf.prediction_year
         """
 
-        df = self.con.execute(query).df()
+        df = self.db.fetch_df(query)
 
         if df.empty:
             logger.warning("No features found.")
@@ -376,7 +371,7 @@ class FeatureStore:
             col if isinstance(col, str) else col for col in pivot_df.columns
         ]
 
-        logger.info(f"✓ Retrieved {len(pivot_df):,} rows (Historical Batch)")
+        logger.info(f"Retrieved {len(pivot_df):,} rows (Historical Batch)")
         return pivot_df
 
     def validate_temporal_integrity(self) -> bool:
@@ -386,67 +381,61 @@ class FeatureStore:
         Rule: valid_from must be < season start date of prediction_year.
         Assuming season starts Sept 1st.
         """
-        logger.info("🔍 Validating temporal integrity...")
+        logger.info("Validating temporal integrity...")
 
-        violations = self.con.execute("""
-            SELECT COUNT(*) 
+        violations = self.db.execute("""
+            SELECT COUNT(*) AS cnt
             FROM feature_values fv
             JOIN feature_registry fr ON fv.feature_name = fr.feature_name
             WHERE fr.feature_type = 'lag'
-              -- Violation if 'known' date is AFTER the season starts
-              AND fv.valid_from >= make_date(fv.prediction_year, 9, 1)
+              AND fv.valid_from >= DATE(fv.prediction_year, 9, 1)
         """).fetchone()[0]
 
         if violations == 0:
-            logger.info("✅ Temporal integrity PASSED: Zero violations.")
+            logger.info("Temporal integrity PASSED: Zero violations.")
             return True
         else:
-            logger.error(
-                f"❌ Temporal integrity FAILED: {violations} violations found!"
-            )
+            logger.error(f"Temporal integrity FAILED: {violations} violations found!")
 
             # Show sample violations
-            samples = self.con.execute("""
-                SELECT fv.player_name, fv.prediction_year, fv.feature_name, fv.valid_from
+            samples = self.db.fetch_df("""
+                SELECT fv.player_name, fv.prediction_year,
+                       fv.feature_name, fv.valid_from
                 FROM feature_values fv
                 JOIN feature_registry fr ON fv.feature_name = fr.feature_name
                 WHERE fr.feature_type = 'lag'
-                  AND fv.valid_from >= make_date(fv.prediction_year, 9, 1)
+                  AND fv.valid_from >= DATE(fv.prediction_year, 9, 1)
                 LIMIT 5
-            """).df()
+            """)
             logger.error(f"Sample violations:\n{samples}")
             return False
 
     def get_feature_stats(self) -> pd.DataFrame:
         """Get summary statistics about the feature store."""
-        return self.con.execute("""
-            SELECT 
+        return self.db.fetch_df("""
+            SELECT
                 fr.feature_type,
-                COUNT(DISTINCT fv.feature_name) as num_features,
-                COUNT(*) as num_values,
-                MIN(fv.prediction_year) as min_year,
-                MAX(fv.prediction_year) as max_year
+                COUNT(DISTINCT fv.feature_name) AS num_features,
+                COUNT(*) AS num_values,
+                MIN(fv.prediction_year) AS min_year,
+                MAX(fv.prediction_year) AS max_year
             FROM feature_values fv
             JOIN feature_registry fr ON fv.feature_name = fr.feature_name
             GROUP BY fr.feature_type
             ORDER BY fr.feature_type
-        """).df()
+        """)
 
 
-if __name__ == "__main__":
-    # Demo usage
-    store = FeatureStore()
-    store.initialize_schema()
-    store.materialize_lag_features()
-    store.materialize_interaction_features()
+def _bq_str(val: Optional[str]) -> str:
+    """Format a Python string as a BigQuery string literal, or NULL."""
+    if val is None:
+        return "CAST(NULL AS STRING)"
+    escaped = val.replace("'", "\\'")
+    return f"'{escaped}'"
 
-    # Validate
-    store.validate_temporal_integrity()
 
-    # Show stats
-    print("\n=== Feature Store Statistics ===")
-    print(store.get_feature_stats())
-
-    # Get training matrix for 2024 season (as of start of season)
-    matrix = store.get_training_matrix(as_of_date=date(2024, 9, 1))
-    print(f"\nTraining matrix shape: {matrix.shape}")
+def _bq_int(val: Optional[int]) -> str:
+    """Format a Python int as a BigQuery INT64 literal, or NULL."""
+    if val is None:
+        return "CAST(NULL AS INT64)"
+    return str(int(val))

@@ -278,7 +278,6 @@ def run_extraction(
     include_unmatched: bool = False,
     db: Optional[DBManager] = None,
     gemini_client: Optional[genai.Client] = None,
-    include_unmatched: bool = False,
 ) -> dict:
     """
     Main extraction entry point.

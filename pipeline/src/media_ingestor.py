@@ -150,6 +150,12 @@ def match_pundit(
 # ---------------------------------------------------------------------------
 
 
+def _passes_keyword_filter(title: str, text: str, keywords: list[str]) -> bool:
+    """Check if title or text contains at least one keyword (case-insensitive)."""
+    combined = f"{title} {text}".lower()
+    return any(kw.lower() in combined for kw in keywords)
+
+
 def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
     """Fetches and parses an RSS feed, returning MediaItems."""
     url = source["url"]
@@ -158,6 +164,7 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
     sport = source.get("sport", "NFL")
     max_items = defaults.get("max_items_per_feed", 50)
     timeout = defaults.get("fetch_timeout_seconds", 30)
+    keyword_filter = source.get("keyword_filter", [])
 
     logger.info(f"Fetching RSS: {source['name']} ({url})")
     feed = feedparser.parse(url, request_headers={"User-Agent": "PunditLedger/1.0"})
@@ -167,6 +174,7 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
 
     items = []
     now = datetime.now(timezone.utc)
+    skipped_by_filter = 0
 
     for entry in feed.entries[:max_items]:
         title = entry.get("title", "")
@@ -199,6 +207,13 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
                 if len(text) > len(raw_text):
                     raw_text = text
 
+        # Apply keyword filter if configured (skip non-matching entries)
+        if keyword_filter and not _passes_keyword_filter(
+            title, raw_text, keyword_filter
+        ):
+            skipped_by_filter += 1
+            continue
+
         pundit_id, pundit_name = match_pundit(author, pundits)
         content_hash = compute_content_hash(link, title)
 
@@ -227,6 +242,11 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
                 sport=sport,
                 raw_metadata=json.dumps(metadata) if metadata else None,
             )
+        )
+
+    if skipped_by_filter:
+        logger.info(
+            f"[{source_id}] Keyword filter skipped {skipped_by_filter} non-matching entries"
         )
 
     return items

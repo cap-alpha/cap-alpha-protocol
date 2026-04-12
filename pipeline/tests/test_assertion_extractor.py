@@ -248,6 +248,20 @@ class TestGetUnprocessedMedia:
         assert "LEFT JOIN" in query
         assert "processed_media_hashes" in query
 
+    def test_filters_unmatched_pundits_by_default(self, mock_db):
+        """Default query should require matched_pundit_id IS NOT NULL."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db)
+        query = mock_db.fetch_df.call_args[0][0]
+        assert "matched_pundit_id IS NOT NULL" in query
+
+    def test_include_unmatched_skips_pundit_filter(self, mock_db):
+        """With include_unmatched=True, query should NOT filter on pundit."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db, include_unmatched=True)
+        query = mock_db.fetch_df.call_args[0][0]
+        assert "matched_pundit_id IS NOT NULL" not in query
+
     def test_falls_back_on_missing_tracking_table(self, mock_db):
         mock_db.fetch_df.side_effect = [
             NotFound("processed_media_hashes"),
@@ -422,6 +436,26 @@ class TestRunExtraction:
         summary = run_extraction(limit=10, db=mock_db, gemini_client=MagicMock())
 
         assert summary["total_processed"] == 0
+
+    @patch("src.assertion_extractor.get_unprocessed_media")
+    def test_passes_include_unmatched_flag(self, mock_get, mock_db):
+        """include_unmatched flag should be forwarded to get_unprocessed_media."""
+        mock_get.return_value = pd.DataFrame()
+
+        run_extraction(
+            limit=5, db=mock_db, gemini_client=MagicMock(), include_unmatched=True
+        )
+
+        mock_get.assert_called_once_with(mock_db, limit=5, include_unmatched=True)
+
+    @patch("src.assertion_extractor.get_unprocessed_media")
+    def test_default_excludes_unmatched(self, mock_get, mock_db):
+        """By default, include_unmatched should be False."""
+        mock_get.return_value = pd.DataFrame()
+
+        run_extraction(limit=5, db=mock_db, gemini_client=MagicMock())
+
+        mock_get.assert_called_once_with(mock_db, limit=5, include_unmatched=False)
 
 
 # ---------------------------------------------------------------------------

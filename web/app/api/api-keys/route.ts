@@ -1,44 +1,66 @@
-// TODO: Wire to real backend (#142)
-// Stub API routes returning mock data for development
-
+/**
+ * POST /api/api-keys — Create a new API key
+ * GET  /api/api-keys — List user's keys
+ *
+ * Both require Clerk authentication.
+ */
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 
-// In-memory store for development — replaced by DB in #142
-const keyStore = new Map<
-    string,
-    {
-        keyId: string;
-        name: string;
-        lastFour: string;
-        status: "active" | "revoked";
-        mode: "live" | "test";
-        createdAt: string;
-        lastUsedAt: string | null;
-    }[]
->();
+import { createKey, listKeys } from "@/lib/api-keys/repository";
+import type { KeyMode } from "@/lib/api-keys/index";
 
-function generateKeyId(): string {
-    return "key_" + crypto.randomBytes(12).toString("hex");
-}
+export async function POST(req: Request) {
+    const { userId } = auth();
+    if (!userId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
 
-function generatePlaintextKey(mode: "live" | "test"): string {
-    const prefix = mode === "live" ? "capk_live_" : "capk_test_";
-    return prefix + crypto.randomBytes(24).toString("hex");
-}
+    let body: { name?: string; mode?: string };
+    try {
+        body = await req.json();
+    } catch {
+        return NextResponse.json(
+            { error: "Invalid JSON body" },
+            { status: 400 }
+        );
+    }
 
-// Per-tier key caps
-const TIER_CAPS: Record<string, number> = {
-    free: 1,
-    pro: 3,
-    api: 10,
-    enterprise: 25,
-};
+    const name = body.name?.trim();
+    if (!name || name.length === 0) {
+        return NextResponse.json(
+            { error: "Key name is required" },
+            { status: 400 }
+        );
+    }
 
-function getUserTier(_userId: string): string {
-    // TODO: Resolve from Stripe subscription (#142)
-    return "free";
+    if (name.length > 64) {
+        return NextResponse.json(
+            { error: "Key name must be 64 characters or fewer" },
+            { status: 400 }
+        );
+    }
+
+    const mode: KeyMode =
+        body.mode === "test" || body.mode === "live" ? body.mode : "live";
+
+    try {
+        const result = await createKey(userId, name, mode);
+        return NextResponse.json(result, { status: 201 });
+    } catch (err: any) {
+        // Tier cap errors are user-facing
+        if (err.message?.includes("Key limit reached")) {
+            return NextResponse.json(
+                { error: err.message },
+                { status: 403 }
+            );
+        }
+        console.error("[API Keys] Create error:", err);
+        return NextResponse.json(
+            { error: "Failed to create API key" },
+            { status: 500 }
+        );
+    }
 }
 
 export async function GET() {
@@ -47,76 +69,14 @@ export async function GET() {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const tier = getUserTier(userId);
-    const maxKeys = TIER_CAPS[tier] ?? 1;
-    const userKeys = (keyStore.get(userId) ?? []).filter(
-        (k) => k.status === "active"
-    );
-
-    return NextResponse.json({
-        keys: keyStore.get(userId) ?? [],
-        tier,
-        maxKeys,
-    });
-}
-
-export async function POST(req: Request) {
-    const { userId } = auth();
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const body = await req.json();
-    const name: string = body.name;
-    const mode: "live" | "test" = body.mode ?? "live";
-
-    if (!name || typeof name !== "string" || name.trim().length === 0) {
+    try {
+        const keys = await listKeys(userId);
+        return NextResponse.json({ keys });
+    } catch (err) {
+        console.error("[API Keys] List error:", err);
         return NextResponse.json(
-            { error: "Key name is required" },
-            { status: 400 }
+            { error: "Failed to list API keys" },
+            { status: 500 }
         );
     }
-
-    const tier = getUserTier(userId);
-    const maxKeys = TIER_CAPS[tier] ?? 1;
-    const existing = (keyStore.get(userId) ?? []).filter(
-        (k) => k.status === "active"
-    );
-
-    if (existing.length >= maxKeys) {
-        return NextResponse.json(
-            {
-                error: `Key limit reached. ${tier} tier allows ${maxKeys} active key(s).`,
-            },
-            { status: 403 }
-        );
-    }
-
-    const keyId = generateKeyId();
-    const plaintextKey = generatePlaintextKey(mode);
-    const lastFour = plaintextKey.slice(-4);
-    const createdAt = new Date().toISOString();
-
-    const newKey = {
-        keyId,
-        name: name.trim(),
-        lastFour,
-        status: "active" as const,
-        mode,
-        createdAt,
-        lastUsedAt: null,
-    };
-
-    const userKeys = keyStore.get(userId) ?? [];
-    userKeys.push(newKey);
-    keyStore.set(userId, userKeys);
-
-    return NextResponse.json({
-        keyId,
-        plaintextKey,
-        lastFour,
-        name: newKey.name,
-        mode,
-        createdAt,
-    });
 }

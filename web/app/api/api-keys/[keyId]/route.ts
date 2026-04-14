@@ -1,26 +1,12 @@
-// TODO: Wire to real backend (#142)
-// Stub DELETE route for revoking API keys
-
+/**
+ * DELETE /api/api-keys/[keyId] — Revoke an API key
+ *
+ * Requires Clerk authentication. User must own the key.
+ */
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
-// Shared in-memory store — in production this is the DB
-// For the stub, we import indirectly by re-reading from the parent route's store.
-// Since Next.js API routes are isolated, we use a simple module-level map here too.
-// The real implementation (#142) will use the DB so this duplication won't matter.
-
-const keyStore = new Map<
-    string,
-    {
-        keyId: string;
-        name: string;
-        lastFour: string;
-        status: "active" | "revoked";
-        mode: "live" | "test";
-        createdAt: string;
-        lastUsedAt: string | null;
-    }[]
->();
+import { revokeKey } from "@/lib/api-keys/repository";
 
 export async function DELETE(
     _req: Request,
@@ -32,18 +18,27 @@ export async function DELETE(
     }
 
     const { keyId } = params;
-    const userKeys = keyStore.get(userId) ?? [];
-    const keyIndex = userKeys.findIndex(
-        (k) => k.keyId === keyId && k.status === "active"
-    );
-
-    if (keyIndex === -1) {
-        // In stub mode, just return success since the real backend handles this
-        return NextResponse.json({ success: true });
+    if (!keyId) {
+        return NextResponse.json(
+            { error: "Key ID is required" },
+            { status: 400 }
+        );
     }
 
-    userKeys[keyIndex].status = "revoked";
-    keyStore.set(userId, userKeys);
-
-    return NextResponse.json({ success: true });
+    try {
+        await revokeKey(userId, keyId);
+        return NextResponse.json({ success: true, keyId });
+    } catch (err: any) {
+        if (err.message?.includes("not found")) {
+            return NextResponse.json(
+                { error: err.message },
+                { status: 404 }
+            );
+        }
+        console.error("[API Keys] Revoke error:", err);
+        return NextResponse.json(
+            { error: "Failed to revoke API key" },
+            { status: 500 }
+        );
+    }
 }

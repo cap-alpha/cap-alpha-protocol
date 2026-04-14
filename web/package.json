@@ -66,7 +66,8 @@
         "tailwindcss": "^3.3.0",
         "ts-node": "^10.9.2",
         "typescript": "^5.9.3",
-        "vercel": "^50.32.5"
+        "vercel": "^50.32.5",
+        "vitest": "^4.1.4"
     },
     "optionalDependencies": {
         "@next/swc-darwin-arm64": "*"

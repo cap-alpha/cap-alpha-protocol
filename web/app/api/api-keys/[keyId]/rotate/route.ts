@@ -1,18 +1,15 @@
-// TODO: Wire to real backend (#142)
-// Stub POST route for rotating API keys (revoke old + create new)
-
+/**
+ * POST /api/api-keys/[keyId]/rotate — Rotate an API key
+ *
+ * Revokes the existing key and creates a new one with the same name.
+ * The new key gets a fresh key_id. Returns the new plaintext key exactly once.
+ *
+ * Requires Clerk authentication. User must own the key.
+ */
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import crypto from "crypto";
 
-function generateKeyId(): string {
-    return "key_" + crypto.randomBytes(12).toString("hex");
-}
-
-function generatePlaintextKey(mode: "live" | "test"): string {
-    const prefix = mode === "live" ? "capk_live_" : "capk_test_";
-    return prefix + crypto.randomBytes(24).toString("hex");
-}
+import { rotateKey } from "@/lib/api-keys/repository";
 
 export async function POST(
     _req: Request,
@@ -23,21 +20,28 @@ export async function POST(
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // In stub mode, generate a new key with a mock name
-    // The real backend (#142) will look up the old key's name and mode
-    const { keyId: _oldKeyId } = params;
-    const newKeyId = generateKeyId();
-    const mode = "live" as const; // stub default
-    const plaintextKey = generatePlaintextKey(mode);
-    const lastFour = plaintextKey.slice(-4);
-    const createdAt = new Date().toISOString();
-    const name = "Rotated Key"; // stub — real backend inherits old key's name
+    const { keyId } = params;
+    if (!keyId) {
+        return NextResponse.json(
+            { error: "Key ID is required" },
+            { status: 400 }
+        );
+    }
 
-    return NextResponse.json({
-        keyId: newKeyId,
-        plaintextKey,
-        lastFour,
-        name,
-        createdAt,
-    });
+    try {
+        const result = await rotateKey(userId, keyId);
+        return NextResponse.json(result, { status: 201 });
+    } catch (err: any) {
+        if (err.message?.includes("not found")) {
+            return NextResponse.json(
+                { error: err.message },
+                { status: 404 }
+            );
+        }
+        console.error("[API Keys] Rotate error:", err);
+        return NextResponse.json(
+            { error: "Failed to rotate API key" },
+            { status: 500 }
+        );
+    }
 }

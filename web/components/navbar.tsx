@@ -72,6 +72,12 @@ export function Navbar() {
                         >
                             LEDGER
                         </Link>
+                        <Link
+                            href="/dashboard/api-keys"
+                            className={`transition-colors hover:text-emerald-400 ${pathname?.includes('/api-keys') ? 'text-emerald-500' : 'text-slate-400'}`}
+                        >
+                            API KEYS
+                        </Link>
                     </nav>
                 </div>
 

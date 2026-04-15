@@ -19,6 +19,10 @@ describe("getMaxKeysForTier", () => {
         expect(getMaxKeysForTier("api_starter")).toBe(10);
     });
 
+    it("returns 25 for api_growth tier", () => {
+        expect(getMaxKeysForTier("api_growth")).toBe(25);
+    });
+
     it("returns 25 for enterprise tier", () => {
         expect(getMaxKeysForTier("enterprise")).toBe(25);
     });
@@ -26,7 +30,7 @@ describe("getMaxKeysForTier", () => {
 
 describe("getTierConfig", () => {
     it("returns config objects with maxKeys", () => {
-        const tiers: Tier[] = ["free", "pro", "api_starter", "enterprise"];
+        const tiers: Tier[] = ["free", "pro", "api_starter", "api_growth", "enterprise"];
         for (const tier of tiers) {
             const config = getTierConfig(tier);
             expect(config).toHaveProperty("maxKeys");

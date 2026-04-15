@@ -195,6 +195,7 @@ export default function LandingPage() {
                     </span>
                     <div className="flex items-center gap-6">
                         <Link href="/ledger" className="hover:text-zinc-400 transition-colors">Leaderboard</Link>
+                        <Link href="/methodology" className="hover:text-zinc-400 transition-colors">Methodology</Link>
                         <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms</Link>
                         <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
                     </div>

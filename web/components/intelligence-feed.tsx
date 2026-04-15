@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Lock, FileText, TrendingDown, TrendingUp, AlertCircle, Info, Filter } from "lucide-react";
-import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -13,11 +12,33 @@ import { ProvenanceSnapshot } from "./provenance-snapshot";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
 
+const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// When Clerk keys are absent (CI/E2E), treat user as signed out.
+function SafeSignedIn({ children }: { children: ReactNode }) {
+    if (!hasClerkKey) return null; // No Clerk = treat as signed out
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignedIn } = require("@clerk/nextjs");
+    return <SignedIn>{children}</SignedIn>;
+}
+function SafeSignedOut({ children }: { children: ReactNode }) {
+    if (!hasClerkKey) return <>{children}</>; // No Clerk = always show signed-out content
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignedOut } = require("@clerk/nextjs");
+    return <SignedOut>{children}</SignedOut>;
+}
+function SafeSignInButton({ children, mode }: { children: ReactNode; mode?: string }) {
+    if (!hasClerkKey) return <>{children}</>;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignInButton } = require("@clerk/nextjs");
+    return <SignInButton mode={mode}>{children}</SignInButton>;
+}
+
 export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { playerName: string, riskScore: number, feedEvents?: IntelligenceEvent[] }) {
 
     const [criticalOnly, setCriticalOnly] = useState(false);
 
-    const displayedEvents = criticalOnly 
+    const displayedEvents = criticalOnly
         ? feedEvents.filter(e => e.type === 'Warning' || e.type === 'High Uncertainty' || e.color.includes('rose') || e.color.includes('amber'))
         : feedEvents;
 
@@ -59,7 +80,7 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                 </div>
             </CardHeader>
             <CardContent className="pt-4 flex-1">
-                <SignedIn>
+                <SafeSignedIn>
                     <div className="space-y-4">
                         <p className="text-sm text-slate-400 mb-4">
                             Synthesized intelligence from unstructured scouting reports and contract telemetry.
@@ -111,9 +132,9 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                             </div>
                         </div>
                     </div>
-                </SignedIn>
+                </SafeSignedIn>
 
-                <SignedOut>
+                <SafeSignedOut>
                     {/* Paywall Overlay */}
                     <div className="absolute inset-0 z-10 bg-gradient-to-t from-slate-950 via-slate-900/90 to-slate-900/50 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
                         <Lock className="h-10 w-10 text-emerald-500 mb-4" />
@@ -121,11 +142,11 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                         <p className="text-slate-300 text-sm mb-6 max-w-xs">
                             Unlock real-time rumors, scouting synthesis, and RAG-powered contract telemetry for <Link href={`/player/${encodeURIComponent(slugify(playerName))}`} className="hover:underline hover:text-emerald-400 transition-colors font-bold">{playerName}</Link>.
                         </p>
-                        <SignInButton mode="modal">
+                        <SafeSignInButton mode="modal">
                             <Button className="bg-emerald-500 hover:bg-emerald-600 text-white w-full">
                                 Upgrade to Executive Tier
                             </Button>
-                        </SignInButton>
+                        </SafeSignInButton>
                     </div>
                     {/* Blurred Background Content */}
                     <div className="space-y-4 opacity-30 select-none" aria-hidden="true">
@@ -133,7 +154,7 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                         <div className="h-16 bg-slate-800 rounded animate-pulse" />
                         <div className="h-24 bg-slate-800 rounded animate-pulse" />
                     </div>
-                </SignedOut>
+                </SafeSignedOut>
             </CardContent>
         </Card>
     );

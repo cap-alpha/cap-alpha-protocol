@@ -1,14 +1,34 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, ReactNode } from 'react';
 import { PlayerEfficiency, DeadMoneyMath } from '@/app/actions';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Lock, AlertTriangle, CheckCircle, Scissors, Save } from 'lucide-react';
 import { saveScenario } from '@/app/actions/scenario';
-import { SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
+
+const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+function SafeSignedIn({ children }: { children: ReactNode }) {
+    if (!hasClerkKey) return null;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignedIn } = require("@clerk/nextjs");
+    return <SignedIn>{children}</SignedIn>;
+}
+function SafeSignedOut({ children }: { children: ReactNode }) {
+    if (!hasClerkKey) return <>{children}</>;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignedOut } = require("@clerk/nextjs");
+    return <SignedOut>{children}</SignedOut>;
+}
+function SafeSignInButton({ children, mode }: { children: ReactNode; mode?: string }) {
+    if (!hasClerkKey) return <>{children}</>;
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { SignInButton } = require("@clerk/nextjs");
+    return <SignInButton mode={mode}>{children}</SignInButton>;
+}
 
 interface CutCalculatorProps {
     player: PlayerEfficiency;
@@ -25,7 +45,7 @@ export function CutCalculator({ player, deadMoneyMath, isPostJune1, onToggle }: 
     let deadCap = 0;
     let savings = 0;
 
-    // EXACT MATHEMATICAL LOGIC: 
+    // EXACT MATHEMATICAL LOGIC:
     // Always prioritize the mathematically sound model from `silver_spotrac_contracts`.
     if (deadMoneyMath) {
         if (isPostJune1) {
@@ -40,12 +60,12 @@ export function CutCalculator({ player, deadMoneyMath, isPostJune1, onToggle }: 
         const baseDeadCap = player.dead_cap_millions || 0;
         const derivedSavingsPre = player.cap_hit_millions - baseDeadCap;
 
-        deadCap = isPostJune1 
-            ? (player.dead_cap_post_june1 || baseDeadCap / 2) 
+        deadCap = isPostJune1
+            ? (player.dead_cap_post_june1 || baseDeadCap / 2)
             : (player.dead_cap_pre_june1 || baseDeadCap);
-            
-        savings = isPostJune1 
-            ? (player.savings_post_june1 || (player.cap_hit_millions - (baseDeadCap / 2))) 
+
+        savings = isPostJune1
+            ? (player.savings_post_june1 || (player.cap_hit_millions - (baseDeadCap / 2)))
             : (player.savings_pre_june1 || derivedSavingsPre);
     }
 
@@ -166,7 +186,7 @@ export function CutCalculator({ player, deadMoneyMath, isPostJune1, onToggle }: 
                             <span>Current Cap Hit: <span className="text-slate-200">${player.cap_hit_millions.toLocaleString()}M</span></span>
                             <span>Efficiency Impact: <span className="text-slate-200">{player.risk_score > 0.5 ? "High Risk Removed" : "Low Risk Loss"}</span></span>
                         </div>
-                        <SignedIn>
+                        <SafeSignedIn>
                             <button
                                 onClick={handleSave}
                                 disabled={isSaving || saved}
@@ -184,15 +204,15 @@ export function CutCalculator({ player, deadMoneyMath, isPostJune1, onToggle }: 
                                     </>
                                 )}
                             </button>
-                        </SignedIn>
-                        <SignedOut>
-                            <SignInButton mode="modal">
+                        </SafeSignedIn>
+                        <SafeSignedOut>
+                            <SafeSignInButton mode="modal">
                                 <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
                                     <Save className="w-3.5 h-3.5" />
                                     <span>Sign in to Save</span>
                                 </button>
-                            </SignInButton>
-                        </SignedOut>
+                            </SafeSignInButton>
+                        </SafeSignedOut>
                     </div>
                 </div>
             </CardContent>

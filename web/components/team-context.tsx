@@ -1,8 +1,19 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useUser } from "@clerk/nextjs";
 import { updateUserTeam } from "@/app/actions/user";
+
+const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Safe wrapper: only call useUser() when Clerk is available
+function useClerkUser(): { user: any; isLoaded: boolean } {
+    if (!hasClerkKey) {
+        return { user: null, isLoaded: true };
+    }
+    // eslint-disable-next-line @typescript-eslint/no-var-requires, react-hooks/rules-of-hooks
+    const { useUser } = require("@clerk/nextjs");
+    return useUser();
+}
 
 interface TeamContextType {
     activeTeam: string | null;
@@ -15,7 +26,7 @@ interface TeamContextType {
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
 
 export function TeamProvider({ children }: { children: ReactNode }) {
-    const { user, isLoaded } = useUser();
+    const { user, isLoaded } = useClerkUser();
     const [activeTeam, setActiveTeamState] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isTeamSelectorOpen, setTeamSelectorOpen] = useState(false);
@@ -54,7 +65,7 @@ export function TeamProvider({ children }: { children: ReactNode }) {
         if (user) {
             try {
                 await updateUserTeam(team);
-                // Also update client-side user object to reflect change immediately? 
+                // Also update client-side user object to reflect change immediately?
                 // Clerk usually handles this via revalidation, but we might need user.reload() if strictly necessary.
                 await user.reload();
             } catch (error) {

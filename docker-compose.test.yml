@@ -1,14 +1,36 @@
 version: '3.8'
 
 services:
+  web:
+    environment:
+      - NODE_ENV=development
+      - NEXT_TELEMETRY_DISABLED=1
+      # Clerk keys are optional — the app gracefully skips auth when absent.
+      # In CI these come from GitHub Secrets exported by the workflow shell;
+      # docker compose picks them up through normal env-var substitution.
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
+
   e2e:
     image: mcr.microsoft.com/playwright:v1.41.2-jammy
     container_name: nfl_e2e_test
+    # Share the web container's network so localhost:3000 reaches Next.js
+    network_mode: "service:web"
     volumes:
       - ./web:/e2e
       - /e2e/node_modules
     working_dir: /e2e
     environment:
+      - CI=1
       - PLAYWRIGHT_BASE_URL=http://localhost:3000
-    command: bash -c "apt-get update && apt-get install -y make g++ curl && npm install && echo 'Waiting for web server...' && while ! curl -s http://localhost:3000 > /dev/null; do sleep 2; done && echo 'Web server is up!' && npx playwright test tests/e2e --project=chromium"
-
+    depends_on:
+      - web
+    command: >
+      bash -c "
+        apt-get update && apt-get install -y make g++ curl &&
+        npm install &&
+        echo 'Waiting for web server...' &&
+        timeout 120 bash -c 'while ! curl -sf http://localhost:3000 > /dev/null 2>&1; do sleep 2; done' &&
+        echo 'Web server is up!' &&
+        npx playwright test tests/e2e/production_validation.spec.ts --project=chromium
+      "

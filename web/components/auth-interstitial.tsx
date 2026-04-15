@@ -1,11 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, SignIn } from "@clerk/nextjs";
+
+const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 export function AuthInterstitial() {
-    const { isLoaded, isSignedIn } = useAuth();
     const [showSignIn, setShowSignIn] = useState(false);
+    const [clerkModules, setClerkModules] = useState<{ useAuth: any; SignIn: any } | null>(null);
+
+    // Dynamically load Clerk only when keys are available
+    useEffect(() => {
+        if (!hasClerkKey) return;
+        import("@clerk/nextjs").then((mod) => {
+            setClerkModules({ useAuth: mod.useAuth, SignIn: mod.SignIn });
+        });
+    }, []);
+
+    if (!hasClerkKey) return null;
+
+    // Render a sub-component that can safely use the Clerk hook
+    if (!clerkModules) return null;
+    return <AuthInterstitialInner showSignIn={showSignIn} setShowSignIn={setShowSignIn} clerkModules={clerkModules} />;
+}
+
+function AuthInterstitialInner({
+    showSignIn,
+    setShowSignIn,
+    clerkModules,
+}: {
+    showSignIn: boolean;
+    setShowSignIn: (v: boolean) => void;
+    clerkModules: { useAuth: any; SignIn: any };
+}) {
+    const { useAuth, SignIn } = clerkModules;
+    const { isLoaded, isSignedIn } = useAuth();
 
     useEffect(() => {
         if (!isLoaded) return;
@@ -29,7 +57,7 @@ export function AuthInterstitial() {
             // Completely new user (no forced roam)
             localStorage.setItem("last_seen", now.toString());
         }
-    }, [isLoaded, isSignedIn]);
+    }, [isLoaded, isSignedIn, setShowSignIn]);
 
     if (!showSignIn || isSignedIn) return null;
 

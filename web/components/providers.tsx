@@ -6,7 +6,22 @@ import { PersonaProvider } from "@/components/persona-context";
 import { TeamProvider } from "@/components/team-context";
 import { ReactNode } from "react";
 
+const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
 export function Providers({ children }: { children: ReactNode }) {
+    const inner = (
+        <TeamProvider>
+            <PersonaProvider>
+                {children}
+            </PersonaProvider>
+        </TeamProvider>
+    );
+
+    if (!hasClerkKey) {
+        // No Clerk publishable key (CI / Docker E2E) — render without auth provider
+        return inner;
+    }
+
     return (
         <ClerkProvider
             appearance={{
@@ -14,11 +29,7 @@ export function Providers({ children }: { children: ReactNode }) {
                 variables: { colorPrimary: '#10b981' },
             }}
         >
-            <TeamProvider>
-                <PersonaProvider>
-                    {children}
-                </PersonaProvider>
-            </TeamProvider>
+            {inner}
         </ClerkProvider>
     );
 }

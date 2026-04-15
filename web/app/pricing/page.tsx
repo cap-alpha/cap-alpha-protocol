@@ -1,0 +1,1 @@
+@_content_pricing_page.tsx

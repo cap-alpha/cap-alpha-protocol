@@ -166,8 +166,8 @@ export default function AcceptableUsePolicy() {
                     <p className="text-zinc-300 leading-relaxed">
                         If you believe someone is violating this policy, please report it
                         to{" "}
-                        <a href="mailto:legal@capalpha.com" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
-                            legal@capalpha.com
+                        <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                            support@cap-alpha.co
                         </a>.
                         We review all reports and take appropriate action.
                     </p>

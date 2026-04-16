@@ -17,9 +17,9 @@ export default function PrivacyPolicy() {
 
                 <section className="space-y-4 text-zinc-300 leading-relaxed">
                     <p>
-                        This Privacy Policy explains how Pundit Ledger (&quot;we,&quot; &quot;us,&quot;
-                        or &quot;our&quot;) collects, uses, and protects your information when you use
-                        our platform (&quot;Service&quot;). We are committed to handling your data
+                        This Privacy Policy explains how Cap Alpha Protocol LLC (&quot;we,&quot; &quot;us,&quot;
+                        or &quot;our&quot;), operating as Pundit Ledger, collects, uses, and protects
+                        your information when you use our platform (&quot;Service&quot;). We are committed to handling your data
                         responsibly and transparently.
                     </p>
                 </section>
@@ -179,8 +179,8 @@ export default function PrivacyPolicy() {
                     <p className="text-zinc-300 leading-relaxed">
                         To exercise any of these rights, contact us
                         at{" "}
-                        <a href="mailto:legal@capalpha.com" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
-                            legal@capalpha.com
+                        <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                            support@cap-alpha.co
                         </a>.
                         We will respond within 30 days.
                     </p>
@@ -213,8 +213,8 @@ export default function PrivacyPolicy() {
                     <p className="text-zinc-300 leading-relaxed">
                         If you have questions about this Privacy Policy or how we handle your data,
                         contact us at{" "}
-                        <a href="mailto:legal@capalpha.com" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
-                            legal@capalpha.com
+                        <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                            support@cap-alpha.co
                         </a>.
                     </p>
                 </section>

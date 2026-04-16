@@ -18,8 +18,8 @@ export default function TermsOfService() {
                 <section className="space-y-4 text-zinc-300 leading-relaxed">
                     <p>
                         These Terms of Service (&quot;Terms&quot;) govern your access to and use of the
-                        Pundit Ledger platform (&quot;Service&quot;), operated by Pundit Ledger
-                        (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;). By creating an account or
+                        Pundit Ledger platform (&quot;Service&quot;), operated by Cap Alpha Protocol LLC
+                        (&quot;we,&quot; &quot;us,&quot; or &quot;our&quot;), a Washington state limited liability company. By creating an account or
                         using the Service, you agree to be bound by these Terms. If you do not agree,
                         do not use the Service.
                     </p>
@@ -166,9 +166,20 @@ export default function TermsOfService() {
                     </p>
                 </section>
 
-                {/* 8. Changes to These Terms */}
+                {/* 8. Governing Law */}
                 <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">8. Changes to These Terms</h2>
+                    <h2 className="text-xl font-bold text-white">8. Governing Law</h2>
+                    <p className="text-zinc-300 leading-relaxed">
+                        These Terms shall be governed by and construed in accordance with the laws of the
+                        State of Washington, without regard to its conflict of law provisions. Any disputes
+                        arising from or relating to these Terms or the Service shall be resolved exclusively
+                        in the state or federal courts located in King County, Washington.
+                    </p>
+                </section>
+
+                {/* 9. Changes to These Terms */}
+                <section className="space-y-3">
+                    <h2 className="text-xl font-bold text-white">9. Changes to These Terms</h2>
                     <p className="text-zinc-300 leading-relaxed">
                         We may update these Terms from time to time. When we make material changes,
                         we will notify you by email or through the Service. Your continued use of the
@@ -176,14 +187,14 @@ export default function TermsOfService() {
                     </p>
                 </section>
 
-                {/* 9. Contact */}
+                {/* 10. Contact */}
                 <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">9. Contact</h2>
+                    <h2 className="text-xl font-bold text-white">10. Contact</h2>
                     <p className="text-zinc-300 leading-relaxed">
                         If you have questions about these Terms, contact us
                         at{" "}
-                        <a href="mailto:legal@capalpha.com" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
-                            legal@capalpha.com
+                        <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                            support@cap-alpha.co
                         </a>.
                     </p>
                 </section>

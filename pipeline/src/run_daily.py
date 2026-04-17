@@ -3,16 +3,24 @@ Daily Pipeline Orchestrator
 
 Runs all pipeline stages in order. Designed to run inside Docker via:
     python -m src.run_daily
+    python -m src.run_daily --best-effort   # old behavior: ignore failures
 
 Each stage is isolated — a failure in one stage logs the error and continues
-to the next. The exit code reflects whether any critical stage failed.
+to the next (in best-effort mode) or halts the pipeline (default fail-loud).
+
+Exit codes:
+  0 = all stages succeeded
+  1 = one or more stages failed (fail-loud) or critical stage failed (best-effort)
 """
 
+import argparse
+import json
 import logging
 import os
 import subprocess
 import sys
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -23,64 +31,175 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(PROJECT_ROOT)
 
 
-def run_cmd(cmd: str, env: dict = None, ignore_failure=False):
-    logger.info(f"Running: {cmd}")
+class StageResult:
+    def __init__(self, stage: str, cmd: str):
+        self.stage = stage
+        self.cmd = cmd
+        self.started_at = datetime.now(timezone.utc)
+        self.ended_at = None
+        self.returncode = None
+        self.status = "running"  # ok | error | skipped
+        self.error_message = None
+
+    def finish(self, returncode: int, error_message: str = None):
+        self.ended_at = datetime.now(timezone.utc)
+        self.returncode = returncode
+        self.status = "ok" if returncode == 0 else "error"
+        self.error_message = error_message
+
+    def to_dict(self) -> dict:
+        return {
+            "stage": self.stage,
+            "started_at": self.started_at.isoformat(),
+            "ended_at": self.ended_at.isoformat() if self.ended_at else None,
+            "duration_s": (
+                (self.ended_at - self.started_at).total_seconds()
+                if self.ended_at
+                else None
+            ),
+            "status": self.status,
+            "returncode": self.returncode,
+            "error_message": self.error_message,
+        }
+
+
+def run_stage(
+    stage_name: str,
+    cmd: str,
+    best_effort: bool = False,
+    env: dict = None,
+) -> StageResult:
+    """Run a pipeline stage and return its result."""
+    result = StageResult(stage=stage_name, cmd=cmd)
+    logger.info(f"[{stage_name}] Running: {cmd}")
+
     full_env = os.environ.copy()
     if env:
         full_env.update(env)
 
-    result = subprocess.run(cmd, shell=True, env=full_env)
-
-    if result.returncode != 0:
-        if ignore_failure:
-            logger.warning(f"Command failed (ignored): {cmd}")
+    try:
+        proc = subprocess.run(
+            cmd,
+            shell=True,
+            env=full_env,
+            capture_output=True,
+            text=True,
+        )
+        if proc.returncode != 0:
+            error_msg = (proc.stderr or proc.stdout or "")[-500:]
+            result.finish(proc.returncode, error_msg)
+            if best_effort:
+                logger.warning(
+                    f"[{stage_name}] FAILED (best-effort, continuing): "
+                    f"exit={proc.returncode}"
+                )
+            else:
+                logger.error(
+                    f"[{stage_name}] FAILED: exit={proc.returncode}\n"
+                    f"{error_msg}"
+                )
         else:
-            logger.error(f"Command failed with exit code {result.returncode}: {cmd}")
-            sys.exit(result.returncode)
+            result.finish(0)
+            logger.info(f"[{stage_name}] OK")
+    except Exception as e:
+        result.finish(1, str(e))
+        logger.error(f"[{stage_name}] Exception: {e}")
+
     return result
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Daily Pipeline Orchestrator")
+    parser.add_argument(
+        "--best-effort",
+        action="store_true",
+        help="Continue on stage failure (old behavior). Default is fail-loud.",
+    )
+    args = parser.parse_args()
+
+    best_effort = args.best_effort
+    mode = "best-effort" if best_effort else "fail-loud"
     year = str(datetime.now().year)
-    logger.info(f"Starting Daily Pipeline for year {year}")
+    run_id = str(uuid.uuid4())[:8]
 
-    # ── Stage 1: Scrapers (contract/roster data) ────────────────────────
-    run_cmd(
-        f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
-        f"from src.spotrac_scraper_v2 import scrape_and_save_team_cap; "
-        f'scrape_and_save_team_cap({year})"',
-        ignore_failure=True,
-    )
-    run_cmd(
-        f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
-        f"from src.spotrac_scraper_v2 import scrape_and_save_player_rankings; "
-        f'scrape_and_save_player_rankings({year})"',
-        ignore_failure=True,
+    logger.info(
+        f"Starting Daily Pipeline (run={run_id}, year={year}, mode={mode})"
     )
 
-    # ── Stage 2: Media Ingestion (pundit predictions) ───────────────────
-    run_cmd("python -m src.media_ingestor", ignore_failure=True)
+    stages = [
+        (
+            "scrape_team_cap",
+            f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+            f"from src.spotrac_scraper_v2 import scrape_and_save_team_cap; "
+            f'scrape_and_save_team_cap({year})"',
+        ),
+        (
+            "scrape_player_rankings",
+            f"python -c \"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+            f"from src.spotrac_scraper_v2 import scrape_and_save_player_rankings; "
+            f'scrape_and_save_player_rankings({year})"',
+        ),
+        ("media_ingest", "python -m src.media_ingestor"),
+        ("assertion_extract", "python -m src.assertion_extractor --limit 50"),
+        ("silver_transform", "python -m src.silver_sportsdataio_transform"),
+        ("feature_factory", "python src/feature_factory.py"),
+        ("train_model", "python src/train_model.py"),
+        ("ledger_hash", "python -m src.cryptographic_ledger"),
+        ("quality_checks", "python -m pytest tests/ -m unit -v --tb=short"),
+    ]
 
-    # ── Stage 3: NLP Assertion Extraction (Gemini) ────────────────────
-    run_cmd("python -m src.assertion_extractor --limit 50", ignore_failure=True)
+    results = []
+    failed = False
 
-    # ── Stage 4: Silver transforms ──────────────────────────────────────
-    run_cmd("python -m src.silver_sportsdataio_transform", ignore_failure=True)
+    for stage_name, cmd in stages:
+        stage_result = run_stage(stage_name, cmd, best_effort=best_effort)
+        results.append(stage_result)
 
-    # ── Stage 4: Feature engineering & ML ───────────────────────────────
-    run_cmd("python src/feature_factory.py", ignore_failure=True)
-    run_cmd("python src/train_model.py", ignore_failure=True)
+        if stage_result.status == "error":
+            failed = True
+            if not best_effort:
+                logger.error(
+                    f"Pipeline halted at stage '{stage_name}' (fail-loud mode). "
+                    f"Use --best-effort to continue past failures."
+                )
+                break
 
-    # ── Stage 5: Cryptographic Ledger hash ──────────────────────────────
-    run_cmd("python -m src.cryptographic_ledger", ignore_failure=True)
+    # Print run manifest
+    logger.info("=" * 60)
+    logger.info(f"Pipeline Run Summary (run={run_id}, mode={mode})")
+    logger.info("=" * 60)
+    for r in results:
+        duration = r.to_dict().get("duration_s", "?")
+        icon = "✓" if r.status == "ok" else "✗"
+        logger.info(f"  {icon} {r.stage:<25} {r.status:<8} {duration:.1f}s")
+        if r.error_message:
+            logger.info(f"    └ {r.error_message[:120]}")
+    logger.info("=" * 60)
 
-    # ── Stage 6: Data quality checks ────────────────────────────────────
-    run_cmd(
-        "python -m pytest tests/ -m unit -v --tb=short",
-        ignore_failure=True,
+    total_ok = sum(1 for r in results if r.status == "ok")
+    total_err = sum(1 for r in results if r.status == "error")
+    logger.info(
+        f"Stages: {total_ok} passed, {total_err} failed, "
+        f"{len(stages) - len(results)} skipped"
     )
 
-    logger.info("Daily Pipeline completed.")
+    # Write manifest to JSON for observability
+    manifest = {
+        "run_id": run_id,
+        "run_date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "mode": mode,
+        "stages": [r.to_dict() for r in results],
+        "total_ok": total_ok,
+        "total_error": total_err,
+    }
+    manifest_json = json.dumps(manifest, indent=2)
+    logger.info(f"Run manifest:\n{manifest_json}")
+
+    if failed:
+        logger.error("Daily Pipeline completed with errors.")
+        sys.exit(1)
+    else:
+        logger.info("Daily Pipeline completed successfully.")
 
 
 if __name__ == "__main__":

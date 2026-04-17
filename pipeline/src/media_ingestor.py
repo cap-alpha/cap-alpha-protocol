@@ -69,6 +69,7 @@ class MediaItem:
     fetch_source_type: str
     sport: str = "NFL"  # NFL|MLB|NBA|NHL|NCAAF|NCAAB — set from media_sources.yaml
     raw_metadata: Optional[str] = None
+    match_method: Optional[str] = None  # author_field|byline_scan|source_default|unmatched
 
 
 @dataclass
@@ -123,15 +124,15 @@ def get_existing_hashes(db: DBManager, source_id: str, window_days: int = 7) -> 
 
 
 # ---------------------------------------------------------------------------
-# Pundit matching
+# Pundit matching (cascade: author field → byline scan → source-level → DLQ)
 # ---------------------------------------------------------------------------
 
 
-def match_pundit(
+def match_pundit_by_author(
     author: Optional[str], pundits: list[dict]
 ) -> tuple[Optional[str], Optional[str]]:
     """
-    Matches an article author against the pundit registry for a source.
+    Matches an article's author field against the pundit registry.
     Returns (pundit_id, pundit_name) or (None, None).
     """
     if not author:
@@ -143,6 +144,65 @@ def match_pundit(
             if pattern.lower() in author_lower:
                 return pundit["id"], pundit["name"]
     return None, None
+
+
+def match_pundit_by_byline(
+    raw_text: Optional[str], pundits: list[dict]
+) -> tuple[Optional[str], Optional[str]]:
+    """
+    Scans the first 500 characters of article text for pundit names.
+    Catches cases where RSS author field is missing but the byline is in body text.
+    Returns (pundit_id, pundit_name) or (None, None).
+    """
+    if not raw_text:
+        return None, None
+
+    # Bylines are almost always in the first 500 chars
+    head = raw_text[:500].lower()
+    for pundit in pundits:
+        name = pundit["name"].lower()
+        if name in head:
+            return pundit["id"], pundit["name"]
+        # Also try match_authors patterns (handles "mflorio" etc.)
+        for pattern in pundit.get("match_authors", []):
+            if pattern.lower() in head:
+                return pundit["id"], pundit["name"]
+    return None, None
+
+
+def match_pundit(
+    author: Optional[str],
+    pundits: list[dict],
+    raw_text: Optional[str] = None,
+    source: Optional[dict] = None,
+) -> tuple[Optional[str], Optional[str], str]:
+    """
+    Three-tier pundit matching cascade. Returns (pundit_id, pundit_name, match_method).
+
+    Cascade:
+      1. Author field match (RSS author / dc:creator)
+      2. Byline scan (first 500 chars of article body)
+      3. Source-level attribution (e.g. "ESPN Staff" for multi-author feeds)
+
+    match_method is one of: "author_field", "byline_scan", "source_default", "unmatched"
+    """
+    # Tier 1: author field
+    pid, pname = match_pundit_by_author(author, pundits)
+    if pid:
+        return pid, pname, "author_field"
+
+    # Tier 2: byline scan (body text)
+    pid, pname = match_pundit_by_byline(raw_text, pundits)
+    if pid:
+        return pid, pname, "byline_scan"
+
+    # Tier 3: source-level default attribution
+    if source:
+        default = source.get("default_pundit")
+        if default:
+            return default["id"], default["name"], "source_default"
+
+    return None, None, "unmatched"
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +274,9 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
             skipped_by_filter += 1
             continue
 
-        pundit_id, pundit_name = match_pundit(author, pundits)
+        pundit_id, pundit_name, match_method = match_pundit(
+            author, pundits, raw_text=raw_text, source=source
+        )
         content_hash = compute_content_hash(link, title)
 
         content_type = "article"
@@ -224,6 +286,8 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
         metadata = {}
         if entry.get("tags"):
             metadata["tags"] = [t.get("term", "") for t in entry.tags]
+        if match_method:
+            metadata["match_method"] = match_method
 
         items.append(
             MediaItem(
@@ -515,6 +579,14 @@ def ingest_source(
             for item in new_items
         ]
         df = pd.DataFrame(rows)
+        # Ensure nullable columns don't write string "None" to BigQuery
+        nullable_cols = [
+            "title", "raw_text", "author", "matched_pundit_id",
+            "matched_pundit_name", "published_at", "raw_metadata",
+        ]
+        for col in nullable_cols:
+            if col in df.columns:
+                df[col] = df[col].where(df[col].notna(), None)
         db.append_dataframe_to_table(df, RAW_MEDIA_TABLE)
         logger.info(
             f"[{source_id}] Wrote {len(new_items)} new items "

@@ -364,6 +364,17 @@ def run_extraction(
             source_url = str(row.get("source_url", ""))
 
             for pred in result.predictions:
+                # Store raw player name in target_player_name;
+                # target_player_id left None for now (resolved by #170 lookup)
+                raw_player = pred.get("target_player")
+                # Multi-player detection
+                player_name = None
+                if raw_player:
+                    if "," in raw_player and len(raw_player.split(",")) > 1:
+                        player_name = "MULTI"
+                    else:
+                        player_name = raw_player
+
                 all_predictions.append(
                     PunditPrediction(
                         pundit_id=str(pundit_id),
@@ -373,7 +384,8 @@ def run_extraction(
                         extracted_claim=pred["extracted_claim"],
                         claim_category=pred["claim_category"],
                         season_year=pred.get("season_year"),
-                        target_player_id=pred.get("target_player"),
+                        target_player_id=None,  # Populated by ID resolver
+                        target_player_name=player_name,
                         target_team=pred.get("target_team"),
                         sport=str(row.get("sport", sport)),
                     )

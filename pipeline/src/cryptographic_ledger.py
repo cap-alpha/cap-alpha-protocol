@@ -43,7 +43,8 @@ class PunditPrediction:
         None  # player_performance|game_outcome|trade|draft_pick|injury|contract
     )
     season_year: Optional[int] = None
-    target_player_id: Optional[str] = None
+    target_player_id: Optional[str] = None  # Resolved player ID (from lookup)
+    target_player_name: Optional[str] = None  # Raw player name from extraction
     target_team: Optional[str] = None
     sport: str = "NFL"  # NFL|MLB|NBA|NHL|NCAAF|NCAAB
     ingestion_timestamp: datetime = field(
@@ -136,6 +137,7 @@ def ingest_prediction(
             "claim_category": prediction.claim_category,
             "season_year": prediction.season_year,
             "target_player_id": prediction.target_player_id,
+            "target_player_name": prediction.target_player_name,
             "target_team": prediction.target_team,
             "sport": prediction.sport,
             "resolution_status": "PENDING",

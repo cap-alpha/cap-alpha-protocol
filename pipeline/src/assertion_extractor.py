@@ -122,6 +122,39 @@ def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> lis
     return kept
 
 
+def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
+    """
+    Remove near-duplicate claims from a single article's extraction.
+    Uses SequenceMatcher to detect semantic overlap. Keeps the longest
+    (most specific) claim from each cluster.
+    """
+    if len(predictions) <= 1:
+        return predictions
+
+    from difflib import SequenceMatcher
+
+    kept = []
+    for pred in predictions:
+        claim = pred.get("extracted_claim", "").lower()
+        is_dup = False
+        for i, existing in enumerate(kept):
+            existing_claim = existing.get("extracted_claim", "").lower()
+            ratio = SequenceMatcher(None, claim, existing_claim).ratio()
+            if ratio >= threshold:
+                # Keep the longer (more specific) one
+                if len(claim) > len(existing_claim):
+                    kept[i] = pred
+                is_dup = True
+                break
+        if not is_dup:
+            kept.append(pred)
+
+    removed = len(predictions) - len(kept)
+    if removed > 0:
+        logger.info(f"Dedup: removed {removed} near-duplicate claims")
+    return kept
+
+
 def extract_assertions(
     content_hash: str,
     text: str,
@@ -377,6 +410,7 @@ def run_extraction(
                         player_name = "MULTI"
                     else:
                         player_name = raw_player
+
 
                 all_predictions.append(
                     PunditPrediction(

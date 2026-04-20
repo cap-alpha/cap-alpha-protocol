@@ -2,14 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton, useUser, SignInButton } from "@clerk/nextjs";
 import { GlobalSearch } from "./global-search";
 import { useState, useEffect } from "react";
 import { useTeam } from "./team-context";
 
+const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+function useClerkAuth(): { isSignedIn: boolean; isLoaded: boolean } {
+    if (!hasClerkKey) return { isSignedIn: false, isLoaded: true };
+    const { useUser } = require("@clerk/nextjs");
+    return useUser();
+}
+
 export function Navbar() {
     const pathname = usePathname();
-    const { isSignedIn, isLoaded } = useUser();
+    const { isSignedIn, isLoaded } = useClerkAuth();
     const { activeTeam, setTeamSelectorOpen } = useTeam();
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -85,15 +92,23 @@ export function Navbar() {
                     <GlobalSearch />
                     
                     {/* Auth */}
-                    {isLoaded && (
+                    {isLoaded && hasClerkKey && (
                         isSignedIn ? (
-                            <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "w-9 h-9 border border-emerald-500/50" } }} />
+                            (() => {
+                                const { UserButton } = require("@clerk/nextjs");
+                                return <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "w-9 h-9 border border-emerald-500/50" } }} />;
+                            })()
                         ) : (
-                            <SignInButton mode="modal">
-                                <span className="cursor-pointer text-sm font-medium text-slate-300 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-md border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10">
-                                    Sign In
-                                </span>
-                            </SignInButton>
+                            (() => {
+                                const { SignInButton } = require("@clerk/nextjs");
+                                return (
+                                    <SignInButton mode="modal">
+                                        <span className="cursor-pointer text-sm font-medium text-slate-300 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-md border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10">
+                                            Sign In
+                                        </span>
+                                    </SignInButton>
+                                );
+                            })()
                         )
                     )}
                 </div>

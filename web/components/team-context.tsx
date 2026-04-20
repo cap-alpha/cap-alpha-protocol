@@ -1,8 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useUser } from "@clerk/nextjs";
 import { updateUserTeam } from "@/app/actions/user";
+
+const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 interface TeamContextType {
     activeTeam: string | null;
@@ -14,54 +15,76 @@ interface TeamContextType {
 
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
 
+/**
+ * TeamProvider that uses Clerk for user metadata when available,
+ * falls back to localStorage-only when Clerk keys are absent (CI/Docker).
+ */
 export function TeamProvider({ children }: { children: ReactNode }) {
+    if (hasClerkKey) {
+        return <ClerkTeamProvider>{children}</ClerkTeamProvider>;
+    }
+    return <LocalTeamProvider>{children}</LocalTeamProvider>;
+}
+
+/** Full provider — uses Clerk useUser() for metadata sync. */
+function ClerkTeamProvider({ children }: { children: ReactNode }) {
+    // Safe to call useUser here — this component only renders when ClerkProvider exists
+    const { useUser } = require("@clerk/nextjs");
     const { user, isLoaded } = useUser();
     const [activeTeam, setActiveTeamState] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isTeamSelectorOpen, setTeamSelectorOpen] = useState(false);
 
-    // Sync with User Metadata or Local Storage
     useEffect(() => {
         if (!isLoaded) return;
-
         const syncTeam = async () => {
-            // 1. Check User Metadata (Server Truth)
             if (user?.publicMetadata?.favorite_team) {
-                console.log("TeamContext: Found team in metadata:", user.publicMetadata.favorite_team);
                 setActiveTeamState(user.publicMetadata.favorite_team as string);
-                localStorage.setItem("favorite_team", user.publicMetadata.favorite_team as string); // Sync local
-            }
-            // 2. Check Local Storage (Guest / Fallback)
-            else {
+                localStorage.setItem("favorite_team", user.publicMetadata.favorite_team as string);
+            } else {
                 const localTeam = localStorage.getItem("favorite_team");
-                if (localTeam) {
-                    console.log("TeamContext: Found team in localStorage:", localTeam);
-                    setActiveTeamState(localTeam);
-                }
+                if (localTeam) setActiveTeamState(localTeam);
             }
             setIsLoading(false);
         };
-
         syncTeam();
     }, [user, isLoaded]);
 
     const setActiveTeam = async (team: string) => {
-        // Optimistic Update
         setActiveTeamState(team);
         localStorage.setItem("favorite_team", team);
-
-        // Persist to Server if logged in
         if (user) {
             try {
                 await updateUserTeam(team);
-                // Also update client-side user object to reflect change immediately? 
-                // Clerk usually handles this via revalidation, but we might need user.reload() if strictly necessary.
                 await user.reload();
             } catch (error) {
                 console.error("TeamContext: Failed to persist team", error);
-                // Revert? For now, we keep optimistic update.
             }
         }
+    };
+
+    return (
+        <TeamContext.Provider value={{ activeTeam, setActiveTeam, isLoading, isTeamSelectorOpen, setTeamSelectorOpen }}>
+            {children}
+        </TeamContext.Provider>
+    );
+}
+
+/** Lightweight provider — localStorage only, no Clerk dependency. */
+function LocalTeamProvider({ children }: { children: ReactNode }) {
+    const [activeTeam, setActiveTeamState] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isTeamSelectorOpen, setTeamSelectorOpen] = useState(false);
+
+    useEffect(() => {
+        const localTeam = localStorage.getItem("favorite_team");
+        if (localTeam) setActiveTeamState(localTeam);
+        setIsLoading(false);
+    }, []);
+
+    const setActiveTeam = async (team: string) => {
+        setActiveTeamState(team);
+        localStorage.setItem("favorite_team", team);
     };
 
     return (

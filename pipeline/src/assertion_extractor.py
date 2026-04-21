@@ -1,19 +1,20 @@
 """
-NLP Assertion Extraction Pipeline (Issue #79)
+NLP Assertion Extraction Pipeline (Issue #79, #178)
 
 Converts unstructured pundit media text (from raw_pundit_media) into structured
 prediction vectors and feeds them into the cryptographic ledger.
 
 Pipeline flow:
-  raw_pundit_media (bronze) → Gemini extraction → PunditPrediction → prediction_ledger (gold)
+  raw_pundit_media (bronze) → LLM extraction → PunditPrediction → prediction_ledger (gold)
 
-Uses Gemini as the LLM backbone for structured extraction. Falls back gracefully
-on API errors — unprocessed rows stay in bronze for the next run.
+Uses a pluggable LLM provider (Gemini, Claude, OpenAI, or Ollama local).
+Provider is selected via pipeline/config/llm_config.yaml.
 
 Usage (inside Docker):
     python -m src.assertion_extractor                  # process all unprocessed
     python -m src.assertion_extractor --limit 50       # process N items
     python -m src.assertion_extractor --dry-run        # preview without writing
+    python -m src.assertion_extractor --provider ollama # override provider
 """
 
 import argparse
@@ -23,16 +24,15 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from difflib import SequenceMatcher
 from typing import Optional
 
 import pandas as pd
-from google import genai
 from google.api_core.exceptions import NotFound
-from google.cloud import bigquery
-from google.genai import types
 
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
+from src.llm_provider import LLMProvider, get_provider_with_fallback, load_llm_config
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
@@ -54,55 +54,34 @@ VALID_CATEGORIES = {
 
 EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the content below.
 
-Rules:
-- Only extract TESTABLE predictions verifiable against future outcomes
-- Ignore opinions ("Mahomes is the best QB") and historical statements
-- Be conservative — clear predictions only, not vague commentary
-- Return an empty list if no testable predictions exist
+PUBLISHED: {published_date}
+
+Rules — what TO extract:
+- Concrete, falsifiable claims about FUTURE outcomes with a clear stance
+- Must have: a SUBJECT (player/team) + a TESTABLE OUTCOME + a TIMEFRAME (season, game, date)
+- Examples of good extractions:
+  "Patrick Mahomes will win MVP in 2025"
+  "The Bears will make the playoffs in 2025"
+  "Travis Kelce will retire after the 2025 season"
+
+Rules — what NOT to extract:
+- HEDGED statements: "wouldn't surprise me if", "I could see", "most likely", "might", "probably"
+- VAGUE qualitative claims: "will be good", "will make plays", "will be a factor", "well worth it"
+- TAUTOLOGIES: "the deal will eventually be released", "they will bring in players"
+- SCHEME/STYLE descriptions: "will run a 4-3 defense", "will use more zone coverage"
+- HISTORICAL FACTS or ALREADY-RESOLVED events: if the outcome is already known at the article's publish date, do NOT extract it
+- CONSENSUS RESTATING: "the Chiefs will be competitive" (everyone knows this)
+- OPINIONS without testable outcomes: "he's the best QB in the league"
+- ADMINISTRATIVE details: payment structures, meeting schedules, procedural items
+- Claims about events from PAST SEASONS that are already concluded
+
+If the article contains no concrete, falsifiable predictions with clear stances, return an empty list.
 
 SOURCE: {source_name}
 AUTHOR: {author}
 TITLE: {title}
 TEXT:
 {text}"""
-
-# Response schema — model writes directly to this; no JSON parsing or fence stripping needed.
-_PREDICTION_SCHEMA = types.Schema(
-    type=types.Type.ARRAY,
-    items=types.Schema(
-        type=types.Type.OBJECT,
-        properties={
-            "extracted_claim": types.Schema(
-                type=types.Type.STRING,
-                description="Concise, testable statement e.g. 'Mahomes wins MVP in 2025'",
-            ),
-            "claim_category": types.Schema(
-                type=types.Type.STRING,
-                enum=list(VALID_CATEGORIES),
-            ),
-            "season_year": types.Schema(
-                type=types.Type.INTEGER,
-                description="Season year the prediction applies to",
-                nullable=True,
-            ),
-            "target_player": types.Schema(
-                type=types.Type.STRING,
-                description="Player name if prediction is about a specific player",
-                nullable=True,
-            ),
-            "target_team": types.Schema(
-                type=types.Type.STRING,
-                description="Team abbreviation if prediction is about a specific team",
-                nullable=True,
-            ),
-            "confidence_note": types.Schema(
-                type=types.Type.STRING,
-                description="How explicit/confident e.g. 'strong assertion', 'hedged'",
-            ),
-        },
-        required=["extracted_claim", "claim_category", "confidence_note"],
-    ),
-)
 
 
 @dataclass
@@ -113,12 +92,34 @@ class ExtractionResult:
     raw_response: Optional[str] = None
 
 
-def _get_gemini_client() -> genai.Client:
-    """Initialize Gemini client with API key."""
-    api_key = os.environ.get("GEMINI_API_KEY")
-    if not api_key:
-        raise EnvironmentError("GEMINI_API_KEY not set")
-    return genai.Client(api_key=api_key)
+def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
+    """
+    Remove near-duplicate claims from a single article's extraction.
+    Uses SequenceMatcher to detect semantic overlap. Keeps the longest
+    (most specific) claim from each cluster.
+    """
+    if len(predictions) <= 1:
+        return predictions
+
+    kept = []
+    for pred in predictions:
+        claim = pred.get("extracted_claim", "").lower()
+        is_dup = False
+        for i, existing in enumerate(kept):
+            existing_claim = existing.get("extracted_claim", "").lower()
+            ratio = SequenceMatcher(None, claim, existing_claim).ratio()
+            if ratio >= threshold:
+                if len(claim) > len(existing_claim):
+                    kept[i] = pred
+                is_dup = True
+                break
+        if not is_dup:
+            kept.append(pred)
+
+    removed = len(predictions) - len(kept)
+    if removed > 0:
+        logger.info(f"Dedup: removed {removed} near-duplicate claims")
+    return kept
 
 
 def extract_assertions(
@@ -128,41 +129,39 @@ def extract_assertions(
     author: str = "",
     source_name: str = "",
     sport: str = "NFL",
-    client: Optional[genai.Client] = None,
+    published_date: str = "",
+    provider: Optional[LLMProvider] = None,
+    # Legacy parameter — ignored if provider is set
+    client=None,
 ) -> ExtractionResult:
     """
-    Sends media text to Gemini for structured prediction extraction.
+    Sends media text to the configured LLM for structured prediction extraction.
     Returns an ExtractionResult with parsed predictions.
     """
-    if client is None:
-        client = _get_gemini_client()
+    if provider is None:
+        # Legacy fallback: create a Gemini provider for backward compatibility
+        from src.llm_provider import GeminiProvider
+
+        provider = GeminiProvider()
 
     prompt = EXTRACTION_PROMPT.format(
         sport=sport,
+        published_date=published_date or "Unknown",
         source_name=source_name or "Unknown",
         author=author or "Unknown",
         title=title or "Untitled",
-        text=text[:4000],  # Truncate to stay within token limits
+        text=text[:4000],
     )
 
     try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=_PREDICTION_SCHEMA,
-            ),
-        )
-
-        predictions = json.loads(response.text)
+        predictions = provider.extract_predictions(prompt)
+        # Filter empty claims, then deduplicate near-identical ones
+        valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
+        deduped = _deduplicate_claims(valid)
         return ExtractionResult(
             content_hash=content_hash,
-            predictions=[
-                p for p in predictions if p.get("extracted_claim", "").strip()
-            ],
+            predictions=deduped,
         )
-
     except Exception as e:
         return ExtractionResult(
             content_hash=content_hash,
@@ -179,7 +178,7 @@ def get_unprocessed_media(
     Uses a processed_media_hashes tracking table to know what's been done.
 
     By default, only returns rows with a matched pundit to avoid wasting
-    Gemini API calls on unattributed content. Pass include_unmatched=True
+    LLM calls on unattributed content. Pass include_unmatched=True
     to override and process all content regardless of pundit match.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
@@ -207,7 +206,6 @@ def get_unprocessed_media(
         """
         return db.fetch_df(query)
     except NotFound as e:
-        # processed_media_hashes table doesn't exist yet — fall back to raw media only
         logger.warning(f"Could not query processed_media_hashes (may not exist): {e}")
         query = f"""
             SELECT content_hash, source_id, title, raw_text,
@@ -240,12 +238,6 @@ def mark_as_processed(content_hashes: list[str], db: DBManager) -> None:
 def reset_processed_hashes(db: DBManager, source_id: Optional[str] = None) -> int:
     """
     Clears processed_media_hashes so those items are re-extracted on the next run.
-
-    Args:
-        source_id: If set, only clear hashes for items from that source.
-                   If None, clears all processed hashes (full reset).
-    Returns:
-        Number of rows deleted.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
     if source_id:
@@ -277,13 +269,16 @@ def run_extraction(
     sport: str = "NFL",
     include_unmatched: bool = False,
     db: Optional[DBManager] = None,
-    gemini_client: Optional[genai.Client] = None,
+    provider: Optional[LLMProvider] = None,
+    provider_name: Optional[str] = None,
+    # Legacy parameter — ignored if provider is set
+    gemini_client=None,
 ) -> dict:
     """
     Main extraction entry point.
 
     1. Fetch unprocessed raw media from BQ
-    2. Send each to Gemini for assertion extraction
+    2. Send each to LLM for assertion extraction
     3. Convert extracted predictions into PunditPredictions
     4. Ingest into the cryptographic ledger
     5. Mark as processed
@@ -294,8 +289,11 @@ def run_extraction(
     if db is None:
         db = DBManager()
 
-    if gemini_client is None and not dry_run:
-        gemini_client = _get_gemini_client()
+    if provider is None and not dry_run:
+        config = load_llm_config()
+        if provider_name:
+            config.setdefault("extraction", {})["provider"] = provider_name
+        provider = get_provider_with_fallback("extraction", config)
 
     summary = {
         "total_processed": 0,
@@ -303,6 +301,7 @@ def run_extraction(
         "predictions_ingested": 0,
         "errors": 0,
         "skipped_no_predictions": 0,
+        "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
 
     try:
@@ -329,6 +328,14 @@ def run_extraction(
                 )
                 continue
 
+            # Format publish date for the prompt
+            pub_date = ""
+            if pd.notna(row.get("published_at")):
+                try:
+                    pub_date = pd.Timestamp(row["published_at"]).strftime("%Y-%m-%d")
+                except Exception:
+                    pub_date = ""
+
             result = extract_assertions(
                 content_hash=content_hash,
                 text=str(row.get("raw_text", "")),
@@ -336,7 +343,8 @@ def run_extraction(
                 author=str(row.get("author", "")),
                 source_name=str(row.get("source_id", "")),
                 sport=str(row.get("sport", sport)),
-                client=gemini_client,
+                published_date=pub_date,
+                provider=provider,
             )
 
             if result.error:
@@ -344,8 +352,6 @@ def run_extraction(
                     f"Extraction error for {content_hash[:16]}…: {result.error}"
                 )
                 summary["errors"] += 1
-                # Still mark as processed to avoid infinite retry loops
-                # — errors will be logged and can be reprocessed manually
                 processed_hashes.append(content_hash)
                 continue
 
@@ -364,10 +370,7 @@ def run_extraction(
             source_url = str(row.get("source_url", ""))
 
             for pred in result.predictions:
-                # Store raw player name in target_player_name;
-                # target_player_id left None for now (resolved by #170 lookup)
                 raw_player = pred.get("target_player")
-                # Multi-player detection
                 player_name = None
                 if raw_player:
                     if "," in raw_player and len(raw_player.split(",")) > 1:
@@ -384,7 +387,7 @@ def run_extraction(
                         extracted_claim=pred["extracted_claim"],
                         claim_category=pred["claim_category"],
                         season_year=pred.get("season_year"),
-                        target_player_id=None,  # Populated by ID resolver
+                        target_player_id=None,
                         target_player_name=player_name,
                         target_team=pred.get("target_team"),
                         sport=str(row.get("sport", sport)),
@@ -393,7 +396,7 @@ def run_extraction(
 
             processed_hashes.append(content_hash)
 
-            # Rate limit: Gemini free tier is 15 RPM
+            # Rate limiting — configurable per provider
             time.sleep(4)
 
         # Batch ingest all predictions into the cryptographic ledger
@@ -435,7 +438,7 @@ def run_extraction(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="NLP Assertion Extraction — Gemini-powered"
+        description="NLP Assertion Extraction — Multi-provider LLM"
     )
     parser.add_argument(
         "--limit",
@@ -446,7 +449,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--dry-run",
         action="store_true",
-        help="Preview without calling Gemini or writing",
+        help="Preview without calling LLM or writing",
     )
     parser.add_argument(
         "--sport",
@@ -458,6 +461,11 @@ if __name__ == "__main__":
         "--include-unmatched",
         action="store_true",
         help="Include media rows without a matched pundit (skipped by default)",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["gemini", "claude", "openai", "ollama"],
+        help="Override LLM provider (default: from llm_config.yaml)",
     )
     parser.add_argument(
         "--reset-processed",
@@ -482,5 +490,6 @@ if __name__ == "__main__":
             dry_run=args.dry_run,
             sport=args.sport,
             include_unmatched=args.include_unmatched,
+            provider_name=args.provider,
         )
         print(json.dumps(result, indent=2))

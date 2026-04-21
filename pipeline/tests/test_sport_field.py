@@ -5,12 +5,11 @@ Verifies that the sport field flows correctly end-to-end through every
 pipeline component: PunditPrediction → ingest → assertion extractor →
 media ingestor → resolution engine.
 
-No BigQuery or Gemini required — all mocked.
+No BigQuery or LLM API required — all mocked.
 """
 
-import json
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -138,6 +137,7 @@ class TestExtractionPromptSport:
     def test_prompt_renders_nfl(self):
         rendered = EXTRACTION_PROMPT.format(
             sport="NFL",
+            published_date="2025-01-01",
             source_name="ESPN",
             author="Adam Schefter",
             title="Test",
@@ -149,6 +149,7 @@ class TestExtractionPromptSport:
     def test_prompt_renders_mlb(self):
         rendered = EXTRACTION_PROMPT.format(
             sport="MLB",
+            published_date="2025-01-01",
             source_name="MLB.com",
             author="Ken Rosenthal",
             title="Test",
@@ -164,29 +165,28 @@ class TestExtractionPromptSport:
 
 
 class TestExtractAssertionsSport:
-    def _make_gemini_client(self, response_json):
-        client = MagicMock()
-        mock_response = MagicMock()
-        mock_response.text = json.dumps(response_json)
-        client.models.generate_content.return_value = mock_response
-        return client
+    def _make_mock_provider(self):
+        provider = MagicMock()
+        provider.model = "mock-model"
+        provider.extract_predictions.return_value = []
+        return provider
 
     def test_default_sport_is_nfl_in_prompt(self):
-        client = self._make_gemini_client([])
-        extract_assertions("abc123", "some text", client=client)
-        prompt_used = client.models.generate_content.call_args[1]["contents"]
+        provider = self._make_mock_provider()
+        extract_assertions("abc123", "some text", provider=provider)
+        prompt_used = provider.extract_predictions.call_args[0][0]
         assert "NFL" in prompt_used
 
     def test_mlb_sport_in_prompt(self):
-        client = self._make_gemini_client([])
-        extract_assertions("abc123", "some text", sport="MLB", client=client)
-        prompt_used = client.models.generate_content.call_args[1]["contents"]
+        provider = self._make_mock_provider()
+        extract_assertions("abc123", "some text", sport="MLB", provider=provider)
+        prompt_used = provider.extract_predictions.call_args[0][0]
         assert "MLB" in prompt_used
 
     def test_nba_sport_in_prompt(self):
-        client = self._make_gemini_client([])
-        extract_assertions("abc123", "some text", sport="NBA", client=client)
-        prompt_used = client.models.generate_content.call_args[1]["contents"]
+        provider = self._make_mock_provider()
+        extract_assertions("abc123", "some text", sport="NBA", provider=provider)
+        prompt_used = provider.extract_predictions.call_args[0][0]
         assert "NBA" in prompt_used
 
 
@@ -210,6 +210,12 @@ class TestRunExtractionSport:
             "sport": sport,
         }
 
+    def _make_mock_provider(self, predictions):
+        provider = MagicMock()
+        provider.model = "mock-model"
+        provider.extract_predictions.return_value = predictions
+        return provider
+
     def test_sport_from_media_row_is_passed_to_prediction(self):
         """sport from raw_pundit_media row is set on PunditPrediction."""
         ingested = []
@@ -218,8 +224,7 @@ class TestRunExtractionSport:
             ingested.extend(predictions)
             return ["hash_" + str(i) for i in range(len(predictions))]
 
-        gemini_client = MagicMock()
-        gemini_client.models.generate_content.return_value.text = json.dumps(
+        provider = self._make_mock_provider(
             [
                 {
                     "extracted_claim": "Mahomes wins MVP",
@@ -242,7 +247,7 @@ class TestRunExtractionSport:
         ):
             with patch("src.assertion_extractor.mark_as_processed"):
                 run_extraction(
-                    limit=1, sport="NFL", db=mock_db, gemini_client=gemini_client
+                    limit=1, sport="NFL", db=mock_db, provider=provider
                 )
 
         assert len(ingested) == 1
@@ -259,8 +264,7 @@ class TestRunExtractionSport:
         row = self._make_media_row()
         del row["sport"]  # simulate missing sport column on old rows
 
-        gemini_client = MagicMock()
-        gemini_client.models.generate_content.return_value.text = json.dumps(
+        provider = self._make_mock_provider(
             [
                 {
                     "extracted_claim": "Chiefs win",
@@ -281,7 +285,7 @@ class TestRunExtractionSport:
         ):
             with patch("src.assertion_extractor.mark_as_processed"):
                 run_extraction(
-                    limit=1, sport="NFL", db=mock_db, gemini_client=gemini_client
+                    limit=1, sport="NFL", db=mock_db, provider=provider
                 )
 
         assert len(ingested) == 1

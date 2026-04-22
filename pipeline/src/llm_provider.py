@@ -66,9 +66,7 @@ class LLMProvider(ABC):
         if text.startswith("```"):
             lines = text.split("\n")
             # Remove first and last fence lines
-            lines = [
-                ln for ln in lines if not ln.strip().startswith("```")
-            ]
+            lines = [ln for ln in lines if not ln.strip().startswith("```")]
             text = "\n".join(lines).strip()
 
         try:

@@ -246,9 +246,7 @@ class TestRunExtractionSport:
             "src.assertion_extractor.ingest_batch", side_effect=fake_ingest_batch
         ):
             with patch("src.assertion_extractor.mark_as_processed"):
-                run_extraction(
-                    limit=1, sport="NFL", db=mock_db, provider=provider
-                )
+                run_extraction(limit=1, sport="NFL", db=mock_db, provider=provider)
 
         assert len(ingested) == 1
         assert ingested[0].sport == "NFL"
@@ -284,9 +282,7 @@ class TestRunExtractionSport:
             "src.assertion_extractor.ingest_batch", side_effect=fake_ingest_batch
         ):
             with patch("src.assertion_extractor.mark_as_processed"):
-                run_extraction(
-                    limit=1, sport="NFL", db=mock_db, provider=provider
-                )
+                run_extraction(limit=1, sport="NFL", db=mock_db, provider=provider)
 
         assert len(ingested) == 1
         assert ingested[0].sport == "NFL"

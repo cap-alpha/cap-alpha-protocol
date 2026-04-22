@@ -12,16 +12,18 @@ set -e
 
 VENV=".venv"
 
-# Resolve the repo root (works from worktrees too)
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+# Resolve the main repo root — works from worktrees too.
+# git rev-parse --show-toplevel returns the worktree root, not the main repo.
+# GIT_COMMON_DIR points to the main .git dir, so its parent is the main repo.
+MAIN_REPO="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 
-# Check for venv — fall back to repo root if running from a worktree
+# Check for venv: current dir first, then main repo root
 if [ -d "$VENV" ]; then
     ACTIVATE="$VENV/bin/activate"
-elif [ -d "$REPO_ROOT/$VENV" ]; then
-    ACTIVATE="$REPO_ROOT/$VENV/bin/activate"
+elif [ -d "$MAIN_REPO/$VENV" ]; then
+    ACTIVATE="$MAIN_REPO/$VENV/bin/activate"
 else
-    echo "ERROR: No .venv found. Run 'make venv' first."
+    echo "ERROR: No .venv found. Run 'make venv' from the main repo."
     exit 1
 fi
 

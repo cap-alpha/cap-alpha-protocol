@@ -165,7 +165,9 @@ class TestPunditMatchingByByline:
     ]
 
     def test_name_in_first_500_chars(self):
-        text = "By Dianna Russini — The Dolphins are expected to trade for a top receiver."
+        text = (
+            "By Dianna Russini — The Dolphins are expected to trade for a top receiver."
+        )
         pid, pname = match_pundit_by_byline(text, self.PUNDITS)
         assert pid == "dianna_russini"
         assert pname == "Dianna Russini"
@@ -242,7 +244,11 @@ class TestPunditMatchingCascade:
     def test_co_authored_article(self):
         """Author field 'Tim McManus and Jeremy Fowler' should match Jeremy Fowler."""
         pundits = [
-            {"id": "jeremy_fowler", "name": "Jeremy Fowler", "match_authors": ["Jeremy Fowler"]},
+            {
+                "id": "jeremy_fowler",
+                "name": "Jeremy Fowler",
+                "match_authors": ["Jeremy Fowler"],
+            },
         ]
         pid, pname, method = match_pundit("Tim McManus and Jeremy Fowler", pundits)
         assert pid == "jeremy_fowler"

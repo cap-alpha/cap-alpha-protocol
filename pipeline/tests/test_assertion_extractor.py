@@ -135,9 +135,7 @@ class TestExtractAssertions:
         assert result.predictions[0]["extracted_claim"] == "Josh Allen wins Super Bowl"
 
     def test_handles_provider_error(self, mock_provider):
-        mock_provider.extract_predictions.side_effect = Exception(
-            "API quota exceeded"
-        )
+        mock_provider.extract_predictions.side_effect = Exception("API quota exceeded")
 
         result = extract_assertions(
             content_hash="abc123",
@@ -151,8 +149,12 @@ class TestExtractAssertions:
     def test_valid_categories_are_complete(self):
         """All expected categories are defined."""
         expected = {
-            "player_performance", "game_outcome", "trade",
-            "draft_pick", "injury", "contract",
+            "player_performance",
+            "game_outcome",
+            "trade",
+            "draft_pick",
+            "injury",
+            "contract",
         }
         assert VALID_CATEGORIES == expected
 
@@ -192,9 +194,18 @@ class TestExtractAssertions:
     def test_deduplicates_near_identical_claims(self):
         """Semantic dedup removes near-duplicate claims."""
         predictions = [
-            {"extracted_claim": "Mahomes will win MVP in 2025", "claim_category": "player_performance"},
-            {"extracted_claim": "Patrick Mahomes will win the MVP in 2025", "claim_category": "player_performance"},
-            {"extracted_claim": "Bears make the playoffs in 2025", "claim_category": "game_outcome"},
+            {
+                "extracted_claim": "Mahomes will win MVP in 2025",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Patrick Mahomes will win the MVP in 2025",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Bears make the playoffs in 2025",
+                "claim_category": "game_outcome",
+            },
         ]
         result = _deduplicate_claims(predictions)
         assert len(result) == 2  # two Mahomes claims collapse to one
@@ -202,8 +213,14 @@ class TestExtractAssertions:
     def test_dedup_keeps_longer_claim(self):
         """When deduping, the longer (more specific) claim survives."""
         predictions = [
-            {"extracted_claim": "Mahomes will win mvp in the 2025 season", "claim_category": "player_performance"},
-            {"extracted_claim": "Patrick Mahomes will win mvp in the 2025 season", "claim_category": "player_performance"},
+            {
+                "extracted_claim": "Mahomes will win mvp in the 2025 season",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Patrick Mahomes will win mvp in the 2025 season",
+                "claim_category": "player_performance",
+            },
         ]
         result = _deduplicate_claims(predictions)
         assert len(result) == 1
@@ -446,19 +463,24 @@ class TestRunExtraction:
 class TestLLMProvider:
     def test_provider_factory_returns_gemini_by_default(self):
         from src.llm_provider import load_llm_config
+
         config = load_llm_config()
         assert config["extraction"]["provider"] == "gemini"
 
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS
+
         assert set(PROVIDERS.keys()) == {"gemini", "claude", "openai", "ollama"}
 
     def test_json_parse_strips_markdown_fences(self):
         from src.llm_provider import LLMProvider
 
         class DummyProvider(LLMProvider):
-            def extract_predictions(self, prompt): pass
-            def classify(self, prompt): pass
+            def extract_predictions(self, prompt):
+                pass
+
+            def classify(self, prompt):
+                pass
 
         provider = DummyProvider(model="test")
         text = '```json\n[{"extracted_claim": "test", "claim_category": "trade"}]\n```'
@@ -470,8 +492,11 @@ class TestLLMProvider:
         from src.llm_provider import LLMProvider
 
         class DummyProvider(LLMProvider):
-            def extract_predictions(self, prompt): pass
-            def classify(self, prompt): pass
+            def extract_predictions(self, prompt):
+                pass
+
+            def classify(self, prompt):
+                pass
 
         provider = DummyProvider(model="test")
         result = provider._parse_json_response("not json at all")

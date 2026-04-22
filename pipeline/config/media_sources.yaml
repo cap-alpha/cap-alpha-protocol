@@ -16,10 +16,25 @@ sources:
     scrape_full_text: true
     url: "https://profootballtalk.nbcsports.com/feed/"
     enabled: true
+    default_pundit:
+      id: pft_staff
+      name: "PFT Staff"
     pundits:
       - id: mike_florio
         name: "Mike Florio"
         match_authors: ["Mike Florio", "mflorio"]
+      - id: josh_alper
+        name: "Josh Alper"
+        match_authors: ["Josh Alper"]
+      - id: michael_david_smith
+        name: "Michael David Smith"
+        match_authors: ["Michael David Smith"]
+      - id: charean_williams
+        name: "Charean Williams"
+        match_authors: ["Charean Williams"]
+      - id: myles_simmons
+        name: "Myles Simmons"
+        match_authors: ["Myles Simmons"]
 
   - id: espn_nfl
     name: "ESPN NFL"
@@ -28,6 +43,9 @@ sources:
     scrape_full_text: true
     url: "https://www.espn.com/espn/rss/nfl/news"
     enabled: true
+    default_pundit:
+      id: espn_nfl_staff
+      name: "ESPN NFL Staff"
     pundits:
       - id: adam_schefter
         name: "Adam Schefter"
@@ -38,6 +56,12 @@ sources:
       - id: jeremy_fowler
         name: "Jeremy Fowler"
         match_authors: ["Jeremy Fowler"]
+      - id: field_yates
+        name: "Field Yates"
+        match_authors: ["Field Yates"]
+      - id: matt_bowen
+        name: "Matt Bowen"
+        match_authors: ["Matt Bowen"]
 
   - id: theringer_nfl
     name: "The Ringer NFL"
@@ -61,6 +85,9 @@ sources:
     # Re-enable once a working NFL-only feed URL is confirmed. (#128)
     url: "https://theathletic.com/feeds/rss/news/?sport=football"
     enabled: true
+    default_pundit:
+      id: athletic_nfl_staff
+      name: "The Athletic NFL Staff"
     # Feed may include non-NFL content; keyword_filter skips entries lacking these terms
     keyword_filter:
       - "NFL"

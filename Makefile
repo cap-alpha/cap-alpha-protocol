@@ -1,69 +1,88 @@
-.PHONY: up down pipeline web e2e shell-pipeline check setup
+.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check
+
+PYTHON ?= python3
+VENV := .venv
+ACTIVATE := . $(VENV)/bin/activate
+PY := $(ACTIVATE) &&
+
+# Docker — only needed for E2E, scraping, and pipeline orchestration
+DOCKER := docker compose --env-file docker_env.txt
 
 # -----------------------------------------------------------------------------
 # SETUP
 # -----------------------------------------------------------------------------
 
-setup:
+setup: venv
 	git config core.hooksPath .githooks
-	@echo "Git hooks configured. Run 'make up' to start Docker."
+	@echo "Done. Venv at $(VENV)/, git hooks configured."
+
+venv:
+	$(PYTHON) -m venv $(VENV)
+	$(PY) pip install --upgrade pip
+	$(PY) pip install -r pipeline/requirements.txt
+	@echo ""
+	@echo "Venv ready. Activate: source $(VENV)/bin/activate"
 
 # -----------------------------------------------------------------------------
-# CORE COMMANDS (IMMUTABLE EXECUTION ONLY)
+# LOCAL DEV — lint + test via venv (no Docker required)
+# -----------------------------------------------------------------------------
+
+test:
+	$(PY) PYTHONPATH=$${PYTHONPATH:+$$PYTHONPATH:}$$(pwd)/pipeline \
+		python -m pytest pipeline/tests/ -v --tb=short \
+		-m "not integration" \
+		--ignore=pipeline/tests/test_api.py \
+		--ignore=pipeline/tests/test_api_vegas.py \
+		--ignore=pipeline/tests/test_ledger_bq_integration.py
+
+lint:
+	$(PY) black --check pipeline/src/ pipeline/tests/ && \
+		isort --check pipeline/src/ pipeline/tests/ && \
+		flake8 pipeline/src/ pipeline/tests/ --select=E9,F63,F7,F82
+
+lint-fix:
+	$(PY) black pipeline/src/ pipeline/tests/ && isort pipeline/src/ pipeline/tests/
+
+check: lint test
+
+# -----------------------------------------------------------------------------
+# DOCKER — scraping, E2E, pipeline orchestration
 # -----------------------------------------------------------------------------
 
 up:
-	docker compose --env-file docker_env.txt up -d
+	$(DOCKER) up -d
 
 down:
-	docker compose --env-file docker_env.txt down
+	$(DOCKER) down
 
 shell-pipeline:
-	docker compose --env-file docker_env.txt exec pipeline bash
+	$(DOCKER) exec pipeline bash
 
-# -----------------------------------------------------------------------------
-# PIPELINE EXECUTION
-# -----------------------------------------------------------------------------
+test-e2e:
+	@echo "Running Playwright E2E suite in Docker..."
+	$(DOCKER) run --rm e2e
 
 pipeline-scrape:
-	docker compose --env-file docker_env.txt exec -e CHROME_BIN=/usr/bin/chromium -e CHROMEDRIVER_BIN=/usr/bin/chromedriver pipeline bash -c "python pipeline/src/spotrac_scraper_v2.py team-cap && python pipeline/src/spotrac_scraper_v2.py player-salaries && python pipeline/src/spotrac_scraper_v2.py player-rankings && python pipeline/src/spotrac_scraper_v2.py player-contracts"
+	$(DOCKER) exec -e CHROME_BIN=/usr/bin/chromium -e CHROMEDRIVER_BIN=/usr/bin/chromedriver pipeline bash -c "python pipeline/src/spotrac_scraper_v2.py team-cap && python pipeline/src/spotrac_scraper_v2.py player-salaries && python pipeline/src/spotrac_scraper_v2.py player-rankings && python pipeline/src/spotrac_scraper_v2.py player-contracts"
 
 pipeline-train:
-	docker compose --env-file docker_env.txt exec pipeline bash -c "python pipeline/src/train_model.py"
+	$(DOCKER) exec pipeline bash -c "python pipeline/src/train_model.py"
 
 pipeline-nlp:
 	@echo "Hydrating 768-D NLP vectors into Silver Layer..."
-	docker compose --env-file docker_env.txt exec pipeline bash -c "python pipeline/src/generate_sentiment_features.py"
+	$(DOCKER) exec pipeline bash -c "python pipeline/src/generate_sentiment_features.py"
 
 pipeline-validate:
 	@echo "Running Pipeline Validation Suite (Target Leakage Diagnostics)..."
-	docker compose --env-file docker_env.txt exec pipeline bash -c "python pipeline/scripts/check_target_leakage.py"
+	$(DOCKER) exec pipeline bash -c "python pipeline/scripts/check_target_leakage.py"
 
 pipeline-factcheck:
 	@echo "Running Automated Gemini Search Grounding on Top 50 Predictions..."
-	docker compose --env-file docker_env.txt exec -e GEMINI_MODEL="$(if $(MODEL),$(MODEL),gemini-2.5-flash)" pipeline bash -c "python scripts/fact_check_top_50.py $(if $(TEAM),\"$(TEAM)\",)"
+	$(DOCKER) exec -e GEMINI_MODEL="$(if $(MODEL),$(MODEL),gemini-2.5-flash)" pipeline bash -c "python scripts/fact_check_top_50.py $(if $(TEAM),\"$(TEAM)\",)"
 
 # -----------------------------------------------------------------------------
-# WEB & TESTING
-# -----------------------------------------------------------------------------
-
-# -----------------------------------------------------------------------------
-# LINTING
-# -----------------------------------------------------------------------------
-
-lint:
-	docker compose --env-file docker_env.txt exec -T pipeline bash -c "black --check pipeline/src/ && isort --check pipeline/src/ && cd pipeline && flake8 src/"
-
-lint-fix:
-	docker compose --env-file docker_env.txt exec -T pipeline bash -c "black pipeline/src/ && isort pipeline/src/"
-
-# -----------------------------------------------------------------------------
-# WEB & TESTING
+# WEB
 # -----------------------------------------------------------------------------
 
 web-logs:
-	docker compose --env-file docker_env.txt logs -f web
-
-test-e2e:
-	@echo "Running Playwright E2E suite natively inside Ubuntu container..."
-	docker compose --env-file docker_env.txt run --rm e2e
+	$(DOCKER) logs -f web

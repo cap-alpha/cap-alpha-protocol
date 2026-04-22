@@ -23,6 +23,8 @@ from src.media_ingestor import (
     ingest_source,
     load_media_config,
     match_pundit,
+    match_pundit_by_author,
+    match_pundit_by_byline,
     run_daily_ingestion,
 )
 
@@ -114,7 +116,9 @@ class TestContentHash:
 # ---------------------------------------------------------------------------
 
 
-class TestPunditMatching:
+class TestPunditMatchingByAuthor:
+    """Tests for the author-field matcher (Tier 1)."""
+
     PUNDITS = [
         {
             "id": "adam_schefter",
@@ -125,27 +129,130 @@ class TestPunditMatching:
     ]
 
     def test_exact_match(self):
-        pid, pname = match_pundit("Adam Schefter", self.PUNDITS)
+        pid, pname = match_pundit_by_author("Adam Schefter", self.PUNDITS)
         assert pid == "adam_schefter"
         assert pname == "Adam Schefter"
 
     def test_partial_match(self):
-        pid, pname = match_pundit("By Schefter, ESPN", self.PUNDITS)
+        pid, pname = match_pundit_by_author("By Schefter, ESPN", self.PUNDITS)
         assert pid == "adam_schefter"
 
     def test_case_insensitive(self):
-        pid, pname = match_pundit("ADAM SCHEFTER", self.PUNDITS)
+        pid, pname = match_pundit_by_author("ADAM SCHEFTER", self.PUNDITS)
         assert pid == "adam_schefter"
 
     def test_no_match(self):
-        pid, pname = match_pundit("Random Author", self.PUNDITS)
+        pid, pname = match_pundit_by_author("Random Author", self.PUNDITS)
         assert pid is None
         assert pname is None
 
     def test_none_author(self):
-        pid, pname = match_pundit(None, self.PUNDITS)
+        pid, pname = match_pundit_by_author(None, self.PUNDITS)
         assert pid is None
         assert pname is None
+
+
+class TestPunditMatchingByByline:
+    """Tests for the byline-scan matcher (Tier 2)."""
+
+    PUNDITS = [
+        {
+            "id": "dianna_russini",
+            "name": "Dianna Russini",
+            "match_authors": ["Dianna Russini"],
+        },
+        {"id": "jeff_howe", "name": "Jeff Howe", "match_authors": ["Jeff Howe"]},
+    ]
+
+    def test_name_in_first_500_chars(self):
+        text = (
+            "By Dianna Russini — The Dolphins are expected to trade for a top receiver."
+        )
+        pid, pname = match_pundit_by_byline(text, self.PUNDITS)
+        assert pid == "dianna_russini"
+        assert pname == "Dianna Russini"
+
+    def test_name_after_500_chars_not_matched(self):
+        text = "x" * 501 + " Jeff Howe says the Patriots will draft a QB."
+        pid, pname = match_pundit_by_byline(text, self.PUNDITS)
+        assert pid is None
+
+    def test_no_match(self):
+        text = "Breaking news from an anonymous source close to the team."
+        pid, pname = match_pundit_by_byline(text, self.PUNDITS)
+        assert pid is None
+
+    def test_none_text(self):
+        pid, pname = match_pundit_by_byline(None, self.PUNDITS)
+        assert pid is None
+
+
+class TestPunditMatchingCascade:
+    """Tests for the full three-tier cascade."""
+
+    PUNDITS = [
+        {
+            "id": "mike_florio",
+            "name": "Mike Florio",
+            "match_authors": ["Mike Florio", "mflorio"],
+        },
+    ]
+    SOURCE_WITH_DEFAULT = {
+        "id": "pft_nbc",
+        "default_pundit": {"id": "pft_staff", "name": "PFT Staff"},
+        "pundits": PUNDITS,
+    }
+    SOURCE_NO_DEFAULT = {"id": "test_feed", "pundits": PUNDITS}
+
+    def test_tier1_author_field_wins(self):
+        pid, pname, method = match_pundit(
+            "Mike Florio", self.PUNDITS, raw_text="Some article text"
+        )
+        assert pid == "mike_florio"
+        assert method == "author_field"
+
+    def test_tier2_byline_scan_when_author_empty(self):
+        pid, pname, method = match_pundit(
+            None,
+            self.PUNDITS,
+            raw_text="By Mike Florio — The Raiders are exploring options.",
+        )
+        assert pid == "mike_florio"
+        assert method == "byline_scan"
+
+    def test_tier3_source_default_when_no_author_or_byline(self):
+        pid, pname, method = match_pundit(
+            None,
+            self.PUNDITS,
+            raw_text="Breaking: anonymous source reports trade.",
+            source=self.SOURCE_WITH_DEFAULT,
+        )
+        assert pid == "pft_staff"
+        assert pname == "PFT Staff"
+        assert method == "source_default"
+
+    def test_unmatched_when_no_default(self):
+        pid, pname, method = match_pundit(
+            None,
+            self.PUNDITS,
+            raw_text="Breaking: anonymous source reports trade.",
+            source=self.SOURCE_NO_DEFAULT,
+        )
+        assert pid is None
+        assert method == "unmatched"
+
+    def test_co_authored_article(self):
+        """Author field 'Tim McManus and Jeremy Fowler' should match Jeremy Fowler."""
+        pundits = [
+            {
+                "id": "jeremy_fowler",
+                "name": "Jeremy Fowler",
+                "match_authors": ["Jeremy Fowler"],
+            },
+        ]
+        pid, pname, method = match_pundit("Tim McManus and Jeremy Fowler", pundits)
+        assert pid == "jeremy_fowler"
+        assert method == "author_field"
 
 
 # ---------------------------------------------------------------------------

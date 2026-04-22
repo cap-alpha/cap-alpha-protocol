@@ -1,6 +1,6 @@
 """
-Tests for the NLP Assertion Extraction Pipeline (Issue #79).
-Unit tests — no Gemini API or BigQuery required.
+Tests for the NLP Assertion Extraction Pipeline (Issue #79, #178).
+Unit tests — no LLM API or BigQuery required.
 """
 
 import json
@@ -15,6 +15,7 @@ from google.api_core.exceptions import NotFound
 from src.assertion_extractor import (
     VALID_CATEGORIES,
     ExtractionResult,
+    _deduplicate_claims,
     extract_assertions,
     get_unprocessed_media,
     mark_as_processed,
@@ -35,16 +36,17 @@ def mock_db():
 
 
 @pytest.fixture
-def mock_gemini_client():
-    client = MagicMock()
-    return client
+def mock_provider():
+    """Mock LLM provider that returns predictions via extract_predictions."""
+    provider = MagicMock()
+    provider.model = "mock-model"
+    provider.extract_predictions.return_value = []
+    return provider
 
 
-def make_gemini_response(predictions_json: list) -> MagicMock:
-    """Build a mock Gemini response."""
-    resp = MagicMock()
-    resp.text = json.dumps(predictions_json)
-    return resp
+def set_provider_predictions(mock_provider, predictions: list):
+    """Configure mock provider to return specific predictions."""
+    mock_provider.extract_predictions.return_value = predictions
 
 
 def make_raw_media_df(n=1):
@@ -73,7 +75,7 @@ def make_raw_media_df(n=1):
 
 
 class TestExtractAssertions:
-    def test_returns_parsed_predictions(self, mock_gemini_client):
+    def test_returns_parsed_predictions(self, mock_provider):
         predictions = [
             {
                 "extracted_claim": "Patrick Mahomes will win MVP in 2025",
@@ -84,14 +86,12 @@ class TestExtractAssertions:
                 "confidence_note": "strong assertion",
             }
         ]
-        mock_gemini_client.models.generate_content.return_value = make_gemini_response(
-            predictions
-        )
+        set_provider_predictions(mock_provider, predictions)
 
         result = extract_assertions(
             content_hash="abc123",
             text="Mahomes will win MVP this year",
-            client=mock_gemini_client,
+            provider=mock_provider,
         )
 
         assert len(result.predictions) == 1
@@ -102,22 +102,20 @@ class TestExtractAssertions:
         assert result.predictions[0]["claim_category"] == "player_performance"
         assert result.error is None
 
-    def test_handles_empty_array_response(self, mock_gemini_client):
-        mock_gemini_client.models.generate_content.return_value = make_gemini_response(
-            []
-        )
+    def test_handles_empty_array_response(self, mock_provider):
+        set_provider_predictions(mock_provider, [])
 
         result = extract_assertions(
             content_hash="abc123",
             text="Just a recap of last week's games",
-            client=mock_gemini_client,
+            provider=mock_provider,
         )
 
         assert len(result.predictions) == 0
         assert result.error is None
 
-    def test_handles_clean_json_array(self, mock_gemini_client):
-        """Structured output returns clean JSON — no fence stripping needed."""
+    def test_handles_valid_predictions(self, mock_provider):
+        """Provider returns clean predictions directly."""
         predictions = [
             {
                 "extracted_claim": "Josh Allen wins Super Bowl",
@@ -125,74 +123,42 @@ class TestExtractAssertions:
                 "confidence_note": "strong",
             }
         ]
-        resp = MagicMock()
-        resp.text = json.dumps(predictions)
-        mock_gemini_client.models.generate_content.return_value = resp
+        set_provider_predictions(mock_provider, predictions)
 
         result = extract_assertions(
             content_hash="abc123",
             text="Allen is going all the way",
-            client=mock_gemini_client,
+            provider=mock_provider,
         )
 
         assert len(result.predictions) == 1
         assert result.predictions[0]["extracted_claim"] == "Josh Allen wins Super Bowl"
 
-    def test_handles_invalid_json(self, mock_gemini_client):
-        resp = MagicMock()
-        resp.text = "This is not JSON at all"
-        mock_gemini_client.models.generate_content.return_value = resp
+    def test_handles_provider_error(self, mock_provider):
+        mock_provider.extract_predictions.side_effect = Exception("API quota exceeded")
 
         result = extract_assertions(
             content_hash="abc123",
             text="Some text",
-            client=mock_gemini_client,
-        )
-
-        assert len(result.predictions) == 0
-        assert result.error is not None
-
-    def test_handles_non_array_json(self, mock_gemini_client):
-        """Schema prevents this in production; error is surfaced gracefully."""
-        resp = MagicMock()
-        resp.text = json.dumps({"not": "an array"})
-        mock_gemini_client.models.generate_content.return_value = resp
-
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some text",
-            client=mock_gemini_client,
-        )
-
-        assert len(result.predictions) == 0
-        assert result.error is not None
-
-    def test_handles_api_error(self, mock_gemini_client):
-        mock_gemini_client.models.generate_content.side_effect = Exception(
-            "API quota exceeded"
-        )
-
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some text",
-            client=mock_gemini_client,
+            provider=mock_provider,
         )
 
         assert len(result.predictions) == 0
         assert "API quota exceeded" in result.error
 
-    def test_schema_enforces_valid_categories(self, mock_gemini_client):
-        """response_schema enum prevents invalid categories at the model level.
-        In production the model can only output VALID_CATEGORIES values."""
-        from google.genai import types
+    def test_valid_categories_are_complete(self):
+        """All expected categories are defined."""
+        expected = {
+            "player_performance",
+            "game_outcome",
+            "trade",
+            "draft_pick",
+            "injury",
+            "contract",
+        }
+        assert VALID_CATEGORIES == expected
 
-        from src.assertion_extractor import _PREDICTION_SCHEMA, VALID_CATEGORIES
-
-        # The schema's enum field lists exactly the valid categories
-        enum_values = set(_PREDICTION_SCHEMA.items.properties["claim_category"].enum)
-        assert enum_values == VALID_CATEGORIES
-
-    def test_skips_predictions_without_claim(self, mock_gemini_client):
+    def test_skips_predictions_without_claim(self, mock_provider):
         predictions = [
             {"extracted_claim": "", "claim_category": "trade"},
             {
@@ -200,34 +166,65 @@ class TestExtractAssertions:
                 "claim_category": "trade",
             },
         ]
-        mock_gemini_client.models.generate_content.return_value = make_gemini_response(
-            predictions
-        )
+        set_provider_predictions(mock_provider, predictions)
 
         result = extract_assertions(
             content_hash="abc123",
             text="Some text",
-            client=mock_gemini_client,
+            provider=mock_provider,
         )
 
         assert len(result.predictions) == 1
 
-    def test_truncates_long_text(self, mock_gemini_client):
-        mock_gemini_client.models.generate_content.return_value = make_gemini_response(
-            []
-        )
+    def test_truncates_long_text(self, mock_provider):
+        set_provider_predictions(mock_provider, [])
 
         long_text = "x" * 10000
         extract_assertions(
             content_hash="abc123",
             text=long_text,
-            client=mock_gemini_client,
+            provider=mock_provider,
         )
 
-        call_args = mock_gemini_client.models.generate_content.call_args
-        prompt_text = call_args[1]["contents"]
+        call_args = mock_provider.extract_predictions.call_args
+        prompt_text = call_args[0][0]  # first positional arg
         # Text should be truncated to 4000 chars
         assert len(prompt_text) < len(long_text) + 1000
+
+    def test_deduplicates_near_identical_claims(self):
+        """Semantic dedup removes near-duplicate claims."""
+        predictions = [
+            {
+                "extracted_claim": "Mahomes will win MVP in 2025",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Patrick Mahomes will win the MVP in 2025",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Bears make the playoffs in 2025",
+                "claim_category": "game_outcome",
+            },
+        ]
+        result = _deduplicate_claims(predictions)
+        assert len(result) == 2  # two Mahomes claims collapse to one
+
+    def test_dedup_keeps_longer_claim(self):
+        """When deduping, the longer (more specific) claim survives."""
+        predictions = [
+            {
+                "extracted_claim": "Mahomes will win mvp in the 2025 season",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Patrick Mahomes will win mvp in the 2025 season",
+                "claim_category": "player_performance",
+            },
+        ]
+        result = _deduplicate_claims(predictions)
+        assert len(result) == 1
+        assert "Patrick Mahomes" in result[0]["extracted_claim"]
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +368,7 @@ class TestResetProcessedHashes:
 class TestRunExtraction:
     @patch("src.assertion_extractor.ingest_batch")
     @patch("src.assertion_extractor.extract_assertions")
-    def test_full_pipeline(self, mock_extract, mock_ingest, mock_db):
+    def test_full_pipeline(self, mock_extract, mock_ingest, mock_db, mock_provider):
         mock_db.fetch_df.return_value = make_raw_media_df(1)
         mock_extract.return_value = ExtractionResult(
             content_hash="hash_0",
@@ -388,7 +385,7 @@ class TestRunExtraction:
         )
         mock_ingest.return_value = ["pred_hash_1"]
 
-        summary = run_extraction(limit=10, db=mock_db, gemini_client=MagicMock())
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["total_processed"] == 1
         assert summary["predictions_extracted"] == 1
@@ -396,32 +393,32 @@ class TestRunExtraction:
         assert summary["errors"] == 0
 
     @patch("src.assertion_extractor.extract_assertions")
-    def test_handles_extraction_errors(self, mock_extract, mock_db):
+    def test_handles_extraction_errors(self, mock_extract, mock_db, mock_provider):
         mock_db.fetch_df.return_value = make_raw_media_df(1)
         mock_extract.return_value = ExtractionResult(
             content_hash="hash_0",
             predictions=[],
-            error="Gemini quota exceeded",
+            error="LLM quota exceeded",
         )
 
-        summary = run_extraction(limit=10, db=mock_db, gemini_client=MagicMock())
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["errors"] == 1
         assert summary["predictions_extracted"] == 0
 
     @patch("src.assertion_extractor.extract_assertions")
-    def test_counts_no_predictions(self, mock_extract, mock_db):
+    def test_counts_no_predictions(self, mock_extract, mock_db, mock_provider):
         mock_db.fetch_df.return_value = make_raw_media_df(1)
         mock_extract.return_value = ExtractionResult(
             content_hash="hash_0",
             predictions=[],
         )
 
-        summary = run_extraction(limit=10, db=mock_db, gemini_client=MagicMock())
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["skipped_no_predictions"] == 1
 
-    def test_dry_run_skips_gemini(self, mock_db):
+    def test_dry_run_skips_llm(self, mock_db):
         mock_db.fetch_df.return_value = make_raw_media_df(2)
 
         summary = run_extraction(limit=10, dry_run=True, db=mock_db)
@@ -430,36 +427,84 @@ class TestRunExtraction:
         assert summary["predictions_extracted"] == 0
         mock_db.append_dataframe_to_table.assert_not_called()
 
-    def test_no_work_when_empty(self, mock_db):
+    def test_no_work_when_empty(self, mock_db, mock_provider):
         mock_db.fetch_df.return_value = pd.DataFrame()
 
-        summary = run_extraction(limit=10, db=mock_db, gemini_client=MagicMock())
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["total_processed"] == 0
 
     @patch("src.assertion_extractor.get_unprocessed_media")
-    def test_passes_include_unmatched_flag(self, mock_get, mock_db):
+    def test_passes_include_unmatched_flag(self, mock_get, mock_db, mock_provider):
         """include_unmatched flag should be forwarded to get_unprocessed_media."""
         mock_get.return_value = pd.DataFrame()
 
         run_extraction(
-            limit=5, db=mock_db, gemini_client=MagicMock(), include_unmatched=True
+            limit=5, db=mock_db, provider=mock_provider, include_unmatched=True
         )
 
         mock_get.assert_called_once_with(mock_db, limit=5, include_unmatched=True)
 
     @patch("src.assertion_extractor.get_unprocessed_media")
-    def test_default_excludes_unmatched(self, mock_get, mock_db):
+    def test_default_excludes_unmatched(self, mock_get, mock_db, mock_provider):
         """By default, include_unmatched should be False."""
         mock_get.return_value = pd.DataFrame()
 
-        run_extraction(limit=5, db=mock_db, gemini_client=MagicMock())
+        run_extraction(limit=5, db=mock_db, provider=mock_provider)
 
         mock_get.assert_called_once_with(mock_db, limit=5, include_unmatched=False)
 
 
 # ---------------------------------------------------------------------------
-# Constants validation
+# LLM Provider
+# ---------------------------------------------------------------------------
+
+
+class TestLLMProvider:
+    def test_provider_factory_returns_gemini_by_default(self):
+        from src.llm_provider import load_llm_config
+
+        config = load_llm_config()
+        assert config["extraction"]["provider"] == "gemini"
+
+    def test_provider_factory_lists_all_providers(self):
+        from src.llm_provider import PROVIDERS
+
+        assert set(PROVIDERS.keys()) == {"gemini", "claude", "openai", "ollama"}
+
+    def test_json_parse_strips_markdown_fences(self):
+        from src.llm_provider import LLMProvider
+
+        class DummyProvider(LLMProvider):
+            def extract_predictions(self, prompt):
+                pass
+
+            def classify(self, prompt):
+                pass
+
+        provider = DummyProvider(model="test")
+        text = '```json\n[{"extracted_claim": "test", "claim_category": "trade"}]\n```'
+        result = provider._parse_json_response(text)
+        assert len(result) == 1
+        assert result[0]["extracted_claim"] == "test"
+
+    def test_json_parse_handles_invalid(self):
+        from src.llm_provider import LLMProvider
+
+        class DummyProvider(LLMProvider):
+            def extract_predictions(self, prompt):
+                pass
+
+            def classify(self, prompt):
+                pass
+
+        provider = DummyProvider(model="test")
+        result = provider._parse_json_response("not json at all")
+        assert result == []
+
+
+# ---------------------------------------------------------------------------
+# Constants validation (legacy — kept for backward compat)
 # ---------------------------------------------------------------------------
 
 

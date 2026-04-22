@@ -1,34 +1,60 @@
 #!/bin/sh
 #
-# Pre-commit hook: lint + tests inside Docker
-# All pipeline tools live in the Docker container (see AGENTS.md).
+# Pre-commit hook: lint + unit tests via local venv
 #
+# Docker is no longer required for pre-commit. The venv at .venv/ runs
+# the same tools CI uses (black, isort, flake8, pytest). Docker is only
+# needed for Playwright E2E tests and Spotrac scraping.
+#
+# Bootstrap: make venv
 
-DOCKER_CMD="docker compose --env-file docker_env.txt exec -T pipeline bash -c"
+set -e
 
-# Verify the pipeline container is running
-if ! docker compose --env-file docker_env.txt ps --format '{{.Name}}' 2>/dev/null | grep -q pipeline; then
-    echo "ERROR: Docker pipeline container not running."
-    echo "Run 'make up' first, then retry your commit."
+VENV=".venv"
+
+# Resolve the main repo root — works from worktrees too.
+# git rev-parse --show-toplevel returns the worktree root, not the main repo.
+# GIT_COMMON_DIR points to the main .git dir, so its parent is the main repo.
+MAIN_REPO="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
+
+# Check for venv: current dir first, then main repo root
+if [ -d "$VENV" ]; then
+    ACTIVATE="$VENV/bin/activate"
+elif [ -d "$MAIN_REPO/$VENV" ]; then
+    ACTIVATE="$MAIN_REPO/$VENV/bin/activate"
+else
+    echo "ERROR: No .venv found. Run 'make venv' from the main repo."
     exit 1
 fi
 
-echo "=== Pre-commit: Format check (Docker) ==="
-$DOCKER_CMD "black --check pipeline/src/ && isort --check pipeline/src/"
-if [ $? -ne 0 ]; then
+# shellcheck disable=SC1090
+. "$ACTIVATE"
+
+echo "=== Pre-commit: Format check ==="
+black --check pipeline/src/ pipeline/tests/ || {
     echo ""
-    echo "Format check failed. Run: make lint-fix"
+    echo "Format check failed. Run: black pipeline/src/ pipeline/tests/"
     exit 1
-fi
+}
 
-echo "=== Pre-commit: Flake8 (Docker, warnings only) ==="
-$DOCKER_CMD "cd pipeline && flake8 src/ --count -q" || true
+isort --check pipeline/src/ pipeline/tests/ || {
+    echo ""
+    echo "Import sort check failed. Run: isort pipeline/src/ pipeline/tests/"
+    exit 1
+}
 
-echo "=== Pre-commit: Tests (Docker) ==="
-$DOCKER_CMD "python -m pytest pipeline/tests/ -x -q --tb=short"
-if [ $? -ne 0 ]; then
+echo "=== Pre-commit: Flake8 (fatal errors only) ==="
+flake8 pipeline/src/ pipeline/tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+
+echo "=== Pre-commit: Unit tests ==="
+PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)/pipeline" \
+    python -m pytest pipeline/tests/ -x -q --tb=short \
+    -m "not integration" \
+    --ignore=pipeline/tests/test_api.py \
+    --ignore=pipeline/tests/test_api_vegas.py \
+    --ignore=pipeline/tests/test_ledger_bq_integration.py || {
     echo "Tests failed! Aborting commit."
     exit 1
-fi
+}
 
 echo "Pre-commit checks passed."

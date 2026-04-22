@@ -17,7 +17,7 @@
 NFL contract analytics pipeline + **Pundit Prediction Ledger** (the product). Medallion architecture (bronze/silver/gold) on BigQuery. XGBoost risk model. FastAPI backend. Next.js dashboard.
 
 ## Tech stack
-- **Python 3.14** (local), Docker for pipeline execution
+- **Python 3.13+** — local venv (`.venv/`) for dev, lint, and tests
 - **BigQuery** — sole data warehouse (no DuckDB/MotherDuck)
 - **Pipeline**: custom Python ETL in `pipeline/src/`
 - **ML**: XGBoost, scikit-learn, SHAP
@@ -25,17 +25,26 @@ NFL contract analytics pipeline + **Pundit Prediction Ledger** (the product). Me
 - **Frontend**: Next.js (`web/`)
 - **CI**: GitHub Actions (`.github/workflows/`)
 - **Testing**: pytest (`pipeline/pytest.ini`, `pipeline/tests/`)
+- **Docker**: only for Playwright E2E tests and Spotrac scraping
 
 ## Execution environment
 
-**All pipeline code runs inside Docker, not on the local filesystem.**
+**Tests and linting run locally via the `.venv/` virtualenv — no Docker required.**
 
 ```bash
-make up
-docker compose --env-file docker_env.txt exec pipeline bash -c "<command>"
+make setup          # creates venv + configures git hooks (one-time)
+make test           # run unit tests
+make lint           # check formatting
+make check          # lint + test
 ```
 
-Local Python is fine for `black`, `isort`, `flake8`, `git`, file reads/edits/searches.
+**Docker is only needed for browser-based tasks:**
+
+```bash
+make up             # start Docker containers
+make test-e2e       # Playwright E2E tests (needs Docker)
+make pipeline-scrape # Spotrac scraping via Selenium (needs Docker)
+```
 
 ## Agent coordination
 
@@ -101,24 +110,24 @@ web/app/layout.tsx
 
 ### /preflight — Run before any PR
 ```
-1. black --check pipeline/src/
-2. isort --check pipeline/src/
-3. flake8 pipeline/src/
-4. make up  # ensure Docker is running
-5. docker compose --env-file docker_env.txt exec pipeline bash -c "python -m pytest pipeline/tests/ -v --tb=short"
+make check   # lint + unit tests via local venv
 ```
 
 ### /test — Run the test suite
 ```
-make up
-docker compose --env-file docker_env.txt exec pipeline bash -c "python -m pytest pipeline/tests/ -v --tb=short"
+make test
 ```
 
 ### /lint — Format and lint
 ```
-black pipeline/src/
-isort pipeline/src/
-flake8 pipeline/src/
+make lint       # check only
+make lint-fix   # auto-fix
+```
+
+### /test-e2e — Playwright E2E (Docker required)
+```
+make up
+make test-e2e
 ```
 
 ## Working style

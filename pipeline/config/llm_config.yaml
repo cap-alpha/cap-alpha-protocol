@@ -1,0 +1,35 @@
+# LLM Provider Configuration
+#
+# Controls which LLM backend the assertion extractor uses.
+# Switch providers by changing the `provider` field — no code changes needed.
+#
+# Available providers: gemini, claude, openai, ollama
+#
+# Environment variables required per provider:
+#   gemini:  GEMINI_API_KEY
+#   claude:  ANTHROPIC_API_KEY
+#   openai:  OPENAI_API_KEY
+#   ollama:  none (local, optionally OLLAMA_BASE_URL)
+
+extraction:
+  provider: gemini              # gemini | claude | openai | ollama
+  model: gemini-2.5-flash       # provider-specific model ID
+  # ollama models: llama3.1:70b, llama3.1:8b, mistral-small, phi3:medium
+  # claude models: claude-sonnet-4-20250514, claude-haiku-4-5-20251001
+  # openai models: gpt-4o, gpt-4o-mini
+
+filter:
+  enabled: false                # set true to enable pre-filter stage (#180)
+  provider: ollama
+  model: llama3.1:8b
+
+fallback:
+  enabled: false                # set true to enable cloud fallback
+  provider: claude
+  model: claude-sonnet-4-20250514
+
+# Team batching (#181)
+batching:
+  enabled: false                # set true to enable team-batching
+  max_articles_per_batch: 5
+  article_truncate_chars: 1500

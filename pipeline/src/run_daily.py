@@ -95,8 +95,7 @@ def run_stage(
                 )
             else:
                 logger.error(
-                    f"[{stage_name}] FAILED: exit={proc.returncode}\n"
-                    f"{error_msg}"
+                    f"[{stage_name}] FAILED: exit={proc.returncode}\n" f"{error_msg}"
                 )
         else:
             result.finish(0)
@@ -122,9 +121,7 @@ def main():
     year = str(datetime.now().year)
     run_id = str(uuid.uuid4())[:8]
 
-    logger.info(
-        f"Starting Daily Pipeline (run={run_id}, year={year}, mode={mode})"
-    )
+    logger.info(f"Starting Daily Pipeline (run={run_id}, year={year}, mode={mode})")
 
     stages = [
         (

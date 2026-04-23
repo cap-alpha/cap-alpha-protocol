@@ -69,7 +69,9 @@ class MediaItem:
     fetch_source_type: str
     sport: str = "NFL"  # NFL|MLB|NBA|NHL|NCAAF|NCAAB — set from media_sources.yaml
     raw_metadata: Optional[str] = None
-    match_method: Optional[str] = None  # author_field|byline_scan|source_default|unmatched
+    match_method: Optional[str] = (
+        None  # author_field|byline_scan|source_default|unmatched
+    )
 
 
 @dataclass
@@ -581,8 +583,13 @@ def ingest_source(
         df = pd.DataFrame(rows)
         # Ensure nullable columns don't write string "None" to BigQuery
         nullable_cols = [
-            "title", "raw_text", "author", "matched_pundit_id",
-            "matched_pundit_name", "published_at", "raw_metadata",
+            "title",
+            "raw_text",
+            "author",
+            "matched_pundit_id",
+            "matched_pundit_name",
+            "published_at",
+            "raw_metadata",
         ]
         for col in nullable_cols:
             if col in df.columns:

@@ -2,9 +2,14 @@
 
 import { PersonaProvider } from "@/components/persona-context";
 import { TeamProvider } from "@/components/team-context";
+import dynamic from "next/dynamic";
 import { ReactNode } from "react";
 
 const hasClerkKey = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+const ClerkProviderWrapper = hasClerkKey
+    ? dynamic(() => import("@/components/clerk-provider-wrapper"), { ssr: false })
+    : null;
 
 function InnerProviders({ children }: { children: ReactNode }) {
     return (
@@ -17,23 +22,13 @@ function InnerProviders({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-    if (!hasClerkKey) {
+    if (!ClerkProviderWrapper) {
         return <InnerProviders>{children}</InnerProviders>;
     }
 
-    // Dynamic require avoids importing @clerk/nextjs when keys are absent.
-    // This is a top-level component, not a hook — safe to require conditionally.
-    const { ClerkProvider } = require("@clerk/nextjs");
-    const { dark } = require("@clerk/themes");
-
     return (
-        <ClerkProvider
-            appearance={{
-                baseTheme: dark,
-                variables: { colorPrimary: '#10b981' },
-            }}
-        >
+        <ClerkProviderWrapper>
             <InnerProviders>{children}</InnerProviders>
-        </ClerkProvider>
+        </ClerkProviderWrapper>
     );
 }

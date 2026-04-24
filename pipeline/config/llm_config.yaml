@@ -14,7 +14,10 @@
 extraction:
   provider: gemini              # gemini | claude | openai | ollama
   model: gemini-2.5-flash       # provider-specific model ID
-  # ollama models: llama3.1:70b, llama3.1:8b, mistral-small, phi3:medium
+  # ollama models: qwen2.5:32b (recommended — benchmarked winner on M4 Pro 48GB, 19GB)
+  #               llama3.1:8b (filter stage only), llama3:latest
+  #               NOTE: llama3.1:70b (42GB) OOMs on M4 Pro 48GB — avoid
+  # Docker: pipeline container reaches host Ollama via OLLAMA_BASE_URL=http://host.docker.internal:11434
   # claude models: claude-sonnet-4-20250514, claude-haiku-4-5-20251001
   # openai models: gpt-4o, gpt-4o-mini
 

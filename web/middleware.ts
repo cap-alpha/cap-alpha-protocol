@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { NextRequest, NextFetchEvent } from "next/server";
+import type { NextRequest, NextFetchEvent, NextMiddleware } from "next/server";
 
 const hasClerkKeys = !!(
     process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY &&
@@ -7,7 +7,7 @@ const hasClerkKeys = !!(
 );
 
 // Cache the Clerk handler so we only do the dynamic import once.
-let clerkHandler: ((req: NextRequest, event: NextFetchEvent) => Promise<NextResponse> | NextResponse) | null = null;
+let clerkHandler: NextMiddleware | null = null;
 
 async function getClerkHandler() {
     if (clerkHandler) return clerkHandler;
@@ -45,7 +45,9 @@ async function getClerkHandler() {
 export default async function middleware(req: NextRequest, event: NextFetchEvent) {
     if (hasClerkKeys) {
         const handler = await getClerkHandler();
-        return handler(req, event);
+        if (handler) {
+            return handler(req, event);
+        }
     }
 
     // No Clerk keys — pass-through middleware

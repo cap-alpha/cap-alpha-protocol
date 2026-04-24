@@ -8,3 +8,10 @@ node_modules
 web/node_modules
 web/.next
 data/
+.claude/
+__pycache__/
+*.pyc
+scripts/
+dbt/
+docker_env.txt
+nohup.out

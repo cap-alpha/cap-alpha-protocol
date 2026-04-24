@@ -154,8 +154,10 @@ sources:
     name: "Undisputed"
     sport: "NFL"
     type: youtube_transcript
+    # Disabled: channel_id UCuF2PqOvMBKBVi9JvtC3GqA returns 404 — channel no longer
+    # exists. Skip Bayless left FS1/Undisputed in 2023. (#171)
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCuF2PqOvMBKBVi9JvtC3GqA"
-    enabled: true
+    enabled: false
     pundits:
       - id: skip_bayless
         name: "Skip Bayless"
@@ -179,8 +181,11 @@ sources:
     name: "The Herd with Colin Cowherd"
     sport: "NFL"
     type: youtube_transcript
+    # Disabled: UCFDidMd82mpDkKijLUqHp7A is the correct channel but only posts
+    # YouTube Shorts (clips <60s, no transcripts). Full episodes are on Fox Sports'
+    # channel. Re-enable with a full-episode channel ID once confirmed. (#171)
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCFDidMd82mpDkKijLUqHp7A"
-    enabled: true
+    enabled: false
     pundits:
       - id: colin_cowherd
         name: "Colin Cowherd"

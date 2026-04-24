@@ -1,11 +1,14 @@
-import pytest
-
-pytest.importorskip("fastapi")
-
 import os
 import sys
 
+import pytest
 from fastapi.testclient import TestClient
+
+pytest.importorskip("fastapi")
+
+# Skip entire module if GCP credentials not available
+if not os.getenv("GCP_PROJECT_ID"):
+    pytest.skip("GCP_PROJECT_ID not set, skipping API tests", allow_module_level=True)
 
 # Add parent dir to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

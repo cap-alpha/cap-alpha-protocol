@@ -38,6 +38,6 @@ google-genai
 duckdb
 duckduckgo-search
 pydantic
-youtube-transcript-api
+youtube-transcript-api>=0.6.3,<2.0.0
 readability-lxml
 lxml_html_clean

@@ -64,9 +64,9 @@ def _normalize_name(name: str) -> str:
     """Normalize player name for fuzzy matching."""
     name = name.lower().strip()
     # Remove common suffixes
-    name = re.sub(r'\s+(jr\.?|sr\.?|ii|iii|iv)$', '', name)
+    name = re.sub(r"\s+(jr\.?|sr\.?|ii|iii|iv)$", "", name)
     # Remove periods from initials
-    name = name.replace('.', '')
+    name = name.replace(".", "")
     return name
 
 
@@ -80,41 +80,47 @@ def _extract_draft_claim(claim: str) -> dict:
 
     # Extract "No. 1 overall pick" or "#1 pick" or "first overall pick"
     ordinals = {
-        'first': 1, 'second': 2, 'third': 3, 'fourth': 4, 'fifth': 5,
-        'sixth': 6, 'seventh': 7, 'eighth': 8, 'ninth': 9, 'tenth': 10,
+        "first": 1,
+        "second": 2,
+        "third": 3,
+        "fourth": 4,
+        "fifth": 5,
+        "sixth": 6,
+        "seventh": 7,
+        "eighth": 8,
+        "ninth": 9,
+        "tenth": 10,
     }
-    pick_match = re.search(r'(?:no\.?\s*|#)(\d+)\s*(?:overall\s*)?pick', claim_lower)
+    pick_match = re.search(r"(?:no\.?\s*|#)(\d+)\s*(?:overall\s*)?pick", claim_lower)
     if pick_match:
-        result['pick_number'] = int(pick_match.group(1))
+        result["pick_number"] = int(pick_match.group(1))
     else:
         for word, num in ordinals.items():
-            if f'{word} overall' in claim_lower or f'{word} pick' in claim_lower:
-                result['pick_number'] = num
+            if f"{word} overall" in claim_lower or f"{word} pick" in claim_lower:
+                result["pick_number"] = num
                 break
 
     # Extract "top-N pick"
-    top_match = re.search(r'top[- ](\d+)\s*pick', claim_lower)
+    top_match = re.search(r"top[- ](\d+)\s*pick", claim_lower)
     if top_match:
-        result['top_n'] = int(top_match.group(1))
+        result["top_n"] = int(top_match.group(1))
 
     # Extract "Round 1" or "first round"
-    round_match = re.search(r'round\s*(\d+)', claim_lower)
+    round_match = re.search(r"round\s*(\d+)", claim_lower)
     if round_match:
-        result['round_number'] = int(round_match.group(1))
-    elif 'first round' in claim_lower:
-        result['round_number'] = 1
+        result["round_number"] = int(round_match.group(1))
+    elif "first round" in claim_lower:
+        result["round_number"] = 1
 
     # Extract draft year
-    year_match = re.search(r'20\d{2}', claim)
+    year_match = re.search(r"20\d{2}", claim)
     if year_match:
-        result['draft_year'] = int(year_match.group())
+        result["draft_year"] = int(year_match.group())
 
     return result
 
 
-def resolve_draft_picks(
-    db: DBManager, dry_run: bool = False
-) -> dict:
+def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
     """
     Resolve draft_pick predictions against actual draft results.
     """
@@ -157,23 +163,22 @@ def resolve_draft_picks(
         # Check if this draft has actually happened
         current_year = pd.Timestamp.now().year
         # NFL draft is in late April; if we're past May of draft_year, it's happened
-        draft_completed = (
-            draft_year < current_year
-            or (draft_year == current_year and pd.Timestamp.now().month > 5)
+        draft_completed = draft_year < current_year or (
+            draft_year == current_year and pd.Timestamp.now().month > 5
         )
 
         if not draft_completed:
-            logger.info(
-                f"  SKIP {phash[:12]}… — {draft_year} draft not yet completed"
-            )
+            logger.info(f"  SKIP {phash[:12]}… — {draft_year} draft not yet completed")
             summary["skipped"] += 1
             continue
 
         # Find the player in draft data
         norm_name = _normalize_name(player_name) if player_name else ""
-        player_matches = draft_data[
-            draft_data["name_lower"].str.contains(norm_name, na=False)
-        ] if norm_name and norm_name != "none" else pd.DataFrame()
+        player_matches = (
+            draft_data[draft_data["name_lower"].str.contains(norm_name, na=False)]
+            if norm_name and norm_name != "none"
+            else pd.DataFrame()
+        )
 
         # Also try extracting player name from the claim itself
         if player_matches.empty:
@@ -200,17 +205,23 @@ def resolve_draft_picks(
 
         # Now evaluate the claim
         correct = None
-        notes_parts = [f"Actual: {actual_name} was pick #{actual_pick} (Round {actual_round}) by {actual_team}"]
+        notes_parts = [
+            f"Actual: {actual_name} was pick #{actual_pick} (Round {actual_round}) by {actual_team}"
+        ]
 
         if "pick_number" in parsed:
             correct = int(actual_pick) == parsed["pick_number"]
-            notes_parts.append(f"Claimed pick #{parsed['pick_number']}, actual #{actual_pick}")
+            notes_parts.append(
+                f"Claimed pick #{parsed['pick_number']}, actual #{actual_pick}"
+            )
         elif "top_n" in parsed:
             correct = int(actual_pick) <= parsed["top_n"]
             notes_parts.append(f"Claimed top-{parsed['top_n']}, actual #{actual_pick}")
         elif "round_number" in parsed:
             correct = int(actual_round) == parsed["round_number"]
-            notes_parts.append(f"Claimed Round {parsed['round_number']}, actual Round {actual_round}")
+            notes_parts.append(
+                f"Claimed Round {parsed['round_number']}, actual Round {actual_round}"
+            )
         else:
             # Can't determine specific claim — void
             logger.info(
@@ -296,4 +307,5 @@ if __name__ == "__main__":
 
     result = resolve_all(category=args.category, dry_run=args.dry_run)
     import json
+
     print(json.dumps(result, indent=2))

@@ -411,7 +411,6 @@ def run_extraction(
                     else:
                         player_name = raw_player
 
-
                 all_predictions.append(
                     PunditPrediction(
                         pundit_id=str(pundit_id),

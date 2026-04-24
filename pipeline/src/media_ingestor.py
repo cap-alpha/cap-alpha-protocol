@@ -355,9 +355,17 @@ def _chunk_transcript(text: str, max_chars: int = TRANSCRIPT_CHUNK_SIZE) -> list
 
 
 def _extract_video_id(url: str) -> str | None:
-    """Extract video ID from a YouTube URL."""
+    """Extract video ID from a YouTube URL (watch?v= or /shorts/)."""
     match = re.search(r"[?&]v=([a-zA-Z0-9_-]{11})", url)
+    if match:
+        return match.group(1)
+    match = re.search(r"/shorts/([a-zA-Z0-9_-]{11})", url)
     return match.group(1) if match else None
+
+
+def _is_youtube_short(url: str) -> bool:
+    """Return True if the URL points to a YouTube Short."""
+    return "/shorts/" in url
 
 
 def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
@@ -390,6 +398,12 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
         title = entry.get("title", "")
         link = entry.get("link", "")
         if not link:
+            continue
+
+        # Skip Shorts — they are clips (<60s), rarely have auto-captions,
+        # and don't contain full-length pundit commentary worth extracting.
+        if _is_youtube_short(link):
+            logger.debug(f"[{source_id}] Skipping Short: {title}")
             continue
 
         video_id = _extract_video_id(link)

@@ -16,6 +16,8 @@ import pytest
 from src.media_ingestor import (
     MediaItem,
     SourceResult,
+    _extract_video_id,
+    _is_youtube_short,
     _passes_keyword_filter,
     compute_content_hash,
     fetch_rss,
@@ -597,3 +599,52 @@ class TestConfigLoading:
             assert "name" in source
             assert "type" in source
             assert "url" in source
+
+    def test_no_enabled_source_has_unknown_channel_id(self):
+        """Sanity check: no enabled YouTube source should have 'UNKNOWN' as channel_id."""
+        config = load_media_config()
+        for source in config["sources"]:
+            if source.get("enabled") and "youtube" in source.get("type", ""):
+                assert (
+                    "UNKNOWN" not in source["url"]
+                ), f"Source {source['id']} has UNKNOWN channel_id and is enabled"
+
+
+# ---------------------------------------------------------------------------
+# YouTube URL helpers
+# ---------------------------------------------------------------------------
+
+
+class TestExtractVideoId:
+    def test_standard_watch_url(self):
+        url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        assert _extract_video_id(url) == "dQw4w9WgXcQ"
+
+    def test_watch_url_with_extra_params(self):
+        url = "https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=42s&ab_channel=RickAstley"
+        assert _extract_video_id(url) == "dQw4w9WgXcQ"
+
+    def test_shorts_url(self):
+        url = "https://www.youtube.com/shorts/zWHQIinOgZI"
+        assert _extract_video_id(url) == "zWHQIinOgZI"
+
+    def test_shorts_url_with_query(self):
+        url = "https://www.youtube.com/shorts/zWHQIinOgZI?feature=share"
+        assert _extract_video_id(url) == "zWHQIinOgZI"
+
+    def test_unrecognized_url_returns_none(self):
+        assert _extract_video_id("https://www.youtube.com/channel/UCxxx") is None
+
+    def test_empty_string_returns_none(self):
+        assert _extract_video_id("") is None
+
+
+class TestIsYoutubeShort:
+    def test_shorts_url_is_short(self):
+        assert _is_youtube_short("https://www.youtube.com/shorts/zWHQIinOgZI") is True
+
+    def test_watch_url_is_not_short(self):
+        assert _is_youtube_short("https://www.youtube.com/watch?v=dQw4w9WgXcQ") is False
+
+    def test_empty_string_is_not_short(self):
+        assert _is_youtube_short("") is False

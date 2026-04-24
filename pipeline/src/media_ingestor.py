@@ -37,6 +37,13 @@ from bs4 import BeautifulSoup
 from google.cloud import bigquery
 from youtube_transcript_api import YouTubeTranscriptApi
 
+try:
+    _yt_client = YouTubeTranscriptApi()
+    _YT_API_V1 = True
+except TypeError:
+    _yt_client = None
+    _YT_API_V1 = False
+
 from src.db_manager import DBManager
 
 logging.basicConfig(
@@ -368,6 +375,16 @@ def _is_youtube_short(url: str) -> bool:
     return "/shorts/" in url
 
 
+def _fetch_transcript(video_id: str) -> str:
+    """Fetch transcript text, compatible with both old and new API versions."""
+    if _YT_API_V1:
+        result = _yt_client.fetch(video_id)
+        return " ".join(snippet.text for snippet in result)
+    else:
+        transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+        return " ".join(segment["text"] for segment in transcript_data)
+
+
 def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
     """
     Fetches recent videos from a YouTube channel via RSS, then downloads
@@ -390,6 +407,12 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
 
     if feed.bozo and not feed.entries:
         raise ValueError(f"Feed parse error for {source_id}: {feed.bozo_exception}")
+
+    if not feed.entries:
+        logger.warning(
+            f"[{source_id}] YouTube feed returned 0 entries — "
+            f"check channel ID in URL: {url}"
+        )
 
     items = []
     now = datetime.now(timezone.utc)
@@ -421,8 +444,7 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
 
         # Download transcript
         try:
-            transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
-            transcript_text = " ".join(segment["text"] for segment in transcript_data)
+            transcript_text = _fetch_transcript(video_id)
         except Exception as e:
             logger.warning(
                 f"[{source_id}] Transcript unavailable for {video_id} "
@@ -460,6 +482,12 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
                     sport=sport,
                 )
             )
+
+    if not items and feed.entries:
+        logger.warning(
+            f"[{source_id}] Feed had {len(feed.entries)} entries "
+            f"but 0 transcripts succeeded"
+        )
 
     return items
 

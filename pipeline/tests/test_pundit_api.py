@@ -376,16 +376,12 @@ def make_draft_predictions_df():
 
 class TestDraftSummary:
     def test_returns_200(self, client, mock_db):
-        mock_db.client.query.return_value = _mock_bq_job(
-            make_draft_predictions_df()
-        )
+        mock_db.client.query.return_value = _mock_bq_job(make_draft_predictions_df())
         resp = client.get("/v1/draft/2026")
         assert resp.status_code == 200
 
     def test_summary_fields(self, client, mock_db):
-        mock_db.client.query.return_value = _mock_bq_job(
-            make_draft_predictions_df()
-        )
+        mock_db.client.query.return_value = _mock_bq_job(make_draft_predictions_df())
         data = client.get("/v1/draft/2026").json()
         assert data["year"] == 2026
         assert data["total"] == 2

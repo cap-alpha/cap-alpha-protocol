@@ -12,6 +12,14 @@ pipeline/local_libs/
 *.log
 # Agent coordination audit log must be tracked (negation must come after *.log)
 !.agent/activity.log
+
+# Agent coordination ephemeral state
+.agent/current.md
+.agent/.last_rotate
+.agent/locks/
+
+# Claude worktree-local files
+.claude/agent-orientation.md
 dbt/logs/
 airflow/logs/
 airflow/*.db*

@@ -138,6 +138,7 @@ def main():
         ),
         ("media_ingest", "python -m src.media_ingestor"),
         ("assertion_extract", "python -m src.assertion_extractor --limit 50"),
+        ("cross_article_dedup", "python -m src.cross_article_dedup"),
         ("silver_transform", "python -m src.silver_sportsdataio_transform"),
         ("feature_factory", "python src/feature_factory.py"),
         ("train_model", "python src/train_model.py"),

@@ -120,6 +120,95 @@ def _extract_draft_claim(claim: str) -> dict:
     return result
 
 
+# NFL team abbreviation mapping for claim parsing
+_TEAM_PATTERNS = {
+    "raiders": "LV",
+    "giants": "NYG",
+    "jets": "NYJ",
+    "cardinals": "ARI",
+    "titans": "TEN",
+    "chiefs": "KC",
+    "commanders": "WSH",
+    "saints": "NO",
+    "browns": "CLE",
+    "cowboys": "DAL",
+    "dolphins": "MIA",
+    "rams": "LAR",
+    "ravens": "BAL",
+    "buccaneers": "TB",
+    "bucs": "TB",
+    "lions": "DET",
+    "vikings": "MIN",
+    "panthers": "CAR",
+    "eagles": "PHI",
+    "steelers": "PIT",
+    "chargers": "LAC",
+    "bears": "CHI",
+    "texans": "HOU",
+    "patriots": "NE",
+    "49ers": "SF",
+    "bills": "BUF",
+    "bengals": "CIN",
+    "seahawks": "SEA",
+    "packers": "GB",
+    "broncos": "DEN",
+    "jaguars": "JAX",
+    "falcons": "ATL",
+    "colts": "IND",
+    "washington": "WSH",
+    "detroit": "DET",
+    "minnesota": "MIN",
+}
+
+
+def _resolve_team_claim(claim, parsed, year_draft_data, phash, db, dry_run):
+    """Resolve team-level draft claims like 'Giants will have two top-10 picks'."""
+    claim_lower = claim.lower()
+
+    # Find team in claim
+    team_abbr = None
+    for pattern, abbr in _TEAM_PATTERNS.items():
+        if pattern in claim_lower:
+            team_abbr = abbr
+            break
+
+    if not team_abbr:
+        return None  # Can't find a team
+
+    team_picks = year_draft_data[year_draft_data["draft_team"] == team_abbr]
+
+    # "will pick a quarterback in Round 1" or "picking a quarterback"
+    if "quarterback" in claim_lower or " qb " in claim_lower:
+        # Check if team drafted a QB (check Position field if available)
+        # For now, just check if they had any pick
+        if not team_picks.empty:
+            notes = f"{team_abbr} had {len(team_picks)} pick(s) in this round"
+            logger.info(f"  TEAM {phash[:12]}… — {notes} (needs manual QB check)")
+        return None  # Can't verify position from draft data alone
+
+    # "will have two picks in the top 10" or "pair of top-10 selections"
+    top_n_match = re.search(r"(two|2|pair|three|3)\s+.*top[- ](\d+)", claim_lower)
+    if top_n_match:
+        count_word = top_n_match.group(1)
+        top_n = int(top_n_match.group(2))
+        expected_count = {"two": 2, "2": 2, "pair": 2, "three": 3, "3": 3}.get(
+            count_word, 2
+        )
+        actual_top = team_picks[team_picks["draft_pick"] <= top_n]
+        correct = len(actual_top) >= expected_count
+        notes = f"{team_abbr} had {len(actual_top)} pick(s) in top {top_n} (expected {expected_count})"
+        logger.info(
+            f"  {'CORRECT' if correct else 'INCORRECT'} {phash[:12]}… — {notes}"
+        )
+        if not dry_run:
+            resolve_binary(
+                phash, correct, outcome_source="draft_board", outcome_notes=notes, db=db
+            )
+        return "resolved"
+
+    return None  # Couldn't parse team claim pattern
+
+
 def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
     """
     Resolve draft_pick predictions against actual draft results.
@@ -147,24 +236,29 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
         summary["checked"] += 1
         claim = pred["extracted_claim"]
         phash = pred["prediction_hash"]
-        player_name = pred.get("target_player_id") or ""  # Legacy field (has names)
+        # Check both player name fields
+        player_name = ""
+        for field in ["target_player_name", "target_player_id"]:
+            val = pred.get(field)
+            if val and pd.notna(val) and str(val).lower() not in ("none", "multi", ""):
+                player_name = str(val)
+                break
         season_year = pred.get("season_year")
 
         parsed = _extract_draft_claim(claim)
         draft_year = parsed.get("draft_year")
         if not draft_year and pd.notna(season_year):
             draft_year = int(season_year)
-
+        # Default to current year for draft_pick claims with no year
         if not draft_year:
-            logger.info(f"  SKIP {phash[:12]}… — no draft year in claim or metadata")
-            summary["skipped"] += 1
-            continue
+            draft_year = pd.Timestamp.now().year
 
         # Check if we have actual draft pick data for this year
         current_year = pd.Timestamp.now().year
         year_draft_data = draft_data[
             (draft_data["draft_year"] == draft_year)
             & (draft_data["draft_pick"].notna())
+            & (draft_data["draft_pick"] > 0)
         ]
         if draft_year > current_year or (
             draft_year == current_year and len(year_draft_data) == 0
@@ -193,10 +287,22 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
                     break
 
         if player_matches.empty:
-            logger.info(
-                f"  SKIP {phash[:12]}… — can't find player in draft data: {claim[:60]}"
+            # Try team-level resolution
+            team_result = _resolve_team_claim(
+                claim, parsed, year_draft_data, phash, db, dry_run
             )
-            summary["skipped"] += 1
+            if team_result is not None:
+                if team_result == "resolved":
+                    summary["resolved"] += 1
+                elif team_result == "voided":
+                    summary["voided"] += 1
+                else:
+                    summary["skipped"] += 1
+            else:
+                logger.info(
+                    f"  SKIP {phash[:12]}… — can't find player or team pattern: {claim[:60]}"
+                )
+                summary["skipped"] += 1
             continue
 
         # Use the first match (best match)

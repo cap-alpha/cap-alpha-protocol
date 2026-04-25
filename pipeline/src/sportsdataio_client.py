@@ -6,7 +6,7 @@ import pandas as pd
 import requests
 from google.cloud import bigquery
 
-from db_manager import DBManager
+from src.db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

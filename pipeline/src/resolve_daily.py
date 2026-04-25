@@ -160,15 +160,18 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
             summary["skipped"] += 1
             continue
 
-        # Check if this draft has actually happened
+        # Check if we have actual draft pick data for this year
         current_year = pd.Timestamp.now().year
-        # NFL draft is in late April; if we're past May of draft_year, it's happened
-        draft_completed = draft_year < current_year or (
-            draft_year == current_year and pd.Timestamp.now().month > 5
-        )
-
-        if not draft_completed:
-            logger.info(f"  SKIP {phash[:12]}… — {draft_year} draft not yet completed")
+        year_draft_data = draft_data[
+            (draft_data["draft_year"] == draft_year)
+            & (draft_data["draft_pick"].notna())
+        ]
+        if draft_year > current_year or (
+            draft_year == current_year and len(year_draft_data) == 0
+        ):
+            logger.info(
+                f"  SKIP {phash[:12]}… — no draft results available for {draft_year}"
+            )
             summary["skipped"] += 1
             continue
 
@@ -203,24 +206,34 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
         actual_team = actual.get("draft_team")
         actual_name = actual.get("Name")
 
+        # Skip if pick data is missing or invalid (pick 0 = not yet assigned)
+        if not pd.notna(actual_pick) or int(actual_pick) == 0:
+            logger.info(
+                f"  SKIP {phash[:12]}… — player found but pick not yet assigned: {actual_name}"
+            )
+            summary["skipped"] += 1
+            continue
+
         # Now evaluate the claim
         correct = None
         notes_parts = [
             f"Actual: {actual_name} was pick #{actual_pick} (Round {actual_round}) by {actual_team}"
         ]
 
-        if "pick_number" in parsed:
+        if "pick_number" in parsed and pd.notna(actual_pick):
             correct = int(actual_pick) == parsed["pick_number"]
             notes_parts.append(
-                f"Claimed pick #{parsed['pick_number']}, actual #{actual_pick}"
+                f"Claimed pick #{parsed['pick_number']}, actual #{int(actual_pick)}"
             )
-        elif "top_n" in parsed:
+        elif "top_n" in parsed and pd.notna(actual_pick):
             correct = int(actual_pick) <= parsed["top_n"]
-            notes_parts.append(f"Claimed top-{parsed['top_n']}, actual #{actual_pick}")
-        elif "round_number" in parsed:
+            notes_parts.append(
+                f"Claimed top-{parsed['top_n']}, actual #{int(actual_pick)}"
+            )
+        elif "round_number" in parsed and pd.notna(actual_round):
             correct = int(actual_round) == parsed["round_number"]
             notes_parts.append(
-                f"Claimed Round {parsed['round_number']}, actual Round {actual_round}"
+                f"Claimed Round {parsed['round_number']}, actual Round {int(actual_round)}"
             )
         else:
             # Can't determine specific claim — void

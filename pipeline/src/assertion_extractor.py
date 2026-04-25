@@ -571,7 +571,7 @@ def run_extraction(
                         raw_assertion_text=str(row.get("raw_text", ""))[:2000],
                         extracted_claim=pred["extracted_claim"],
                         claim_category=pred["claim_category"],
-                        season_year=pred.get("season_year"),
+                        season_year=pred.get("draft_year") or pred.get("season_year"),
                         target_player_id=None,
                         target_player_name=player_name,
                         target_team=pred.get("target_team"),

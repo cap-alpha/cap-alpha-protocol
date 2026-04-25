@@ -103,7 +103,9 @@ def load_media_config(config_path: Optional[Path] = None) -> dict:
         return yaml.safe_load(f)
 
 
-def load_config_from_bq(db: DBManager, fallback_yaml_path: Optional[Path] = None) -> dict:
+def load_config_from_bq(
+    db: DBManager, fallback_yaml_path: Optional[Path] = None
+) -> dict:
     """Load source/pundit config from BigQuery registry, falling back to YAML.
 
     Tries to read from nfl_dead_money.source_registry and pundit_registry via
@@ -123,9 +125,7 @@ def load_config_from_bq(db: DBManager, fallback_yaml_path: Optional[Path] = None
         rm = RegistryManager(db)
         config = rm.get_source_config()
         if config.get("sources"):
-            logger.info(
-                f"Loaded {len(config['sources'])} source(s) from BQ registry"
-            )
+            logger.info(f"Loaded {len(config['sources'])} source(s) from BQ registry")
             # Merge YAML defaults section (BQ registry doesn't store global defaults)
             try:
                 yaml_config = load_media_config(fallback_yaml_path)

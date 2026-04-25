@@ -18,6 +18,7 @@ Usage (inside Docker):
 """
 
 import argparse
+import concurrent.futures
 import json
 import logging
 import os
@@ -118,39 +119,6 @@ def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> lis
             existing_claim = existing.get("extracted_claim", "").lower()
             ratio = SequenceMatcher(None, claim, existing_claim).ratio()
             if ratio >= threshold:
-                if len(claim) > len(existing_claim):
-                    kept[i] = pred
-                is_dup = True
-                break
-        if not is_dup:
-            kept.append(pred)
-
-    removed = len(predictions) - len(kept)
-    if removed > 0:
-        logger.info(f"Dedup: removed {removed} near-duplicate claims")
-    return kept
-
-
-def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
-    """
-    Remove near-duplicate claims from a single article's extraction.
-    Uses SequenceMatcher to detect semantic overlap. Keeps the longest
-    (most specific) claim from each cluster.
-    """
-    if len(predictions) <= 1:
-        return predictions
-
-    from difflib import SequenceMatcher
-
-    kept = []
-    for pred in predictions:
-        claim = pred.get("extracted_claim", "").lower()
-        is_dup = False
-        for i, existing in enumerate(kept):
-            existing_claim = existing.get("extracted_claim", "").lower()
-            ratio = SequenceMatcher(None, claim, existing_claim).ratio()
-            if ratio >= threshold:
-                # Keep the longer (more specific) one
                 if len(claim) > len(existing_claim):
                     kept[i] = pred
                 is_dup = True
@@ -357,11 +325,75 @@ def should_filter_article(
         return False
 
 
+def _append_pundit_predictions(
+    row: dict,
+    predictions: list[dict],
+    sport: str,
+    target: list,
+) -> None:
+    """Convert raw prediction dicts + media row into PunditPredictions and append to target."""
+    pundit_id = row.get("matched_pundit_id") or "unknown"
+    pundit_name = row.get("matched_pundit_name") or str(row.get("author", "Unknown"))
+    source_url = str(row.get("source_url", ""))
+
+    for pred in predictions:
+        raw_player = pred.get("target_player")
+        player_name = None
+        if raw_player:
+            player_name = "MULTI" if ("," in raw_player and len(raw_player.split(",")) > 1) else raw_player
+
+        target.append(
+            PunditPrediction(
+                pundit_id=str(pundit_id),
+                pundit_name=str(pundit_name),
+                source_url=source_url,
+                raw_assertion_text=str(row.get("raw_text", ""))[:2000],
+                extracted_claim=pred["extracted_claim"],
+                claim_category=pred["claim_category"],
+                season_year=pred.get("season_year"),
+                target_player_id=None,
+                target_player_name=player_name,
+                target_team=pred.get("target_team"),
+                sport=str(row.get("sport", sport)),
+            )
+        )
+
+
+def _process_row(row: dict, provider: LLMProvider, sport: str) -> tuple:
+    """
+    Process a single media row through the LLM extraction pipeline.
+
+    Returns (content_hash, predictions, error_message).
+    Thread-safe — each call is independent.
+    """
+    content_hash = row["content_hash"]
+    pub_date = ""
+    published_at = row.get("published_at")
+    if published_at and str(published_at) not in ("NaT", "None", "nan"):
+        try:
+            pub_date = pd.Timestamp(published_at).strftime("%Y-%m-%d")
+        except Exception:
+            pub_date = ""
+
+    result = extract_assertions(
+        content_hash=content_hash,
+        text=str(row.get("raw_text", "")),
+        title=str(row.get("title", "")),
+        author=str(row.get("author", "")),
+        source_name=str(row.get("source_id", "")),
+        sport=str(row.get("sport", sport)),
+        published_date=pub_date,
+        provider=provider,
+    )
+    return content_hash, result.predictions, result.error
+
+
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
     sport: str = "NFL",
     include_unmatched: bool = False,
+    workers: int = 1,
     db: Optional[DBManager] = None,
     provider: Optional[LLMProvider] = None,
     provider_name: Optional[str] = None,
@@ -419,11 +451,18 @@ def run_extraction(
             logger.info("No unprocessed media found.")
             return summary
 
-        logger.info(f"Processing {len(media_df)} unprocessed media items...")
+        n_items = len(media_df)
+        effective_workers = workers if not dry_run else 1
+        logger.info(
+            f"Processing {n_items} unprocessed media items "
+            f"(workers={effective_workers})..."
+        )
 
         all_predictions = []
         processed_hashes = []
 
+        # --- Phase 1: dry-run preview or pre-filter (always sequential) ---
+        rows_to_extract = []
         for _, row in media_df.iterrows():
             content_hash = row["content_hash"]
             summary["total_processed"] += 1
@@ -435,7 +474,6 @@ def run_extraction(
                 )
                 continue
 
-            # Pre-filter: skip articles with no predictions
             if filter_provider is not None:
                 article_sport = str(row.get("sport", sport))
                 if should_filter_article(
@@ -451,83 +489,63 @@ def run_extraction(
                     processed_hashes.append(content_hash)
                     continue
 
-            # Format publish date for the prompt
-            pub_date = ""
-            if pd.notna(row.get("published_at")):
-                try:
-                    pub_date = pd.Timestamp(row["published_at"]).strftime("%Y-%m-%d")
-                except Exception:
-                    pub_date = ""
+            rows_to_extract.append(row.to_dict())
 
-            result = extract_assertions(
-                content_hash=content_hash,
-                text=str(row.get("raw_text", "")),
-                title=str(row.get("title", "")),
-                author=str(row.get("author", "")),
-                source_name=str(row.get("source_id", "")),
-                sport=str(row.get("sport", sport)),
-                published_date=pub_date,
-                provider=provider,
-            )
-
-            if result.error:
-                logger.warning(
-                    f"Extraction error for {content_hash[:16]}…: {result.error}"
-                )
-                summary["errors"] += 1
+        if dry_run or not rows_to_extract:
+            # Nothing left to extract
+            pass
+        elif effective_workers <= 1:
+            # --- Phase 2a: Sequential extraction (original behaviour) ---
+            for row in rows_to_extract:
+                content_hash, predictions, error = _process_row(row, provider, sport)
+                if error:
+                    logger.warning(f"Extraction error for {content_hash[:16]}…: {error}")
+                    summary["errors"] += 1
+                    processed_hashes.append(content_hash)
+                    continue
+                if not predictions:
+                    summary["skipped_no_predictions"] += 1
+                    processed_hashes.append(content_hash)
+                    continue
+                summary["predictions_extracted"] += len(predictions)
+                _append_pundit_predictions(row, predictions, sport, all_predictions)
                 processed_hashes.append(content_hash)
-                continue
+                time.sleep(4)
+        else:
+            # --- Phase 2b: Parallel extraction ---
+            logger.info(f"Parallel mode: submitting {len(rows_to_extract)} rows to {effective_workers} workers")
+            row_index = {row["content_hash"]: row for row in rows_to_extract}
+            with concurrent.futures.ThreadPoolExecutor(max_workers=effective_workers) as pool:
+                futures = {
+                    pool.submit(_process_row, row, provider, sport): row["content_hash"]
+                    for row in rows_to_extract
+                }
+                done_count = 0
+                for future in concurrent.futures.as_completed(futures):
+                    done_count += 1
+                    if done_count % 10 == 0 or done_count == len(futures):
+                        logger.info(f"Progress: {done_count}/{len(futures)} articles extracted")
+                    try:
+                        content_hash, predictions, error = future.result()
+                    except Exception as exc:
+                        content_hash = futures[future]
+                        logger.warning(f"Worker exception for {content_hash[:16]}…: {exc}")
+                        summary["errors"] += 1
+                        processed_hashes.append(content_hash)
+                        continue
 
-            if not result.predictions:
-                summary["skipped_no_predictions"] += 1
-                processed_hashes.append(content_hash)
-                continue
-
-            summary["predictions_extracted"] += len(result.predictions)
-
-            # Convert to PunditPredictions for ledger ingestion
-            pundit_id = row.get("matched_pundit_id") or "unknown"
-            pundit_name = row.get("matched_pundit_name") or str(
-                row.get("author", "Unknown")
-            )
-            source_url = str(row.get("source_url", ""))
-
-            for pred in result.predictions:
-                raw_player = pred.get("target_player")
-                player_name = None
-                if raw_player:
-                    if "," in raw_player and len(raw_player.split(",")) > 1:
-                        player_name = "MULTI"
-                    else:
-                        player_name = raw_player
-
-                raw_stance = pred.get("stance", "neutral")
-                stance = (
-                    raw_stance
-                    if raw_stance in ("bullish", "bearish", "neutral")
-                    else "neutral"
-                )
-                all_predictions.append(
-                    PunditPrediction(
-                        pundit_id=str(pundit_id),
-                        pundit_name=str(pundit_name),
-                        source_url=source_url,
-                        raw_assertion_text=str(row.get("raw_text", ""))[:2000],
-                        extracted_claim=pred["extracted_claim"],
-                        claim_category=pred["claim_category"],
-                        season_year=pred.get("season_year"),
-                        target_player_id=None,
-                        target_player_name=player_name,
-                        target_team=pred.get("target_team"),
-                        stance=stance,
-                        sport=str(row.get("sport", sport)),
-                    )
-                )
-
-            processed_hashes.append(content_hash)
-
-            # Rate limiting — configurable per provider
-            time.sleep(4)
+                    if error:
+                        logger.warning(f"Extraction error for {content_hash[:16]}…: {error}")
+                        summary["errors"] += 1
+                        processed_hashes.append(content_hash)
+                        continue
+                    if not predictions:
+                        summary["skipped_no_predictions"] += 1
+                        processed_hashes.append(content_hash)
+                        continue
+                    summary["predictions_extracted"] += len(predictions)
+                    _append_pundit_predictions(row_index[content_hash], predictions, sport, all_predictions)
+                    processed_hashes.append(content_hash)
 
         # Batch ingest all predictions into the cryptographic ledger
         if all_predictions and not dry_run:
@@ -598,6 +616,12 @@ if __name__ == "__main__":
         help="Override LLM provider (default: from llm_config.yaml)",
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="Number of parallel LLM workers (default 1 = sequential). Use 3 for Ollama, 5 for Gemini API.",
+    )
+    parser.add_argument(
         "--reset-processed",
         metavar="SOURCE_ID",
         nargs="?",
@@ -620,6 +644,7 @@ if __name__ == "__main__":
             dry_run=args.dry_run,
             sport=args.sport,
             include_unmatched=args.include_unmatched,
+            workers=args.workers,
             provider_name=args.provider,
         )
         print(json.dumps(result, indent=2))

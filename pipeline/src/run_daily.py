@@ -137,7 +137,7 @@ def main():
             f'scrape_and_save_player_rankings({year})"',
         ),
         ("media_ingest", "python -m src.media_ingestor"),
-        ("assertion_extract", "python -m src.assertion_extractor --limit 50"),
+        ("assertion_extract", "python -m src.assertion_extractor --limit 50 --workers 3"),
         ("cross_article_dedup", "python -m src.cross_article_dedup"),
         ("silver_transform", "python -m src.silver_sportsdataio_transform"),
         ("feature_factory", "python src/feature_factory.py"),

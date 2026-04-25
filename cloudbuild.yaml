@@ -1,0 +1,22 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-f', 'Dockerfile.api', '-t', 'us-central1-docker.pkg.dev/$PROJECT_ID/pundit-api/api:$COMMIT_SHA', '.']
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/$PROJECT_ID/pundit-api/api:$COMMIT_SHA']
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'pundit-api'
+      - '--image'
+      - 'us-central1-docker.pkg.dev/$PROJECT_ID/pundit-api/api:$COMMIT_SHA'
+      - '--region'
+      - 'us-central1'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'GCP_PROJECT_ID=$PROJECT_ID'
+      - '--memory'
+      - '512Mi'
+images:
+  - 'us-central1-docker.pkg.dev/$PROJECT_ID/pundit-api/api:$COMMIT_SHA'

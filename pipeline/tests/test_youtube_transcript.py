@@ -151,6 +151,7 @@ class TestChunkTranscript:
 
 
 class TestFetchYoutubeTranscripts:
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_returns_media_items(self, mock_fp, mock_yt_api):
@@ -170,6 +171,7 @@ class TestFetchYoutubeTranscripts:
         assert items[0].fetch_source_type == "youtube_transcript"
         assert items[0].raw_text == "Hello everyone welcome to the show"
 
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_pundit_fields_set_from_source(self, mock_fp, mock_yt_api):
@@ -185,6 +187,7 @@ class TestFetchYoutubeTranscripts:
         assert items[0].matched_pundit_name == "Pat McAfee"
         assert items[0].author == "Pat McAfee"
 
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_transcript_unavailable_skips_video(self, mock_fp, mock_yt_api):
@@ -196,6 +199,7 @@ class TestFetchYoutubeTranscripts:
 
         assert len(items) == 0
 
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_chunked_transcript_produces_multiple_items(self, mock_fp, mock_yt_api):
@@ -216,6 +220,7 @@ class TestFetchYoutubeTranscripts:
         assert items[0].title == "Long Video (part 1)"
         assert items[1].title == "Long Video (part 2)"
 
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_chunked_content_hash_includes_chunk_suffix(self, mock_fp, mock_yt_api):
@@ -239,6 +244,7 @@ class TestFetchYoutubeTranscripts:
         expected_hash_0 = compute_content_hash(video_url + "|chunk_0")
         assert items[0].content_hash == expected_hash_0
 
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_single_item_no_chunk_suffix(self, mock_fp, mock_yt_api):
@@ -267,6 +273,7 @@ class TestFetchYoutubeTranscripts:
         with pytest.raises(ValueError, match="Feed parse error"):
             fetch_youtube_transcripts(YOUTUBE_SOURCE, DEFAULTS)
 
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_sport_field_from_source(self, mock_fp, mock_yt_api):
@@ -279,6 +286,7 @@ class TestFetchYoutubeTranscripts:
         items = fetch_youtube_transcripts(YOUTUBE_SOURCE, DEFAULTS)
         assert items[0].sport == "NFL"
 
+    @patch("src.media_ingestor._YT_API_V1", False)
     @patch("src.media_ingestor.YouTubeTranscriptApi")
     @patch("src.media_ingestor.feedparser")
     def test_multiple_videos_some_without_transcripts(self, mock_fp, mock_yt_api):

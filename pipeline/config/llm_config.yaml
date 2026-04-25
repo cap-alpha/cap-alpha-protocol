@@ -12,14 +12,13 @@
 #   ollama:  none (local, optionally OLLAMA_BASE_URL)
 
 extraction:
-  provider: gemini              # gemini | claude | openai | ollama
-  model: gemini-2.5-flash       # provider-specific model ID
-  # ollama models: qwen2.5:32b (recommended — benchmarked winner on M4 Pro 48GB, 19GB)
-  #               llama3.1:8b (filter stage only), llama3:latest
-  #               NOTE: llama3.1:70b (42GB) OOMs on M4 Pro 48GB — avoid
-  # Docker: pipeline container reaches host Ollama via OLLAMA_BASE_URL=http://host.docker.internal:11434
+  provider: ollama              # gemini | claude | openai | ollama
+  model: qwen2.5:32b            # provider-specific model ID
+  # ollama models: qwen2.5:32b (recommended, 20GB, excellent structured output),
+  #   llama3.1:8b (fast/cheap), llama3.1:70b (needs 48GB+ free RAM)
   # claude models: claude-sonnet-4-20250514, claude-haiku-4-5-20251001
   # openai models: gpt-4o, gpt-4o-mini
+  # gemini models: gemini-2.5-flash
 
 filter:
   enabled: false                # set true to enable pre-filter stage (#180)

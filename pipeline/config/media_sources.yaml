@@ -138,6 +138,95 @@ sources:
         name: "Albert Breer"
         match_authors: ["Albert Breer"]
 
+  - id: fox_sports_nfl
+    name: "Fox Sports NFL"
+    sport: "NFL"
+    type: rss
+    url: "https://www.foxsports.com/rss/nfl.xml"
+    enabled: true
+    pundits:
+      - id: nick_wright
+        name: "Nick Wright"
+        match_authors: ["Nick Wright"]
+      - id: colin_cowherd
+        name: "Colin Cowherd"
+        match_authors: ["Colin Cowherd"]
+
+  - id: sporting_news_nfl
+    name: "Sporting News NFL"
+    sport: "NFL"
+    type: rss
+    url: "https://www.sportingnews.com/rss/nfl"
+    enabled: true
+    default_pundit:
+      id: sn_nfl_staff
+      name: "Sporting News Staff"
+
+  - id: usatoday_nfl
+    name: "USA Today NFL"
+    sport: "NFL"
+    type: rss
+    url: "https://draftwire.usatoday.com/feed/"
+    enabled: true
+    default_pundit:
+      id: usatoday_staff
+      name: "USA Today Staff"
+
+  - id: cbs_nfl
+    name: "CBS Sports NFL"
+    sport: "NFL"
+    type: rss
+    url: "https://www.cbssports.com/rss/headlines/nfl/"
+    enabled: true
+    default_pundit:
+      id: cbs_nfl_staff
+      name: "CBS Sports Staff"
+    pundits:
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco"]
+      - id: josh_edwards
+        name: "Josh Edwards"
+        match_authors: ["Josh Edwards"]
+      - id: ryan_wilson
+        name: "Ryan Wilson"
+        match_authors: ["Ryan Wilson"]
+
+  - id: yahoo_nfl
+    name: "Yahoo Sports NFL"
+    sport: "NFL"
+    type: rss
+    url: "https://sports.yahoo.com/nfl/rss"
+    enabled: true
+    pundits:
+      - id: charles_mcdonald
+        name: "Charles McDonald"
+        match_authors: ["Charles McDonald"]
+      - id: nate_tice
+        name: "Nate Tice"
+        match_authors: ["Nate Tice"]
+
+  - id: bleacher_report_nfl
+    name: "Bleacher Report NFL"
+    sport: "NFL"
+    type: rss
+    url: "https://bleacherreport.com/nfl.rss"
+    enabled: true
+    default_pundit:
+      id: br_nfl_staff
+      name: "Bleacher Report Staff"
+
+  - id: si_mmqb
+    name: "Sports Illustrated MMQB"
+    sport: "NFL"
+    type: rss
+    url: "https://www.si.com/rss/si_nfl.rss"
+    enabled: true
+    pundits:
+      - id: albert_breer
+        name: "Albert Breer"
+        match_authors: ["Albert Breer"]
+
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
   - id: pat_mcafee_show
     name: "The Pat McAfee Show"
@@ -235,6 +324,17 @@ sources:
       - id: rich_eisen
         name: "Rich Eisen"
         match_authors: ["Rich Eisen"]
+
+  - id: chris_simms_unbuttoned
+    name: "Chris Simms Unbuttoned"
+    sport: "NFL"
+    type: youtube_rss
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCuF2PqOvMBKBVi9JvtC3GqA"
+    enabled: true
+    pundits:
+      - id: chris_simms
+        name: "Chris Simms"
+        match_authors: ["Chris Simms"]
 
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:

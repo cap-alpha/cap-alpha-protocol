@@ -97,7 +97,7 @@ class StrategicEngine:
 
         # We query the silver_pfr_draft_history table if it exists
         try:
-            # Check if table exists first using self.con (duckdb)
+            # Check if table exists first
             table_exists = self.con.execute(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'silver_pfr_draft_history'"
             ).fetchone()[0]

@@ -13,7 +13,6 @@ def format_currency(val_millions):
     return f"${val_millions:.1f}M"
 
 def run_league_audit():
-    DB_PATH = "data/duckdb/nfl_production.db"
     con = DBManager()
     
     print("running League-Wide Cut Audit...", file=sys.stderr)

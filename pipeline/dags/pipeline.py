@@ -174,39 +174,7 @@ with DAG(
     )
     
     # ========================================================================
-    # LAYER 3.5: LOAD TO DUCKDB (Processed → DuckDB for Marts)
-    # ========================================================================
-    
-    load_to_warehouse = BashOperator(
-        task_id='load_to_warehouse',
-        bash_command=f'cd {PROJECT_ROOT} && {VENV_PYTHON} src/load_to_duckdb.py "{{{{ ti.xcom_pull(task_ids=\'set_pipeline_year\') }}}}"',
-        dag=dag,
-    )
-    
-    # ========================================================================
-    # LAYER 4: DBT TRANSFORMS (Processed → Marts)
-    # ========================================================================
-    
-    dbt_seed = BashOperator(
-        task_id='dbt_seed',
-        bash_command=f'cd {PROJECT_ROOT} && ./.venv/bin/dbt seed --project-dir ./dbt --profiles-dir ./dbt 2>&1 | tail -20',
-        dag=dag,
-    )
-    
-    dbt_run_staging = BashOperator(
-        task_id='dbt_run_staging',
-        bash_command=f'cd {PROJECT_ROOT} && ./.venv/bin/dbt run --project-dir ./dbt --profiles-dir ./dbt --select tag:staging 2>&1 | tail -20',
-        dag=dag,
-    )
-    
-    dbt_run_marts = BashOperator(
-        task_id='dbt_run_marts',
-        bash_command=f'cd {PROJECT_ROOT} && ./.venv/bin/dbt run --project-dir ./dbt --profiles-dir ./dbt --select tag:mart 2>&1 | tail -20',
-        dag=dag,
-    )
-    
-    # ========================================================================
-    # LAYER 5: DATA QUALITY & VALIDATION
+    # LAYER 4: DATA QUALITY & VALIDATION
     # ========================================================================
     
     data_quality_checks = BashOperator(
@@ -282,16 +250,10 @@ with DAG(
     # Layer 3 (Normalization) - depends on all staging
     [stage_spotrac_team_caps, stage_pfr_rosters, stage_spotrac_rankings, stage_spotrac_contracts] >> normalize_data
     
-    # Layer 3.5 (DuckDB Loading) - depends on normalization
-    normalize_data >> load_to_warehouse
-    
-    # Layer 4 (dbt Transforms) - depends on DuckDB loading (can skip dbt_seed if using direct load)
-    load_to_warehouse >> dbt_seed >> dbt_run_staging >> dbt_run_marts
-    
-    # Layer 5 (Validation) - depends on dbt marts
-    dbt_run_marts >> [data_quality_checks, validate_dead_money]
-    
-    # Layer 6 (Hyperscale Intelligence) - depends on validation
+    # Layer 4 (Validation) - depends on normalization
+    normalize_data >> [data_quality_checks, validate_dead_money]
+
+    # Layer 5 (Hyperscale Intelligence) - depends on validation
     [data_quality_checks, validate_dead_money] >> run_feature_factory >> train_risk_model
     
     # Layer 7 (Notebooks)

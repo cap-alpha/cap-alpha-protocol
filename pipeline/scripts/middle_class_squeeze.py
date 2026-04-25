@@ -15,7 +15,6 @@ def format_currency(val_millions):
     return f"${val_millions:.1f}M"
 
 def run_squeeze_analysis():
-    DB_PATH = "data/duckdb/nfl_production.db"
     con = DBManager()
     
     print("running Middle Class Squeeze Analysis...", file=sys.stderr)

@@ -36,7 +36,7 @@ class WalkForwardValidator:
         logger.info(f"  📊 Available years in data: {years}")
         results = []
 
-        # TEMPORARY OVERRIDE for MotherDuck RPC Rate Limiting: Allow single-year testing
+        # TEMPORARY OVERRIDE for Allow single-year testing
         if not years:
             raise ValueError("No temporal data found in matrix.")
         start_year = min(start_year, max(years))

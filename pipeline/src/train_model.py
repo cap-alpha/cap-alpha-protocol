@@ -58,12 +58,12 @@ class RiskModeler:
 
             start_time = time.time()
             logger.info(
-                "Skipping persistence of staging_feature_matrix to avoid MotherDuck wide-table timeout limits."
+                "Skipping persistence of staging_feature_matrix "
             )
             # self.con.register('df_view', df)
             # self.con.execute("CREATE OR REPLACE TABLE staging_feature_matrix AS SELECT * FROM df_view")
             # elapsed = time.time() - start_time
-            # logger.info(f"Persisted staging_feature_matrix to DuckDB in {elapsed:.2f} seconds.")
+            # logger.info(f"Persisted staging_feature_matrix to BigQuery in {elapsed:.2f} seconds.")
 
         df = df[df["year"].between(2015, 2025)]
 

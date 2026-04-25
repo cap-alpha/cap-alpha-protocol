@@ -1,6 +1,6 @@
 # NFL Cap Alpha Protocol Data Contract
 # Version: 1.0.0
-# Source of Truth for Pipeline (DuckDB) and Web (TypeScript)
+# Source of Truth for Pipeline (BigQuery) and Web (TypeScript)
 
 tables:
   silver_pfr_game_logs:

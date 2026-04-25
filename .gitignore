@@ -21,6 +21,7 @@ pipeline/local_libs/
 # Claude worktree-local files
 .claude/agent-orientation.md
 dbt/logs/
+*.duckdb
 airflow/logs/
 airflow/*.db*
 airflow/*.cfg

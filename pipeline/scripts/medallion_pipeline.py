@@ -255,11 +255,11 @@ class SilverLayer:
         logger.info("SilverLayer: Ingesting other static datasets")
         fin_path = BRONZE_DIR / "other" / "finance" / "team_valuations_2024.csv"
         if fin_path.exists():
-            load_team_financials(self.db.con, fin_path)
-        
+            load_team_financials(self.db, fin_path)
+
         merch_path = BRONZE_DIR / "other" / "merch" / "nflpa_player_sales_2024.csv"
         if merch_path.exists():
-            load_player_merch(self.db.con, merch_path)
+            load_player_merch(self.db, merch_path)
 
         draft_file = Path("data/raw/pfr/draft_history.csv")
         if draft_file.exists():

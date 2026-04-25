@@ -140,7 +140,7 @@ def main():
         df_embeddings = pd.DataFrame(vector_results)
         df_narratives = pd.DataFrame(narrative_results)
 
-        logger.info("Persisting Batch to MotherDuck Silver Layer...")
+        logger.info("Persisting Batch to BigQuery Silver Layer...")
         db.execute("CREATE SCHEMA IF NOT EXISTS silver_layer")
 
         # Persist vectors for ML

@@ -106,51 +106,6 @@ def emit_openlineage_event(
         return False
 
 
-def emit_duckdb_table_lineage(
-    table_name: str,
-    db_path: str,
-    job_name: str,
-    run_id: str,
-    event_type: str = "COMPLETE",
-    row_count: Optional[int] = None,
-) -> bool:
-    """
-    Emit lineage for a DuckDB table write.
-
-    Args:
-        table_name: Fully qualified table name (e.g., 'marts.mart_team_summary')
-        db_path: Path to DuckDB file
-        job_name: Job/task name that created the table
-        run_id: Run identifier
-        event_type: Event type (default COMPLETE)
-        row_count: Optional row count for output facet
-
-    Returns:
-        True if emission succeeded
-    """
-    output = {
-        "namespace": f"duckdb://{Path(db_path).absolute()}",
-        "name": table_name,
-        "facets": {},
-    }
-
-    if row_count is not None:
-        from openlineage.client.facet import (
-            ColumnMetric,
-            DataQualityMetricsInputDatasetFacet,
-        )
-
-        output["facets"]["dataQualityMetrics"] = {
-            "rowCount": row_count,
-            "bytes": None,
-            "columnMetrics": [],
-        }
-
-    return emit_openlineage_event(
-        job_name=job_name, run_id=run_id, event_type=event_type, outputs=[output]
-    )
-
-
 def emit_parquet_file_lineage(
     file_path: str,
     job_name: str,

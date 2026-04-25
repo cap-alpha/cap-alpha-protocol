@@ -44,7 +44,7 @@ def ingest_historical_injuries():
         db = DBManager()
         
         # Create a bronze table for raw injuries
-        logger.info("Persisting raw unstructured injury strings to MotherDuck: bronze_layer.nflverse_injuries")
+        logger.info("Persisting raw unstructured injury strings to BigQuery: bronze_layer.nflverse_injuries")
         db.execute("CREATE SCHEMA IF NOT EXISTS bronze_layer")
         db.execute(
             "CREATE OR REPLACE TABLE bronze_layer.nflverse_injuries AS SELECT * FROM df_injuries", 

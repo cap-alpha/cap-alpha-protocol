@@ -84,8 +84,8 @@ class NewsRSSHoover:
             return False
 
 def get_active_rosters():
-    """Queries MotherDuck for all players grouped by active franchise."""
-    logger.info("Discovering Active Rosters and Franchises from MotherDuck...")
+    """Queries BigQuery for all players grouped by active franchise."""
+    logger.info("Discovering Active Rosters and Franchises from BigQuery...")
     db = DBManager()
     
     if not db.table_exists("fact_player_efficiency"):

@@ -31,7 +31,7 @@ class MediaLagAnalyzer:
 
     def fetch_model_triggers(self, year=2024, limit=5):
         """Finds the precise NFL week the model first flagged a top-tier asset."""
-        logger.info(f"Querying MotherDuck for early bust predictions in {year}...")
+        logger.info(f"Querying BigQuery for early bust predictions in {year}...")
         
         query = f"""
             SELECT player_name, 0 as trigger_week, AVG(predicted_risk_score) as risk
@@ -132,7 +132,7 @@ if __name__ == "__main__":
         final_df = pd.concat(dfs, ignore_index=True)
         try:
             analyzer.db.execute("CREATE OR REPLACE TABLE media_lag_metrics AS SELECT * FROM final_df", params={"final_df": final_df})
-            logger.info(f"Persisted {len(final_df)} media lag records to MotherDuck.")
+            logger.info(f"Persisted {len(final_df)} media lag records to BigQuery.")
         except Exception as e:
             logger.error(f"Failed to persist: {e}")
     logger.info("Media Lag Analyzer execution complete.")

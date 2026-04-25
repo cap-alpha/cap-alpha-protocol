@@ -75,7 +75,7 @@ def run_ingestion():
             {"df_silver": df_silver},
         )
 
-    logger.info("Rumor Mill pipeline completed and features written to DuckDB.")
+    logger.info("Rumor Mill pipeline completed and features written to BigQuery.")
 
 
 if __name__ == "__main__":

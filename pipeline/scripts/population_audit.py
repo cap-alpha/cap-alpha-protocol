@@ -9,8 +9,6 @@ import pandas as pd
 import sys
 import numpy as np
 
-DB_PATH = "data/duckdb/nfl_production.db"
-
 def run_audit():
     import sys
     print("Connecting to DB...", flush=True)

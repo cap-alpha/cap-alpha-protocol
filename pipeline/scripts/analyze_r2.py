@@ -1,19 +1,9 @@
 from src.db_manager import DBManager
 import pandas as pd
 from sklearn.metrics import r2_score
-import sys
-import os
-
-# Set DB Path (assuming local execution from project root)
-DB_PATH = os.getenv('DB_PATH', 'data/duckdb/nfl_production.db')
 
 def analyze_r2_by_segment():
-    print(f"Connecting to database at {DB_PATH}...")
-    
-    if not os.path.exists(DB_PATH):
-        print(f"Error: Database not found at {DB_PATH}")
-        sys.exit(1)
-        
+    print("Connecting to BigQuery...")
     try:
         con = DBManager()
         

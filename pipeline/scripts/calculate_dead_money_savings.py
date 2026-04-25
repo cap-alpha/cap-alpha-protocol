@@ -8,7 +8,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message
 logger = logging.getLogger(__name__)
 
 def calculate_historical_savings():
-    logger.info("Connecting to MotherDuck/DuckDB...")
+    logger.info("Connecting to BigQuery...")
     db_path = get_db_path()
     con = DBManager()
     

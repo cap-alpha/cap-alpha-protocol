@@ -18,14 +18,10 @@ echo "Deploying to Cloud Run Jobs..."
 # Attempt to extract secrets from web/.env.local
 ENV_VARS_FLAG="PYTHONUNBUFFERED=1"
 if [ -f "web/.env.local" ]; then
-    echo "Found web/.env.local! Extracting MOTHERDUCK_TOKEN and GEMINI_API_KEY..."
-    MOTHERDUCK_TOKEN=$(grep '^MOTHERDUCK_TOKEN=' web/.env.local | cut -d "=" -f 2- | tr -d '"' | tr -d "'")
+    echo "Found web/.env.local! Extracting GEMINI_API_KEY..."
     GEMINI_API_KEY=$(grep '^GEMINI_API_KEY=' web/.env.local | cut -d "=" -f 2- | tr -d '"' | tr -d "'")
     POSTGRES_URL=$(grep '^POSTGRES_URL=' web/.env.local | cut -d "=" -f 2- | tr -d '"' | tr -d "'")
-    
-    if [ ! -z "$MOTHERDUCK_TOKEN" ]; then
-        ENV_VARS_FLAG="${ENV_VARS_FLAG},MOTHERDUCK_TOKEN=${MOTHERDUCK_TOKEN}"
-    fi
+
     if [ ! -z "$GEMINI_API_KEY" ]; then
         ENV_VARS_FLAG="${ENV_VARS_FLAG},GEMINI_API_KEY=${GEMINI_API_KEY}"
     fi

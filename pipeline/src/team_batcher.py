@@ -146,7 +146,9 @@ NFL_TEAMS: dict[str, str] = {
 # Pre-compile a single regex for fast scanning.
 # Sort by length desc so longer aliases match before shorter ones.
 _TEAM_PATTERN = re.compile(
-    r"\b(" + "|".join(re.escape(k) for k in sorted(NFL_TEAMS, key=len, reverse=True)) + r")\b",
+    r"\b("
+    + "|".join(re.escape(k) for k in sorted(NFL_TEAMS, key=len, reverse=True))
+    + r")\b",
     re.IGNORECASE,
 )
 
@@ -187,7 +189,7 @@ _ABBR_TO_NAME: dict[str, str] = {
 }
 
 MAX_ARTICLE_CHARS = 1500  # truncate per article to stay within context window
-MAX_BATCH_SIZE = 5        # max articles per team batch
+MAX_BATCH_SIZE = 5  # max articles per team batch
 
 
 # ---------------------------------------------------------------------------

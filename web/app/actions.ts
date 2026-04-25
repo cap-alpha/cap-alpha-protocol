@@ -177,6 +177,31 @@ export async function getTeamRoster(teamName: string) {
   return fullRoster.filter(p => p.team === teamName);
 }
 
+export type PositionalComp = {
+  player_name: string;
+  team: string;
+  cap_hit_millions: number;
+  fair_market_value: number;
+  risk_score: number;
+  cap_efficiency: number; // fair_market_value / cap_hit_millions; >1 = underpaid, <1 = overpaid
+};
+
+export async function getPositionalComparables(playerName: string, position: string): Promise<PositionalComp[]> {
+  const data = await getHydratedData();
+  return data
+    .filter(p => p.position === position && p.player_name !== playerName && p.cap_hit_millions > 0)
+    .map(p => ({
+      player_name: p.player_name,
+      team: p.team,
+      cap_hit_millions: p.cap_hit_millions,
+      fair_market_value: p.fair_market_value,
+      risk_score: p.risk_score,
+      cap_efficiency: p.cap_hit_millions > 0 ? p.fair_market_value / p.cap_hit_millions : 0,
+    }))
+    .sort((a, b) => b.cap_efficiency - a.cap_efficiency)
+    .slice(0, 10);
+}
+
 
 export async function getTeamCapSummary() {
   const data = await getHydratedData();

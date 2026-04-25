@@ -1,4 +1,4 @@
-import { getRosterData, getPlayerTimeline, getIntelligenceFeed, getPlayerAuditLedger, calculateExactDeadMoney, TimelineEvent, IntelligenceEvent, AuditEntry } from '@/app/actions';
+import { getRosterData, getPlayerTimeline, getIntelligenceFeed, getPlayerAuditLedger, calculateExactDeadMoney, getPositionalComparables, TimelineEvent, IntelligenceEvent, AuditEntry } from '@/app/actions';
 import PlayerDetailView from '@/components/player-detail-view';
 import { notFound } from 'next/navigation';
 import { slugify } from '@/lib/utils';
@@ -19,11 +19,12 @@ export default async function PlayerPage({ params }: { params: { id: string } })
         notFound();
     }
 
-    const [timeline, feed, ledger, deadMoneyMath] = await Promise.all([
+    const [timeline, feed, ledger, deadMoneyMath, comparables] = await Promise.all([
         getPlayerTimeline(player.player_name),
         getIntelligenceFeed(player.player_name),
         getPlayerAuditLedger(player.player_name),
-        calculateExactDeadMoney(player.player_name, 2026) // Defaulting to 2026 per the timeline
+        calculateExactDeadMoney(player.player_name, 2026), // Defaulting to 2026 per the timeline
+        getPositionalComparables(player.player_name, player.position),
     ]);
 
     // Check if player image exists to prevent 404 console errors
@@ -32,7 +33,7 @@ export default async function PlayerPage({ params }: { params: { id: string } })
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <PlayerDetailView player={player} timeline={timeline} feed={feed} ledger={ledger} deadMoneyMath={deadMoneyMath || undefined} hasHeadshot={hasHeadshot} />
+            <PlayerDetailView player={player} timeline={timeline} feed={feed} ledger={ledger} deadMoneyMath={deadMoneyMath || undefined} hasHeadshot={hasHeadshot} comparables={comparables} />
         </main>
     );
 }

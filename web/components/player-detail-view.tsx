@@ -26,19 +26,20 @@ import { CutCalculator } from './cut-calculator';
 import { IntelligenceFeed } from './intelligence-feed';
 import { VisualTimeline } from './visual-timeline';
 import { VerifiableAudit } from './verifiable-audit';
-import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath } from "@/app/actions";
+import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath, PositionalComp } from "@/app/actions";
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
-    distributionData?: any[]; 
+    distributionData?: any[];
     timeline?: TimelineEvent[];
     feed?: IntelligenceEvent[];
     ledger?: AuditEntry[];
     deadMoneyMath?: DeadMoneyMath;
     hasHeadshot?: boolean;
+    comparables?: PositionalComp[];
 }
 
-export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false, comparables = [] }: PlayerDetailViewProps) {
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -363,9 +364,10 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                             {/* Tabbed Intelligence & Ledger */}
                             <Tabs defaultValue="intelligence" className="w-full">
-                                <TabsList className="grid w-full grid-cols-2 bg-zinc-900 border border-zinc-800">
+                                <TabsList className="grid w-full grid-cols-3 bg-zinc-900 border border-zinc-800">
                                     <TabsTrigger value="intelligence" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Health Feed</TabsTrigger>
                                     <TabsTrigger value="ledger" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Ledger</TabsTrigger>
+                                    <TabsTrigger value="fmv" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Value Intel</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="intelligence" className="mt-4">
@@ -397,6 +399,92 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                     </Card>
 
                                     <VerifiableAudit entries={ledger} />
+                                </TabsContent>
+
+                                <TabsContent value="fmv" className="mt-4 space-y-4">
+                                    {/* Contract Efficiency Score */}
+                                    <Card className="bg-zinc-900 border-zinc-800">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-sm font-mono uppercase tracking-widest text-zinc-500">Contract Efficiency</CardTitle>
+                                            <CardDescription>Fair Market Value vs. actual cap charge</CardDescription>
+                                        </CardHeader>
+                                        <CardContent className="space-y-4">
+                                            <div className="grid grid-cols-3 gap-4 text-center">
+                                                <div>
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Cap Hit</p>
+                                                    <p className="text-xl font-mono text-zinc-200">${player.cap_hit_millions.toFixed(1)}M</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">FMV</p>
+                                                    <p className={`text-xl font-mono ${player.fair_market_value >= player.cap_hit_millions ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        ${player.fair_market_value.toFixed(1)}M
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Delta</p>
+                                                    <p className={`text-xl font-mono ${player.fair_market_value >= player.cap_hit_millions ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                        {player.fair_market_value >= player.cap_hit_millions ? '+' : ''}
+                                                        ${(player.fair_market_value - player.cap_hit_millions).toFixed(1)}M
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between text-xs text-zinc-500">
+                                                    <span>Overpaid</span>
+                                                    <span>Efficiency Grade</span>
+                                                    <span>Underpaid</span>
+                                                </div>
+                                                <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full transition-all ${player.fair_market_value >= player.cap_hit_millions ? 'bg-emerald-500' : 'bg-rose-500'}`}
+                                                        style={{ width: `${Math.min(100, Math.max(5, (player.fair_market_value / Math.max(player.cap_hit_millions, 0.1)) * 50))}%` }}
+                                                    />
+                                                </div>
+                                                <p className="text-xs text-center text-zinc-400">
+                                                    {player.fair_market_value >= player.cap_hit_millions
+                                                        ? `Underpaid by $${(player.fair_market_value - player.cap_hit_millions).toFixed(1)}M — strong cap value`
+                                                        : `Overpaid by $${(player.cap_hit_millions - player.fair_market_value).toFixed(1)}M relative to model FMV`}
+                                                </p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+
+                                    {/* Positional Comparables */}
+                                    <Card className="bg-zinc-900 border-zinc-800">
+                                        <CardHeader className="pb-3">
+                                            <CardTitle className="text-sm font-mono uppercase tracking-widest text-zinc-500">Positional Comparables ({player.position})</CardTitle>
+                                            <CardDescription>Top 10 same-position players ranked by cap efficiency</CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            {comparables.length === 0 ? (
+                                                <p className="text-sm text-zinc-500 text-center py-4">No comparable data available.</p>
+                                            ) : (
+                                                <div className="space-y-1">
+                                                    <div className="grid grid-cols-4 gap-2 text-[10px] text-zinc-600 font-semibold uppercase tracking-wider px-2 pb-2 border-b border-zinc-800">
+                                                        <span>Player</span>
+                                                        <span className="text-right">Cap Hit</span>
+                                                        <span className="text-right">FMV</span>
+                                                        <span className="text-right">Efficiency</span>
+                                                    </div>
+                                                    {comparables.map((comp) => (
+                                                        <Link key={comp.player_name} href={`/player/${slugify(comp.player_name)}`} className="grid grid-cols-4 gap-2 text-sm p-2 rounded hover:bg-white/5 transition-colors">
+                                                            <div className="min-w-0">
+                                                                <p className="text-zinc-200 truncate">{comp.player_name}</p>
+                                                                <p className="text-[10px] text-zinc-500">{comp.team}</p>
+                                                            </div>
+                                                            <span className="text-zinc-400 text-right self-center font-mono">${comp.cap_hit_millions.toFixed(1)}M</span>
+                                                            <span className={`text-right self-center font-mono ${comp.fair_market_value >= comp.cap_hit_millions ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                ${comp.fair_market_value.toFixed(1)}M
+                                                            </span>
+                                                            <span className={`text-right self-center font-mono font-bold ${comp.cap_efficiency >= 1 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                                                {(comp.cap_efficiency * 100).toFixed(0)}
+                                                            </span>
+                                                        </Link>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </CardContent>
+                                    </Card>
                                 </TabsContent>
                             </Tabs>
                         </div>

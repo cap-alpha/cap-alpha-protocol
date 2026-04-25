@@ -35,10 +35,12 @@ Return a JSON array of objects. Each object must have:
 - "extracted_claim": string — concise, testable statement (REQUIRED)
 - "claim_category": string — one of: player_performance, game_outcome, trade, draft_pick, injury, contract (REQUIRED)
 - "stance": string — directional sentiment: "bullish" (positive outcome predicted), "bearish" (negative outcome predicted), or "neutral" (no clear directional bias) (REQUIRED)
-- "season_year": integer or null — season year the prediction applies to
+- "season_year": integer or null — season year the prediction applies to (CRITICAL for draft_pick: must be the draft year, e.g. 2025, 2026)
 - "target_player": string or null — player name if about a specific player
 - "target_team": string or null — team abbreviation (e.g. "KC", "CHI")
 - "confidence_note": string — how explicit/confident the prediction is (REQUIRED)
+
+For draft_pick category: season_year MUST be populated with the draft year (infer if not explicitly stated).
 
 If no testable predictions exist, return an empty array: []
 """

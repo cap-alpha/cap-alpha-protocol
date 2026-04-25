@@ -30,6 +30,7 @@ praw
 google-cloud-bigquery
 google-genai
 duckduckgo-search
+google-api-python-client
 pydantic
 youtube-transcript-api>=0.6.3,<2.0.0
 readability-lxml

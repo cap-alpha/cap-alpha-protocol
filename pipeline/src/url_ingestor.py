@@ -14,6 +14,7 @@ import argparse
 import hashlib
 import json
 import logging
+import os
 import re
 import time
 from datetime import datetime, timezone
@@ -25,6 +26,7 @@ import requests
 import yaml
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
+from googleapiclient.discovery import build
 from readability import Document
 from src.db_manager import DBManager
 from src.media_ingestor import MediaItem, compute_content_hash
@@ -124,13 +126,64 @@ def fetch_article_text(url: str) -> dict:
     }
 
 
+def search_with_google(
+    query: str,
+    max_results: int = 10,
+) -> list[dict]:
+    """
+    Search using Google Custom Search API.
+
+    Requires environment variables:
+    - GOOGLE_SEARCH_API_KEY: Google API key
+    - GOOGLE_SEARCH_ENGINE_ID: Custom Search Engine ID
+
+    Returns list of search results: [{"href": "...", "title": "...", "snippet": "..."}, ...]
+    """
+    api_key = os.getenv("GOOGLE_SEARCH_API_KEY")
+    engine_id = os.getenv("GOOGLE_SEARCH_ENGINE_ID")
+
+    if not api_key or not engine_id:
+        logger.warning(
+            "Google Custom Search API credentials not found. "
+            "Set GOOGLE_SEARCH_API_KEY and GOOGLE_SEARCH_ENGINE_ID."
+        )
+        return []
+
+    try:
+        service = build("customsearch", "v1", developerKey=api_key)
+        request = service.cse().list(q=query, cx=engine_id, num=min(max_results, 10))
+        result = request.execute()
+
+        items = result.get("items", [])
+        search_results = [
+            {
+                "href": item.get("link", ""),
+                "title": item.get("title", ""),
+                "snippet": item.get("snippet", ""),
+            }
+            for item in items
+        ]
+        return search_results
+    except Exception as e:
+        logger.error(f"Google Custom Search failed for '{query}': {e}")
+        return []
+
+
 def discover_articles(
     config_path: str = "config/draft_seed_urls.yaml",
     max_results_per_query: int = 30,
+    search_provider: str = "google",
 ) -> list[dict]:
     """
     Search the web for NFL draft prediction articles and return URL configs.
-    Uses DuckDuckGo search (no API key needed).
+
+    Args:
+        config_path: Path to search configuration YAML
+        max_results_per_query: Max results per query (capped at 10 for Google)
+        search_provider: "google" (requires API key) or "ddg" (DuckDuckGo, no API needed)
+
+    Returns:
+        List of URL configs with source mappings
     """
     with open(config_path) as f:
         config = yaml.safe_load(f)
@@ -143,13 +196,17 @@ def discover_articles(
     url_configs = []
 
     for query in queries:
-        logger.info(f"Searching: {query}")
-        try:
-            with DDGS() as ddgs:
-                results = list(ddgs.text(query, max_results=max_results_per_query))
-        except Exception as e:
-            logger.warning(f"Search failed for '{query}': {e}")
-            continue
+        logger.info(f"Searching: {query} (provider: {search_provider})")
+
+        if search_provider == "google":
+            results = search_with_google(query, max_results=max_results_per_query)
+        else:
+            try:
+                with DDGS() as ddgs:
+                    results = list(ddgs.text(query, max_results=max_results_per_query))
+            except Exception as e:
+                logger.warning(f"DuckDuckGo search failed for '{query}': {e}")
+                continue
 
         for r in results:
             url = r.get("href", r.get("link", ""))
@@ -346,6 +403,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max-results", type=int, default=30, help="Max results per search query"
     )
+    parser.add_argument(
+        "--search-provider",
+        default="google",
+        choices=["google", "ddg"],
+        help="Search provider: 'google' (requires API key) or 'ddg' (DuckDuckGo)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -356,6 +419,7 @@ if __name__ == "__main__":
         url_configs = discover_articles(
             config_path=args.config,
             max_results_per_query=args.max_results,
+            search_provider=args.search_provider,
         )
     elif args.urls:
         url_configs = [

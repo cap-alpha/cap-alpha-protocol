@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
 from src.schema_validator import (
     ColumnContract,
     ConstraintViolation,

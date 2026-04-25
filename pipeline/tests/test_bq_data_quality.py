@@ -8,7 +8,6 @@ BQ integration tests are skipped when GCP_PROJECT_ID is unset.
 import os
 
 import pytest
-
 from src.bq_data_quality import CheckResult, format_report, to_json
 
 # ---------------------------------------------------------------------------

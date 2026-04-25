@@ -59,35 +59,44 @@ VALID_CATEGORIES = {
 EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the content below.
 
 PUBLISHED: {published_date}
+AUTHOR: {author}
 
 Rules — what TO extract:
 - Concrete, falsifiable claims about FUTURE outcomes with a clear stance
-- Must have: a SUBJECT (player/team) + a TESTABLE OUTCOME + a TIMEFRAME (season, game, date)
-- Examples of good extractions:
-  "Patrick Mahomes will win MVP in 2025" → stance: bullish
-  "The Browns will miss the playoffs in 2025" → stance: bearish
-  "Travis Kelce will retire after the 2025 season" → stance: neutral
+- Must have: a SUBJECT (player, team, or league-level) + a TESTABLE OUTCOME + a TIMEFRAME
+- Predictions can be about players, teams, or the league — they don't have to name a specific player
+- MOCK DRAFT PICKS ARE PREDICTIONS: when an author projects "Pick #3: Arvell Reese to Arizona Cardinals", that is a draft_pick prediction
+- For draft_pick predictions: extract the player's FULL CORRECT NAME, the PICK NUMBER, and the TEAM
+
+Examples of good extractions:
+  "Fernando Mendoza will be drafted #1 overall by the Las Vegas Raiders" (draft_pick, target_player: Fernando Mendoza) → stance: neutral
+  "Arvell Reese will be drafted #3 overall by the Arizona Cardinals" (draft_pick, target_player: Arvell Reese) → stance: neutral
+  "The Raiders will win the AFC West in 2026" (game_outcome, target_player: null) → stance: bullish
+  "There will be at least 4 trades in the first round of the 2026 draft" (draft_pick, target_player: null) → stance: neutral
+  "Patrick Mahomes will throw 40+ touchdowns in 2026" (player_performance, target_player: Patrick Mahomes) → stance: bullish
+  "The Bears will make the playoffs in 2026" (game_outcome, target_player: null) → stance: bullish
+  "No quarterback other than Mendoza will go in Round 1" (draft_pick, target_player: null) → stance: neutral
 
 Stance rules:
-- bullish: prediction is positive/optimistic about the subject (win award, make playoffs, exceed stats target)
-- bearish: prediction is negative/pessimistic about the subject (miss playoffs, underperform, get cut, lose)
-- neutral: no clear directional bias (retirement, trade, purely factual future event)
+- bullish: prediction is positive/optimistic about the subject
+- bearish: prediction is negative/pessimistic about the subject
+- neutral: no clear directional bias (draft picks, trades, purely factual future events)
 
 Rules — what NOT to extract:
 - HEDGED statements: "wouldn't surprise me if", "I could see", "most likely", "might", "probably"
-- VAGUE qualitative claims: "will be good", "will make plays", "will be a factor", "well worth it"
+- VAGUE claims that can't be verified: "will be good", "will make plays", "will be a factor"
 - TAUTOLOGIES: "the deal will eventually be released", "they will bring in players"
-- SCHEME/STYLE descriptions: "will run a 4-3 defense", "will use more zone coverage"
-- HISTORICAL FACTS or ALREADY-RESOLVED events: if the outcome is already known at the article's publish date, do NOT extract it
-- CONSENSUS RESTATING: "the Chiefs will be competitive" (everyone knows this)
+- HISTORICAL FACTS or ALREADY-RESOLVED events
 - OPINIONS without testable outcomes: "he's the best QB in the league"
 - ADMINISTRATIVE details: payment structures, meeting schedules, procedural items
 - Claims about events from PAST SEASONS that are already concluded
 
+For the "target_player" field: use the player's FULL NAME exactly as written in the article. If the prediction is about a team or the league with no specific player, set target_player to null.
+For the "claim_category" field: use "draft_pick" for draft predictions, "game_outcome" for win/loss/playoff predictions, "player_performance" for stat/award predictions, "trade" for trade predictions, "contract" for contract/signing predictions, "injury" for injury predictions.
+
 If the article contains no concrete, falsifiable predictions with clear stances, return an empty list.
 
 SOURCE: {source_name}
-AUTHOR: {author}
 TITLE: {title}
 TEXT:
 {text}"""

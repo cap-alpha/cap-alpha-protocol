@@ -131,8 +131,10 @@ sources:
     sport: "NFL"
     type: rss
     scrape_full_text: true
+    # Disabled: SI's legacy RSS endpoint dead since Arena Group / Authentic Brands
+    # licensing collapse Jan 2024. No replacement feed published. Re-enable if restored.
     url: "https://www.si.com/rss/si_nfl.rss"
-    enabled: true
+    enabled: false
     pundits:
       - id: albert_breer
         name: "Albert Breer"

@@ -88,21 +88,21 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** The "Showcase" bringing the fully verified API to life. *Work here is suspended until M1 and M2 are stable.*
 
 ### Sprint 11: Production Hardening & E2E Integration
-- [ ] SP11-1: Establish a strict "No Mock" policy for the React Frontend UI. Ensure 100% data integrity with the M2 API layer. (GH-#25)
+- [-] SP11-1: Establish a strict "No Mock" policy for the React Frontend UI. Ensure 100% data integrity with the M2 API layer. (GH-#25) — Closed: user decision to defer in favor of higher-priority architectural tasks.
 
 ### Sprint 16: Player Visual Timeline Experience 
-- [ ] SP16-1: Build a single unified chronological view of all events affecting a player's market value in the UI. (GH-#49)
+- [-] SP16-1: Build a single unified chronological view of all events affecting a player's market value in the UI. (GH-#49) — Icebox: deprioritized pending data layer completion.
 
 ### Sprint 21: Front Page Strategic Redesign & Identity
-- [ ] SP21-1: Complete user flow and concept set for the front page, establishing the product identity ("Bloomberg Terminal" for Sports). (GH-#74)
+- [-] SP21-1: Complete user flow and concept set for the front page, establishing the product identity ("Bloomberg Terminal" for Sports). (GH-#74) — Closed: project refocused on Pundit Prediction Ledger.
 
 ### Sprint 22.5: The Pundit Ledger UI
-- [ ] SP22-5: Create a public accountability dashboard ranking personalities by their Brier Score vs. Market Consensus. (GH-#82)
+- [x] SP22-5: Create a public accountability dashboard ranking personalities by their Brier Score vs. Market Consensus. (GH-#82) — web/app/ledger/page.tsx: full sortable leaderboard (accuracy/Brier/count), expandable row detail (category breakdown, stats), no auth gate.
 
 ### Sprint 25: Growth, Monetization UX & Agentic ROI
 - [/] SP25-3: auto-generate the 'Personality Magnet' visual infographic component to attract analysts/creators. (GH-#93)
 
 ### Sprint 28: UI Hardening & Visual Test Coverage (Team Logos)
-- [ ] SP28-1: Investigate and fix the missing team logos on the Team Changer UI. (GH-#103)
-- [ ] SP28-2: Implement Playwright visual regression tests specifically for the Team Changer grid. (GH-#104)
-- [ ] SP28-3: Audit existing `e2e` Playwright test suite to identify gaps in coverage. (GH-#105)
+- [-] SP28-1: Investigate and fix the missing team logos on the Team Changer UI. (GH-#103) — Icebox: deprioritized.
+- [-] SP28-2: Implement Playwright visual regression tests specifically for the Team Changer grid. (GH-#104) — Closed.
+- [-] SP28-3: Audit existing `e2e` Playwright test suite to identify gaps in coverage. (GH-#105) — Closed.

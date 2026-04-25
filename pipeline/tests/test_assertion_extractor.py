@@ -15,7 +15,10 @@ from src.assertion_extractor import (
     VALID_CATEGORIES,
     ExtractionResult,
     _deduplicate_claims,
+    _get_pub_date,
+    _row_to_pundit_predictions,
     extract_assertions,
+    extract_batch_assertions,
     get_unprocessed_media,
     mark_as_processed,
     reset_processed_hashes,
@@ -869,3 +872,325 @@ class TestConstants:
             "contract",
         }
         assert VALID_CATEGORIES == expected
+
+
+# ---------------------------------------------------------------------------
+# Batch extraction (Issue #240)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractBatchAssertions:
+    def _make_items(self, n=2):
+        return [
+            {
+                "content_hash": f"hash_{i}",
+                "text": f"Article {i} text about predictions.",
+                "title": f"Title {i}",
+                "author": "Author",
+                "source_name": "espn_nfl",
+                "published_date": "2026-01-01",
+            }
+            for i in range(n)
+        ]
+
+    def test_returns_one_result_per_item(self, mock_provider):
+        mock_provider.extract_predictions.return_value = [
+            {
+                "article_index": 0,
+                "extracted_claim": "Mahomes wins MVP",
+                "claim_category": "player_performance",
+                "stance": "bullish",
+                "confidence_note": "strong",
+            }
+        ]
+        items = self._make_items(3)
+        results = extract_batch_assertions(items, mock_provider)
+        assert len(results) == 3
+
+    def test_routes_predictions_to_correct_article(self, mock_provider):
+        mock_provider.extract_predictions.return_value = [
+            {
+                "article_index": 1,
+                "extracted_claim": "Bears win NFC North",
+                "claim_category": "game_outcome",
+                "stance": "bullish",
+                "confidence_note": "explicit",
+            },
+            {
+                "article_index": 0,
+                "extracted_claim": "Mahomes wins MVP",
+                "claim_category": "player_performance",
+                "stance": "bullish",
+                "confidence_note": "strong",
+            },
+        ]
+        items = self._make_items(2)
+        results = extract_batch_assertions(items, mock_provider)
+        assert len(results[0].predictions) == 1
+        assert results[0].predictions[0]["extracted_claim"] == "Mahomes wins MVP"
+        assert len(results[1].predictions) == 1
+        assert results[1].predictions[0]["extracted_claim"] == "Bears win NFC North"
+
+    def test_empty_items_returns_empty(self, mock_provider):
+        results = extract_batch_assertions([], mock_provider)
+        assert results == []
+
+    def test_invalid_article_index_is_skipped(self, mock_provider):
+        mock_provider.extract_predictions.return_value = [
+            {
+                "article_index": 99,  # out of range
+                "extracted_claim": "Some claim",
+                "claim_category": "trade",
+                "stance": "neutral",
+                "confidence_note": "weak",
+            }
+        ]
+        items = self._make_items(2)
+        results = extract_batch_assertions(items, mock_provider)
+        assert all(len(r.predictions) == 0 for r in results)
+
+    def test_missing_article_index_is_skipped(self, mock_provider):
+        mock_provider.extract_predictions.return_value = [
+            {
+                # no article_index key
+                "extracted_claim": "Some claim",
+                "claim_category": "trade",
+                "stance": "neutral",
+                "confidence_note": "weak",
+            }
+        ]
+        items = self._make_items(1)
+        results = extract_batch_assertions(items, mock_provider)
+        assert len(results[0].predictions) == 0
+
+    def test_provider_error_sets_error_on_all_results(self, mock_provider):
+        mock_provider.extract_predictions.side_effect = Exception("GPU OOM")
+        items = self._make_items(3)
+        results = extract_batch_assertions(items, mock_provider)
+        assert len(results) == 3
+        assert all(r.error == "GPU OOM" for r in results)
+        assert all(len(r.predictions) == 0 for r in results)
+
+    def test_temporal_filter_rejects_stale_predictions(self, mock_provider):
+        mock_provider.extract_predictions.return_value = [
+            {
+                "article_index": 0,
+                "extracted_claim": "Old claim from past",
+                "claim_category": "game_outcome",
+                "season_year": 2010,  # definitely stale
+                "stance": "neutral",
+                "confidence_note": "explicit",
+            }
+        ]
+        items = self._make_items(1)
+        results = extract_batch_assertions(items, mock_provider)
+        assert len(results[0].predictions) == 0
+
+    def test_preserves_content_hashes(self, mock_provider):
+        mock_provider.extract_predictions.return_value = []
+        items = self._make_items(2)
+        results = extract_batch_assertions(items, mock_provider)
+        assert results[0].content_hash == "hash_0"
+        assert results[1].content_hash == "hash_1"
+
+
+# ---------------------------------------------------------------------------
+# Parallel run_extraction (Issue #240)
+# ---------------------------------------------------------------------------
+
+
+class TestParallelRunExtraction:
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_workers_param_accepted(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+        mock_ingest.return_value = []
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, workers=2
+        )
+        assert summary["workers"] == 2
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_batch_size_param_accepted(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+        mock_ingest.return_value = []
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, batch_size=2
+        )
+        assert summary["batch_size"] == 2
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_batch_assertions")
+    def test_batch_size_gt1_uses_batch_extraction(
+        self, mock_batch_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = make_raw_media_df(4)
+        mock_batch_extract.return_value = [
+            ExtractionResult(content_hash=f"hash_{i}", predictions=[]) for i in range(2)
+        ]
+        mock_ingest.return_value = []
+        run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, batch_size=2, workers=1
+        )
+        assert mock_batch_extract.called
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_batch_size_1_uses_single_extraction(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+        mock_ingest.return_value = []
+        run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, batch_size=1, workers=2
+        )
+        assert mock_extract.called
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_summary_includes_workers_and_batch_size(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, workers=5, batch_size=3
+        )
+        assert summary["workers"] == 5
+        assert summary["batch_size"] == 3
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_per_article_error_doesnt_stop_others(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """One article erroring should not prevent others from being processed."""
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        mock_extract.side_effect = [
+            ExtractionResult(content_hash="hash_0", predictions=[], error="LLM failed"),
+            ExtractionResult(
+                content_hash="hash_1",
+                predictions=[
+                    {
+                        "extracted_claim": "Mahomes wins MVP",
+                        "claim_category": "player_performance",
+                        "stance": "bullish",
+                        "confidence_note": "strong",
+                    }
+                ],
+            ),
+            ExtractionResult(content_hash="hash_2", predictions=[]),
+        ]
+        mock_ingest.return_value = ["pred_hash_1"]
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, workers=1
+        )
+        assert summary["errors"] == 1
+        assert summary["predictions_extracted"] == 1
+        assert summary["total_processed"] == 3
+
+
+# ---------------------------------------------------------------------------
+# Helper functions (Issue #240)
+# ---------------------------------------------------------------------------
+
+
+class TestHelpers:
+    def test_get_pub_date_formats_timestamp(self):
+        row = {"published_at": pd.Timestamp("2026-01-15", tz="UTC")}
+        assert _get_pub_date(row) == "2026-01-15"
+
+    def test_get_pub_date_returns_empty_on_nat(self):
+        row = {"published_at": pd.NaT}
+        assert _get_pub_date(row) == ""
+
+    def test_get_pub_date_returns_empty_on_missing(self):
+        row = {}
+        assert _get_pub_date(row) == ""
+
+    def test_row_to_pundit_predictions_basic(self):
+        row = {
+            "matched_pundit_id": "adam_schefter",
+            "matched_pundit_name": "Adam Schefter",
+            "source_url": "https://espn.com/1",
+            "raw_text": "Some article text",
+            "sport": "NFL",
+        }
+        result = ExtractionResult(
+            content_hash="abc",
+            predictions=[
+                {
+                    "extracted_claim": "Mahomes wins MVP",
+                    "claim_category": "player_performance",
+                    "stance": "bullish",
+                    "target_player": "Patrick Mahomes",
+                    "target_team": "KC",
+                    "season_year": 2026,
+                }
+            ],
+        )
+        predictions = _row_to_pundit_predictions(row, result, "NFL")
+        assert len(predictions) == 1
+        p = predictions[0]
+        assert p.pundit_id == "adam_schefter"
+        assert p.extracted_claim == "Mahomes wins MVP"
+        assert p.stance == "bullish"
+        assert p.target_player_name == "Patrick Mahomes"
+
+    def test_row_to_pundit_predictions_multi_player(self):
+        row = {
+            "matched_pundit_id": "test",
+            "matched_pundit_name": "Tester",
+            "source_url": "",
+            "raw_text": "",
+            "sport": "NFL",
+        }
+        result = ExtractionResult(
+            content_hash="abc",
+            predictions=[
+                {
+                    "extracted_claim": "Kelce and Hill both make Pro Bowl",
+                    "claim_category": "player_performance",
+                    "stance": "bullish",
+                    "target_player": "Travis Kelce, Tyreek Hill",
+                    "season_year": 2026,
+                }
+            ],
+        )
+        predictions = _row_to_pundit_predictions(row, result, "NFL")
+        assert predictions[0].target_player_name == "MULTI"
+
+    def test_row_to_pundit_predictions_invalid_stance_normalized(self):
+        row = {
+            "matched_pundit_id": "test",
+            "matched_pundit_name": "Tester",
+            "source_url": "",
+            "raw_text": "",
+            "sport": "NFL",
+        }
+        result = ExtractionResult(
+            content_hash="abc",
+            predictions=[
+                {
+                    "extracted_claim": "Eagles win",
+                    "claim_category": "game_outcome",
+                    "stance": "positive",  # invalid
+                    "season_year": 2026,
+                }
+            ],
+        )
+        predictions = _row_to_pundit_predictions(row, result, "NFL")
+        assert predictions[0].stance == "neutral"

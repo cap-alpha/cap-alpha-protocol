@@ -21,13 +21,14 @@ import argparse
 import json
 import logging
 import os
-import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from typing import Optional
 
 import pandas as pd
+from tqdm import tqdm
 from google.api_core.exceptions import NotFound
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
@@ -92,6 +93,36 @@ TITLE: {title}
 TEXT:
 {text}"""
 
+BATCH_EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the MULTIPLE articles below.
+
+Apply the same rules as single-article extraction. Each prediction MUST include an "article_index" field (0-based integer) identifying which article it came from.
+
+Rules — what TO extract:
+- Concrete, falsifiable claims about FUTURE outcomes with a clear stance
+- Must have: a SUBJECT (player, team, or league-level) + a TESTABLE OUTCOME + a TIMEFRAME
+- MOCK DRAFT PICKS ARE PREDICTIONS: "Pick #3: Arvell Reese to Arizona Cardinals" → draft_pick
+
+Rules — what NOT to extract:
+- HEDGED statements: "wouldn't surprise me if", "I could see", "might", "probably"
+- VAGUE claims: "will be good", "will make plays"
+- HISTORICAL FACTS or ALREADY-RESOLVED events
+- OPINIONS without testable outcomes
+- Claims from PAST SEASONS that are already concluded
+
+{articles}
+
+Return a single JSON array. Each object must have:
+- "article_index": integer (0-based, which article this came from) — REQUIRED
+- "extracted_claim": concise, testable statement — REQUIRED
+- "claim_category": one of: player_performance, game_outcome, trade, draft_pick, injury, contract — REQUIRED
+- "stance": "bullish" / "bearish" / "neutral" — REQUIRED
+- "season_year": integer or null
+- "target_player": full player name or null
+- "target_team": team abbreviation or null
+- "confidence_note": how explicit/confident — REQUIRED
+
+If no articles contain predictions, return an empty array: []"""
+
 
 @dataclass
 class ExtractionResult:
@@ -118,39 +149,6 @@ def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> lis
             existing_claim = existing.get("extracted_claim", "").lower()
             ratio = SequenceMatcher(None, claim, existing_claim).ratio()
             if ratio >= threshold:
-                if len(claim) > len(existing_claim):
-                    kept[i] = pred
-                is_dup = True
-                break
-        if not is_dup:
-            kept.append(pred)
-
-    removed = len(predictions) - len(kept)
-    if removed > 0:
-        logger.info(f"Dedup: removed {removed} near-duplicate claims")
-    return kept
-
-
-def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
-    """
-    Remove near-duplicate claims from a single article's extraction.
-    Uses SequenceMatcher to detect semantic overlap. Keeps the longest
-    (most specific) claim from each cluster.
-    """
-    if len(predictions) <= 1:
-        return predictions
-
-    from difflib import SequenceMatcher
-
-    kept = []
-    for pred in predictions:
-        claim = pred.get("extracted_claim", "").lower()
-        is_dup = False
-        for i, existing in enumerate(kept):
-            existing_claim = existing.get("extracted_claim", "").lower()
-            ratio = SequenceMatcher(None, claim, existing_claim).ratio()
-            if ratio >= threshold:
-                # Keep the longer (more specific) one
                 if len(claim) > len(existing_claim):
                     kept[i] = pred
                 is_dup = True
@@ -226,6 +224,85 @@ def extract_assertions(
             predictions=[],
             error=str(e),
         )
+
+
+def extract_batch_assertions(
+    items: list[dict],
+    provider: LLMProvider,
+    sport: str = "NFL",
+) -> list[ExtractionResult]:
+    """
+    Send multiple articles in a single LLM call for throughput efficiency.
+
+    Each item dict must have: content_hash, text, title, author, source_name,
+    published_date.
+
+    Returns one ExtractionResult per input item (same order). On LLM error,
+    returns empty ExtractionResults so callers always get len(items) results.
+    """
+    if not items:
+        return []
+
+    # Build the multi-article section of the prompt
+    article_sections = []
+    for idx, item in enumerate(items):
+        text = str(item.get("text", ""))[:3000]
+        section = (
+            f"--- ARTICLE {idx} ---\n"
+            f"PUBLISHED: {item.get('published_date', 'Unknown')}\n"
+            f"AUTHOR: {item.get('author', 'Unknown')}\n"
+            f"SOURCE: {item.get('source_name', 'Unknown')}\n"
+            f"TITLE: {item.get('title', 'Untitled')}\n"
+            f"TEXT:\n{text}"
+        )
+        article_sections.append(section)
+
+    prompt = BATCH_EXTRACTION_PROMPT.format(
+        sport=sport,
+        articles="\n\n".join(article_sections),
+    )
+
+    # Initialize empty results for each item
+    results: list[ExtractionResult] = [
+        ExtractionResult(content_hash=item["content_hash"], predictions=[])
+        for item in items
+    ]
+
+    try:
+        raw_predictions = provider.extract_predictions(prompt)
+    except Exception as e:
+        err = str(e)
+        logger.warning(f"Batch extraction error for {len(items)} articles: {err}")
+        for r in results:
+            r.error = err
+        return results
+
+    # Bucket predictions by article_index
+    current_year = datetime.now().year
+    per_article: dict[int, list[dict]] = {i: [] for i in range(len(items))}
+    for pred in raw_predictions:
+        if not pred.get("extracted_claim", "").strip():
+            continue
+        idx = pred.get("article_index")
+        if not isinstance(idx, int) or idx < 0 or idx >= len(items):
+            logger.warning(
+                f"Batch pred has invalid article_index={idx!r}, skipping: "
+                f"{pred.get('extracted_claim', '')[:60]}"
+            )
+            continue
+        sy = pred.get("season_year")
+        if sy is not None and isinstance(sy, (int, float)) and int(sy) < current_year:
+            logger.info(
+                f"Temporal filter (batch): rejected stale (season_year={sy}): "
+                f"{pred.get('extracted_claim', '')[:60]}"
+            )
+            continue
+        per_article[idx].append(pred)
+
+    for idx, preds in per_article.items():
+        results[idx].predictions = _deduplicate_claims(preds)
+
+    return results
 
 
 def get_unprocessed_media(
@@ -357,6 +434,52 @@ def should_filter_article(
         return False
 
 
+def _row_to_pundit_predictions(
+    row: dict, result: ExtractionResult, sport: str
+) -> list[PunditPrediction]:
+    """Convert an ExtractionResult into PunditPrediction objects for ledger ingestion."""
+    pundit_id = row.get("matched_pundit_id") or "unknown"
+    pundit_name = row.get("matched_pundit_name") or str(row.get("author", "Unknown"))
+    source_url = str(row.get("source_url", ""))
+    predictions = []
+    for pred in result.predictions:
+        raw_player = pred.get("target_player")
+        if raw_player and "," in raw_player and len(raw_player.split(",")) > 1:
+            player_name = "MULTI"
+        else:
+            player_name = raw_player or None
+        raw_stance = pred.get("stance", "neutral")
+        stance = (
+            raw_stance if raw_stance in ("bullish", "bearish", "neutral") else "neutral"
+        )
+        predictions.append(
+            PunditPrediction(
+                pundit_id=str(pundit_id),
+                pundit_name=str(pundit_name),
+                source_url=source_url,
+                raw_assertion_text=str(row.get("raw_text", ""))[:2000],
+                extracted_claim=pred["extracted_claim"],
+                claim_category=pred["claim_category"],
+                season_year=pred.get("season_year"),
+                target_player_id=None,
+                target_player_name=player_name,
+                target_team=pred.get("target_team"),
+                stance=stance,
+                sport=str(row.get("sport", sport)),
+            )
+        )
+    return predictions
+
+
+def _get_pub_date(row) -> str:
+    if pd.notna(row.get("published_at")):
+        try:
+            return pd.Timestamp(row["published_at"]).strftime("%Y-%m-%d")
+        except Exception:
+            pass
+    return ""
+
+
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
@@ -366,6 +489,8 @@ def run_extraction(
     provider: Optional[LLMProvider] = None,
     provider_name: Optional[str] = None,
     disable_filter: bool = False,
+    workers: int = 3,
+    batch_size: int = 1,
     # Legacy parameter — ignored if provider is set
     gemini_client=None,
 ) -> dict:
@@ -373,10 +498,14 @@ def run_extraction(
     Main extraction entry point.
 
     1. Fetch unprocessed raw media from BQ
-    2. Send each to LLM for assertion extraction
-    3. Convert extracted predictions into PunditPredictions
-    4. Ingest into the cryptographic ledger
-    5. Mark as processed
+    2. Pre-filter articles (optional) then send to LLM for assertion extraction
+    3. Parallel execution via ThreadPoolExecutor (workers param)
+    4. Optional multi-article batching per LLM call (batch_size param)
+    5. Ingest into the cryptographic ledger and mark as processed
+
+    Args:
+        workers: Number of concurrent LLM calls (default 3; use 5 for Gemini).
+        batch_size: Articles per LLM call (default 1). Set 3–5 for batch throughput.
 
     Returns a summary dict for observability.
     """
@@ -398,6 +527,8 @@ def run_extraction(
         "skipped_no_predictions": 0,
         "filtered_out": 0,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
+        "workers": workers,
+        "batch_size": batch_size,
     }
 
     # Set up pre-filter provider if enabled
@@ -419,23 +550,28 @@ def run_extraction(
             logger.info("No unprocessed media found.")
             return summary
 
-        logger.info(f"Processing {len(media_df)} unprocessed media items...")
+        rows_list = [row for _, row in media_df.iterrows()]
+        logger.info(
+            f"Processing {len(rows_list)} items "
+            f"(workers={workers}, batch_size={batch_size})…"
+        )
+        summary["total_processed"] = len(rows_list)
 
-        all_predictions = []
-        processed_hashes = []
+        all_predictions: list[PunditPrediction] = []
+        processed_hashes: list[str] = []
 
-        for _, row in media_df.iterrows():
-            content_hash = row["content_hash"]
-            summary["total_processed"] += 1
-
-            if dry_run:
+        if dry_run:
+            for row in tqdm(rows_list, desc="Dry run", unit="article"):
                 logger.info(
-                    f"DRY RUN: would extract from {content_hash[:16]}… "
-                    f"({row.get('title', 'untitled')[:50]})"
+                    f"DRY RUN: would extract from {row['content_hash'][:16]}… "
+                    f"({str(row.get('title', 'untitled'))[:50]})"
                 )
-                continue
+            return summary
 
-            # Pre-filter: skip articles with no predictions
+        # Pre-filter pass (sequential — filter calls are fast classify calls)
+        to_extract: list = []  # list of row Series
+        for row in rows_list:
+            content_hash = row["content_hash"]
             if filter_provider is not None:
                 article_sport = str(row.get("sport", sport))
                 if should_filter_article(
@@ -445,92 +581,93 @@ def run_extraction(
                 ):
                     logger.info(
                         f"Pre-filter skipped {content_hash[:16]}… "
-                        f"({row.get('title', 'untitled')[:50]})"
+                        f"({str(row.get('title', 'untitled'))[:50]})"
                     )
                     summary["filtered_out"] += 1
                     processed_hashes.append(content_hash)
                     continue
+            to_extract.append(row)
 
-            # Format publish date for the prompt
-            pub_date = ""
-            if pd.notna(row.get("published_at")):
-                try:
-                    pub_date = pd.Timestamp(row["published_at"]).strftime("%Y-%m-%d")
-                except Exception:
-                    pub_date = ""
+        # Group rows into batches for the LLM calls
+        batch_size = max(1, batch_size)
+        batches = [
+            to_extract[i : i + batch_size]
+            for i in range(0, len(to_extract), batch_size)
+        ]
 
-            result = extract_assertions(
-                content_hash=content_hash,
-                text=str(row.get("raw_text", "")),
-                title=str(row.get("title", "")),
-                author=str(row.get("author", "")),
-                source_name=str(row.get("source_id", "")),
-                sport=str(row.get("sport", sport)),
-                published_date=pub_date,
-                provider=provider,
-            )
-
-            if result.error:
-                logger.warning(
-                    f"Extraction error for {content_hash[:16]}…: {result.error}"
+        def _process_batch(batch_rows) -> list[tuple]:
+            """
+            Extract predictions from one batch of rows.
+            Returns list of (row, ExtractionResult) tuples — one per row.
+            """
+            if len(batch_rows) == 1:
+                row = batch_rows[0]
+                result = extract_assertions(
+                    content_hash=row["content_hash"],
+                    text=str(row.get("raw_text", "")),
+                    title=str(row.get("title", "")),
+                    author=str(row.get("author", "")),
+                    source_name=str(row.get("source_id", "")),
+                    sport=str(row.get("sport", sport)),
+                    published_date=_get_pub_date(row),
+                    provider=provider,
                 )
-                summary["errors"] += 1
-                processed_hashes.append(content_hash)
-                continue
+                return [(row, result)]
+            else:
+                items = [
+                    {
+                        "content_hash": r["content_hash"],
+                        "text": str(r.get("raw_text", "")),
+                        "title": str(r.get("title", "")),
+                        "author": str(r.get("author", "")),
+                        "source_name": str(r.get("source_id", "")),
+                        "published_date": _get_pub_date(r),
+                    }
+                    for r in batch_rows
+                ]
+                results = extract_batch_assertions(items, provider, sport=sport)
+                return list(zip(batch_rows, results))
 
-            if not result.predictions:
-                summary["skipped_no_predictions"] += 1
-                processed_hashes.append(content_hash)
-                continue
+        effective_workers = min(workers, len(batches)) if batches else 1
+        with tqdm(total=len(to_extract), desc="Extracting", unit="article") as pbar:
+            with ThreadPoolExecutor(max_workers=effective_workers) as executor:
+                future_to_batch = {
+                    executor.submit(_process_batch, batch): batch for batch in batches
+                }
+                for future in as_completed(future_to_batch):
+                    try:
+                        row_results = future.result()
+                    except Exception as exc:
+                        # Entire batch failed — mark articles as processed to avoid infinite retry
+                        batch = future_to_batch[future]
+                        logger.error(f"Batch of {len(batch)} articles failed: {exc}")
+                        for row in batch:
+                            summary["errors"] += 1
+                            processed_hashes.append(row["content_hash"])
+                            pbar.update(1)
+                        continue
 
-            summary["predictions_extracted"] += len(result.predictions)
-
-            # Convert to PunditPredictions for ledger ingestion
-            pundit_id = row.get("matched_pundit_id") or "unknown"
-            pundit_name = row.get("matched_pundit_name") or str(
-                row.get("author", "Unknown")
-            )
-            source_url = str(row.get("source_url", ""))
-
-            for pred in result.predictions:
-                raw_player = pred.get("target_player")
-                player_name = None
-                if raw_player:
-                    if "," in raw_player and len(raw_player.split(",")) > 1:
-                        player_name = "MULTI"
-                    else:
-                        player_name = raw_player
-
-                raw_stance = pred.get("stance", "neutral")
-                stance = (
-                    raw_stance
-                    if raw_stance in ("bullish", "bearish", "neutral")
-                    else "neutral"
-                )
-                all_predictions.append(
-                    PunditPrediction(
-                        pundit_id=str(pundit_id),
-                        pundit_name=str(pundit_name),
-                        source_url=source_url,
-                        raw_assertion_text=str(row.get("raw_text", ""))[:2000],
-                        extracted_claim=pred["extracted_claim"],
-                        claim_category=pred["claim_category"],
-                        season_year=pred.get("season_year"),
-                        target_player_id=None,
-                        target_player_name=player_name,
-                        target_team=pred.get("target_team"),
-                        stance=stance,
-                        sport=str(row.get("sport", sport)),
-                    )
-                )
-
-            processed_hashes.append(content_hash)
-
-            # Rate limiting — configurable per provider
-            time.sleep(4)
+                    for row, result in row_results:
+                        content_hash = row["content_hash"]
+                        if result.error:
+                            logger.warning(
+                                f"Extraction error for {content_hash[:16]}…: {result.error}"
+                            )
+                            summary["errors"] += 1
+                            processed_hashes.append(content_hash)
+                        elif not result.predictions:
+                            summary["skipped_no_predictions"] += 1
+                            processed_hashes.append(content_hash)
+                        else:
+                            summary["predictions_extracted"] += len(result.predictions)
+                            all_predictions.extend(
+                                _row_to_pundit_predictions(row, result, sport)
+                            )
+                            processed_hashes.append(content_hash)
+                        pbar.update(1)
 
         # Batch ingest all predictions into the cryptographic ledger
-        if all_predictions and not dry_run:
+        if all_predictions:
             try:
                 hashes = ingest_batch(all_predictions, db=db)
                 summary["predictions_ingested"] = len(hashes)
@@ -542,7 +679,7 @@ def run_extraction(
                 summary["errors"] += 1
 
         # Mark processed
-        if processed_hashes and not dry_run:
+        if processed_hashes:
             try:
                 mark_as_processed(processed_hashes, db=db)
             except Exception as e:
@@ -598,6 +735,18 @@ if __name__ == "__main__":
         help="Override LLM provider (default: from llm_config.yaml)",
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=3,
+        help="Concurrent LLM calls (default 3; use 5 for Gemini, 2-3 for Ollama)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=1,
+        help="Articles per LLM call (default 1; set 3-5 for batch throughput mode)",
+    )
+    parser.add_argument(
         "--reset-processed",
         metavar="SOURCE_ID",
         nargs="?",
@@ -621,5 +770,7 @@ if __name__ == "__main__":
             sport=args.sport,
             include_unmatched=args.include_unmatched,
             provider_name=args.provider,
+            workers=args.workers,
+            batch_size=args.batch_size,
         )
         print(json.dumps(result, indent=2))

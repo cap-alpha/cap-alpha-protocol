@@ -139,7 +139,7 @@ class ValidationReport:
             )
             for v in self.null_violations:
                 logger.error(
-                    f"  {v.dataset}.{v.table}.{v.column}: " f"{v.null_count} NULL rows"
+                    f"  {v.dataset}.{v.table}.{v.column}: {v.null_count} NULL rows"
                 )
 
         if self.constraint_violations:
@@ -239,8 +239,7 @@ def check_constraint_violations(
         ]
     except Exception as e:
         logger.warning(
-            f"Could not check constraints for "
-            f"{contract.dataset}.{contract.table}: {e}"
+            f"Could not check constraints for {contract.dataset}.{contract.table}: {e}"
         )
         return []
 

@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
 from src.resolve_daily import (
     _extract_draft_claim,
     _extract_game_claim,

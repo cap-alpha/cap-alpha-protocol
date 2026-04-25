@@ -48,9 +48,9 @@ class TestExtractTeamMentions:
     def test_all_32_teams_covered(self):
         # Every abbreviated team should appear in at least one entry in NFL_TEAMS values
         all_abbrs = set(NFL_TEAMS.values())
-        assert (
-            len(all_abbrs) == 32
-        ), f"Expected 32 teams, got {len(all_abbrs)}: {all_abbrs}"
+        assert len(all_abbrs) == 32, (
+            f"Expected 32 teams, got {len(all_abbrs)}: {all_abbrs}"
+        )
 
     def test_legacy_alias(self):
         assert extract_team_mentions("Oakland Raiders moved to Las Vegas.") == {"LV"}

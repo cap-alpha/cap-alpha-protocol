@@ -109,8 +109,8 @@ class ChecksumGenerator:
         """
         # Extract key fields in order, convert to strings
         values = []
-        for field in key_fields:
-            val = record.get(field, "")
+        for key_field in key_fields:
+            val = record.get(key_field, "")
             # Normalize: lowercase strings, handle nulls
             if pd.isna(val):
                 val = ""
@@ -194,7 +194,7 @@ class DeduplicationEngine:
         )
 
         if len(duplicates) > 0:
-            logger.warning(f"  Duplicate records found:")
+            logger.warning("  Duplicate records found:")
             for _, dup in duplicates.iterrows():
                 key_str = " | ".join([str(dup.get(k, "")) for k in self.key_fields])
                 logger.warning(f"    {key_str}")
@@ -326,7 +326,7 @@ class ValidationGate:
             )
 
         return ValidationResult(
-            status=ValidationStatus.PASS, message=f"All values within expected ranges"
+            status=ValidationStatus.PASS, message="All values within expected ranges"
         )
 
     @staticmethod
@@ -391,7 +391,7 @@ class IdempotentProcessor:
         self.state.row_count = len(df)
 
         # Pre-processing validation
-        logger.info(f"  [Gate 1] Validating schema...")
+        logger.info("  [Gate 1] Validating schema...")
         gate1 = ValidationGate.validate_required_columns(df, required_cols)
         if not gate1.is_valid():
             self.state.status = ProcessingStatus.FAILED
@@ -402,7 +402,7 @@ class IdempotentProcessor:
 
         # Check for nulls
         if critical_null_cols:
-            logger.info(f"  [Gate 2] Validating no nulls in critical columns...")
+            logger.info("  [Gate 2] Validating no nulls in critical columns...")
             gate2 = ValidationGate.validate_no_nulls(df, critical_null_cols)
             if not gate2.is_valid():
                 logger.warning(f"  ⚠ {gate2.message}")
@@ -410,7 +410,7 @@ class IdempotentProcessor:
                 logger.info(f"  ✓ {gate2.message}")
 
         # Deduplication
-        logger.info(f"  [Gate 3] Deduplicating...")
+        logger.info("  [Gate 3] Deduplicating...")
         clean_df, duplicates_df = self.dedup_engine.detect_duplicates(df)
         self.state.duplicate_count = len(duplicates_df)
 

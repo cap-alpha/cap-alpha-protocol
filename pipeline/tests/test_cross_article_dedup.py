@@ -8,7 +8,6 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
-
 from src.cross_article_dedup import (
     SIMILARITY_THRESHOLD,
     _find_duplicates_in_group,

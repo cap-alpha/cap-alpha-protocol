@@ -8,12 +8,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from src.media_ingestor import (
-    MediaItem,
-    _enrich_with_full_text,
-    _scrape_article_text,
-)
+from src.media_ingestor import MediaItem, _enrich_with_full_text, _scrape_article_text
 
 # ---------------------------------------------------------------------------
 # Fixtures

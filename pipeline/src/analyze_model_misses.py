@@ -67,10 +67,10 @@ def analyze_misses():
         You are a Principal Machine Learning Engineer and Data Scientist evaluating an XGBoost model predicting NFL player failure risk (Dead Money).
         
         Here are the top 10 False Positives (Model predicted high risk/bust, player was actually safe):
-        {false_positives[['player_name', 'year', 'actual', 'predicted']].head(10).to_markdown()}
+        {false_positives[["player_name", "year", "actual", "predicted"]].head(10).to_markdown()}
         
         Here are the top 10 False Negatives (Model predicted safe, player was actually a massive bust):
-        {false_negatives[['player_name', 'year', 'actual', 'predicted']].head(10).to_markdown()}
+        {false_negatives[["player_name", "year", "actual", "predicted"]].head(10).to_markdown()}
         
         According to the Andrew Ng Data-Centric AI principles, please analyze these specific player misses. 
         Categorize the errors and suggest 3 concrete data-centric hypotheses (new features, data transformations, or label fixes) to address them. Keep your response concise, actionable, and formatted in Markdown.
@@ -89,12 +89,12 @@ This diagnostic report details the worst prediction misses from the XGBoost Walk
 ## Top 50 False Positives (Model Called 'Bust', Player Was 'Safe')
 These are players the ML model identified as toxic or high-risk, but who ultimately generated minimal dead money or performed well. 
 
-{false_positives[['player_name', 'year', 'week', 'team', 'predicted', 'actual', 'delta']].to_markdown(index=False)}
+{false_positives[["player_name", "year", "week", "team", "predicted", "actual", "delta"]].to_markdown(index=False)}
 
 ## Top 50 False Negatives (Model Called 'Safe', Player Was 'Bust')
 These are players the ML model believed were stable, highly-efficient assets extending their prime, but who catastrophicly failed and generated massive dead money liability.
 
-{false_negatives[['player_name', 'year', 'week', 'team', 'predicted', 'actual', 'delta']].to_markdown(index=False)}
+{false_negatives[["player_name", "year", "week", "team", "predicted", "actual", "delta"]].to_markdown(index=False)}
 """
 
     report_path = repo_root / "reports" / "model_miss_analysis.md"

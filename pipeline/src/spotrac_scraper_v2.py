@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-
 from src.config import DATA_RAW_DIR
 
 logging.basicConfig(level=logging.INFO)
@@ -612,9 +611,7 @@ class SpotracScraper:
                 self.driver.current_url
                 return
         except Exception:
-            logger.warning(
-                "⚠️ Selenium session lost/invalid, re-initializing driver..."
-            )
+            logger.warning("⚠️ Selenium session lost/invalid, re-initializing driver...")
             if self.driver:
                 try:
                     self.driver.quit()
@@ -686,7 +683,7 @@ class SpotracScraper:
         # TRANSFORMATION QUALITY CHECKS
         self.parser.validate_team_cap_data(df, year)
 
-        logger.info(f"  ✓ All quality checks passed")
+        logger.info("  ✓ All quality checks passed")
         return df
 
     def _normalize_team_cap_df(self, df: pd.DataFrame, year: int) -> pd.DataFrame:
@@ -801,7 +798,7 @@ class SpotracScraper:
             )
 
         logger.info(f"  ✓ Total league dead money: ${total_dead_money:.1f}M")
-        logger.info(f"  ✓ Avg per team: ${total_dead_money/len(df):.1f}M")
+        logger.info(f"  ✓ Avg per team: ${total_dead_money / len(df):.1f}M")
 
     def scrape_player_rankings(self, year: int, snapshot: bool = False) -> pd.DataFrame:
         """
@@ -902,7 +899,7 @@ class SpotracScraper:
         # TRANSFORMATION QUALITY CHECKS
         self.parser.validate_player_data(df, year, min_rows=500)
 
-        logger.info(f"  ✓ All quality checks passed")
+        logger.info("  ✓ All quality checks passed")
         return df
 
     def scrape_player_contracts(
@@ -1102,7 +1099,7 @@ class SpotracScraper:
                             time.sleep(3)
                         except:
                             logger.warning(
-                                f"    ⚠️ Failed to load contracts for {team_code} (attempt {attempt+1})"
+                                f"    ⚠️ Failed to load contracts for {team_code} (attempt {attempt + 1})"
                             )
                             if attempt < max_retries:
                                 time.sleep(5)  # Wait before retry
@@ -1161,7 +1158,7 @@ class SpotracScraper:
 
                 except Exception as e:
                     logger.warning(
-                        f"  ⚠️ Exception on {team_code} attempt {attempt+1}: {e}"
+                        f"  ⚠️ Exception on {team_code} attempt {attempt + 1}: {e}"
                     )
                     # Log page source snippet if it's a "Whoops" or "Access Denied"
                     try:
@@ -1182,7 +1179,7 @@ class SpotracScraper:
                         continue
                     else:
                         logger.warning(
-                            f"  ✗ Failed to scrape {team_code} after {max_retries+1} attempts"
+                            f"  ✗ Failed to scrape {team_code} after {max_retries + 1} attempts"
                         )
                         break
 
@@ -1202,7 +1199,7 @@ class SpotracScraper:
         # TRANSFORMATION QUALITY CHECKS
         self.parser.validate_player_contract_data(df, year)
 
-        logger.info(f"  ✓ All quality checks passed")
+        logger.info("  ✓ All quality checks passed")
         return df
 
     def scrape_player_salaries(self, year: int, snapshot: bool = False) -> pd.DataFrame:
@@ -1278,7 +1275,7 @@ class SpotracScraper:
         # TRANSFORMATION QUALITY CHECKS
         self.parser.validate_player_data(df, year, min_rows=50)
 
-        logger.info(f"  ✓ All quality checks passed")
+        logger.info("  ✓ All quality checks passed")
         return df
 
 

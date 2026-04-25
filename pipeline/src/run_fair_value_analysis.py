@@ -70,7 +70,7 @@ merged = pd.merge(
     how="inner",
 )
 print(f"Merged rows: {len(merged)}")
-print(f"Match rate: {len(merged)/len(spotrac):.1%}")
+print(f"Match rate: {len(merged) / len(spotrac):.1%}")
 
 # 4. Feature Engineering
 # Use pre-calculated millions column

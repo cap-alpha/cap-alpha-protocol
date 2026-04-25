@@ -9,7 +9,6 @@ from scrape_penalties import validate_data
 
 
 class TestPenaltyValidation(unittest.TestCase):
-
     def test_no_data_raises_error(self):
         """Test that empty data raises a critical error."""
         with self.assertRaises(ValueError) as context:

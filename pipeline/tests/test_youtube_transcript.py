@@ -6,7 +6,6 @@ Unit tests — no network access required.
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from src.media_ingestor import (
     MediaItem,
     _chunk_transcript,
@@ -25,8 +24,7 @@ YOUTUBE_SOURCE = {
     "sport": "NFL",
     "type": "youtube_transcript",
     "url": (
-        "https://www.youtube.com/feeds/videos.xml"
-        "?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
+        "https://www.youtube.com/feeds/videos.xml?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
     ),
     "enabled": True,
     "pundits": [

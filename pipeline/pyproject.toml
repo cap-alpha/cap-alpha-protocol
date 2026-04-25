@@ -1,5 +1,72 @@
-[tool.isort]
-profile = "black"
+# ===========================================================================
+# pipeline/pyproject.toml — single source of truth for all Python tooling
+# ===========================================================================
 
-[tool.black]
+# ---------------------------------------------------------------------------
+# Ruff — replaces black + isort + flake8
+# ---------------------------------------------------------------------------
+[tool.ruff]
 line-length = 88
+target-version = "py310"
+exclude = [
+    ".git", "__pycache__", "legacy", "data", "models", "reports",
+    ".claude", ".venv", "node_modules",
+]
+
+[tool.ruff.lint]
+# Start conservative — matches existing "fatal errors only" flake8 posture:
+#   E9xx: syntax errors  |  F63x: assertion constants  |  F7xx: statements
+#   F82x: undefined names |  F4xx: imports              |  F5xx: f-strings
+select = ["E9", "F63", "F7", "F82", "F4", "F5"]
+ignore = [
+    "F401",  # unused-import — many intentional re-exports; add gradually
+    "F821",  # undefined-name — forward refs in trade_simulator
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/trade_simulator/*" = ["F821"]
+
+[tool.ruff.format]
+# black-compatible defaults
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+# ---------------------------------------------------------------------------
+# Pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "data_quality: marks tests related to data quality validation",
+    "dbt: marks tests related to dbt models",
+    "validator: marks tests for the dead money validator",
+    "weekly: marks tests as critical for weekly scheduled pipeline runs",
+]
+addopts = "-v --strict-markers --tb=short --disable-warnings"
+
+# ---------------------------------------------------------------------------
+# Coverage
+# ---------------------------------------------------------------------------
+[tool.coverage.run]
+source = ["src"]
+omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+precision = 2

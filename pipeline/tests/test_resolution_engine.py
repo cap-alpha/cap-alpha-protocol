@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
 from src.resolution_engine import (
     ResolutionResult,
     _compute_brier_score,

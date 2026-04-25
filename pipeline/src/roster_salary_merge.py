@@ -201,7 +201,7 @@ def merge_rosters_and_salaries(
 
     # Print summary
     with_salary = rosters[rosters["total_contract_value_millions"].notna()]
-    logger.info(f"\nContract Data Summary:")
+    logger.info("\nContract Data Summary:")
     logger.info(f"  Records with contract data: {len(with_salary)}")
     if len(with_salary) > 0:
         avg_val = with_salary["total_contract_value_millions"].mean()

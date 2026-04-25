@@ -199,7 +199,7 @@ class WalkForwardValidator:
 ## Summary
 - **Average Accuracy:** {avg_acc:.4f}
 - **Average F1 Score:** {avg_f1:.4f}
-- **Years Tested:** {results_df['test_year'].min()} - {results_df['test_year'].max()}
+- **Years Tested:** {results_df["test_year"].min()} - {results_df["test_year"].max()}
 
 ## Breakdown by Year
 | Year | Accuracy | F1 | Train Size | Test Size |
@@ -219,7 +219,7 @@ class WalkForwardValidator:
 - **Average RMSE:** {avg_rmse:.4f}
 - **Average R2:** {avg_r2:.4f}
 - **Average F1:** {avg_f1:.4f}
-- **Years Tested:** {results_df['test_year'].min()} - {results_df['test_year'].max()}
+- **Years Tested:** {results_df["test_year"].min()} - {results_df["test_year"].max()}
 
 ## Breakdown by Year
 | Year | RMSE | R2 | F1 | Train Size | Test Size |

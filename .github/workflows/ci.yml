@@ -28,14 +28,17 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install -r pipeline/requirements.txt
-        pip install pytest
+        pip install -r pipeline/requirements-dev.txt
+
+    - name: Lint (ruff)
+      run: |
+        ruff check pipeline/src/ pipeline/tests/
+        ruff format --check pipeline/src/ pipeline/tests/
 
     - name: Run Tests
       run: |
         export PYTHONPATH=$PYTHONPATH:$(pwd)/pipeline/libs:$(pwd)/pipeline/src
-        # Mock the DuckDB connection for CI if DB not present
-        # For now, just run unit tests that don't require DB
         pytest pipeline/tests/ -v -m "not integration" \
           --ignore=pipeline/tests/test_api.py \
-          --ignore=pipeline/tests/test_api_vegas.py
+          --ignore=pipeline/tests/test_api_vegas.py \
+          --ignore=pipeline/tests/test_ledger_bq_integration.py

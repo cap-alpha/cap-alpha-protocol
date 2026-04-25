@@ -10,7 +10,6 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
-
 from src.pipeline_telemetry import (
     PIPELINE_RUNS_TABLE,
     PipelineRun,

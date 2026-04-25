@@ -4,7 +4,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-
 from src.config import DATA_PROCESSED_DIR, DATA_RAW_DIR
 
 logging.basicConfig(level=logging.INFO)

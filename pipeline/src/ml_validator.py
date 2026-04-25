@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import yaml
 from scipy.stats import ks_2samp
-
 from src.ml_governance import MLGovernance
 
 logger = logging.getLogger(__name__)

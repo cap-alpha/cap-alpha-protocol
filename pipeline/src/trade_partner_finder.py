@@ -1,7 +1,6 @@
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-
 from src.db_manager import DBManager
 
 
@@ -89,7 +88,7 @@ class TradePartnerFinder:
                 {
                     "team": row["team"],
                     "score": int(row["fit_score"]),
-                    "reason": f"Cap Space: ${row['cap_space']/1e6:.1f}M | Need: {int(row['need_score'])}/100",
+                    "reason": f"Cap Space: ${row['cap_space'] / 1e6:.1f}M | Need: {int(row['need_score'])}/100",
                 }
             )
 

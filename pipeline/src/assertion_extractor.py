@@ -18,6 +18,7 @@ Usage (inside Docker):
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -91,6 +92,10 @@ AUTHOR: {author}
 TITLE: {title}
 TEXT:
 {text}"""
+
+# 8-char SHA-256 prefix of the prompt template — changes whenever the prompt changes.
+# Used to track which prompt version produced each prediction.
+PROMPT_VERSION = hashlib.sha256(EXTRACTION_PROMPT.encode("utf-8")).hexdigest()[:8]
 
 
 @dataclass
@@ -390,6 +395,12 @@ def run_extraction(
             config.setdefault("extraction", {})["provider"] = provider_name
         provider = get_provider_with_fallback("extraction", config)
 
+    provider_type = (
+        type(provider).__name__.replace("Provider", "").lower()
+        if provider
+        else "dry-run"
+    )
+
     summary = {
         "total_processed": 0,
         "predictions_extracted": 0,
@@ -521,6 +532,9 @@ def run_extraction(
                         target_team=pred.get("target_team"),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
+                        prompt_version=PROMPT_VERSION,
+                        llm_provider=provider_type,
+                        llm_model=getattr(provider, "model", None),
                     )
                 )
 

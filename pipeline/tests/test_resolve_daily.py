@@ -83,31 +83,23 @@ class TestNormalizeTeam:
 
 class TestExtractGameClaim:
     def test_win_prediction(self):
-        result = _extract_game_claim(
-            "Chiefs will beat Eagles in 2026 Super Bowl"
-        )
+        result = _extract_game_claim("Chiefs will beat Eagles in 2026 Super Bowl")
         assert result.get("team_a") == "KC"
         assert result.get("team_b") == "PHI"
         assert result.get("win_prediction") is True
 
     def test_playoff_make_prediction(self):
-        result = _extract_game_claim(
-            "Bears will make the playoffs in 2026"
-        )
+        result = _extract_game_claim("Bears will make the playoffs in 2026")
         assert result.get("team_focus") == "CHI"
         assert result.get("playoff_prediction") is True
 
     def test_playoff_miss_prediction(self):
-        result = _extract_game_claim(
-            "Browns will miss the playoffs in 2026"
-        )
+        result = _extract_game_claim("Browns will miss the playoffs in 2026")
         assert result.get("team_focus") == "CLE"
         assert result.get("playoff_prediction") is False
 
     def test_super_bowl_win_prediction(self):
-        result = _extract_game_claim(
-            "Lions will win the Super Bowl in 2026"
-        )
+        result = _extract_game_claim("Lions will win the Super Bowl in 2026")
         assert result.get("team_focus") == "DET"
         assert result.get("super_bowl_win") is True
 
@@ -139,9 +131,7 @@ class TestExtractPlayerStatClaim:
         assert result.get("operator") == ">="
 
     def test_passing_tds(self):
-        result = _extract_player_stat_claim(
-            "Josh Allen throws 40+ passing TDs in 2026"
-        )
+        result = _extract_player_stat_claim("Josh Allen throws 40+ passing TDs in 2026")
         assert result.get("stat_column") in ("PassingTouchdowns", "PassingTDs")
         # stat_column should be one of the mapped aliases
         assert result.get("threshold") == 40
@@ -168,9 +158,7 @@ class TestExtractPlayerStatClaim:
         assert result.get("operator") == "<"
 
     def test_season_year_extracted(self):
-        result = _extract_player_stat_claim(
-            "Mahomes passes for 4800 yards in 2025"
-        )
+        result = _extract_player_stat_claim("Mahomes passes for 4800 yards in 2025")
         assert result.get("season_year") == 2025
 
     def test_player_name_extracted(self):
@@ -180,9 +168,7 @@ class TestExtractPlayerStatClaim:
         assert result.get("player_name") == "Patrick Mahomes"
 
     def test_no_stat_returns_incomplete(self):
-        result = _extract_player_stat_claim(
-            "Mahomes will be great in 2026"
-        )
+        result = _extract_player_stat_claim("Mahomes will be great in 2026")
         assert "stat_column" not in result or "threshold" not in result
 
 
@@ -238,7 +224,9 @@ class TestResolveGameOutcomes:
     @patch("src.resolve_daily._load_game_scores")
     @patch("src.resolve_daily.get_pending_predictions")
     @patch("src.resolve_daily.resolve_binary")
-    def test_correct_win_prediction(self, mock_resolve, mock_pending, mock_load, mock_db):
+    def test_correct_win_prediction(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
         """Chiefs beat Eagles correctly resolved when Chiefs won."""
         preds = _make_pending_df(
             "game_outcome",
@@ -256,7 +244,9 @@ class TestResolveGameOutcomes:
     @patch("src.resolve_daily._load_game_scores")
     @patch("src.resolve_daily.get_pending_predictions")
     @patch("src.resolve_daily.resolve_binary")
-    def test_incorrect_win_prediction(self, mock_resolve, mock_pending, mock_load, mock_db):
+    def test_incorrect_win_prediction(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
         """Chiefs beat Eagles incorrectly when Eagles actually won."""
         preds = _make_pending_df(
             "game_outcome",
@@ -277,7 +267,12 @@ class TestResolveGameOutcomes:
         current_year = pd.Timestamp.now().year
         preds = _make_pending_df(
             "game_outcome",
-            [{"claim": f"Chiefs beat Eagles in {current_year}", "season_year": current_year}],
+            [
+                {
+                    "claim": f"Chiefs beat Eagles in {current_year}",
+                    "season_year": current_year,
+                }
+            ],
         )
         mock_pending.return_value = preds
 
@@ -338,7 +333,12 @@ class TestResolveGameOutcomes:
     @patch("src.resolve_daily.get_pending_predictions")
     def test_empty_predictions(self, mock_pending, mock_db):
         mock_pending.return_value = pd.DataFrame(
-            columns=["prediction_hash", "extracted_claim", "claim_category", "season_year"]
+            columns=[
+                "prediction_hash",
+                "extracted_claim",
+                "claim_category",
+                "season_year",
+            ]
         )
         summary = resolve_game_outcomes(mock_db, dry_run=False)
         assert summary["checked"] == 0
@@ -392,7 +392,9 @@ class TestResolvePlayerPerformance:
     @patch("src.resolve_daily._load_player_season_stats")
     @patch("src.resolve_daily.get_pending_predictions")
     @patch("src.resolve_daily.resolve_binary")
-    def test_correct_stat_prediction(self, mock_resolve, mock_pending, mock_load, mock_db):
+    def test_correct_stat_prediction(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
         """Mahomes throws 5000+ yards — correct when actual is 5100."""
         preds = _make_pending_df(
             "player_performance",
@@ -416,7 +418,9 @@ class TestResolvePlayerPerformance:
     @patch("src.resolve_daily._load_player_season_stats")
     @patch("src.resolve_daily.get_pending_predictions")
     @patch("src.resolve_daily.resolve_binary")
-    def test_incorrect_stat_prediction(self, mock_resolve, mock_pending, mock_load, mock_db):
+    def test_incorrect_stat_prediction(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
         """Mahomes throws 5000+ yards — incorrect when actual is 4200."""
         preds = _make_pending_df(
             "player_performance",
@@ -481,7 +485,9 @@ class TestResolvePlayerPerformance:
     @patch("src.resolve_daily._load_player_season_stats")
     @patch("src.resolve_daily.get_pending_predictions")
     @patch("src.resolve_daily.void_prediction")
-    def test_voids_unparseable_stat_claim(self, mock_void, mock_pending, mock_load, mock_db):
+    def test_voids_unparseable_stat_claim(
+        self, mock_void, mock_pending, mock_load, mock_db
+    ):
         """Claims without a parseable stat threshold are voided."""
         preds = _make_pending_df(
             "player_performance",
@@ -524,7 +530,12 @@ class TestResolvePlayerPerformance:
     @patch("src.resolve_daily.get_pending_predictions")
     def test_empty_predictions(self, mock_pending, mock_db):
         mock_pending.return_value = pd.DataFrame(
-            columns=["prediction_hash", "extracted_claim", "claim_category", "season_year"]
+            columns=[
+                "prediction_hash",
+                "extracted_claim",
+                "claim_category",
+                "season_year",
+            ]
         )
         summary = resolve_player_performance(mock_db, dry_run=False)
         assert summary["checked"] == 0

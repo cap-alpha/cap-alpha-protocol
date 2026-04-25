@@ -495,9 +495,7 @@ def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
             # Head-to-head win prediction
             team_a, team_b = parsed["team_a"], parsed["team_b"]
             matchups = scores_df[
-                (
-                    (scores_df["HomeTeam"] == team_a) & (scores_df["AwayTeam"] == team_b)
-                )
+                ((scores_df["HomeTeam"] == team_a) & (scores_df["AwayTeam"] == team_b))
                 | (
                     (scores_df["HomeTeam"] == team_b)
                     & (scores_df["AwayTeam"] == team_a)
@@ -534,10 +532,7 @@ def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
             team = parsed["team_focus"]
             expected_playoff = parsed["playoff_prediction"]
             playoff_games = scores_df[
-                (
-                    (scores_df["HomeTeam"] == team)
-                    | (scores_df["AwayTeam"] == team)
-                )
+                ((scores_df["HomeTeam"] == team) | (scores_df["AwayTeam"] == team))
                 & (scores_df["IsPlayoffGame"] == True)  # noqa: E712
             ]
             actually_made_playoffs = len(playoff_games) > 0
@@ -551,10 +546,7 @@ def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
             # Super Bowl win prediction
             team = parsed["team_focus"]
             sb_games = scores_df[
-                (
-                    (scores_df["HomeTeam"] == team)
-                    | (scores_df["AwayTeam"] == team)
-                )
+                ((scores_df["HomeTeam"] == team) | (scores_df["AwayTeam"] == team))
                 & (scores_df["IsPlayoffGame"] == True)  # noqa: E712
             ]
             if sb_games.empty:
@@ -752,18 +744,14 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
             now.year == season_end_year and now.month > 2
         )
         if not season_complete:
-            logger.info(
-                f"  SKIP {phash[:12]}… — {season_year} season not complete"
-            )
+            logger.info(f"  SKIP {phash[:12]}… — {season_year} season not complete")
             summary["skipped"] += 1
             continue
 
         parsed = _extract_player_stat_claim(claim)
 
         if "stat_column" not in parsed or "threshold" not in parsed:
-            logger.info(
-                f"  VOID {phash[:12]}… — can't parse stat claim: {claim[:60]}"
-            )
+            logger.info(f"  VOID {phash[:12]}… — can't parse stat claim: {claim[:60]}")
             if not dry_run:
                 void_prediction(phash, "unparseable_stat_claim", db=db)
             summary["voided"] += 1
@@ -807,9 +795,7 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
         actual_val = player_row.get(stat_col)
 
         if pd.isna(actual_val):
-            logger.info(
-                f"  SKIP {phash[:12]}… — {stat_col} is NULL for {player_name}"
-            )
+            logger.info(f"  SKIP {phash[:12]}… — {stat_col} is NULL for {player_name}")
             summary["skipped"] += 1
             continue
 

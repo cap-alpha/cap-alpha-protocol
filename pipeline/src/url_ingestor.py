@@ -131,8 +131,12 @@ def discover_articles(
     Uses DuckDuckGo search (no API key needed).
     """
     with open(config_path) as f:
-        config = yaml.safe_load(f)
+        config = yaml.safe_load(f) or {}
 
+    if not isinstance(config, dict):
+        raise ValueError(
+            f"Expected YAML config at '{config_path}' to contain a top-level mapping"
+        )
     queries = config.get("search_queries", [])
     source_mapping = config.get("source_mapping", {})
     skip_domains = set(config.get("skip_domains", []))

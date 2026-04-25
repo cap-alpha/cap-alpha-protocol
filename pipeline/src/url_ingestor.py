@@ -308,7 +308,7 @@ def ingest_from_urls(
         ]
         for col in nullable_cols:
             if col in df.columns:
-                df[col] = df[col].where(df[col].notna(), None)
+                df[col] = df[col].astype("string")
         # Ensure published_at is proper datetime
         if "published_at" in df.columns:
             df["published_at"] = pd.to_datetime(

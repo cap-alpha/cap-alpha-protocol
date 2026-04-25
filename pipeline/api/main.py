@@ -28,10 +28,71 @@ except Exception:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_DESCRIPTION = """
+## NFL Dead Money — Pundit Prediction Ledger API
+
+Cryptographically-verified NFL analytics platform.  All prediction records are stored
+in an append-only BigQuery ledger with a tamper-evident SHA-256 hash chain.
+
+### Vendor Payloads
+
+| Payload | Endpoints | Description |
+|---|---|---|
+| **Pundit Index** | `GET /v1/leaderboard`, `GET /v1/pundits/` | Brier-scored accuracy rankings for tracked NFL media personalities |
+| **FMV Trajectory** | `GET /v1/cap/fmv/{player_name}` | Year-over-year Fair Market Value direction signal (improving / declining / flat) |
+| **Injury Lag** | `GET /v1/cap/players/{player_name}` | `availability_rating` × `ml_risk_score` overlay identifying contracts not yet repriced for injury-adjusted market value |
+
+### Authentication
+
+B2B endpoints (`/v1/cap/*`) require an `X-API-Key` header.
+Contact us to obtain a key.  Keys not set in `B2B_API_KEYS` env var → dev mode (auth disabled).
+
+### Rate Limits
+
+Default: **1 000 requests / hour** per API key (configurable via `B2B_RATE_LIMIT_RPH`).
+Exceeded quota returns HTTP 429 with a `Retry-After` header.
+"""
+
+_TAGS_METADATA = [
+    {
+        "name": "pundit-ledger",
+        "description": (
+            "Public prediction ledger endpoints.  No API key required.  "
+            "Surfaces the **Pundit Index** and **FMV Trajectory** vendor payloads."
+        ),
+        "externalDocs": {
+            "description": "Vendor payload guide",
+            "url": "https://github.com/ucalegon206/cap-alpha-protocol/blob/main/docs/api/VENDOR_PAYLOADS.md",
+        },
+    },
+    {
+        "name": "b2b-cap-intelligence",
+        "description": (
+            "B2B Cap Intelligence API.  All endpoints require `X-API-Key` header.  "
+            "Surfaces the **FMV Trajectory** and **Injury Lag** vendor payloads."
+        ),
+        "externalDocs": {
+            "description": "Vendor payload guide",
+            "url": "https://github.com/ucalegon206/cap-alpha-protocol/blob/main/docs/api/VENDOR_PAYLOADS.md",
+        },
+    },
+]
+
 app = FastAPI(
-    title="Pundit Prediction Ledger API",
-    description="Cryptographically verified NFL pundit prediction tracking",
+    title="NFL Dead Money — Pundit Prediction Ledger API",
+    description=_DESCRIPTION,
     version="1.0.0",
+    openapi_tags=_TAGS_METADATA,
+    contact={
+        "name": "Cap Alpha Protocol",
+        "url": "https://github.com/ucalegon206/cap-alpha-protocol",
+    },
+    license_info={
+        "name": "Proprietary",
+    },
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
 )
 
 from fastapi.middleware.cors import CORSMiddleware

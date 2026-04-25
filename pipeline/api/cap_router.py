@@ -21,6 +21,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter
 
 from api.api_key_auth import require_api_key
+from api.schemas import (
+    CapPlayerProfileResponse,
+    CapPlayersResponse,
+    FmvTrajectoryResponse,
+    TeamCapResponse,
+)
 from src.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
@@ -56,7 +62,12 @@ def _pq(db: DBManager, sql: str, params):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/players", summary="Paginated list of players with cap and FMV data")
+@router.get(
+    "/players",
+    summary="Paginated list of players with cap and FMV data",
+    response_model=CapPlayersResponse,
+    response_model_exclude_none=True,
+)
 def list_players(
     year: Optional[int] = Query(default=None, description="Filter by season year"),
     position: Optional[str] = Query(default=None, description="Filter by position (e.g. QB)"),
@@ -126,7 +137,12 @@ def list_players(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/players/{player_name}", summary="Single player cap profile")
+@router.get(
+    "/players/{player_name}",
+    summary="Single player cap profile — Injury Lag vendor payload",
+    response_model=CapPlayerProfileResponse,
+    response_model_exclude_none=True,
+)
 def player_cap_profile(
     player_name: str,
     db: DBManager = Depends(get_db),
@@ -169,7 +185,12 @@ def player_cap_profile(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/teams", summary="Per-team cap summary")
+@router.get(
+    "/teams",
+    summary="Per-team cap summary",
+    response_model=TeamCapResponse,
+    response_model_exclude_none=True,
+)
 def team_cap_summary(
     year: Optional[int] = Query(default=None, description="Filter by season year"),
     conference: Optional[str] = Query(default=None, description="'AFC' or 'NFC'"),
@@ -216,7 +237,12 @@ def team_cap_summary(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/fmv/{player_name}", summary="Fair Market Value trajectory for a player")
+@router.get(
+    "/fmv/{player_name}",
+    summary="Fair Market Value trajectory — FMV Trajectory vendor payload",
+    response_model=FmvTrajectoryResponse,
+    response_model_exclude_none=True,
+)
 def player_fmv_trajectory(
     player_name: str,
     db: DBManager = Depends(get_db),

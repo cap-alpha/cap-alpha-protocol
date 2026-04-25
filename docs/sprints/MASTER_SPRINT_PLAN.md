@@ -70,8 +70,8 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 30: API Standardization & Keys (NEW)
 **Goal:** We must be able to securely vend, rate-limit, and explicitly monetize our core intelligent artifacts via an API to massive third-party B2B consumers.
-- [/] SP30-1: Stand up a dedicated `/v1/cap/` Python REST or GraphQL API backend securely authenticating via B2B API keys. (GH-#108) (Claimed by Agent)
-- [ ] SP30-2: Document the full API schema via OpenAPI/Swagger, clearly identifying the "Pundit Index", "FMV Trajectory", and "Injury Lag" vendor payloads. (GH-#109)
+- [x] SP30-1: Stand up a dedicated `/v1/cap/` Python REST or GraphQL API backend securely authenticating via B2B API keys. (GH-#108) (PR #223)
+- [/] SP30-2: Document the full API schema via OpenAPI/Swagger, clearly identifying the "Pundit Index", "FMV Trajectory", and "Injury Lag" vendor payloads. (GH-#109) (Claimed by Agent)
 
 ### Sprint 20: Sub-Second Latency & Backend Performance
 **Goal:** Ensure backend data is served immediately, ready to be cached by edge consumers or UI platforms.

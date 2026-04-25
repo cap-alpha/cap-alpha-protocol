@@ -1,0 +1,1789 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NFL Dead Money \u2014 Pundit Prediction Ledger API",
+    "description": "\n## NFL Dead Money \u2014 Pundit Prediction Ledger API\n\nCryptographically-verified NFL analytics platform.  All prediction records are stored\nin an append-only BigQuery ledger with a tamper-evident SHA-256 hash chain.\n\n### Vendor Payloads\n\n| Payload | Endpoints | Description |\n|---|---|---|\n| **Pundit Index** | `GET /v1/leaderboard`, `GET /v1/pundits/` | Brier-scored accuracy rankings for tracked NFL media personalities |\n| **FMV Trajectory** | `GET /v1/cap/fmv/{player_name}` | Year-over-year Fair Market Value direction signal (improving / declining / flat) |\n| **Injury Lag** | `GET /v1/cap/players/{player_name}` | `availability_rating` \u00d7 `ml_risk_score` overlay identifying contracts not yet repriced for injury-adjusted market value |\n\n### Authentication\n\nB2B endpoints (`/v1/cap/*`) require an `X-API-Key` header.\nContact us to obtain a key.  Keys not set in `B2B_API_KEYS` env var \u2192 dev mode (auth disabled).\n\n### Rate Limits\n\nDefault: **1 000 requests / hour** per API key (configurable via `B2B_RATE_LIMIT_RPH`).\nExceeded quota returns HTTP 429 with a `Retry-After` header.\n",
+    "contact": {
+      "name": "Cap Alpha Protocol",
+      "url": "https://github.com/ucalegon206/cap-alpha-protocol"
+    },
+    "license": {
+      "name": "Proprietary"
+    },
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/leaderboard": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Ranked pundits by accuracy",
+        "description": "Returns pundits ranked by weighted accuracy score (accuracy \u00d7 timeliness).\n5-minute cache TTL.",
+        "operationId": "leaderboard_v1_leaderboard_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Leaderboard V1 Leaderboard Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pundits/": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "List all tracked pundits",
+        "description": "Returns all pundits with aggregate accuracy stats.",
+        "operationId": "list_pundits_v1_pundits__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response List Pundits V1 Pundits  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pundits/{pundit_id}": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Pundit detail with accuracy breakdown",
+        "description": "Returns a single pundit's accuracy broken down by claim category.",
+        "operationId": "pundit_detail_v1_pundits__pundit_id__get",
+        "parameters": [
+          {
+            "name": "pundit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pundit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Pundit Detail V1 Pundits  Pundit Id  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/pundits/{pundit_id}/predictions": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Pundit prediction history",
+        "description": "Paginated prediction history for a pundit with resolution status.",
+        "operationId": "pundit_predictions_v1_pundits__pundit_id__predictions_get",
+        "parameters": [
+          {
+            "name": "pundit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pundit Id"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Page Size"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by resolution_status",
+              "title": "Status"
+            },
+            "description": "Filter by resolution_status"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Pundit Predictions V1 Pundits  Pundit Id  Predictions Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/predictions/recent": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Latest resolved predictions across all pundits",
+        "description": "Returns the most recently resolved predictions across all pundits.",
+        "operationId": "recent_predictions_v1_predictions_recent_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Recent Predictions V1 Predictions Recent Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/predictions/": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Search predictions with filters",
+        "description": "Filterable prediction search with parameterized BigQuery queries.\nJoins prediction_ledger LEFT JOIN prediction_resolutions.",
+        "operationId": "search_predictions_v1_predictions__get",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "claim_category filter",
+              "title": "Category"
+            },
+            "description": "claim_category filter"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "resolution_status filter",
+              "title": "Status"
+            },
+            "description": "resolution_status filter"
+          },
+          {
+            "name": "player",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "target_player_name substring match",
+              "title": "Player"
+            },
+            "description": "target_player_name substring match"
+          },
+          {
+            "name": "pundit_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "pundit_name substring match",
+              "title": "Pundit Name"
+            },
+            "description": "pundit_name substring match"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Search Predictions V1 Predictions  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/draft/{year}": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Draft prediction summary for a year",
+        "description": "Returns a summary of draft predictions for a given season year.\nFilters by claim_category='draft_pick' and the specified season_year.",
+        "operationId": "draft_summary_v1_draft__year__get",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Draft Summary V1 Draft  Year  Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/draft/{year}/results": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Draft resolution scoreboard",
+        "description": "Returns draft predictions grouped by resolution status for a given year,\nincluding per-pundit accuracy stats.",
+        "operationId": "draft_results_v1_draft__year__results_get",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Year"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Draft Results V1 Draft  Year  Results Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrity/verify": {
+      "get": {
+        "tags": [
+          "pundit-ledger"
+        ],
+        "summary": "Hash chain integrity check",
+        "description": "Walks the full prediction ledger and verifies the hash chain is intact.\nReturns verified=True if no records have been tampered with.",
+        "operationId": "integrity_check_v1_integrity_verify_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Integrity Check V1 Integrity Verify Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/cap/players": {
+      "get": {
+        "tags": [
+          "b2b-cap-intelligence"
+        ],
+        "summary": "Paginated list of players with cap and FMV data",
+        "description": "Returns paginated player cap data from the Gold layer.\nSorted by cap_hit_millions descending (highest earners first).",
+        "operationId": "list_players_v1_cap_players_get",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by season year",
+              "title": "Year"
+            },
+            "description": "Filter by season year"
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by position (e.g. QB)",
+              "title": "Position"
+            },
+            "description": "Filter by position (e.g. QB)"
+          },
+          {
+            "name": "team",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by team abbreviation",
+              "title": "Team"
+            },
+            "description": "Filter by team abbreviation"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 500,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapPlayersResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/cap/players/{player_name}": {
+      "get": {
+        "tags": [
+          "b2b-cap-intelligence"
+        ],
+        "summary": "Single player cap profile \u2014 Injury Lag vendor payload",
+        "description": "Returns the full cap profile for a player \u2014 all available years and all\nfinancial columns from fact_player_efficiency.",
+        "operationId": "player_cap_profile_v1_cap_players__player_name__get",
+        "parameters": [
+          {
+            "name": "player_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Player Name"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapPlayerProfileResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/cap/teams": {
+      "get": {
+        "tags": [
+          "b2b-cap-intelligence"
+        ],
+        "summary": "Per-team cap summary",
+        "description": "Returns pre-computed per-team cap aggregations from team_finance_summary.\nIncludes total cap committed, positional spending breakdowns, cap space,\nrisk cap (dead money), win totals, and conference.\nSorted by cap_space descending (most room first).",
+        "operationId": "team_cap_summary_v1_cap_teams_get",
+        "parameters": [
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Filter by season year",
+              "title": "Year"
+            },
+            "description": "Filter by season year"
+          },
+          {
+            "name": "conference",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "'AFC' or 'NFC'",
+              "title": "Conference"
+            },
+            "description": "'AFC' or 'NFC'"
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCapResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/cap/fmv/{player_name}": {
+      "get": {
+        "tags": [
+          "b2b-cap-intelligence"
+        ],
+        "summary": "Fair Market Value trajectory \u2014 FMV Trajectory vendor payload",
+        "description": "Returns the year-over-year Fair Market Value (FMV) trajectory for a player.\nIncludes cap hit, FMV score, EDCE risk, efficiency ratio, and ML risk score.\n\nThe 'Pundit Index' vendor payload surfaces this endpoint to identify players\nwhose market compensation is diverging from on-field production value.",
+        "operationId": "player_fmv_trajectory_v1_cap_fmv__player_name__get",
+        "parameters": [
+          {
+            "name": "player_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Player Name"
+            }
+          },
+          {
+            "name": "X-API-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "X-Api-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FmvTrajectoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "summary": "Health Check",
+        "operationId": "health_check__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trade/evaluate": {
+      "post": {
+        "summary": "Evaluate Trade",
+        "operationId": "evaluate_trade_api_trade_evaluate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeProposal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trade/counter": {
+      "post": {
+        "summary": "Generate Counter",
+        "operationId": "generate_counter_api_trade_counter_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeProposal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/analyze/vegas": {
+      "post": {
+        "summary": "Analyze Vegas",
+        "operationId": "analyze_vegas_api_analyze_vegas_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TradeProposal"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/trade/find_partner/{player_id}": {
+      "get": {
+        "summary": "Find Partner",
+        "operationId": "find_partner_api_trade_find_partner__player_id__get",
+        "parameters": [
+          {
+            "name": "player_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Player Id"
+            }
+          },
+          {
+            "name": "cap_hit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "number",
+              "title": "Cap Hit"
+            }
+          },
+          {
+            "name": "position",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "QB",
+              "title": "Position"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CapPlayerProfileResponse": {
+        "properties": {
+          "player_name": {
+            "type": "string",
+            "title": "Player Name",
+            "example": "Patrick Mahomes"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/CapPlayerRecord"
+            },
+            "type": "array",
+            "title": "Seasons",
+            "description": "All available seasons, sorted by year descending"
+          },
+          "season_count": {
+            "type": "integer",
+            "title": "Season Count",
+            "description": "Number of seasons on record",
+            "example": 7
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_name",
+          "seasons",
+          "season_count"
+        ],
+        "title": "CapPlayerProfileResponse",
+        "description": "Response for GET /v1/cap/players/{player_name} \u2014 **Injury Lag** vendor payload.\n\nCross-reference `availability_rating` with `ml_risk_score` across seasons\nto detect contracts where availability decline has not yet been priced in."
+      },
+      "CapPlayerRecord": {
+        "properties": {
+          "player_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Player Name"
+          },
+          "team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team",
+            "example": "KAN"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year",
+            "example": 2024
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position",
+            "example": "QB"
+          },
+          "cap_hit_millions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Hit Millions",
+            "example": 45.0
+          },
+          "dead_cap_millions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dead Cap Millions",
+            "example": 10.0
+          },
+          "signing_bonus_millions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signing Bonus Millions",
+            "example": 20.0
+          },
+          "guaranteed_money_millions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Guaranteed Money Millions",
+            "example": 210.0
+          },
+          "fair_market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Market Value",
+            "example": 48.0
+          },
+          "ml_risk_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ml Risk Score",
+            "description": "XGBoost dead-cap risk probability [0, 1]. **Injury Lag** payload: high risk_score + low availability_rating signals a contract that has not repriced for injury exposure.",
+            "example": 0.15
+          },
+          "edce_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edce Risk",
+            "example": 5.2
+          },
+          "availability_rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Rating",
+            "description": "games_played / max_games [0, 1]. **Injury Lag** payload: values below 0.75 with high cap_hit indicate an availability-repricing lag opportunity.",
+            "example": 1.0
+          },
+          "games_played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Games Played",
+            "example": 17
+          }
+        },
+        "type": "object",
+        "title": "CapPlayerRecord",
+        "description": "Single-season cap record for a player.\nThe `availability_rating` and `ml_risk_score` fields together form the\n**Injury Lag** vendor payload \u2014 identifying players whose contract has not\nyet repriced for declining injury-adjusted market value."
+      },
+      "CapPlayersResponse": {
+        "properties": {
+          "players": {
+            "items": {
+              "$ref": "#/components/schemas/CapPlayerRecord"
+            },
+            "type": "array",
+            "title": "Players"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "players",
+          "page",
+          "limit",
+          "total"
+        ],
+        "title": "CapPlayersResponse",
+        "description": "Response for GET /v1/cap/players \u2014 paginated player cap data."
+      },
+      "FmvSeasonRecord": {
+        "properties": {
+          "year": {
+            "type": "integer",
+            "title": "Year",
+            "description": "NFL season year",
+            "example": 2024
+          },
+          "team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team",
+            "example": "KAN"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position",
+            "example": "QB"
+          },
+          "cap_hit_millions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Hit Millions",
+            "description": "Actual cap charge (millions USD)",
+            "example": 45.0
+          },
+          "dead_cap_millions": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dead Cap Millions",
+            "description": "Dead cap obligation if released (millions USD)",
+            "example": 10.0
+          },
+          "fair_market_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fair Market Value",
+            "description": "Model-derived fair market value (millions USD). Divergence from cap_hit_millions is the FMV signal. **FMV Trajectory** core metric.",
+            "example": 48.0
+          },
+          "edce_risk": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edce Risk",
+            "description": "Expected Dead Cap Exposure risk score. Composite of dead money + contract tail risk.",
+            "example": 5.2
+          },
+          "efficiency_ratio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Efficiency Ratio",
+            "description": "fair_market_value / cap_hit_millions \u2014 values > 1.0 indicate surplus value",
+            "example": 1.07
+          },
+          "true_bust_variance": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "True Bust Variance",
+            "description": "Variance in performance outcomes that could trigger contract bust",
+            "example": 0.0
+          },
+          "ytd_performance_value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ytd Performance Value",
+            "description": "Year-to-date production value (millions USD)",
+            "example": 48.0
+          },
+          "ml_risk_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ml Risk Score",
+            "description": "XGBoost dead-cap risk probability [0, 1]. Lower = safer contract.",
+            "example": 0.15
+          },
+          "availability_rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Rating",
+            "description": "games_played / max_games for the season [0, 1]. Used in **Injury Lag** payload to detect availability-repricing lag.",
+            "example": 1.0
+          },
+          "games_played": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Games Played",
+            "example": 17
+          }
+        },
+        "type": "object",
+        "required": [
+          "year"
+        ],
+        "title": "FmvSeasonRecord",
+        "description": "Single-season slice of a player's Fair Market Value computation.\nPart of the **FMV Trajectory** vendor payload."
+      },
+      "FmvTrajectoryResponse": {
+        "properties": {
+          "player_name": {
+            "type": "string",
+            "title": "Player Name",
+            "example": "Patrick Mahomes"
+          },
+          "trajectory": {
+            "type": "string",
+            "enum": [
+              "improving",
+              "declining",
+              "flat",
+              "unknown"
+            ],
+            "title": "Trajectory",
+            "description": "Year-over-year FMV direction. **FMV Trajectory** vendor payload primary signal.",
+            "example": "improving"
+          },
+          "seasons": {
+            "items": {
+              "$ref": "#/components/schemas/FmvSeasonRecord"
+            },
+            "type": "array",
+            "title": "Seasons",
+            "description": "Per-season FMV records sorted by year ascending"
+          }
+        },
+        "type": "object",
+        "required": [
+          "player_name",
+          "trajectory",
+          "seasons"
+        ],
+        "title": "FmvTrajectoryResponse",
+        "description": "Response for GET /v1/cap/fmv/{player_name} \u2014 the **FMV Trajectory** vendor payload.\n\nThe `trajectory` field is the primary signal for the vendor integration:\n- `improving` \u2014 FMV increased year-over-year (player value rising faster than cap hit)\n- `declining` \u2014 FMV decreased year-over-year (player value falling; contract at risk)\n- `flat`      \u2014 No meaningful change\n- `unknown`   \u2014 Insufficient history (fewer than 2 seasons)"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "TeamCapRecord": {
+        "properties": {
+          "team": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team",
+            "example": "KAN"
+          },
+          "year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Year",
+            "example": 2024
+          },
+          "total_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Cap",
+            "description": "Total cap committed (millions USD)",
+            "example": 230.0
+          },
+          "cap_space": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Space",
+            "description": "Remaining cap space (millions USD)",
+            "example": 25.4
+          },
+          "risk_cap": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Cap",
+            "description": "Dead money / at-risk cap (millions USD)",
+            "example": 30.0
+          },
+          "qb_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Qb Spending"
+          },
+          "wr_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wr Spending"
+          },
+          "rb_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rb Spending"
+          },
+          "te_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Te Spending"
+          },
+          "dl_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dl Spending"
+          },
+          "lb_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lb Spending"
+          },
+          "db_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Db Spending"
+          },
+          "ol_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ol Spending"
+          },
+          "k_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "K Spending"
+          },
+          "p_spending": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P Spending"
+          },
+          "win_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Pct",
+            "example": 0.824
+          },
+          "win_total": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Win Total",
+            "example": 14.0
+          },
+          "conference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conference",
+            "example": "AFC"
+          }
+        },
+        "type": "object",
+        "title": "TeamCapRecord"
+      },
+      "TeamCapResponse": {
+        "properties": {
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamCapRecord"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "required": [
+          "teams",
+          "total"
+        ],
+        "title": "TeamCapResponse",
+        "description": "Response for GET /v1/cap/teams"
+      },
+      "TradeProposal": {
+        "properties": {
+          "team_a": {
+            "type": "string",
+            "title": "Team A"
+          },
+          "team_b": {
+            "type": "string",
+            "title": "Team B"
+          },
+          "team_a_assets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Team A Assets"
+          },
+          "team_b_assets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Team B Assets"
+          },
+          "config": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_a",
+          "team_b",
+          "team_a_assets",
+          "team_b_assets"
+        ],
+        "title": "TradeProposal"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "pundit-ledger",
+      "description": "Public prediction ledger endpoints.  No API key required.  Surfaces the **Pundit Index** and **FMV Trajectory** vendor payloads.",
+      "externalDocs": {
+        "description": "Vendor payload guide",
+        "url": "https://github.com/ucalegon206/cap-alpha-protocol/blob/main/docs/api/VENDOR_PAYLOADS.md"
+      }
+    },
+    {
+      "name": "b2b-cap-intelligence",
+      "description": "B2B Cap Intelligence API.  All endpoints require `X-API-Key` header.  Surfaces the **FMV Trajectory** and **Injury Lag** vendor payloads.",
+      "externalDocs": {
+        "description": "Vendor payload guide",
+        "url": "https://github.com/ucalegon206/cap-alpha-protocol/blob/main/docs/api/VENDOR_PAYLOADS.md"
+      }
+    }
+  ]
+}

@@ -272,7 +272,7 @@ def ingest_from_urls(
                 published_at=article["published_at"],
                 ingested_at=now,
                 content_type="article",
-                fetch_source_type="url_seed",
+                fetch_source_type="web_scrape",
                 sport="NFL",
             )
         )

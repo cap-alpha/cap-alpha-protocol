@@ -852,13 +852,26 @@ class TestParallelExtraction:
 
     @patch("src.assertion_extractor.ingest_batch")
     @patch("src.assertion_extractor._process_row")
-    def test_parallel_processes_all_rows(self, mock_proc, mock_ingest, mock_db, mock_provider):
+    def test_parallel_processes_all_rows(
+        self, mock_proc, mock_ingest, mock_db, mock_provider
+    ):
         """With workers=3, all rows are submitted and processed."""
         n = 5
         mock_db.fetch_df.return_value = make_raw_media_df(n)
         mock_proc.side_effect = [
-            (f"hash_{i}", [{"extracted_claim": f"Claim {i}", "claim_category": "player_performance",
-                            "season_year": 2026, "target_player": None, "target_team": None}], None)
+            (
+                f"hash_{i}",
+                [
+                    {
+                        "extracted_claim": f"Claim {i}",
+                        "claim_category": "player_performance",
+                        "season_year": 2026,
+                        "target_player": None,
+                        "target_team": None,
+                    }
+                ],
+                None,
+            )
             for i in range(n)
         ]
         mock_ingest.return_value = [f"ph_{i}" for i in range(n)]
@@ -871,13 +884,26 @@ class TestParallelExtraction:
 
     @patch("src.assertion_extractor.ingest_batch")
     @patch("src.assertion_extractor._process_row")
-    def test_parallel_handles_per_article_errors(self, mock_proc, mock_ingest, mock_db, mock_provider):
+    def test_parallel_handles_per_article_errors(
+        self, mock_proc, mock_ingest, mock_db, mock_provider
+    ):
         """Errors on individual articles don't abort the batch."""
         mock_db.fetch_df.return_value = make_raw_media_df(3)
         mock_proc.side_effect = [
             ("hash_0", [], "LLM quota exceeded"),  # error
-            ("hash_1", [{"extracted_claim": "Good claim", "claim_category": "player_performance",
-                         "season_year": 2026, "target_player": None, "target_team": None}], None),
+            (
+                "hash_1",
+                [
+                    {
+                        "extracted_claim": "Good claim",
+                        "claim_category": "player_performance",
+                        "season_year": 2026,
+                        "target_player": None,
+                        "target_team": None,
+                    }
+                ],
+                None,
+            ),
             ("hash_2", [], None),  # no predictions
         ]
         mock_ingest.return_value = ["ph_1"]
@@ -891,18 +917,29 @@ class TestParallelExtraction:
 
     @patch("src.assertion_extractor.ingest_batch")
     @patch("src.assertion_extractor.extract_assertions")
-    def test_workers_one_uses_sequential_path(self, mock_extract, mock_ingest, mock_db, mock_provider):
+    def test_workers_one_uses_sequential_path(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
         """workers=1 (default) should still use sequential path with time.sleep."""
         mock_db.fetch_df.return_value = make_raw_media_df(1)
         mock_extract.return_value = ExtractionResult(
             content_hash="hash_0",
-            predictions=[{"extracted_claim": "Claim", "claim_category": "player_performance",
-                          "season_year": 2026, "target_player": None, "target_team": None}],
+            predictions=[
+                {
+                    "extracted_claim": "Claim",
+                    "claim_category": "player_performance",
+                    "season_year": 2026,
+                    "target_player": None,
+                    "target_team": None,
+                }
+            ],
         )
         mock_ingest.return_value = ["ph_0"]
 
         with patch("src.assertion_extractor.time.sleep") as mock_sleep:
-            summary = run_extraction(limit=1, db=mock_db, provider=mock_provider, workers=1)
+            summary = run_extraction(
+                limit=1, db=mock_db, provider=mock_provider, workers=1
+            )
             mock_sleep.assert_called_once_with(4)
 
         assert summary["predictions_extracted"] == 1
@@ -916,8 +953,10 @@ class TestParallelExtraction:
             ("hash_1", [], None),
         ]
 
-        with patch("src.assertion_extractor.time.sleep") as mock_sleep, \
-             patch("src.assertion_extractor.ingest_batch", return_value=[]):
+        with (
+            patch("src.assertion_extractor.time.sleep") as mock_sleep,
+            patch("src.assertion_extractor.ingest_batch", return_value=[]),
+        ):
             run_extraction(limit=2, db=mock_db, provider=mock_provider, workers=2)
             mock_sleep.assert_not_called()
 

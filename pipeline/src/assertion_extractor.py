@@ -340,7 +340,11 @@ def _append_pundit_predictions(
         raw_player = pred.get("target_player")
         player_name = None
         if raw_player:
-            player_name = "MULTI" if ("," in raw_player and len(raw_player.split(",")) > 1) else raw_player
+            player_name = (
+                "MULTI"
+                if ("," in raw_player and len(raw_player.split(",")) > 1)
+                else raw_player
+            )
 
         target.append(
             PunditPrediction(
@@ -499,7 +503,9 @@ def run_extraction(
             for row in rows_to_extract:
                 content_hash, predictions, error = _process_row(row, provider, sport)
                 if error:
-                    logger.warning(f"Extraction error for {content_hash[:16]}…: {error}")
+                    logger.warning(
+                        f"Extraction error for {content_hash[:16]}…: {error}"
+                    )
                     summary["errors"] += 1
                     processed_hashes.append(content_hash)
                     continue
@@ -513,9 +519,13 @@ def run_extraction(
                 time.sleep(4)
         else:
             # --- Phase 2b: Parallel extraction ---
-            logger.info(f"Parallel mode: submitting {len(rows_to_extract)} rows to {effective_workers} workers")
+            logger.info(
+                f"Parallel mode: submitting {len(rows_to_extract)} rows to {effective_workers} workers"
+            )
             row_index = {row["content_hash"]: row for row in rows_to_extract}
-            with concurrent.futures.ThreadPoolExecutor(max_workers=effective_workers) as pool:
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=effective_workers
+            ) as pool:
                 futures = {
                     pool.submit(_process_row, row, provider, sport): row["content_hash"]
                     for row in rows_to_extract
@@ -524,18 +534,24 @@ def run_extraction(
                 for future in concurrent.futures.as_completed(futures):
                     done_count += 1
                     if done_count % 10 == 0 or done_count == len(futures):
-                        logger.info(f"Progress: {done_count}/{len(futures)} articles extracted")
+                        logger.info(
+                            f"Progress: {done_count}/{len(futures)} articles extracted"
+                        )
                     try:
                         content_hash, predictions, error = future.result()
                     except Exception as exc:
                         content_hash = futures[future]
-                        logger.warning(f"Worker exception for {content_hash[:16]}…: {exc}")
+                        logger.warning(
+                            f"Worker exception for {content_hash[:16]}…: {exc}"
+                        )
                         summary["errors"] += 1
                         processed_hashes.append(content_hash)
                         continue
 
                     if error:
-                        logger.warning(f"Extraction error for {content_hash[:16]}…: {error}")
+                        logger.warning(
+                            f"Extraction error for {content_hash[:16]}…: {error}"
+                        )
                         summary["errors"] += 1
                         processed_hashes.append(content_hash)
                         continue
@@ -544,7 +560,9 @@ def run_extraction(
                         processed_hashes.append(content_hash)
                         continue
                     summary["predictions_extracted"] += len(predictions)
-                    _append_pundit_predictions(row_index[content_hash], predictions, sport, all_predictions)
+                    _append_pundit_predictions(
+                        row_index[content_hash], predictions, sport, all_predictions
+                    )
                     processed_hashes.append(content_hash)
 
         # Batch ingest all predictions into the cryptographic ledger

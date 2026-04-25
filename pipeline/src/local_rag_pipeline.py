@@ -38,6 +38,7 @@ from src.cryptographic_ledger import ingest_batch
 from src.db_manager import DBManager
 from src.llm_provider import LLMProvider, get_provider_with_fallback, load_llm_config
 from src.team_batcher import (
+    BATCH_PROMPT_VERSION,
     ArticleRecord,
     annotate_team_mentions,
     batch_articles_by_team,
@@ -75,6 +76,9 @@ def _build_pundit_predictions(
     source_article: ArticleRecord,
     pundit_id: str,
     source_url: str,
+    prompt_version: Optional[str] = None,
+    llm_provider: Optional[str] = None,
+    llm_model: Optional[str] = None,
 ) -> list[PunditPrediction]:
     """Convert raw LLM prediction dicts to PunditPrediction objects."""
     result = []
@@ -104,6 +108,9 @@ def _build_pundit_predictions(
                 target_player_name=player_name,
                 target_team=pred.get("target_team"),
                 sport="NFL",
+                prompt_version=prompt_version,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
             )
         )
     return result
@@ -146,6 +153,11 @@ def run_batched_extraction(
         provider = get_provider_with_fallback("extraction", config)
 
     provider_model = getattr(provider, "model", "dry-run") if provider else "dry-run"
+    provider_type = (
+        type(provider).__name__.replace("Provider", "").lower()
+        if provider
+        else "dry-run"
+    )
     summary = {
         "total_articles": 0,
         "total_batches": 0,
@@ -268,7 +280,13 @@ def run_batched_extraction(
                     )
 
                     preds = _build_pundit_predictions(
-                        [pred], source_art, pundit_id, source_url
+                        [pred],
+                        source_art,
+                        pundit_id,
+                        source_url,
+                        prompt_version=BATCH_PROMPT_VERSION,
+                        llm_provider=provider_type,
+                        llm_model=provider_model,
                     )
                     all_predictions.extend(preds)
 

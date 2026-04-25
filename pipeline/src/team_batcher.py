@@ -14,10 +14,21 @@ Usage:
         predictions = provider.extract_predictions(prompt)
 """
 
+import hashlib
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Optional
+
+# Canonical marker for the batched prompt structure.
+# Update this string (not the hash) when the prompt instructions change significantly.
+_BATCH_PROMPT_STRUCTURE = (
+    "batched-extraction-v1|"
+    "fields:extracted_claim,pundit_name,claim_category,season_year,"
+    "target_player_name,target_team,consensus_note|"
+    "categories:player_performance,game_outcome,trade,draft_pick,injury,contract,other"
+)
+BATCH_PROMPT_VERSION = hashlib.sha256(_BATCH_PROMPT_STRUCTURE.encode()).hexdigest()[:8]
 
 # ---------------------------------------------------------------------------
 # Team name / alias → abbreviation mapping (all 32 NFL teams)

@@ -50,6 +50,9 @@ class PunditPrediction:
     ingestion_timestamp: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
+    prompt_version: Optional[str] = None  # SHA-256 prefix of extraction prompt template
+    llm_provider: Optional[str] = None  # e.g. "ollama", "gemini", "openai"
+    llm_model: Optional[str] = None  # e.g. "qwen2.5:32b", "gemini-2.5-flash"
 
 
 def _canonical_payload(prediction: PunditPrediction) -> str:
@@ -141,6 +144,9 @@ def ingest_prediction(
             "target_team": prediction.target_team,
             "stance": prediction.stance,
             "sport": prediction.sport,
+            "prompt_version": prediction.prompt_version,
+            "llm_provider": prediction.llm_provider,
+            "llm_model": prediction.llm_model,
             "resolution_status": "PENDING",
             "resolved_at": None,
             "resolution_notes": None,
@@ -191,9 +197,13 @@ def ingest_batch(
                     "claim_category": prediction.claim_category,
                     "season_year": prediction.season_year,
                     "target_player_id": prediction.target_player_id,
+                    "target_player_name": prediction.target_player_name,
                     "target_team": prediction.target_team,
                     "stance": prediction.stance,
                     "sport": prediction.sport,
+                    "prompt_version": prediction.prompt_version,
+                    "llm_provider": prediction.llm_provider,
+                    "llm_model": prediction.llm_model,
                     "resolution_status": "PENDING",
                     "resolved_at": None,
                     "resolution_notes": None,

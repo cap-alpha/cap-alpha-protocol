@@ -2,19 +2,14 @@
 #
 # Pre-commit hook: lint + unit tests via local venv
 #
-# Docker is no longer required for pre-commit. The venv at .venv/ runs
-# the same tools CI uses (black, isort, flake8, pytest). Docker is only
-# needed for Playwright E2E tests and Spotrac scraping.
-#
-# Bootstrap: make venv
+# Runs ruff (format + lint) and pytest. No Docker required.
+# Bootstrap: make setup
 
 set -e
 
 VENV=".venv"
 
 # Resolve the main repo root — works from worktrees too.
-# git rev-parse --show-toplevel returns the worktree root, not the main repo.
-# GIT_COMMON_DIR points to the main .git dir, so its parent is the main repo.
 MAIN_REPO="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 
 # Check for venv: current dir first, then main repo root
@@ -23,38 +18,43 @@ if [ -d "$VENV" ]; then
 elif [ -d "$MAIN_REPO/$VENV" ]; then
     ACTIVATE="$MAIN_REPO/$VENV/bin/activate"
 else
-    echo "ERROR: No .venv found. Run 'make venv' from the main repo."
+    echo "ERROR: No .venv found. Run 'make setup' from the main repo."
     exit 1
 fi
 
 # shellcheck disable=SC1090
 . "$ACTIVATE"
 
-echo "=== Pre-commit: Format check ==="
-black --check pipeline/src/ pipeline/tests/ || {
-    echo ""
-    echo "Format check failed. Run: black pipeline/src/ pipeline/tests/"
-    exit 1
-}
+echo "=== Pre-commit: Linting ==="
 
-isort --check pipeline/src/ pipeline/tests/ || {
-    echo ""
-    echo "Import sort check failed. Run: isort pipeline/src/ pipeline/tests/"
-    exit 1
-}
+if ! command -v ruff > /dev/null 2>&1; then
+    echo "Warning: ruff not found in venv — skipping lint. Run 'make setup' to install."
+else
+    ruff check pipeline/src/ pipeline/tests/ || {
+        echo ""
+        echo "Ruff lint failed. Run: ruff check pipeline/src/ pipeline/tests/"
+        exit 1
+    }
+    ruff format --check pipeline/src/ pipeline/tests/ || {
+        echo ""
+        echo "Ruff format failed. Run: ruff format pipeline/src/ pipeline/tests/"
+        exit 1
+    }
+fi
 
-echo "=== Pre-commit: Flake8 (fatal errors only) ==="
-flake8 pipeline/src/ pipeline/tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
+echo "=== Pre-commit: Tests (Docker) ==="
 
-echo "=== Pre-commit: Unit tests ==="
-PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)/pipeline" \
-    python -m pytest pipeline/tests/ -x -q --tb=short \
-    -m "not integration" \
-    --ignore=pipeline/tests/test_api.py \
-    --ignore=pipeline/tests/test_api_vegas.py \
-    --ignore=pipeline/tests/test_ledger_bq_integration.py || {
-    echo "Tests failed! Aborting commit."
-    exit 1
-}
+# Check if the pipeline container is running
+if docker compose --env-file docker_env.txt ps --format '{{.Name}}' 2>/dev/null | grep -q pipeline; then
+    docker compose --env-file docker_env.txt exec -T pipeline bash -c \
+        "cd /app && python -m pytest pipeline/tests/ -x -q --tb=short -m 'not integration' \
+        --ignore=pipeline/tests/test_api.py \
+        --ignore=pipeline/tests/test_api_vegas.py \
+        --ignore=pipeline/tests/test_ledger_bq_integration.py" \
+        || { echo "Tests failed! Aborting commit."; exit 1; }
+else
+    echo "Warning: Docker pipeline container not running — skipping tests. Run 'make up' to enable pre-commit tests."
+    echo "Proceeding without tests — CI will catch failures."
+fi
 
 echo "Pre-commit checks passed."

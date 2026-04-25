@@ -439,7 +439,13 @@ NOT_NULL_CONTRACTS: Dict[str, List[str]] = {
     "silver_team_finance": ["Team", "Year"],
     "silver_spotrac_salaries": ["player_name", "team", "year"],
     "silver_pfr_draft_history": ["player_name", "team", "year"],
-    "fact_player_efficiency": ["player_name", "team", "year", "position", "cap_hit_millions"],
+    "fact_player_efficiency": [
+        "player_name",
+        "team",
+        "year",
+        "position",
+        "cap_hit_millions",
+    ],
 }
 
 
@@ -473,8 +479,7 @@ def validate_not_null_constraints(df: pd.DataFrame, table_name: str) -> None:
 
     if violations:
         raise ValueError(
-            f"NOT NULL contract violation for '{table_name}':\n"
-            + "\n".join(violations)
+            f"NOT NULL contract violation for '{table_name}':\n" + "\n".join(violations)
         )
 
 

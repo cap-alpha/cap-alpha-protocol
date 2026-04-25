@@ -3,6 +3,7 @@ Unit tests for validate_not_null_constraints() — no BigQuery required.
 These run in all environments and serve as the first line of defense against
 NULL identity values propagating into the Gold layer.
 """
+
 import pandas as pd
 import pytest
 

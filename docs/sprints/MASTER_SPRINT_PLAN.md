@@ -100,7 +100,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [ ] SP22-5: Create a public accountability dashboard ranking personalities by their Brier Score vs. Market Consensus. (GH-#82)
 
 ### Sprint 25: Growth, Monetization UX & Agentic ROI
-- [/] SP25-3: auto-generate the 'Personality Magnet' visual infographic component to attract analysts/creators. (GH-#93)
+- [x] SP25-3: auto-generate the 'Personality Magnet' visual infographic component to attract analysts/creators. (GH-#93) (Claimed by Agent) — /share/player/[slug] shareable page + next/og OG image + Share Card button on player detail; 4-metric infographic (cap hit, FMV, ML risk score, market thesis)
 
 ### Sprint 28: UI Hardening & Visual Test Coverage (Team Logos)
 - [ ] SP28-1: Investigate and fix the missing team logos on the Team Changer UI. (GH-#103)

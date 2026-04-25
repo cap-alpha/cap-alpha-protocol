@@ -5,8 +5,9 @@ import { PlayerEfficiency } from "@/app/actions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ArrowLeft, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, ShieldAlert, CheckCircle2, Share2 } from "lucide-react";
 import Link from "next/link";
+import { slugify } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
     ComposedChart,
@@ -86,7 +87,14 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                         <p className="text-slate-400 text-lg mt-1">{player.position} • {player.team} • {player.year}</p>
                     </div>
                 </div>
-                {/* Save Action completely removed per UX sweep for dead layout elements */}
+                {/* SP25-3: Share Card — links to the auto-generated Personality Magnet page */}
+                <Link
+                    href={`/share/player/${slugify(player.player_name)}`}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-500 rounded-lg transition-colors"
+                >
+                    <Share2 className="h-4 w-4" />
+                    Share Card
+                </Link>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-8 items-start relative">

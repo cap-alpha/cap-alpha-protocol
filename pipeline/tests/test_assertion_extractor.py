@@ -13,7 +13,6 @@ import pytest
 from google.api_core.exceptions import NotFound
 
 from src.assertion_extractor import (
-    FILTER_PROMPT,
     VALID_CATEGORIES,
     ExtractionResult,
     _deduplicate_claims,

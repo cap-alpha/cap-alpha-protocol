@@ -78,9 +78,9 @@ class TestExtractAssertions:
     def test_returns_parsed_predictions(self, mock_provider):
         predictions = [
             {
-                "extracted_claim": "Patrick Mahomes will win MVP in 2025",
+                "extracted_claim": "Patrick Mahomes will win MVP in 2026",
                 "claim_category": "player_performance",
-                "season_year": 2025,
+                "season_year": 2026,
                 "target_player": "Patrick Mahomes",
                 "target_team": "KC",
                 "confidence_note": "strong assertion",
@@ -97,7 +97,7 @@ class TestExtractAssertions:
         assert len(result.predictions) == 1
         assert (
             result.predictions[0]["extracted_claim"]
-            == "Patrick Mahomes will win MVP in 2025"
+            == "Patrick Mahomes will win MVP in 2026"
         )
         assert result.predictions[0]["claim_category"] == "player_performance"
         assert result.error is None
@@ -376,7 +376,7 @@ class TestRunExtraction:
                 {
                     "extracted_claim": "Mahomes wins MVP",
                     "claim_category": "player_performance",
-                    "season_year": 2025,
+                    "season_year": 2026,
                     "target_player": "Patrick Mahomes",
                     "target_team": "KC",
                     "confidence_note": "strong",

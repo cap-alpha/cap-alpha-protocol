@@ -229,7 +229,7 @@ class TestRunExtractionSport:
                 {
                     "extracted_claim": "Mahomes wins MVP",
                     "claim_category": "player_performance",
-                    "season_year": 2025,
+                    "season_year": 2026,
                     "target_player": "P. Mahomes",
                     "target_team": "KC",
                     "confidence_note": "strong",
@@ -267,7 +267,7 @@ class TestRunExtractionSport:
                 {
                     "extracted_claim": "Chiefs win",
                     "claim_category": "game_outcome",
-                    "season_year": 2025,
+                    "season_year": 2026,
                     "target_player": None,
                     "target_team": "KC",
                     "confidence_note": "strong",

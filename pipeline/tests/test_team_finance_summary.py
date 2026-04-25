@@ -11,10 +11,10 @@ formula) by directly testing the GoldLayer class against a mocked DBManager so
 that no real BigQuery call is made.
 """
 
-import pytest
-import pandas as pd
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, call, patch
 
+import pandas as pd
+import pytest
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -35,14 +35,13 @@ def _make_db(execute_side_effect=None):
 # ---------------------------------------------------------------------------
 
 
-import sys
 import os
+import sys
 
 SCRIPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "scripts")
 sys.path.insert(0, SCRIPTS_DIR)
 
 from medallion_pipeline import GoldLayer  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Tests for build_team_finance_summary()
@@ -63,9 +62,18 @@ class TestBuildTeamFinanceSummary:
         gold = GoldLayer(db)
         gold.build_team_finance_summary()
         sql = db.execute.call_args[0][0]
-        for col in ["qb_spending", "wr_spending", "rb_spending", "te_spending",
-                    "dl_spending", "lb_spending", "db_spending", "ol_spending",
-                    "k_spending", "p_spending"]:
+        for col in [
+            "qb_spending",
+            "wr_spending",
+            "rb_spending",
+            "te_spending",
+            "dl_spending",
+            "lb_spending",
+            "db_spending",
+            "ol_spending",
+            "k_spending",
+            "p_spending",
+        ]:
             assert col in sql, f"Expected column '{col}' in generated SQL"
 
     def test_sql_computes_cap_space(self):
@@ -162,37 +170,53 @@ def test_main_calls_build_team_finance_summary(monkeypatch):
         def __init__(self, db):
             pass
 
-        def provision_schemas(self): pass
-        def ingest_contracts(self, year): pass
-        def ingest_pfr(self, year): pass
-        def ingest_penalties(self, year): pass
-        def ingest_team_cap(self): pass
-        def ingest_others(self): pass
-        def ingest_player_metadata(self): pass
+        def provision_schemas(self):
+            pass
+
+        def ingest_contracts(self, year):
+            pass
+
+        def ingest_pfr(self, year):
+            pass
+
+        def ingest_penalties(self, year):
+            pass
+
+        def ingest_team_cap(self):
+            pass
+
+        def ingest_others(self):
+            pass
+
+        def ingest_player_metadata(self):
+            pass
 
     class _FakeBronze:
         def __init__(self, db):
             pass
 
-        def ingest_contracts(self, year): pass
+        def ingest_contracts(self, year):
+            pass
 
     db_mock = MagicMock()
     db_mock.__enter__ = lambda s: db_mock
     db_mock.__exit__ = MagicMock(return_value=False)
 
     import medallion_pipeline as mp
+
     monkeypatch.setattr(mp, "GoldLayer", _FakeGold)
     monkeypatch.setattr(mp, "SilverLayer", _FakeSilver)
     monkeypatch.setattr(mp, "BronzeLayer", _FakeBronze)
     monkeypatch.setattr(mp, "DBManager", lambda: db_mock)
 
     import sys
+
     monkeypatch.setattr(sys, "argv", ["medallion_pipeline.py", "--year", "2024"])
     mp.main()
 
-    assert "team_finance_summary" in calls, (
-        "build_team_finance_summary() not called from main() gold path"
-    )
-    assert calls.index("fact_player_efficiency") < calls.index("team_finance_summary"), (
-        "team_finance_summary should run AFTER fact_player_efficiency"
-    )
+    assert (
+        "team_finance_summary" in calls
+    ), "build_team_finance_summary() not called from main() gold path"
+    assert calls.index("fact_player_efficiency") < calls.index(
+        "team_finance_summary"
+    ), "team_finance_summary should run AFTER fact_player_efficiency"

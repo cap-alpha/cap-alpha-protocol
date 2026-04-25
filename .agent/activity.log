@@ -4,5 +4,7 @@
 # Resources: issue:<n>  pr:<n>  file:<path>  branch:<name>
 # Rotation: entries older than 7 days are pruned weekly via .agent/claim.sh
 #
-2026-04-08T03:03:50Z | agent-test | CLAIM | issue:test-coord
-2026-04-08T03:03:50Z | agent-test | RELEASE | issue:test-coord
+2026-04-25T02:32:22Z | claude-sonnet-sp24 | CLAIM | issue:88
+2026-04-25T02:32:22Z | claude-sonnet-sp24 | CLAIM | file:pipeline/scripts/medallion_pipeline.py
+2026-04-25T02:35:23Z | claude-sonnet-sp24 | RELEASE | issue:88
+2026-04-25T02:35:24Z | claude-sonnet-sp24 | RELEASE | file:pipeline/scripts/medallion_pipeline.py

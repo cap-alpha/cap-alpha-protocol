@@ -346,51 +346,37 @@ export async function getPositionDistribution(position: string) {
 // --- PLAYER TIMELINE ACTIONS ---
 
 export type TimelineEvent = {
-  year: number;
-  week: number;
-  date_of_event: string | null;
-  event_type: 'CONTRACT' | 'ML_ALERT' | 'MEDIA_CONSENSUS' | 'PERFORMANCE_DROP';
+  player_name: string;
+  event_date: string | null;
+  event_year: number;
+  event_type: 'CONTRACT' | 'PREDICTION' | 'RESOLUTION' | 'ML_ALERT' | 'MEDIA_CONSENSUS' | 'PERFORMANCE_DROP';
+  title: string;
   description: string;
+  source_url?: string | null;
+  team?: string | null;
+  year?: number;
+  week?: number;
 };
 
 async function fetchPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
   try {
+    // Queries gold_layer.player_timeline_events — created by migration 010.
+    // The view unions silver_spotrac_contracts, prediction_ledger, and
+    // prediction_resolutions into a single normalised event feed.
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
     const query = `
-      -- 1. Contract / Financial Base
-      SELECT 
-          year, 
-          0 as week, 
-          year || '-03-15' as date_of_event, 
-          'CONTRACT' as event_type, 
-          'Cap Hit: $' || ROUND(cap_hit_millions, 1) || 'M (Total: $' || ROUND(total_contract_value_millions, 1) || 'M)' as description 
-      FROM \`nfl_dead_money.silver_spotrac_contracts\` 
-      WHERE player_name = @playerName
-      
-      UNION ALL
-      
-      -- 2. ML Prediction Triggers
-      SELECT 
-          year, 
-          0 as week, 
-          NULL as date_of_event, 
-          'ML_ALERT' as event_type, 
-          '🚨 Alpha Protocol Alert: High Bust Probability Detected.' as description 
-      FROM \`nfl_dead_money.prediction_results\` 
-      WHERE player_name = @playerName AND predicted_risk_score = 1
-      
-      UNION ALL
-      
-      -- 3. Media Consensus
-      SELECT 
-          year, 
-          media_consensus_week as week, 
-          media_date_approx as date_of_event, 
-          'MEDIA_CONSENSUS' as event_type, 
-          '🗞️ Media Consensus Shift: ' || rationale as description 
-      FROM \`nfl_dead_money.media_lag_metrics\` 
-      WHERE player_name = @playerName
-      
-      ORDER BY year ASC, week ASC;
+      SELECT
+        player_name,
+        CAST(event_date AS STRING)  AS event_date,
+        event_year,
+        event_type,
+        title,
+        description,
+        source_url,
+        team
+      FROM \`${projectId}.gold_layer.player_timeline_events\`
+      WHERE LOWER(player_name) = LOWER(@playerName)
+      ORDER BY event_date ASC, event_year ASC
     `;
 
     const [job] = await bigquery.createQueryJob({ query, params: { playerName } });
@@ -406,7 +392,7 @@ async function fetchPlayerTimeline(playerName: string): Promise<TimelineEvent[]>
 export async function getPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
   const cachedFn = unstable_cache(
     async () => fetchPlayerTimeline(playerName),
-    [`player-timeline-v5-${playerName}`],
+    [`player-timeline-v6-${playerName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();

@@ -121,10 +121,10 @@ def scrape_all_years(
         logger.info(f"Saved combined rosters to {rosters_path}")
 
     # Export normalized tables
-    logger.info(f"Exporting normalized compensation tables...")
+    logger.info("Exporting normalized compensation tables...")
     model.export_all(output_dir)
 
-    logger.info(f"=== Final State ===")
+    logger.info("=== Final State ===")
     logger.info(f"  Total Players: {len(model.players_df)}")
     logger.info(f"  Total Contracts: {len(model.contracts_df)}")
     logger.info(f"  Total Cap Impacts: {len(model.cap_impact_df)}")

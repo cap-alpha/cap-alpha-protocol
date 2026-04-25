@@ -53,7 +53,7 @@ def fetch_pfr_tables(url: str, rate_limit: float = 3.0) -> Dict[str, pd.DataFram
         for tbl in soup.find_all("table"):
             try:
                 df = pd.read_html(StringIO(str(tbl)), flavor="bs4")[0]
-                tbl_id = tbl.get("id") or f"table_{len(tables)+1}"
+                tbl_id = tbl.get("id") or f"table_{len(tables) + 1}"
                 tables[tbl_id] = df
                 logger.debug(f"Extracted visible table: {tbl_id}")
             except ValueError:
@@ -66,7 +66,7 @@ def fetch_pfr_tables(url: str, rate_limit: float = 3.0) -> Dict[str, pd.DataFram
             for tbl in block_soup.find_all("table"):
                 try:
                     df = pd.read_html(StringIO(str(tbl)), flavor="bs4")[0]
-                    tbl_id = tbl.get("id") or f"comment_table_{len(tables)+1}"
+                    tbl_id = tbl.get("id") or f"comment_table_{len(tables) + 1}"
                     if tbl_id not in tables:  # Avoid duplicates
                         tables[tbl_id] = df
                         logger.debug(f"Extracted commented table: {tbl_id}")
@@ -309,9 +309,9 @@ def scrape_pfr_historical_data(
     all_years = []
 
     for year in range(start_year, end_year + 1):
-        logger.info(f"\n{'='*60}")
+        logger.info(f"\n{'=' * 60}")
         logger.info(f"Processing year: {year}")
-        logger.info(f"{'='*60}")
+        logger.info(f"{'=' * 60}")
 
         if data_type in ["rosters", "both"]:
             roster_path = f"{save_dir}/rosters_{year}.csv"

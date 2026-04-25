@@ -162,9 +162,7 @@ class FeatureFactory:
         df["guaranteed_money_millions"] = df["guaranteed_money_millions"].fillna(0.0)
         df["total_contract_value_millions"] = df[
             "total_contract_value_millions"
-        ].fillna(
-            1.0
-        )  # Prevent DivZero
+        ].fillna(1.0)  # Prevent DivZero
         df["guaranteed_pct"] = df["guaranteed_money_millions"] / df[
             "total_contract_value_millions"
         ].replace(0, 1.0)

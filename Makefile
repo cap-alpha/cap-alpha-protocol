@@ -19,7 +19,7 @@ setup: venv
 venv:
 	$(PYTHON) -m venv $(VENV)
 	$(PY) pip install --upgrade pip
-	$(PY) pip install -r pipeline/requirements.txt
+	$(PY) pip install -r pipeline/requirements-dev.txt
 	@echo ""
 	@echo "Venv ready. Activate: source $(VENV)/bin/activate"
 
@@ -36,12 +36,12 @@ test:
 		--ignore=pipeline/tests/test_ledger_bq_integration.py
 
 lint:
-	$(PY) black --check pipeline/src/ pipeline/tests/ && \
-		isort --check pipeline/src/ pipeline/tests/ && \
-		flake8 pipeline/src/ pipeline/tests/ --select=E9,F63,F7,F82
+	$(PY) ruff check pipeline/src/ pipeline/tests/ && \
+		ruff format --check pipeline/src/ pipeline/tests/
 
 lint-fix:
-	$(PY) black pipeline/src/ pipeline/tests/ && isort pipeline/src/ pipeline/tests/
+	$(PY) ruff check --fix pipeline/src/ pipeline/tests/ && \
+		ruff format pipeline/src/ pipeline/tests/
 
 check: lint test
 

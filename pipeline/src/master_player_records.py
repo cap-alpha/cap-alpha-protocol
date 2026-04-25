@@ -244,9 +244,9 @@ def build_master_player_records(year: int = 2024) -> pd.DataFrame:
     - Enrichment flags
     """
 
-    logger.info(f"\n{'='*70}")
+    logger.info(f"\n{'=' * 70}")
     logger.info(f"MASTER PLAYER RECORDS FOR {year}")
-    logger.info(f"{'='*70}\n")
+    logger.info(f"{'=' * 70}\n")
 
     # Load data
     roster_df = load_pfr_rosters(year)
@@ -256,20 +256,20 @@ def build_master_player_records(year: int = 2024) -> pd.DataFrame:
         logger.error(f"No roster data for {year}")
         return pd.DataFrame()
 
-    logger.info(f"\n1. Matching contracts to rosters...")
+    logger.info("\n1. Matching contracts to rosters...")
     master = match_contracts_to_roster(roster_df, contract_df, year)
 
     # Summary statistics
-    logger.info(f"\n2. Master Player Records Summary:")
+    logger.info("\n2. Master Player Records Summary:")
     logger.info(f"  Total players in roster: {len(master)}")
     logger.info(f"  Players with contract data: {master['has_contract'].sum()}")
     logger.info(f"  Players without contract: {(~master['has_contract']).sum()}")
     logger.info(
-        f"  Contract coverage: {master['has_contract'].sum()/len(master)*100:.1f}%"
+        f"  Contract coverage: {master['has_contract'].sum() / len(master) * 100:.1f}%"
     )
 
     # By team
-    logger.info(f"\n3. Teams Represented:")
+    logger.info("\n3. Teams Represented:")
     team_summary = (
         master.groupby("team")
         .agg({"Player": "count", "has_contract": "sum"})
@@ -289,14 +289,14 @@ def build_master_player_records(year: int = 2024) -> pd.DataFrame:
     )
 
     # Show lowest coverage teams
-    logger.info(f"\n  Teams with lowest contract coverage:")
+    logger.info("\n  Teams with lowest contract coverage:")
     for team, row in team_summary.tail(5).iterrows():
         logger.info(
             f"    {team}: {row['coverage_pct']:.0f}% ({row['with_contracts']:.0f}/{row['roster_size']:.0f})"
         )
 
     # By position
-    logger.info(f"\n4. Coverage by Position:")
+    logger.info("\n4. Coverage by Position:")
     pos_summary = (
         master.groupby("Pos")
         .agg({"Player": "count", "has_contract": "sum"})

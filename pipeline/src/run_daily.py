@@ -95,7 +95,7 @@ def run_stage(
                 )
             else:
                 logger.error(
-                    f"[{stage_name}] FAILED: exit={proc.returncode}\n" f"{error_msg}"
+                    f"[{stage_name}] FAILED: exit={proc.returncode}\n{error_msg}"
                 )
         else:
             result.finish(0)

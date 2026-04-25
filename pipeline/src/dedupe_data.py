@@ -16,13 +16,13 @@ def generate_surrogate_keys(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
     def make_contract_id(row):
-        s = f"{row.get('player_name','')}_{row.get('team','')}_{row.get('year','')}".lower().encode(
+        s = f"{row.get('player_name', '')}_{row.get('team', '')}_{row.get('year', '')}".lower().encode(
             "utf-8"
         )
         return hashlib.md5(s).hexdigest()
 
     def make_player_id(row):
-        s = f"{row.get('player_name','')}".lower().encode("utf-8")
+        s = f"{row.get('player_name', '')}".lower().encode("utf-8")
         return hashlib.md5(s).hexdigest()
 
     df["contract_id"] = df.apply(make_contract_id, axis=1)

@@ -68,9 +68,9 @@ def test_duplicate_signature_detection(con):
         GROUP BY 1, 2, 3
         HAVING COUNT(*) > 3
     """)
-    assert (
-        len(dupes_df) == 0
-    ), f"Gold Mart has suspicious duplicates (>3 per player/year/team):\n{dupes_df}"
+    assert len(dupes_df) == 0, (
+        f"Gold Mart has suspicious duplicates (>3 per player/year/team):\n{dupes_df}"
+    )
 
 
 # --- 3. Gold Mart Validation ---
@@ -78,9 +78,9 @@ def test_duplicate_signature_detection(con):
 
 def test_gold_table_existence(con):
     """Ensures the Gold mart table exists and is populated."""
-    assert con.table_exists(
-        "fact_player_efficiency"
-    ), "Missing Gold table: fact_player_efficiency"
+    assert con.table_exists("fact_player_efficiency"), (
+        "Missing Gold table: fact_player_efficiency"
+    )
     count = con.execute("SELECT COUNT(*) FROM fact_player_efficiency").fetchone()[0]
     assert count > 0, "fact_player_efficiency is empty"
 
@@ -110,6 +110,6 @@ def test_cross_layer_consistency(con):
     """).fetchone()[0]
     total = con.execute("SELECT COUNT(*) FROM fact_player_efficiency").fetchone()[0]
     orphan_rate = orphan_count / total if total > 0 else 0
-    assert (
-        orphan_rate < 0.05
-    ), f"High orphan rate in Gold Layer ({orphan_rate:.2%}). Normalization failing."
+    assert orphan_rate < 0.05, (
+        f"High orphan rate in Gold Layer ({orphan_rate:.2%}). Normalization failing."
+    )

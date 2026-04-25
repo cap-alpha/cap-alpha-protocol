@@ -100,7 +100,9 @@ def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) 
         binary = (
             "TRUE"
             if result.binary_correct is True
-            else "FALSE" if result.binary_correct is False else "NULL"
+            else "FALSE"
+            if result.binary_correct is False
+            else "NULL"
         )
         weighted = (
             f"{result.weighted_score}" if result.weighted_score is not None else "NULL"

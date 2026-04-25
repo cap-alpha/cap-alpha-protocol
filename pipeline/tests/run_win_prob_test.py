@@ -54,7 +54,7 @@ def test_variance():
     if a_impact["vegas_variance"] > 0.5:
         print("  ✅ PASS: Variance detected.")
     else:
-        print(f"  ❌ FAIL: Variance too low.")
+        print("  ❌ FAIL: Variance too low.")
 
 
 if __name__ == "__main__":

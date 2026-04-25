@@ -1,0 +1,8 @@
+# Development tools — not required in production containers
+# Install with: pip install -r requirements-dev.txt
+-r requirements.txt
+
+pytest
+pytest-cov
+ruff
+pre-commit

@@ -128,7 +128,7 @@ class SpotracRankingsScraper:
             scrolls += 1
 
             if scrolls % 5 == 0:
-                logger.info(f"    ... scrolled {scrolls*500}px, loading more rows")
+                logger.info(f"    ... scrolled {scrolls * 500}px, loading more rows")
 
         logger.info(f"  ✓ Completed {scrolls} scrolls")
 

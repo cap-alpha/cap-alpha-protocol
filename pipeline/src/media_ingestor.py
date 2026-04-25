@@ -447,8 +447,7 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
             transcript_text = _fetch_transcript(video_id)
         except Exception as e:
             logger.warning(
-                f"[{source_id}] Transcript unavailable for {video_id} "
-                f"({title}): {e}"
+                f"[{source_id}] Transcript unavailable for {video_id} ({title}): {e}"
             )
             continue
 

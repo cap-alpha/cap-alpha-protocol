@@ -25,8 +25,7 @@ YOUTUBE_SOURCE = {
     "sport": "NFL",
     "type": "youtube_transcript",
     "url": (
-        "https://www.youtube.com/feeds/videos.xml"
-        "?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
+        "https://www.youtube.com/feeds/videos.xml?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
     ),
     "enabled": True,
     "pundits": [

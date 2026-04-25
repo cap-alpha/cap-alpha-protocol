@@ -606,9 +606,9 @@ class TestConfigLoading:
         config = load_media_config()
         for source in config["sources"]:
             if source.get("enabled") and "youtube" in source.get("type", ""):
-                assert (
-                    "UNKNOWN" not in source["url"]
-                ), f"Source {source['id']} has UNKNOWN channel_id and is enabled"
+                assert "UNKNOWN" not in source["url"], (
+                    f"Source {source['id']} has UNKNOWN channel_id and is enabled"
+                )
 
 
 # ---------------------------------------------------------------------------

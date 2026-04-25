@@ -21,6 +21,7 @@ from src.assertion_extractor import (
     mark_as_processed,
     reset_processed_hashes,
     run_extraction,
+    should_filter_article,
 )
 
 # ---------------------------------------------------------------------------
@@ -453,6 +454,225 @@ class TestRunExtraction:
         run_extraction(limit=5, db=mock_db, provider=mock_provider)
 
         mock_get.assert_called_once_with(mock_db, limit=5, include_unmatched=False)
+
+
+# ---------------------------------------------------------------------------
+# Pre-filter (Issue #180)
+# ---------------------------------------------------------------------------
+
+
+class TestShouldFilterArticle:
+    def test_returns_false_when_no_provider(self):
+        """Without a filter provider, nothing should be filtered."""
+        assert should_filter_article("any text") is False
+
+    def test_skips_article_when_provider_says_no(self):
+        """If classifier says 'no' (no predictions), article should be skipped."""
+        provider = MagicMock()
+        provider.classify.return_value = "no"
+        assert (
+            should_filter_article("recap of last game", filter_provider=provider)
+            is True
+        )
+
+    def test_passes_article_when_provider_says_yes(self):
+        """If classifier says 'yes' (has predictions), article should NOT be skipped."""
+        provider = MagicMock()
+        provider.classify.return_value = "yes"
+        assert (
+            should_filter_article("Mahomes wins MVP", filter_provider=provider) is False
+        )
+
+    def test_passes_article_on_provider_error(self):
+        """On error, don't skip — let extraction handle it (fail-open)."""
+        provider = MagicMock()
+        provider.classify.side_effect = Exception("Ollama connection refused")
+        assert should_filter_article("some text", filter_provider=provider) is False
+
+    def test_handles_yes_with_extra_text(self):
+        """'yes, it does' should still pass the article through."""
+        provider = MagicMock()
+        provider.classify.return_value = "yes, it contains predictions"
+        assert should_filter_article("text", filter_provider=provider) is False
+
+    def test_handles_no_with_extra_text(self):
+        """'no, this is a recap' should still filter the article."""
+        provider = MagicMock()
+        provider.classify.return_value = "no, this is a game recap"
+        assert should_filter_article("text", filter_provider=provider) is True
+
+    def test_truncates_text_to_1500_chars(self):
+        """Filter prompt should only include first 1500 chars of article."""
+        provider = MagicMock()
+        provider.classify.return_value = "no"
+        marker = "UNIQUEMARKER"
+        # Place marker at position 1490 (within limit) and 1510 (beyond limit)
+        long_text = "a" * 1490 + marker + "b" * 3000
+        should_filter_article(long_text, filter_provider=provider)
+        prompt_sent = provider.classify.call_args[0][0]
+        # The marker at position 1490 should NOT appear (1490+12 = 1502 > 1500)
+        # Only first 1500 chars of article text are included
+        assert len(long_text[:1500]) == 1500
+        assert "a" * 100 in prompt_sent  # early text is present
+        assert "b" * 100 not in prompt_sent  # text beyond 1500 is absent
+
+    def test_prompt_includes_sport(self):
+        """Filter prompt should include the sport context."""
+        provider = MagicMock()
+        provider.classify.return_value = "no"
+        should_filter_article("text", sport="MLB", filter_provider=provider)
+        prompt_sent = provider.classify.call_args[0][0]
+        assert "MLB" in prompt_sent
+
+    def test_case_insensitive(self):
+        """Classification should work regardless of case."""
+        provider = MagicMock()
+        provider.classify.return_value = "YES"
+        assert should_filter_article("text", filter_provider=provider) is False
+
+        provider.classify.return_value = "No"
+        assert should_filter_article("text", filter_provider=provider) is True
+
+
+class TestPreFilterIntegration:
+    """Tests that pre-filter integrates correctly into run_extraction."""
+
+    @patch("src.assertion_extractor.load_llm_config")
+    @patch("src.assertion_extractor.get_provider")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_filter_skips_articles(
+        self, mock_extract, mock_get_provider, mock_load_config, mock_db, mock_provider
+    ):
+        """When filter is enabled and says 'no', articles are skipped."""
+        mock_load_config.return_value = {
+            "extraction": {"provider": "gemini", "model": "gemini-2.5-flash"},
+            "filter": {"enabled": True, "provider": "ollama", "model": "llama3.1:8b"},
+        }
+        filter_prov = MagicMock()
+        filter_prov.classify.return_value = "no"
+        mock_get_provider.return_value = filter_prov
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["filtered_out"] == 3
+        assert summary["total_processed"] == 3
+        mock_extract.assert_not_called()
+
+    @patch("src.assertion_extractor.load_llm_config")
+    @patch("src.assertion_extractor.get_provider")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_filter_passes_articles(
+        self, mock_extract, mock_get_provider, mock_load_config, mock_db, mock_provider
+    ):
+        """When filter says 'yes', articles proceed to extraction."""
+        mock_load_config.return_value = {
+            "extraction": {"provider": "gemini", "model": "gemini-2.5-flash"},
+            "filter": {"enabled": True, "provider": "ollama", "model": "llama3.1:8b"},
+        }
+        filter_prov = MagicMock()
+        filter_prov.classify.return_value = "yes"
+        mock_get_provider.return_value = filter_prov
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["filtered_out"] == 0
+        mock_extract.assert_called_once()
+
+    @patch("src.assertion_extractor.load_llm_config")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_filter_disabled_by_default(
+        self, mock_extract, mock_load_config, mock_db, mock_provider
+    ):
+        """When filter.enabled is false, no filtering happens."""
+        mock_load_config.return_value = {
+            "extraction": {"provider": "gemini", "model": "gemini-2.5-flash"},
+            "filter": {"enabled": False, "provider": "ollama", "model": "llama3.1:8b"},
+        }
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["filtered_out"] == 0
+        mock_extract.assert_called_once()
+
+    @patch("src.assertion_extractor.load_llm_config")
+    @patch("src.assertion_extractor.get_provider")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_disable_filter_flag(
+        self, mock_extract, mock_get_provider, mock_load_config, mock_db, mock_provider
+    ):
+        """disable_filter=True overrides config and skips pre-filter."""
+        mock_load_config.return_value = {
+            "extraction": {"provider": "gemini", "model": "gemini-2.5-flash"},
+            "filter": {"enabled": True, "provider": "ollama", "model": "llama3.1:8b"},
+        }
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_filter=True
+        )
+
+        assert summary["filtered_out"] == 0
+        mock_get_provider.assert_not_called()
+        mock_extract.assert_called_once()
+
+    @patch("src.assertion_extractor.load_llm_config")
+    @patch("src.assertion_extractor.get_provider")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_filtered_articles_marked_processed(
+        self, mock_extract, mock_get_provider, mock_load_config, mock_db, mock_provider
+    ):
+        """Filtered-out articles are still marked as processed."""
+        mock_load_config.return_value = {
+            "extraction": {"provider": "gemini", "model": "gemini-2.5-flash"},
+            "filter": {"enabled": True, "provider": "ollama", "model": "llama3.1:8b"},
+        }
+        filter_prov = MagicMock()
+        filter_prov.classify.return_value = "no"
+        mock_get_provider.return_value = filter_prov
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        # mark_as_processed should have been called with both hashes
+        mock_db.append_dataframe_to_table.assert_called_once()
+        df = mock_db.append_dataframe_to_table.call_args[0][0]
+        assert len(df) == 2
+
+    @patch("src.assertion_extractor.load_llm_config")
+    @patch("src.assertion_extractor.get_provider")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_filter_error_falls_through(
+        self, mock_extract, mock_get_provider, mock_load_config, mock_db, mock_provider
+    ):
+        """If filter provider errors on classify, article passes through to extraction."""
+        mock_load_config.return_value = {
+            "extraction": {"provider": "gemini", "model": "gemini-2.5-flash"},
+            "filter": {"enabled": True, "provider": "ollama", "model": "llama3.1:8b"},
+        }
+        filter_prov = MagicMock()
+        filter_prov.classify.side_effect = Exception("connection timeout")
+        mock_get_provider.return_value = filter_prov
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["filtered_out"] == 0
+        mock_extract.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,246 @@
+# Extractor Eval Golden Dataset
+# Each entry is a labeled example for measuring extraction precision.
+#
+# label:  GOOD  — the text contains a clear, testable, future-facing prediction
+#         BAD   — no meaningful prediction (vague, past-tense, non-sport, opinion)
+# expected_claims: minimum number of predictions that should be extracted (for GOOD items)
+# notes:  brief reason for the label
+
+- id: eval_001
+  label: GOOD
+  expected_claims: 1
+  notes: "Clear draft pick prediction — Bears selecting Caleb Williams #1 overall"
+  author: "Mel Kiper Jr."
+  source: "ESPN Insider"
+  published_date: "2026-04-01"
+  text: >
+    The Chicago Bears are locked in on Caleb Williams with the first overall pick.
+    I have them taking Williams, and nothing I've heard changes that.
+    Williams will be the face of that franchise for the next decade.
+
+- id: eval_002
+  label: GOOD
+  expected_claims: 1
+  notes: "Player performance prediction for upcoming season"
+  author: "Adam Schefter"
+  source: "ESPN"
+  published_date: "2026-04-10"
+  text: >
+    Patrick Mahomes is going to throw for over 4,000 yards this season.
+    The Chiefs offense is upgraded and he has never been more prepared.
+
+- id: eval_003
+  label: BAD
+  expected_claims: 0
+  notes: "Past-tense game recap — no future prediction"
+  author: "Rich Eisen"
+  source: "NFL Network"
+  published_date: "2025-01-15"
+  text: >
+    Last night's game was incredible. The Eagles won 34-14. Jalen Hurts threw for
+    300 yards and had two touchdown passes. A dominant performance from start to finish.
+
+- id: eval_004
+  label: GOOD
+  expected_claims: 1
+  notes: "Trade prediction — specific player and destination"
+  author: "Ian Rapoport"
+  source: "NFL Network"
+  published_date: "2026-04-15"
+  text: >
+    I'm told the Jets are finalizing a trade to acquire Davante Adams from
+    the Raiders before the draft. The deal is expected to be announced this week.
+    Adams will give New York's offense a legitimate number-one target.
+
+- id: eval_005
+  label: BAD
+  expected_claims: 0
+  notes: "Pure opinion/preference — no testable claim"
+  author: "Skip Bayless"
+  source: "FS1"
+  published_date: "2026-03-20"
+  text: >
+    I love the energy around the Cowboys this offseason. Dak Prescott is
+    a great quarterback and I think this team has real heart. The fans
+    deserve a winner and I believe Jerry Jones will deliver.
+
+- id: eval_006
+  label: GOOD
+  expected_claims: 1
+  notes: "Contract prediction — player signing"
+  author: "Tom Pelissero"
+  source: "NFL Network"
+  published_date: "2026-04-05"
+  text: >
+    Saquon Barkley is going to re-sign with the Eagles on a long-term deal
+    worth at least $12M per year. Both sides are motivated and talks have
+    progressed significantly over the past week.
+
+- id: eval_007
+  label: BAD
+  expected_claims: 0
+  notes: "General NFL news with no specific predictive claim"
+  author: "Adam Schefter"
+  source: "ESPN"
+  published_date: "2026-04-12"
+  text: >
+    Teams are going through their pre-draft processes this week, meeting with
+    prospects at their facilities. The combine numbers are being analyzed.
+    Coaches and scouts are working around the clock.
+
+- id: eval_008
+  label: GOOD
+  expected_claims: 1
+  notes: "Injury impact prediction"
+  author: "Jeff Darlington"
+  source: "ESPN"
+  published_date: "2026-04-18"
+  text: >
+    Tua Tagovailoa will miss at least the first four weeks of the season
+    due to his shoulder surgery. The Dolphins have confirmed the timeline
+    and rookie backup Tyler Huntley will likely start those games.
+
+- id: eval_009
+  label: BAD
+  expected_claims: 0
+  notes: "Historical fact — prediction already resolved, past season"
+  author: "Louis Riddick"
+  source: "ESPN"
+  published_date: "2024-09-05"
+  text: >
+    Back in 2023, nobody expected the Lions to make the NFC Championship.
+    But Dan Campbell's culture-building paid off and now they're a Super Bowl contender.
+    The 2023 season proved that this team is for real.
+
+- id: eval_010
+  label: GOOD
+  expected_claims: 2
+  notes: "Multiple predictions in one article — draft and performance"
+  author: "Daniel Jeremiah"
+  source: "NFL Network"
+  published_date: "2026-04-20"
+  text: >
+    I have the Washington Commanders taking Drake Maye at number two overall.
+    Maye is a generational arm talent and will win Rookie of the Year in 2026.
+    Also look for the Patriots to trade back in the first round — they have
+    four picks in the top 50 and will look to accumulate more capital.
+
+- id: eval_011
+  label: BAD
+  expected_claims: 0
+  notes: "Non-NFL sport — should not extract NFL predictions"
+  author: "Stephen A. Smith"
+  source: "ESPN"
+  published_date: "2026-04-10"
+  text: >
+    The Lakers are going all in this summer. LeBron James is going to re-sign
+    and they'll add a third star. Anthony Davis needs to stay healthy and this
+    team will compete for the NBA title in 2027.
+
+- id: eval_012
+  label: GOOD
+  expected_claims: 1
+  notes: "Draft slot prediction with specific pick number"
+  author: "Dane Brugler"
+  source: "The Athletic"
+  published_date: "2026-04-22"
+  text: >
+    J.J. McCarthy will go to the Minnesota Vikings at pick number 11.
+    The Vikings need a quarterback of the future and McCarthy fits their
+    scheme perfectly. He'll sit behind Sam Darnold in year one.
+
+- id: eval_013
+  label: BAD
+  expected_claims: 0
+  notes: "Conditional/rhetorical — 'if' statement without commitment"
+  author: "Pat McAfee"
+  source: "YouTube"
+  published_date: "2026-04-15"
+  text: >
+    If the Chiefs stay healthy, they could win the Super Bowl. But if Mahomes
+    gets hurt, all bets are off. The same could be said for any team — injuries
+    change everything in this league. It all depends.
+
+- id: eval_014
+  label: GOOD
+  expected_claims: 1
+  notes: "Cap release prediction"
+  author: "Mike Garafolo"
+  source: "NFL Network"
+  published_date: "2026-04-08"
+  text: >
+    The Green Bay Packers will release Aaron Jones before the start of the
+    new league year. Jones carries a $10M cap hit and they need to free
+    up space to re-sign their own players. This is essentially done.
+
+- id: eval_015
+  label: BAD
+  expected_claims: 0
+  notes: "Analysis of past season — retrospective, not predictive"
+  author: "Matt Miller"
+  source: "Bleacher Report"
+  published_date: "2026-02-10"
+  text: >
+    Looking back at the 2025 draft class, the top picks performed exactly as
+    expected. Caleb Williams was the clear-cut number one. The class overall
+    graded out well with most first-rounders making immediate contributions.
+
+- id: eval_016
+  label: GOOD
+  expected_claims: 1
+  notes: "Free agency destination prediction"
+  author: "Adam Schefter"
+  source: "ESPN"
+  published_date: "2026-03-01"
+  text: >
+    Odell Beckham Jr. is signing with the Dallas Cowboys. The deal is for
+    two years with a team option on the second. He'll immediately become
+    their number two receiver behind CeeDee Lamb.
+
+- id: eval_017
+  label: BAD
+  expected_claims: 0
+  notes: "Vague prediction — lacks specific entity, timing, or testable outcome"
+  author: "Colin Cowherd"
+  source: "FS1"
+  published_date: "2026-04-01"
+  text: >
+    Somebody in this draft class is going to be a superstar. I don't know who,
+    but there's always one guy who outperforms their draft slot. The
+    scouts are usually wrong about something. Watch this space.
+
+- id: eval_018
+  label: GOOD
+  expected_claims: 1
+  notes: "Super Bowl prediction"
+  author: "Cris Collinsworth"
+  source: "NBC Sports"
+  published_date: "2026-04-05"
+  text: >
+    I'm picking the Kansas City Chiefs to win Super Bowl LXI in February 2027.
+    As long as Mahomes is healthy, they are the team to beat. Their defense
+    has been rebuilt and the offensive line is elite.
+
+- id: eval_019
+  label: BAD
+  expected_claims: 0
+  notes: "Player profile/bio content — historical, no future prediction"
+  author: "Staff"
+  source: "NFL.com"
+  published_date: "2026-04-10"
+  text: >
+    Patrick Mahomes grew up in Tyler, Texas. He was a two-sport athlete in
+    high school, excelling in both football and baseball. He was drafted by
+    the Detroit Tigers before choosing to play college football at Texas Tech.
+
+- id: eval_020
+  label: GOOD
+  expected_claims: 1
+  notes: "Draft order trade-back prediction"
+  author: "Peter Schrager"
+  source: "Good Morning Football"
+  published_date: "2026-04-23"
+  text: >
+    The New England Patriots will trade out of the third overall pick.
+    They've had conversations with at least three teams about moving back
+    to the 8-12 range and accumulating additional picks. A deal will happen.

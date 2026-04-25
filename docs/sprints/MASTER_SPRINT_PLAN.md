@@ -31,7 +31,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** Refactor the Silver data model architecture to natively ingest, merge, and temporalize high-frequency updates (hourly/daily deltas) replacing legacy nightly-batch assumptions.
 - [x] SP18.5-1: Audit all Silver layer tables and document necessary schema updates (e.g., adding distinct `valid_from` / `valid_until` timestamps for SCD Type 2 tracking). (GH-#64) — Audit delivered: docs/sprints/SP18.5-1_silver_layer_audit.md
 - [x] SP18.5-2: Architect an event-driven or micro-batch ETL trigger pipeline to process state changes as they stream from the official provider. (GH-#65) — MicrobatchTrigger class + bronze_entity_hashes tracking table + microbatch_pipeline.yml workflow + 8 unit tests
-- [ ] SP18.5-3: Rewrite Downstream Gold/Fact aggregations to gracefully consume and deduplicate high-frequency Silver deltas without re-running the entire history. (GH-#66)
+- [x] SP18.5-3: Rewrite Downstream Gold/Fact aggregations to gracefully consume and deduplicate high-frequency Silver deltas without re-running the entire history. (GH-#66) — IncrementalGoldRefresh + gold_build_watermark + migration 016 + 6 unit tests
 
 ### Sprint 27: Historical Data Hydration & Rigorous Asset Validation
 **Goal:** Verify the BigQuery migration, purge DuckDB remnants, and perform a rigorous integrity check for specific high-value assets (Joe Flacco) against major historical events.

@@ -6,8 +6,7 @@ NULL identity values propagating into the Gold layer.
 
 import pandas as pd
 import pytest
-from src.data_quality_tests import (NOT_NULL_CONTRACTS,
-                                    validate_not_null_constraints)
+from src.data_quality_tests import NOT_NULL_CONTRACTS, validate_not_null_constraints
 
 
 class TestValidateNotNullConstraints:

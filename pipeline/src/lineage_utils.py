@@ -136,7 +136,9 @@ def emit_duckdb_table_lineage(
 
     if row_count is not None:
         from openlineage.client.facet import (
-            ColumnMetric, DataQualityMetricsInputDatasetFacet)
+            ColumnMetric,
+            DataQualityMetricsInputDatasetFacet,
+        )
 
         output["facets"]["dataQualityMetrics"] = {
             "rowCount": row_count,
@@ -248,8 +250,7 @@ def push_to_datahub(
     try:
         from datahub.emitter.mce_builder import make_dataset_urn
         from datahub.emitter.rest_emitter import DatahubRestEmitter
-        from datahub.metadata.com.linkedin.pegasus2avro.mxe import \
-            MetadataChangeEvent
+        from datahub.metadata.com.linkedin.pegasus2avro.mxe import MetadataChangeEvent
         from datahub.metadata.schema_classes import DatasetPropertiesClass
 
         gms_endpoint = f"http://{DATAHUB_GMS_HOST}:{DATAHUB_GMS_PORT}"

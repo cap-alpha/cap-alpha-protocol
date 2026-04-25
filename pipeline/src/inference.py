@@ -51,8 +51,9 @@ class InferenceEngine:
         """
         from datetime import date
 
-        from bs4 import \
-            BeautifulSoup  # Unused but keeping imports clean isn't part of this refactor
+        from bs4 import (
+            BeautifulSoup,
+        )  # Unused but keeping imports clean isn't part of this refactor
         from src.feature_store import FeatureStore
 
         # 1. Load Point-in-Time Features (As of TODAY)

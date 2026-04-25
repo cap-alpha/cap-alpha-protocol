@@ -10,8 +10,12 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
-from src.pipeline_telemetry import (PIPELINE_RUNS_TABLE, PipelineRun,
-                                    StageResult, ensure_pipeline_runs_table)
+from src.pipeline_telemetry import (
+    PIPELINE_RUNS_TABLE,
+    PipelineRun,
+    StageResult,
+    ensure_pipeline_runs_table,
+)
 
 # ---------------------------------------------------------------------------
 # StageResult

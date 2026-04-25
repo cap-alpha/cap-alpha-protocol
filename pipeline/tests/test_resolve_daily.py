@@ -8,11 +8,16 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-from src.resolve_daily import (_extract_draft_claim, _extract_game_claim,
-                               _extract_player_stat_claim, _normalize_name,
-                               _normalize_team, resolve_draft_picks,
-                               resolve_game_outcomes,
-                               resolve_player_performance)
+from src.resolve_daily import (
+    _extract_draft_claim,
+    _extract_game_claim,
+    _extract_player_stat_claim,
+    _normalize_name,
+    _normalize_team,
+    resolve_draft_picks,
+    resolve_game_outcomes,
+    resolve_player_performance,
+)
 
 FAKE_HASH = "b" * 64
 

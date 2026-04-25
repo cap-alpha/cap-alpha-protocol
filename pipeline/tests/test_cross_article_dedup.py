@@ -8,10 +8,12 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
-from src.cross_article_dedup import (SIMILARITY_THRESHOLD,
-                                     _find_duplicates_in_group,
-                                     _get_pending_predictions,
-                                     cross_article_dedup)
+from src.cross_article_dedup import (
+    SIMILARITY_THRESHOLD,
+    _find_duplicates_in_group,
+    _get_pending_predictions,
+    cross_article_dedup,
+)
 
 FAKE_HASH_1 = "a" * 64
 FAKE_HASH_2 = "b" * 64

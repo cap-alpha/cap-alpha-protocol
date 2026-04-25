@@ -1,6 +1,16 @@
 import { NextResponse } from "next/server";
+import { BigQuery } from "@google-cloud/bigquery";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const bigquery = new BigQuery({
+    projectId: process.env.GCP_PROJECT_ID || "cap-alpha-protocol",
+    credentials:
+        process.env.GCP_CLIENT_EMAIL && process.env.GCP_PRIVATE_KEY
+            ? {
+                  client_email: process.env.GCP_CLIENT_EMAIL,
+                  private_key: process.env.GCP_PRIVATE_KEY.replace(/\\n/g, "\n"),
+              }
+            : undefined,
+});
 
 interface Prediction {
     prediction_hash: string;
@@ -43,44 +53,61 @@ export async function GET(
     }
 
     try {
-        const res = await fetch(`${API_URL}/v1/draft/${year}`, {
-            headers: {
-                "Accept": "application/json",
-            },
-        });
+        const projectId = process.env.GCP_PROJECT_ID || "cap-alpha-protocol";
 
-        if (!res.ok) {
-            console.error(`[Draft API] Backend returned ${res.status}`, await res.text());
-            return NextResponse.json({
+        const query = `
+            SELECT
+                l.prediction_hash,
+                l.pundit_id,
+                l.pundit_name,
+                l.extracted_claim,
+                l.target_player_name,
+                l.target_team,
+                l.source_url,
+                COALESCE(r.resolution_status, 'PENDING') AS status,
+                r.binary_correct,
+                r.outcome_notes
+            FROM \`${projectId}.gold_layer.prediction_ledger\` l
+            LEFT JOIN \`${projectId}.gold_layer.prediction_resolutions\` r
+                ON l.prediction_hash = r.prediction_hash
+            WHERE l.claim_category = 'draft_pick'
+              AND COALESCE(l.season_year, EXTRACT(YEAR FROM l.ingestion_timestamp)) = @year
+            ORDER BY l.ingestion_timestamp DESC
+            LIMIT 1000
+        `;
+
+        const [job] = await bigquery.createQueryJob({
+            query,
+            params: { year },
+            jobTimeoutMs: 15000,
+        });
+        const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
+
+        const predictions = rows as Prediction[];
+
+        const resolved = predictions.filter(
+            (p) => p.status !== "PENDING"
+        ).length;
+        const pending = predictions.filter((p) => p.status === "PENDING").length;
+
+        return NextResponse.json({
+            draft_year: year,
+            total_predictions: predictions.length,
+            resolved,
+            pending,
+            predictions,
+        });
+    } catch (err) {
+        console.error("[Draft API] BigQuery error:", err);
+        return NextResponse.json(
+            {
                 draft_year: year,
                 total_predictions: 0,
                 resolved: 0,
                 pending: 0,
                 predictions: [],
-            });
-        }
-
-        const data = await res.json();
-        return NextResponse.json({
-            draft_year: year,
-            total_predictions: data.total || 0,
-            resolved: data.resolved || 0,
-            pending: data.pending || 0,
-            predictions: data.predictions || [],
-        });
-    } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error("[Draft API] Backend fetch error:", {
-            error: errorMsg,
-            backendUrl: API_URL,
-            year,
-        });
-        return NextResponse.json({
-            draft_year: year,
-            total_predictions: 0,
-            resolved: 0,
-            pending: 0,
-            predictions: [],
-        });
+            },
+            { status: 500 }
+        );
     }
 }

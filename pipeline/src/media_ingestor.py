@@ -37,6 +37,13 @@ from bs4 import BeautifulSoup
 from google.cloud import bigquery
 from youtube_transcript_api import YouTubeTranscriptApi
 
+try:
+    _yt_client = YouTubeTranscriptApi()
+    _YT_API_V1 = True
+except TypeError:
+    _yt_client = None
+    _YT_API_V1 = False
+
 from src.db_manager import DBManager
 
 logging.basicConfig(
@@ -368,6 +375,16 @@ def _is_youtube_short(url: str) -> bool:
     return "/shorts/" in url
 
 
+def _fetch_transcript(video_id: str) -> str:
+    """Fetch transcript text, compatible with both old and new API versions."""
+    if _YT_API_V1:
+        result = _yt_client.fetch(video_id)
+        return " ".join(snippet.text for snippet in result)
+    else:
+        transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+        return " ".join(segment["text"] for segment in transcript_data)
+
+
 def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
     """
     Fetches recent videos from a YouTube channel via RSS, then downloads
@@ -390,6 +407,12 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
 
     if feed.bozo and not feed.entries:
         raise ValueError(f"Feed parse error for {source_id}: {feed.bozo_exception}")
+
+    if not feed.entries:
+        logger.warning(
+            f"[{source_id}] YouTube feed returned 0 entries — "
+            f"check channel ID in URL: {url}"
+        )
 
     items = []
     now = datetime.now(timezone.utc)
@@ -421,8 +444,7 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
 
         # Download transcript
         try:
-            transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
-            transcript_text = " ".join(segment["text"] for segment in transcript_data)
+            transcript_text = _fetch_transcript(video_id)
         except Exception as e:
             logger.warning(
                 f"[{source_id}] Transcript unavailable for {video_id} "
@@ -460,6 +482,12 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
                     sport=sport,
                 )
             )
+
+    if not items and feed.entries:
+        logger.warning(
+            f"[{source_id}] Feed had {len(feed.entries)} entries "
+            f"but 0 transcripts succeeded"
+        )
 
     return items
 
@@ -501,6 +529,156 @@ def _enrich_with_full_text(items: list[MediaItem], source: dict) -> list[MediaIt
             time.sleep(scrape_delay)
 
     return enriched
+
+
+def ingest_from_urls(
+    urls: list[str],
+    source_id: str,
+    pundit_id: Optional[str] = None,
+    pundit_name: Optional[str] = None,
+    sport: str = "NFL",
+    db: Optional["DBManager"] = None,
+    dry_run: bool = False,
+) -> list[MediaItem]:
+    """
+    Ingest content from an explicit list of URLs (historical backfill).
+
+    - YouTube URLs (youtube.com/watch, youtu.be): fetch transcript
+    - Web articles: scrape full text via readability-lxml
+    - Deduplicates against all existing BQ records for source_id
+    - Writes new items to raw_pundit_media unless dry_run=True
+
+    Returns the list of new MediaItems ingested (or that would be ingested).
+    """
+    now = datetime.now(timezone.utc)
+
+    # Use a very wide window (all-time) for backfill dedup
+    existing_hashes: set = set()
+    if db is not None:
+        existing_hashes = get_existing_hashes(db, source_id, window_days=3650)
+
+    items: list[MediaItem] = []
+    for url in urls:
+        is_yt = "youtube.com/watch" in url or "youtu.be/" in url or "/shorts/" in url
+
+        if is_yt:
+            video_id = _extract_video_id(url)
+            if not video_id:
+                logger.warning(f"[backfill] Could not extract video ID from {url}")
+                continue
+
+            try:
+                transcript_text = _fetch_transcript(video_id)
+            except Exception as e:
+                logger.warning(f"[backfill] Transcript unavailable for {video_id}: {e}")
+                continue
+
+            if not transcript_text.strip():
+                continue
+
+            chunks = _chunk_transcript(transcript_text)
+            for i, chunk in enumerate(chunks):
+                is_chunked = len(chunks) > 1
+                chunk_suffix = f"|chunk_{i}" if is_chunked else ""
+                chunk_title = f"YouTube video {video_id}" + (
+                    f" (part {i + 1})" if is_chunked else ""
+                )
+                content_hash = compute_content_hash(url + chunk_suffix)
+                if content_hash in existing_hashes:
+                    continue
+
+                items.append(
+                    MediaItem(
+                        content_hash=content_hash,
+                        source_id=source_id,
+                        title=chunk_title,
+                        raw_text=chunk,
+                        source_url=url,
+                        author=pundit_name,
+                        matched_pundit_id=pundit_id,
+                        matched_pundit_name=pundit_name,
+                        published_at=None,
+                        ingested_at=now,
+                        content_type="transcript",
+                        fetch_source_type="youtube_transcript",
+                        sport=sport,
+                        match_method="source_default" if pundit_id else "unmatched",
+                    )
+                )
+
+        else:
+            # Web article — scrape full text
+            raw_text = _scrape_article_text(url)
+            if not raw_text:
+                logger.warning(f"[backfill] Failed to scrape article: {url}")
+                continue
+
+            content_hash = compute_content_hash(url)
+            if content_hash in existing_hashes:
+                logger.debug(f"[backfill] Already ingested: {url}")
+                continue
+
+            items.append(
+                MediaItem(
+                    content_hash=content_hash,
+                    source_id=source_id,
+                    title=None,
+                    raw_text=raw_text,
+                    source_url=url,
+                    author=pundit_name,
+                    matched_pundit_id=pundit_id,
+                    matched_pundit_name=pundit_name,
+                    published_at=None,
+                    ingested_at=now,
+                    content_type="article",
+                    fetch_source_type="web_scrape",
+                    sport=sport,
+                    match_method="source_default" if pundit_id else "unmatched",
+                )
+            )
+
+    if items and not dry_run and db is not None:
+        rows = [
+            {
+                "content_hash": item.content_hash,
+                "source_id": item.source_id,
+                "title": item.title,
+                "raw_text": item.raw_text,
+                "source_url": item.source_url,
+                "author": item.author,
+                "matched_pundit_id": item.matched_pundit_id,
+                "matched_pundit_name": item.matched_pundit_name,
+                "published_at": item.published_at,
+                "ingested_at": item.ingested_at,
+                "content_type": item.content_type,
+                "fetch_source_type": item.fetch_source_type,
+                "sport": item.sport,
+                "raw_metadata": item.raw_metadata,
+            }
+            for item in items
+        ]
+        df = pd.DataFrame(rows)
+        nullable_cols = [
+            "title",
+            "raw_text",
+            "author",
+            "matched_pundit_id",
+            "matched_pundit_name",
+            "published_at",
+            "raw_metadata",
+        ]
+        for col in nullable_cols:
+            if col in df.columns:
+                df[col] = df[col].where(df[col].notna(), None)
+        db.append_dataframe_to_table(df, RAW_MEDIA_TABLE)
+        logger.info(f"[backfill] Wrote {len(items)} new items for source '{source_id}'")
+    elif dry_run and items:
+        logger.info(
+            f"[backfill] DRY RUN: would write {len(items)} new items "
+            f"for source '{source_id}'"
+        )
+
+    return items
 
 
 FETCHERS = {

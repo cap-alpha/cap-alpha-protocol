@@ -22,6 +22,7 @@ from src.media_ingestor import (
     compute_content_hash,
     fetch_rss,
     get_existing_hashes,
+    ingest_from_urls,
     ingest_source,
     load_media_config,
     match_pundit,
@@ -648,3 +649,85 @@ class TestIsYoutubeShort:
 
     def test_empty_string_is_not_short(self):
         assert _is_youtube_short("") is False
+
+
+# ---------------------------------------------------------------------------
+# ingest_from_urls  (Issue #213 — historical backfill)
+# ---------------------------------------------------------------------------
+
+
+class TestIngestFromUrls:
+    WEB_URL = "https://example.com/2026-draft-predictions"
+    YT_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+    @patch(
+        "src.media_ingestor._scrape_article_text", return_value="Draft analysis text"
+    )
+    def test_web_article_creates_media_item(self, mock_scrape, mock_db):
+        items = ingest_from_urls([self.WEB_URL], source_id="backfill_test", db=mock_db)
+        assert len(items) == 1
+        assert items[0].content_type == "article"
+        assert items[0].fetch_source_type == "web_scrape"
+        assert items[0].source_url == self.WEB_URL
+
+    @patch(
+        "src.media_ingestor._scrape_article_text", return_value="Draft analysis text"
+    )
+    def test_web_article_attaches_pundit(self, mock_scrape, mock_db):
+        items = ingest_from_urls(
+            [self.WEB_URL],
+            source_id="backfill_test",
+            pundit_id="adam_schefter",
+            pundit_name="Adam Schefter",
+            db=mock_db,
+        )
+        assert items[0].matched_pundit_id == "adam_schefter"
+        assert items[0].matched_pundit_name == "Adam Schefter"
+        assert items[0].match_method == "source_default"
+
+    @patch("src.media_ingestor._scrape_article_text", return_value=None)
+    def test_failed_scrape_is_skipped(self, mock_scrape, mock_db):
+        items = ingest_from_urls([self.WEB_URL], source_id="backfill_test", db=mock_db)
+        assert len(items) == 0
+        mock_db.append_dataframe_to_table.assert_not_called()
+
+    @patch("src.media_ingestor._fetch_transcript", return_value="Transcript text here")
+    def test_youtube_url_creates_transcript_item(self, mock_transcript, mock_db):
+        items = ingest_from_urls([self.YT_URL], source_id="backfill_yt", db=mock_db)
+        assert len(items) == 1
+        assert items[0].content_type == "transcript"
+        assert items[0].fetch_source_type == "youtube_transcript"
+
+    @patch("src.media_ingestor._fetch_transcript", side_effect=Exception("No captions"))
+    def test_youtube_transcript_failure_is_skipped(self, mock_transcript, mock_db):
+        items = ingest_from_urls([self.YT_URL], source_id="backfill_yt", db=mock_db)
+        assert len(items) == 0
+        mock_db.append_dataframe_to_table.assert_not_called()
+
+    @patch("src.media_ingestor._scrape_article_text", return_value="Article text")
+    def test_deduplicates_already_seen_url(self, mock_scrape, mock_db):
+        content_hash = compute_content_hash(self.WEB_URL)
+        mock_db.fetch_df.return_value = pd.DataFrame({"content_hash": [content_hash]})
+        items = ingest_from_urls([self.WEB_URL], source_id="backfill_test", db=mock_db)
+        assert len(items) == 0
+        mock_db.append_dataframe_to_table.assert_not_called()
+
+    @patch("src.media_ingestor._scrape_article_text", return_value="Article text")
+    def test_dry_run_does_not_write(self, mock_scrape, mock_db):
+        items = ingest_from_urls(
+            [self.WEB_URL], source_id="backfill_test", db=mock_db, dry_run=True
+        )
+        assert len(items) == 1
+        mock_db.append_dataframe_to_table.assert_not_called()
+
+    @patch("src.media_ingestor._scrape_article_text", return_value="Article text")
+    def test_writes_to_bq_when_new(self, mock_scrape, mock_db):
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        ingest_from_urls([self.WEB_URL], source_id="backfill_test", db=mock_db)
+        mock_db.append_dataframe_to_table.assert_called_once()
+
+    @patch("src.media_ingestor._scrape_article_text", return_value="Article text")
+    def test_unmatched_method_when_no_pundit(self, mock_scrape, mock_db):
+        items = ingest_from_urls([self.WEB_URL], source_id="backfill_test", db=mock_db)
+        assert items[0].match_method == "unmatched"
+        assert items[0].matched_pundit_id is None

@@ -155,7 +155,7 @@ _TEAM_PATTERNS = {
     "jaguars": "JAX",
     "falcons": "ATL",
     "colts": "IND",
-    "washington": "WSH",
+    "washington": "WAS",
     "detroit": "DET",
     "minnesota": "MIN",
 }

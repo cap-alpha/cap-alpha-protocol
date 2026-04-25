@@ -53,6 +53,40 @@ Data is hydrated via Server Actions or API routes that interface with the `pipel
 
 ---
 
+## Stripe Billing
+
+### Setup
+
+1. Run the IaC script once to create products + prices in Stripe (test mode):
+
+```bash
+STRIPE_SECRET_KEY=sk_test_... npx tsx --env-file=.env.local scripts/stripe-setup.ts
+```
+
+2. Copy the output price IDs into `.env.local` and Vercel environment variables.
+
+### Required environment variables
+
+| Variable | Description |
+|---|---|
+| `STRIPE_SECRET_KEY` | Stripe secret key (`sk_test_...` or `sk_live_...`) |
+| `STRIPE_PRO_PRICE_ID` | Price ID for the Pro plan ($14.99/mo) |
+| `STRIPE_API_STARTER_PRICE_ID` | Price ID for API Starter ($99/mo) |
+| `STRIPE_API_GROWTH_PRICE_ID` | Price ID for API Growth ($499/mo) |
+| `NEXT_PUBLIC_APP_URL` | Public app URL for redirect URLs (e.g. `https://cap-alpha.co`) |
+
+### Testing the end-to-end flow
+
+1. Start the dev server: `npm run dev`
+2. Sign in with a Clerk test account
+3. Navigate to `/pricing` and click **Upgrade to Pro**
+4. Complete checkout with Stripe test card `4242 4242 4242 4242`
+5. Confirm redirect back to `/dashboard?checkout=success`
+6. Confirm `stripe_customer_id` appears in Clerk user public metadata
+7. Navigate to `/dashboard/billing` → click **Manage Subscription** → confirm Customer Portal loads
+
+---
+
 ## Build & Deployment
 
 To build the application for production:

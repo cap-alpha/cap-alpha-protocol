@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Shield, TrendingUp, BarChart3, Lock, ArrowRight, Zap } from "lucide-react";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
+import { UpgradeButton } from "@/components/upgrade-button";
 
 export const revalidate = 300; // 5-minute ISR
 
@@ -134,13 +135,10 @@ export default function LandingPage() {
 
                     {/* Pro */}
                     <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-8 space-y-4 relative">
-                        <div className="absolute top-4 right-4 text-[10px] font-mono uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
-                            Coming Soon
-                        </div>
                         <div className="flex items-center justify-between">
                             <span className="text-sm font-mono uppercase tracking-widest text-emerald-400">Pro</span>
                             <div className="text-right">
-                                <span className="text-2xl font-black text-white">$10–20</span>
+                                <span className="text-2xl font-black text-white">$14.99</span>
                                 <span className="text-zinc-500 text-sm">/mo</span>
                             </div>
                         </div>
@@ -161,7 +159,7 @@ export default function LandingPage() {
                                 <span className="text-emerald-400">✓</span> Bulk CSV export
                             </li>
                         </ul>
-                        <WaitlistForm source="pro-cta" />
+                        <UpgradeButton plan="pro" />
                     </div>
                 </div>
             </section>
@@ -198,6 +196,7 @@ export default function LandingPage() {
                     </span>
                     <div className="flex items-center gap-6">
                         <Link href="/ledger" className="hover:text-zinc-400 transition-colors">Leaderboard</Link>
+                        <Link href="/pricing" className="hover:text-zinc-400 transition-colors">Pricing</Link>
                         <Link href="/methodology" className="hover:text-zinc-400 transition-colors">Methodology</Link>
                         <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms</Link>
                         <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>

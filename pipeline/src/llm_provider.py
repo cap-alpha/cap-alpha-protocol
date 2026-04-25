@@ -13,21 +13,11 @@ Usage:
     provider = get_provider()  # reads from llm_config.yaml
     predictions = provider.extract_predictions(prompt)
     has_predictions = provider.classify(prompt)  # "yes" / "no"
-
-Async batch usage (Gemini Flash burst mode):
-    from src.llm_provider import AsyncGeminiProvider, TokenBudgetTracker
-    import asyncio
-
-    budget = TokenBudgetTracker(max_tokens=2_000_000)
-    provider = AsyncGeminiProvider(budget=budget, concurrency=20)
-    results = asyncio.run(provider.extract_predictions_batch(prompts))
 """
 
-import asyncio
 import json
 import logging
 import os
-import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Optional
@@ -46,11 +36,9 @@ Return a JSON array of objects. Each object must have:
 - "claim_category": string — one of: player_performance, game_outcome, trade, draft_pick, injury, contract (REQUIRED)
 - "stance": string — directional sentiment: "bullish" (positive outcome predicted), "bearish" (negative outcome predicted), or "neutral" (no clear directional bias) (REQUIRED)
 - "season_year": integer or null — season year the prediction applies to (CRITICAL for draft_pick: must be the draft year, e.g. 2025, 2026)
-- "draft_year": integer or null — for draft pick predictions, set to the year of the draft (e.g. 2026). Otherwise null.
 - "target_player": string or null — player name if about a specific player
 - "target_team": string or null — team abbreviation (e.g. "KC", "CHI")
 - "confidence_note": string — how explicit/confident the prediction is (REQUIRED)
-- "prediction_horizon_days": integer — estimated days from publication date to when the event resolves; use -1 for retroactive/past statements (REQUIRED)
 
 For draft_pick category: season_year MUST be populated with the draft year (infer if not explicitly stated).
 
@@ -60,8 +48,6 @@ If no testable predictions exist, return an empty array: []
 
 class LLMProvider(ABC):
     """Abstract base for LLM extraction backends."""
-
-    provider_name: str = None  # Override in subclasses
 
     def __init__(self, model: str, **kwargs):
         self.model = model
@@ -116,8 +102,6 @@ class LLMProvider(ABC):
 class GeminiProvider(LLMProvider):
     """Google Gemini API with native schema enforcement."""
 
-    provider_name = "gemini"
-
     def __init__(self, model: str = "gemini-2.5-flash", **kwargs):
         super().__init__(model)
         from google import genai
@@ -158,11 +142,6 @@ class GeminiProvider(LLMProvider):
                         description="Directional sentiment: bullish=positive outcome predicted, bearish=negative, neutral=no clear bias",
                     ),
                     "season_year": types.Schema(type=types.Type.INTEGER, nullable=True),
-                    "draft_year": types.Schema(
-                        type=types.Type.INTEGER,
-                        nullable=True,
-                        description="For draft pick predictions, the year of the draft (e.g. 2026). Otherwise null.",
-                    ),
                     "target_player": types.Schema(
                         type=types.Type.STRING, nullable=True
                     ),
@@ -171,17 +150,12 @@ class GeminiProvider(LLMProvider):
                         type=types.Type.STRING,
                         description="How explicit/confident the prediction is",
                     ),
-                    "prediction_horizon_days": types.Schema(
-                        type=types.Type.INTEGER,
-                        description="Days from publication date to event resolution; use -1 for retroactive/past statements",
-                    ),
                 },
                 required=[
                     "extracted_claim",
                     "claim_category",
                     "stance",
                     "confidence_note",
-                    "prediction_horizon_days",
                 ],
             ),
         )
@@ -205,272 +179,12 @@ class GeminiProvider(LLMProvider):
 
 
 # ---------------------------------------------------------------------------
-# Token budget tracker (for cost-capped burst runs)
-# ---------------------------------------------------------------------------
-
-
-class TokenBudgetTracker:
-    """Thread/async-safe token budget tracker.
-
-    Gemini Flash pricing (as of 2026-04): $0.15/1M input + $0.60/1M output.
-    Default 2M token budget ≈ ~$0.30 blended.
-    """
-
-    # Conservative blended rate: mostly input tokens, some output
-    COST_PER_TOKEN = 0.15 / 1_000_000  # input-dominated estimate
-
-    def __init__(self, max_tokens: int = 2_000_000):
-        self.max_tokens = max_tokens
-        self._used_input: int = 0
-        self._used_output: int = 0
-        self._lock = asyncio.Lock()
-
-    @property
-    def used_tokens(self) -> int:
-        return self._used_input + self._used_output
-
-    @property
-    def estimated_cost_usd(self) -> float:
-        return (self._used_input * 0.15 / 1_000_000) + (
-            self._used_output * 0.60 / 1_000_000
-        )
-
-    async def record(self, input_tokens: int, output_tokens: int) -> bool:
-        """Record token usage. Returns False if budget exceeded."""
-        async with self._lock:
-            self._used_input += input_tokens
-            self._used_output += output_tokens
-            total = self._used_input + self._used_output
-            print(
-                f"[tokens] +{input_tokens}in/{output_tokens}out "
-                f"| total={total:,}/{self.max_tokens:,} "
-                f"| ~${self.estimated_cost_usd:.4f}",
-                file=sys.stderr,
-            )
-            return total <= self.max_tokens
-
-    def is_exhausted(self) -> bool:
-        return (self._used_input + self._used_output) >= self.max_tokens
-
-    def summary(self) -> dict:
-        return {
-            "input_tokens": self._used_input,
-            "output_tokens": self._used_output,
-            "total_tokens": self._used_input + self._used_output,
-            "budget_tokens": self.max_tokens,
-            "estimated_cost_usd": round(self.estimated_cost_usd, 4),
-            "budget_exhausted": self.is_exhausted(),
-        }
-
-
-# ---------------------------------------------------------------------------
-# Async Gemini Provider — high-concurrency burst mode
-# ---------------------------------------------------------------------------
-
-
-class AsyncGeminiProvider:
-    """Async Gemini Flash provider with semaphore-based concurrency control.
-
-    Designed for high-volume historical backfill. Runs ~20 calls in-flight
-    concurrently vs Ollama's serial throughput. Stops early if token budget
-    is exhausted.
-
-    Usage:
-        budget = TokenBudgetTracker(max_tokens=2_000_000)
-        provider = AsyncGeminiProvider(budget=budget, concurrency=20)
-        results = await provider.extract_predictions_batch(prompts_list)
-    """
-
-    def __init__(
-        self,
-        model: str = "gemini-2.5-flash",
-        concurrency: int = 20,
-        budget: Optional[TokenBudgetTracker] = None,
-    ):
-        from google import genai
-        from google.genai import types
-
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise EnvironmentError(
-                "GEMINI_API_KEY not set — required for gemini-flash provider. "
-                "Set it with: export GEMINI_API_KEY=<your-key>"
-            )
-        self.client = genai.Client(api_key=api_key)
-        self.types = types
-        self.model = model
-        self.concurrency = concurrency
-        self.budget = budget or TokenBudgetTracker()
-        self._schema = self._build_schema()
-        self._semaphore: Optional[asyncio.Semaphore] = None
-
-    def _build_schema(self):
-        types = self.types
-        return types.Schema(
-            type=types.Type.ARRAY,
-            items=types.Schema(
-                type=types.Type.OBJECT,
-                properties={
-                    "extracted_claim": types.Schema(
-                        type=types.Type.STRING,
-                        description="Concise, testable statement",
-                    ),
-                    "claim_category": types.Schema(
-                        type=types.Type.STRING,
-                        enum=[
-                            "player_performance",
-                            "game_outcome",
-                            "trade",
-                            "draft_pick",
-                            "injury",
-                            "contract",
-                        ],
-                    ),
-                    "stance": types.Schema(
-                        type=types.Type.STRING,
-                        enum=["bullish", "bearish", "neutral"],
-                        description="Directional sentiment",
-                    ),
-                    "season_year": types.Schema(type=types.Type.INTEGER, nullable=True),
-                    "target_player": types.Schema(
-                        type=types.Type.STRING, nullable=True
-                    ),
-                    "target_team": types.Schema(type=types.Type.STRING, nullable=True),
-                    "confidence_note": types.Schema(
-                        type=types.Type.STRING,
-                        description="How explicit/confident the prediction is",
-                    ),
-                },
-                required=[
-                    "extracted_claim",
-                    "claim_category",
-                    "stance",
-                    "confidence_note",
-                ],
-            ),
-        )
-
-    def _get_semaphore(self) -> asyncio.Semaphore:
-        """Lazily create semaphore in the running event loop."""
-        if self._semaphore is None:
-            self._semaphore = asyncio.Semaphore(self.concurrency)
-        return self._semaphore
-
-    def _parse_json_response(self, text: str) -> list[dict]:
-        """Parse JSON from model response."""
-        text = text.strip()
-        if text.startswith("```"):
-            lines = text.split("\n")
-            lines = [ln for ln in lines if not ln.strip().startswith("```")]
-            text = "\n".join(lines).strip()
-        try:
-            result = json.loads(text)
-            if isinstance(result, list):
-                return [p for p in result if p.get("extracted_claim", "").strip()]
-            if isinstance(result, dict):
-                if "predictions" in result:
-                    preds = result["predictions"]
-                    if isinstance(preds, list):
-                        return [
-                            p for p in preds if p.get("extracted_claim", "").strip()
-                        ]
-                if "extracted_claim" in result:
-                    return [result] if result["extracted_claim"].strip() else []
-            return []
-        except json.JSONDecodeError as e:
-            logger.warning(f"JSON parse failed: {e}. Response: {text[:200]}")
-            return []
-
-    async def _extract_one(
-        self, idx: int, prompt: str
-    ) -> tuple[int, list[dict], Optional[str]]:
-        """Extract predictions for a single prompt. Returns (idx, predictions, error)."""
-        if self.budget.is_exhausted():
-            return idx, [], "budget_exhausted"
-
-        sem = self._get_semaphore()
-        async with sem:
-            try:
-                loop = asyncio.get_running_loop()
-                response = await loop.run_in_executor(
-                    None,
-                    lambda: self.client.models.generate_content(
-                        model=self.model,
-                        contents=prompt,
-                        config=self.types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            response_schema=self._schema,
-                        ),
-                    ),
-                )
-                # Record token usage
-                usage = getattr(response, "usage_metadata", None)
-                if usage:
-                    in_tok = getattr(usage, "prompt_token_count", 0) or 0
-                    out_tok = getattr(usage, "candidates_token_count", 0) or 0
-                    within_budget = await self.budget.record(in_tok, out_tok)
-                    if not within_budget:
-                        logger.warning(
-                            f"[budget] Token budget exhausted after item {idx}. "
-                            f"Stopping. {self.budget.summary()}"
-                        )
-
-                predictions = self._parse_json_response(response.text)
-                return idx, predictions, None
-
-            except Exception as e:
-                logger.error(f"Gemini async call failed for item {idx}: {e}")
-                return idx, [], str(e)
-
-    async def extract_predictions_batch(
-        self, prompts: list[str]
-    ) -> list[tuple[list[dict], Optional[str]]]:
-        """
-        Run extraction on a batch of prompts concurrently.
-
-        Returns list of (predictions, error_or_None) in input order.
-        Stops dispatching new tasks once budget is exhausted.
-        """
-        self._semaphore = asyncio.Semaphore(self.concurrency)
-        tasks = []
-        for idx, prompt in enumerate(prompts):
-            if self.budget.is_exhausted():
-                logger.warning(
-                    f"[budget] Budget exhausted at item {idx}/{len(prompts)}. "
-                    f"Remaining {len(prompts) - idx} items skipped."
-                )
-                # Fill remaining with budget_exhausted markers
-                for remaining_idx in range(idx, len(prompts)):
-                    tasks.append(asyncio.create_task(self._noop(remaining_idx)))
-                break
-            tasks.append(asyncio.create_task(self._extract_one(idx, prompt)))
-
-        results_raw = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Re-sort by idx (gather preserves order, but be safe)
-        ordered = {}
-        for res in results_raw:
-            if isinstance(res, Exception):
-                logger.error(f"Task exception: {res}")
-                continue
-            idx, preds, err = res
-            ordered[idx] = (preds, err)
-
-        return [ordered.get(i, ([], "missing")) for i in range(len(prompts))]
-
-    async def _noop(self, idx: int) -> tuple[int, list[dict], str]:
-        return idx, [], "budget_exhausted"
-
-
-# ---------------------------------------------------------------------------
 # Claude Provider
 # ---------------------------------------------------------------------------
 
 
 class ClaudeProvider(LLMProvider):
     """Anthropic Claude API with structured output via system prompt."""
-
-    provider_name = "claude"
 
     def __init__(self, model: str = "claude-sonnet-4-20250514", **kwargs):
         super().__init__(model)
@@ -509,8 +223,6 @@ class ClaudeProvider(LLMProvider):
 
 class OpenAIProvider(LLMProvider):
     """OpenAI API with JSON mode."""
-
-    provider_name = "openai"
 
     def __init__(self, model: str = "gpt-4o", **kwargs):
         super().__init__(model)
@@ -558,8 +270,6 @@ class OpenAIProvider(LLMProvider):
 class OllamaProvider(LLMProvider):
     """Local Ollama models via HTTP API. Zero cost."""
 
-    provider_name = "ollama"
-
     def __init__(
         self,
         model: str = "qwen2.5:32b",
@@ -569,15 +279,7 @@ class OllamaProvider(LLMProvider):
         super().__init__(model)
         self.base_url = os.environ.get("OLLAMA_BASE_URL", base_url)
 
-    def _generate(self, prompt: str, format_json: bool = False) -> tuple[str, int]:
-        """
-        Send a generation request to Ollama.
-
-        Returns:
-            (response_text, total_tokens) where total_tokens is the sum of
-            prompt_eval_count + eval_count from the Ollama response.
-            Returns 0 for total_tokens if the counts are unavailable.
-        """
+    def _generate(self, prompt: str, format_json: bool = False) -> str:
         import requests
 
         payload = {
@@ -596,24 +298,18 @@ class OllamaProvider(LLMProvider):
                 timeout=120,
             )
             resp.raise_for_status()
-            data = resp.json()
-            text = data["response"]
-            total_tokens = (data.get("prompt_eval_count") or 0) + (
-                data.get("eval_count") or 0
-            )
-            return text, total_tokens
+            return resp.json()["response"]
         except Exception as e:
             logger.error(f"Ollama request failed: {e}")
             raise
 
     def extract_predictions(self, prompt: str) -> list[dict]:
         full_prompt = f"{prompt}\n\n{PREDICTION_SCHEMA_DESCRIPTION}\n\nRespond with ONLY a JSON array:"
-        text, tokens = self._generate(full_prompt, format_json=True)
-        self._last_tokens_used = tokens
+        text = self._generate(full_prompt, format_json=True)
         return self._parse_json_response(text)
 
     def classify(self, prompt: str) -> str:
-        text, _ = self._generate(prompt)
+        text = self._generate(prompt)
         return text.strip().lower()
 
 
@@ -623,9 +319,6 @@ class OllamaProvider(LLMProvider):
 
 PROVIDERS = {
     "gemini": GeminiProvider,
-    # gemini-flash is an alias for GeminiProvider that locks in gemini-2.5-flash
-    # and is the recommended provider for high-volume historical backfill runs.
-    "gemini-flash": GeminiProvider,
     "claude": ClaudeProvider,
     "openai": OpenAIProvider,
     "ollama": OllamaProvider,
@@ -650,9 +343,7 @@ def load_llm_config(config_path: Optional[Path] = None) -> dict:
 
 
 def get_provider(
-    role: str = "extraction",
-    config: Optional[dict] = None,
-    provider_override: Optional[str] = None,
+    role: str = "extraction", config: Optional[dict] = None
 ) -> LLMProvider:
     """
     Get an LLM provider for a specific role.
@@ -660,62 +351,27 @@ def get_provider(
     Args:
         role: "extraction" or "filter" — selects config section
         config: Optional config dict. If None, loads from llm_config.yaml
-        provider_override: Override provider name (e.g. "gemini-flash"). Also
-            honored from env vars (lower priority than explicit arg).
-
-    Environment variable overrides (take precedence over llm_config.yaml):
-        LLM_EXTRACTION_PROVIDER — provider name: gemini, gemini-flash, claude, openai, ollama
-        LLM_EXTRACTION_MODEL    — model ID (e.g. gemini-2.5-flash, qwen2.5:32b)
-        EXTRACTION_LLM          — legacy alias for LLM_EXTRACTION_PROVIDER (still supported)
-
-    Cloud Run Job usage:
-        Set LLM_EXTRACTION_PROVIDER=gemini-flash (or =gemini) and GEMINI_API_KEY to use
-        Gemini Flash in production while local dev keeps Ollama via llm_config.yaml.
     """
     if config is None:
         config = load_llm_config()
 
     role_config = config.get(role, config.get("extraction", {}))
-
-    # Resolution order: explicit arg > LLM_EXTRACTION_PROVIDER > EXTRACTION_LLM (legacy) > yaml
-    env_provider = os.environ.get("LLM_EXTRACTION_PROVIDER") or os.environ.get(
-        "EXTRACTION_LLM"
-    )
-    provider_name = (
-        provider_override or env_provider or role_config.get("provider", "ollama")
-    )
-
-    # gemini-flash alias always forces gemini-2.5-flash model
-    if provider_name == "gemini-flash":
-        model = "gemini-2.5-flash"
-    else:
-        # LLM_EXTRACTION_MODEL overrides yaml config when set
-        env_model = os.environ.get("LLM_EXTRACTION_MODEL")
-        model = env_model or role_config.get("model", "gemini-2.5-flash")
+    provider_name = role_config.get("provider", "gemini")
+    model = role_config.get("model", "gemini-2.5-flash")
 
     provider_cls = PROVIDERS.get(provider_name)
     if not provider_cls:
         raise ValueError(
-            f"Unknown LLM provider: {provider_name!r}. "
+            f"Unknown LLM provider: {provider_name}. "
             f"Available: {list(PROVIDERS.keys())}"
         )
-
-    if provider_name in ("gemini", "gemini-flash"):
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            raise EnvironmentError(
-                "GEMINI_API_KEY is required when using the gemini/gemini-flash provider. "
-                "Set it with: export GEMINI_API_KEY=<your-key>"
-            )
 
     logger.info(f"Initializing {provider_name} provider (model={model}, role={role})")
     return provider_cls(model=model)
 
 
 def get_provider_with_fallback(
-    role: str = "extraction",
-    config: Optional[dict] = None,
-    provider_override: Optional[str] = None,
+    role: str = "extraction", config: Optional[dict] = None
 ) -> LLMProvider:
     """
     Get provider with fallback chain. Tries primary, falls back to secondary.
@@ -724,7 +380,7 @@ def get_provider_with_fallback(
     if config is None:
         config = load_llm_config()
 
-    primary = get_provider(role, config, provider_override=provider_override)
+    primary = get_provider(role, config)
 
     fallback_config = config.get("fallback", {})
     if not fallback_config.get("enabled", False):
@@ -746,7 +402,6 @@ class _FallbackProvider(LLMProvider):
         super().__init__(model=primary.model)
         self.primary = primary
         self.fallback = fallback
-        self.provider_name = primary.provider_name
 
     def extract_predictions(self, prompt: str) -> list[dict]:
         try:

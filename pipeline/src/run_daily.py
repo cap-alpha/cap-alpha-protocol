@@ -143,6 +143,16 @@ def main():
         ("train_model", "python src/train_model.py"),
         ("ledger_hash", "python -m src.cryptographic_ledger"),
         ("quality_checks", "python -m pytest tests/ -m unit -v --tb=short"),
+        (
+            "post_ingest_quality",
+            f"python -c \""
+            f"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+            f"from src.db_manager import DBManager; "
+            f"from src.post_ingestion_quality import PostIngestionQualityGate; "
+            f"db = DBManager(); gate = PostIngestionQualityGate(db, year={year}); "
+            f"results = gate.run_all(); gate.print_report(results)"
+            f"\"",
+        ),
     ]
 
     results = []

@@ -80,7 +80,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 24: Cloud Expenditure & Compute Optimization
 **Goal:** Offload all heavy stat calculations to the pipeline architecture, protecting the API layer.
-- [ ] SP24-3: **Asset Pre-computation:** Shift any heavy client-side statistical aggregations entirely into the Python `medallion_pipeline.py` to offload compute costs to the ingestion nodes. (GH-#88)
+- [x] SP24-3: **Asset Pre-computation:** Shift any heavy client-side statistical aggregations entirely into the Python `medallion_pipeline.py` to offload compute costs to the ingestion nodes. (GH-#88) — AssetPrecomputer pre-builds gold_layer.team_cap_summary (32-team cap/risk aggregates) and gold_layer.player_risk_tiers (per-player risk_tier label + de-dup); wired into run_daily.py as asset_precompute stage; migration 018; 12 unit tests.
 
 ---
 

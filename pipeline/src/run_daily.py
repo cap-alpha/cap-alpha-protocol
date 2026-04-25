@@ -153,6 +153,15 @@ def main():
             f"results = gate.run_all(); gate.print_report(results)"
             f"\"",
         ),
+        (
+            "asset_precompute",
+            f"python -c \""
+            f"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+            f"from src.asset_precompute import run_precompute; "
+            f"results = run_precompute(); "
+            f"print('asset_precompute results:', results)"
+            f"\"",
+        ),
     ]
 
     results = []

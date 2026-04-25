@@ -36,14 +36,14 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 ### Sprint 27: Historical Data Hydration & Rigorous Asset Validation
 **Goal:** Verify the BigQuery migration, purge DuckDB remnants, and perform a rigorous integrity check for specific high-value assets (Joe Flacco) against major historical events.
 - [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-1: Verify that the pipeline backfill configuration to BigQuery Bronze layer (back to 2011) has completed successfully.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-2: Identify and permanently purge all remaining DuckDB/MotherDuck artifacts from the repository.
+- [x] SP27-2: Identify and permanently purge all remaining DuckDB/MotherDuck artifacts from the repository.
 - [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-3: Query and extract the value of every single column natively stored in the database representing Joe Flacco.
 - [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-4: Perform targeted web lookups to fundamentally verify the real-world accuracy of Joe Flacco's historical numbers against the database values.
 - [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-5: Generate a definitive list of active TODOs to remediate any anomalies or missing values identified during the evaluation.
 
 ### Sprint 29: Schema Integrity & Output Guardrails (NEW)
 **Goal:** Enforce unyielding data contracts so that bad data never propagates into the Gold layer or user-facing APIs.
-- [x] SP29-1: Enforce strict BigQuery `NOT NULL` constraints and foreign key mappings across all core identity tables (Players, Teams, Contracts). (GH-#106)
+- [x] SP29-1: Enforce strict BigQuery `NOT NULL` constraints and foreign key mappings across all core identity tables (Players, Teams, Contracts). (GH-#218)
 - [x] SP29-2: Implement automated dbt/Great Expectations data quality checks that run post-ingestion, instantly alerting on standard deviation outliers or missing cap figures. (GH-#107)
 
 ### Sprint 22: Media Accountability & Prediction Tracking (Data Layer)

@@ -73,6 +73,14 @@ Stance rules:
 - bearish: prediction is negative/pessimistic about the subject (miss playoffs, underperform, get cut, lose)
 - neutral: no clear directional bias (retirement, trade, purely factual future event)
 
+Special handling for DRAFT PICKS:
+- For draft_pick claims, ALWAYS extract the draft year (e.g., 2025, 2026 draft)
+- Place the draft year in the season_year field
+- Examples:
+  "Will be picked in the 2025 draft" → season_year: 2025
+  "2026 first round pick" → season_year: 2026
+  "will go top 10 in the next draft" → season_year: [current year + 1]
+
 Rules — what NOT to extract:
 - HEDGED statements: "wouldn't surprise me if", "I could see", "most likely", "might", "probably"
 - VAGUE qualitative claims: "will be good", "will make plays", "will be a factor", "well worth it"

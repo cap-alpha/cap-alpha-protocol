@@ -103,6 +103,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 ### Sprint 25: Growth, Monetization UX & Agentic ROI
 - [x] SP25-3: auto-generate the 'Personality Magnet' visual infographic component to attract analysts/creators. (GH-#93)
 
+
 ### Sprint 28: UI Hardening & Visual Test Coverage (Team Logos)
 - [x] SP28-1: Investigate and fix the missing team logos on the Team Changer UI. (GH-#103)
 - [x] SP28-2: Implement Playwright visual regression tests specifically for the Team Changer grid. (GH-#104)

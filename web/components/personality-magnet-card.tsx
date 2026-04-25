@@ -41,19 +41,31 @@ export function PersonalityMagnetCard({ player }: { player: any }) {
                 )}
             </div>
 
-            {/* Core Alpha Metrics */}
-            <div className="relative z-10 mt-14 grid grid-cols-2 gap-6">
+            {/* Core Alpha Metrics — 2×2 grid */}
+            <div className="relative z-10 mt-14 grid grid-cols-2 gap-4">
                 <div className="bg-black/40 backdrop-blur-md rounded-xl p-5 border border-white/5 shadow-inner">
                     <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1.5">Cap Burden</p>
-                    <p className="text-4xl font-mono font-bold text-white">
+                    <p className="text-3xl font-mono font-bold text-white">
                         ${player.cap_hit_millions?.toFixed(1) || '0.0'}M
+                    </p>
+                </div>
+                <div className="bg-black/40 backdrop-blur-md rounded-xl p-5 border border-white/5 shadow-inner">
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1.5">Fair Market Value</p>
+                    <p className="text-3xl font-mono font-bold text-white">
+                        {player.fair_market_value != null ? `$${player.fair_market_value.toFixed(1)}M` : '—'}
+                    </p>
+                </div>
+                <div className="bg-black/40 backdrop-blur-md rounded-xl p-5 border border-white/5 shadow-inner">
+                    <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1.5">ML Risk Score</p>
+                    <p className={`text-3xl font-mono font-bold ${(player.risk_score || 0) > 0.5 ? 'text-rose-400' : 'text-emerald-400'}`}>
+                        {player.risk_score != null ? player.risk_score.toFixed(2) : '—'}
                     </p>
                 </div>
                 <div className="bg-black/40 backdrop-blur-md rounded-xl p-5 border border-white/5 shadow-inner flex flex-col justify-center">
                     <p className="text-[10px] uppercase font-bold tracking-widest text-zinc-500 mb-1.5">Market Thesis</p>
                     <div className="flex items-center gap-2">
-                        {isRisky ? <AlertTriangle className="h-6 w-6 text-rose-500 animate-pulse" /> : <Trophy className="h-6 w-6 text-emerald-500" />}
-                        <p className={`text-3xl font-black uppercase tracking-tight ${accentColor}`}>
+                        {isRisky ? <AlertTriangle className="h-5 w-5 text-rose-500 animate-pulse" /> : <Trophy className="h-5 w-5 text-emerald-500" />}
+                        <p className={`text-2xl font-black uppercase tracking-tight ${accentColor}`}>
                             {isRisky ? 'TOXIC' : 'ALPHA'}
                         </p>
                     </div>

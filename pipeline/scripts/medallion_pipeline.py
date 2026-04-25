@@ -441,6 +441,168 @@ class GoldLayer:
         """)
         logger.info("✓ Gold Layer populated: fact_player_efficiency")
 
+    def build_team_finance_summary(self):
+        """
+        Pre-compute team_finance_summary (SP24-3 / GH-#88).
+
+        Materialises per-team aggregate stats needed by TradePartnerFinder
+        and the GM Dashboard at ingestion time, eliminating live aggregation
+        at every API request.
+
+        Schema:
+          team                  STRING   — 3-letter team code
+          year                  INT64    — season year
+          total_cap             FLOAT64  — sum of all cap hits (millions)
+          cap_space             FLOAT64  — estimated available cap (NFL cap limit - total_cap)
+          risk_cap              FLOAT64  — total dead cap exposure
+          qb_spending           FLOAT64  — sum cap hits for QB roster
+          wr_spending           FLOAT64  — sum cap hits for WR
+          rb_spending           FLOAT64  — sum cap hits for RB
+          te_spending           FLOAT64  — sum cap hits for TE
+          dl_spending           FLOAT64  — sum cap hits for DL/DE/DT/NT
+          lb_spending           FLOAT64  — sum cap hits for LB/OLB/MLB/ILB
+          db_spending           FLOAT64  — sum cap hits for DB/CB/S/SS/FS
+          ol_spending           FLOAT64  — sum cap hits for OL/OT/OG/C
+          k_spending            FLOAT64  — sum cap hits for K
+          p_spending            FLOAT64  — sum cap hits for P
+          win_pct               FLOAT64  — winning percentage (from silver_team_cap)
+          win_total             FLOAT64  — estimated win total (win_pct × 17)
+          conference            STRING   — AFC or NFC (static lookup)
+        """
+        logger.info("GoldLayer: Building team_finance_summary...")
+
+        # Historical NFL salary cap by season year (in millions).
+        # Used to estimate available cap space = cap_limit - total_committed.
+        # Source: overthecap.com historical cap data.
+        nfl_cap_by_year_sql = """
+            UNNEST([
+                STRUCT(2011 AS year, 120.0 AS cap_limit),
+                STRUCT(2012 AS year, 120.6 AS cap_limit),
+                STRUCT(2013 AS year, 123.0 AS cap_limit),
+                STRUCT(2014 AS year, 133.0 AS cap_limit),
+                STRUCT(2015 AS year, 143.3 AS cap_limit),
+                STRUCT(2016 AS year, 155.3 AS cap_limit),
+                STRUCT(2017 AS year, 167.0 AS cap_limit),
+                STRUCT(2018 AS year, 177.2 AS cap_limit),
+                STRUCT(2019 AS year, 188.2 AS cap_limit),
+                STRUCT(2020 AS year, 198.2 AS cap_limit),
+                STRUCT(2021 AS year, 182.5 AS cap_limit),
+                STRUCT(2022 AS year, 208.2 AS cap_limit),
+                STRUCT(2023 AS year, 224.8 AS cap_limit),
+                STRUCT(2024 AS year, 255.4 AS cap_limit),
+                STRUCT(2025 AS year, 279.5 AS cap_limit)
+            ])
+        """
+
+        # Static AFC/NFC conference mapping (stable — teams don't switch conferences).
+        conference_sql = """
+            UNNEST([
+                STRUCT('ARI' AS team, 'NFC' AS conference),
+                STRUCT('ATL' AS team, 'NFC' AS conference),
+                STRUCT('BAL' AS team, 'AFC' AS conference),
+                STRUCT('BUF' AS team, 'AFC' AS conference),
+                STRUCT('CAR' AS team, 'NFC' AS conference),
+                STRUCT('CHI' AS team, 'NFC' AS conference),
+                STRUCT('CIN' AS team, 'AFC' AS conference),
+                STRUCT('CLE' AS team, 'AFC' AS conference),
+                STRUCT('DAL' AS team, 'NFC' AS conference),
+                STRUCT('DEN' AS team, 'AFC' AS conference),
+                STRUCT('DET' AS team, 'NFC' AS conference),
+                STRUCT('GNB' AS team, 'NFC' AS conference),
+                STRUCT('HOU' AS team, 'AFC' AS conference),
+                STRUCT('IND' AS team, 'AFC' AS conference),
+                STRUCT('JAX' AS team, 'AFC' AS conference),
+                STRUCT('KAN' AS team, 'AFC' AS conference),
+                STRUCT('LAC' AS team, 'AFC' AS conference),
+                STRUCT('LAR' AS team, 'NFC' AS conference),
+                STRUCT('LVR' AS team, 'AFC' AS conference),
+                STRUCT('MIA' AS team, 'AFC' AS conference),
+                STRUCT('MIN' AS team, 'NFC' AS conference),
+                STRUCT('NWE' AS team, 'AFC' AS conference),
+                STRUCT('NOR' AS team, 'NFC' AS conference),
+                STRUCT('NYG' AS team, 'NFC' AS conference),
+                STRUCT('NYJ' AS team, 'AFC' AS conference),
+                STRUCT('PHI' AS team, 'NFC' AS conference),
+                STRUCT('PIT' AS team, 'AFC' AS conference),
+                STRUCT('SFO' AS team, 'NFC' AS conference),
+                STRUCT('SEA' AS team, 'NFC' AS conference),
+                STRUCT('TAM' AS team, 'NFC' AS conference),
+                STRUCT('TEN' AS team, 'AFC' AS conference),
+                STRUCT('WAS' AS team, 'NFC' AS conference)
+            ])
+        """
+
+        self.db.execute(f"""
+        CREATE OR REPLACE TABLE team_finance_summary AS
+        WITH cap_limits AS (
+            SELECT * FROM {nfl_cap_by_year_sql}
+        ),
+        conferences AS (
+            SELECT * FROM {conference_sql}
+        ),
+        positional_spending AS (
+            SELECT
+                team,
+                year,
+                SUM(cap_hit_millions)                                              AS total_cap,
+                SUM(dead_cap_millions)                                             AS risk_cap,
+                SUM(CASE WHEN UPPER(position) = 'QB'
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS qb_spending,
+                SUM(CASE WHEN UPPER(position) = 'WR'
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS wr_spending,
+                SUM(CASE WHEN UPPER(position) = 'RB'
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS rb_spending,
+                SUM(CASE WHEN UPPER(position) = 'TE'
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS te_spending,
+                SUM(CASE WHEN UPPER(position) IN ('DL', 'DE', 'DT', 'NT')
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS dl_spending,
+                SUM(CASE WHEN UPPER(position) IN ('LB', 'OLB', 'MLB', 'ILB')
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS lb_spending,
+                SUM(CASE WHEN UPPER(position) IN ('DB', 'CB', 'S', 'SS', 'FS')
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS db_spending,
+                SUM(CASE WHEN UPPER(position) IN ('OL', 'OT', 'OG', 'C')
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS ol_spending,
+                SUM(CASE WHEN UPPER(position) = 'K'
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS k_spending,
+                SUM(CASE WHEN UPPER(position) = 'P'
+                    THEN cap_hit_millions ELSE 0.0 END)                            AS p_spending
+            FROM silver_spotrac_contracts
+            GROUP BY team, year
+        )
+        SELECT
+            ps.team,
+            ps.year,
+            COALESCE(ps.total_cap, 0.0)                                            AS total_cap,
+            GREATEST(
+                COALESCE(cl.cap_limit, 255.4) - COALESCE(ps.total_cap, 0.0),
+                0.0
+            )                                                                      AS cap_space,
+            COALESCE(ps.risk_cap, 0.0)                                             AS risk_cap,
+            COALESCE(ps.qb_spending, 0.0)                                          AS qb_spending,
+            COALESCE(ps.wr_spending, 0.0)                                          AS wr_spending,
+            COALESCE(ps.rb_spending, 0.0)                                          AS rb_spending,
+            COALESCE(ps.te_spending, 0.0)                                          AS te_spending,
+            COALESCE(ps.dl_spending, 0.0)                                          AS dl_spending,
+            COALESCE(ps.lb_spending, 0.0)                                          AS lb_spending,
+            COALESCE(ps.db_spending, 0.0)                                          AS db_spending,
+            COALESCE(ps.ol_spending, 0.0)                                          AS ol_spending,
+            COALESCE(ps.k_spending, 0.0)                                           AS k_spending,
+            COALESCE(ps.p_spending, 0.0)                                           AS p_spending,
+            COALESCE(tc.win_pct, 0.0)                                              AS win_pct,
+            ROUND(COALESCE(tc.win_pct, 0.0) * 17.0, 1)                            AS win_total,
+            COALESCE(conf.conference, 'UNKNOWN')                                   AS conference
+        FROM positional_spending ps
+        LEFT JOIN silver_team_cap tc
+            ON UPPER(TRIM(ps.team)) = UPPER(TRIM(tc.team))
+            AND ps.year = tc.year
+        LEFT JOIN cap_limits cl
+            ON ps.year = cl.year
+        LEFT JOIN conferences conf
+            ON UPPER(TRIM(ps.team)) = conf.team
+        """)
+        logger.info("✓ Gold Layer populated: team_finance_summary")
+
+
 def main():
     import argparse
     from datetime import datetime
@@ -474,6 +636,7 @@ def main():
 
         if not args.skip_gold or args.gold_only:
             gold.build_fact_player_efficiency()
+            gold.build_team_finance_summary()  # SP24-3: pre-compute trade/GM aggregations
             # ML Enrichment is now decoupled and run via src/inference.py in the orchestration layer
             # This avoids circular dependencies with FeatureFactory
 

@@ -5,6 +5,8 @@
  * Per-tier key caps are enforced on key creation.
  */
 
+import { clerkClient } from "@clerk/nextjs/server";
+
 export type Tier = "free" | "pro" | "api_starter" | "enterprise";
 
 interface TierConfig {
@@ -19,13 +21,22 @@ const TIER_CONFIGS: Record<Tier, TierConfig> = {
 };
 
 /**
- * Resolve a user's tier from their subscription state.
+ * Resolve a user's tier from Clerk publicMetadata.
  *
- * TODO(#146/#147): Wire this to Stripe subscription state via Clerk metadata.
- * For now, returns 'free' as the default tier for all users.
+ * The Stripe webhook handler (POST /api/webhooks/stripe) sets
+ * publicMetadata.tier on every subscription state change, so this
+ * read is O(1) without touching the database on every API request.
  */
-export async function getUserTier(_userId: string): Promise<Tier> {
-    // Stub: always returns 'free' until Stripe integration in #146/#147
+export async function getUserTier(userId: string): Promise<Tier> {
+    try {
+        const user = await clerkClient.users.getUser(userId);
+        const tier = user.publicMetadata?.tier as Tier | undefined;
+        if (tier && tier in TIER_CONFIGS) {
+            return tier;
+        }
+    } catch (err) {
+        console.error(`[getUserTier] Clerk lookup failed for ${userId}:`, err);
+    }
     return "free";
 }
 

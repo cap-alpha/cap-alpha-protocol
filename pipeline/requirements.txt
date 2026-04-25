@@ -35,7 +35,6 @@ tabulate
 praw
 google-cloud-bigquery
 google-genai
-duckdb
 duckduckgo-search
 pydantic
 youtube-transcript-api>=0.6.3,<2.0.0

@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
 
-SIMILARITY_THRESHOLD = 0.75
+SIMILARITY_THRESHOLD = 0.65
 
 
 def _get_pending_predictions(db: DBManager) -> pd.DataFrame:

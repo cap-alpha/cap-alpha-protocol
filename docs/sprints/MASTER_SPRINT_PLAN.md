@@ -43,7 +43,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 29: Schema Integrity & Output Guardrails (NEW)
 **Goal:** Enforce unyielding data contracts so that bad data never propagates into the Gold layer or user-facing APIs.
-- [ ] SP29-1: Enforce strict BigQuery `NOT NULL` constraints and foreign key mappings across all core identity tables (Players, Teams, Contracts). (GH-#106)
+- [/] SP29-1: Enforce strict BigQuery `NOT NULL` constraints and foreign key mappings across all core identity tables (Players, Teams, Contracts). (GH-#106) (Claimed by Agent claude-sonnet-4-6)
 - [ ] SP29-2: Implement automated dbt/Great Expectations data quality checks that run post-ingestion, instantly alerting on standard deviation outliers or missing cap figures. (GH-#107)
 
 ### Sprint 22: Media Accountability & Prediction Tracking (Data Layer)

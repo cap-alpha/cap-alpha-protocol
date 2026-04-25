@@ -11,7 +11,6 @@ import pytest
 
 from src.bq_data_quality import CheckResult, format_report, to_json
 
-
 # ---------------------------------------------------------------------------
 # CheckResult helpers
 # ---------------------------------------------------------------------------
@@ -38,7 +37,9 @@ class TestCheckResult:
         assert r.status == "ERROR"
 
     def test_null_column_allowed(self):
-        r = CheckResult(table="t", column=None, check="row_count", status="OK", detail="ok")
+        r = CheckResult(
+            table="t", column=None, check="row_count", status="OK", detail="ok"
+        )
         assert r.column is None
 
 
@@ -49,7 +50,11 @@ class TestCheckResult:
 
 class TestFormatReport:
     def test_includes_table_and_check(self):
-        results = [make_result(table="silver_spotrac_contracts", check="null_rate", status="OK")]
+        results = [
+            make_result(
+                table="silver_spotrac_contracts", check="null_rate", status="OK"
+            )
+        ]
         report = format_report(results)
         assert "silver_spotrac_contracts" in report
         assert "null_rate" in report
@@ -104,6 +109,7 @@ class TestFormatReport:
 class TestToJson:
     def test_valid_json(self):
         import json
+
         results = [make_result()]
         data = json.loads(to_json(results))
         assert isinstance(data, list)
@@ -111,6 +117,7 @@ class TestToJson:
 
     def test_json_has_required_keys(self):
         import json
+
         results = [make_result(status="WARNING", detail="some detail")]
         data = json.loads(to_json(results))[0]
         for key in ("table", "column", "check", "status", "detail"):
@@ -118,25 +125,37 @@ class TestToJson:
 
     def test_json_null_column(self):
         import json
-        r = CheckResult(table="t", column=None, check="row_count", status="OK", detail="ok")
+
+        r = CheckResult(
+            table="t", column=None, check="row_count", status="OK", detail="ok"
+        )
         data = json.loads(to_json([r]))[0]
         assert data["column"] is None
 
     def test_json_outlier_count(self):
         import json
+
         r = CheckResult(
-            table="t", column="cap_hit_millions", check="cap_outliers",
-            status="WARNING", detail="3 rows exceed 3σ", outlier_count=3
+            table="t",
+            column="cap_hit_millions",
+            check="cap_outliers",
+            status="WARNING",
+            detail="3 rows exceed 3σ",
+            outlier_count=3,
         )
         data = json.loads(to_json([r]))[0]
         assert data["outlier_count"] == 3
 
     def test_json_missing_years(self):
         import json
+
         r = CheckResult(
-            table="t", column="year", check="year_coverage",
-            status="ERROR", detail="Missing years: [2012, 2013]",
-            missing_years=[2012, 2013]
+            table="t",
+            column="year",
+            check="year_coverage",
+            status="ERROR",
+            detail="Missing years: [2012, 2013]",
+            missing_years=[2012, 2013],
         )
         data = json.loads(to_json([r]))[0]
         assert data["missing_years"] == [2012, 2013]
@@ -156,10 +175,12 @@ class TestBQIntegration:
 
     def setup_method(self):
         from src.bq_data_quality import _client_and_project
+
         self.client, self.project = _client_and_project()
 
     def test_null_rate_returns_check_result(self):
         from src.bq_data_quality import check_null_rate
+
         result = check_null_rate(
             self.client, self.project, "silver_spotrac_contracts", "player_name"
         )
@@ -170,6 +191,7 @@ class TestBQIntegration:
 
     def test_cap_outliers_returns_check_result(self):
         from src.bq_data_quality import check_cap_outliers
+
         result = check_cap_outliers(
             self.client, self.project, "silver_spotrac_contracts", "cap_hit_millions"
         )
@@ -179,6 +201,7 @@ class TestBQIntegration:
 
     def test_year_coverage_returns_check_result(self):
         from src.bq_data_quality import check_year_coverage
+
         result = check_year_coverage(
             self.client, self.project, "silver_spotrac_contracts"
         )
@@ -187,6 +210,7 @@ class TestBQIntegration:
 
     def test_row_count_returns_check_result(self):
         from src.bq_data_quality import check_row_count
+
         result = check_row_count(
             self.client, self.project, "silver_spotrac_contracts", min_rows=100
         )
@@ -195,6 +219,7 @@ class TestBQIntegration:
 
     def test_run_all_checks_returns_list(self):
         from src.bq_data_quality import run_all_checks
+
         results = run_all_checks(self.client, self.project)
         assert isinstance(results, list)
         assert len(results) > 0

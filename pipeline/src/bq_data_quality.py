@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 DATASET = "nfl_dead_money"
 
 # Thresholds
-NULL_WARN_PCT = 5.0    # >5% NULLs in a critical column → WARNING
+NULL_WARN_PCT = 5.0  # >5% NULLs in a critical column → WARNING
 NULL_ERROR_PCT = 20.0  # >20% NULLs → ERROR
-OUTLIER_Z = 3.0        # z-score threshold for cap figure outliers
+OUTLIER_Z = 3.0  # z-score threshold for cap figure outliers
 MIN_ROWS_PER_TABLE = {  # absolute minimum expected row counts
     "silver_spotrac_contracts": 10_000,
     "fact_player_efficiency": 10_000,
@@ -64,9 +64,7 @@ def _client_and_project():
     return client, project_id
 
 
-def check_null_rate(
-    client, project: str, table: str, column: str
-) -> CheckResult:
+def check_null_rate(client, project: str, table: str, column: str) -> CheckResult:
     """Return NULL percentage for *column* in *table*."""
     fqt = f"`{project}.{DATASET}.{table}`"
     sql = f"""
@@ -133,9 +131,7 @@ def check_cap_outliers(
     )
 
 
-def check_year_coverage(
-    client, project: str, table: str
-) -> CheckResult:
+def check_year_coverage(client, project: str, table: str) -> CheckResult:
     """Verify all years in EXPECTED_YEAR_RANGE are present in *table*."""
     fqt = f"`{project}.{DATASET}.{table}`"
     sql = f"SELECT DISTINCT year FROM {fqt} WHERE year IS NOT NULL ORDER BY year"
@@ -149,16 +145,12 @@ def check_year_coverage(
         column="year",
         check="year_coverage",
         status=status,
-        detail=(
-            f"Missing years: {missing}" if missing else "All years present"
-        ),
+        detail=(f"Missing years: {missing}" if missing else "All years present"),
         missing_years=missing if missing else None,
     )
 
 
-def check_row_count(
-    client, project: str, table: str, min_rows: int
-) -> CheckResult:
+def check_row_count(client, project: str, table: str, min_rows: int) -> CheckResult:
     """Alert if row count falls below *min_rows*."""
     fqt = f"`{project}.{DATASET}.{table}`"
     sql = f"SELECT COUNT(1) AS row_ct FROM {fqt}"
@@ -254,9 +246,15 @@ def main():
         format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
     )
 
-    parser = argparse.ArgumentParser(description="BQ post-ingestion data quality checks")
-    parser.add_argument("--strict", action="store_true", help="Exit 1 if any WARNING or ERROR")
-    parser.add_argument("--json", action="store_true", help="Output JSON report to stdout")
+    parser = argparse.ArgumentParser(
+        description="BQ post-ingestion data quality checks"
+    )
+    parser.add_argument(
+        "--strict", action="store_true", help="Exit 1 if any WARNING or ERROR"
+    )
+    parser.add_argument(
+        "--json", action="store_true", help="Output JSON report to stdout"
+    )
     args = parser.parse_args()
 
     try:

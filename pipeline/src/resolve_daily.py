@@ -1,18 +1,18 @@
 """
-Daily Prediction Resolution Engine (Issue #169)
+Daily Prediction Resolution Engine (Issue #169, #191)
 
 Matches PENDING predictions from gold_layer.prediction_ledger against actual
 NFL outcomes to automatically score pundit accuracy.
 
-Handles three easy-win categories:
+Handles three categories:
   1. draft_pick — resolved against bronze_sportsdataio_players draft data
-  2. game_outcome — resolved against silver_pfr_game_logs (future)
-  3. player_performance for completed seasons — resolved against season stats (future)
+  2. game_outcome — resolved against bronze_sportsdataio_scores
+  3. player_performance — resolved against bronze_sportsdataio_player_season_stats
 
 Usage (inside Docker):
-    python -m src.resolve_daily                     # resolve all pending
-    python -m src.resolve_daily --category draft_pick  # single category
-    python -m src.resolve_daily --dry-run           # preview without writing
+    python -m src.resolve_daily                         # resolve all pending
+    python -m src.resolve_daily --category draft_pick   # single category
+    python -m src.resolve_daily --dry-run               # preview without writing
 """
 
 import argparse
@@ -22,6 +22,7 @@ import re
 from typing import Optional
 
 import pandas as pd
+from google.api_core.exceptions import NotFound
 
 from src.db_manager import DBManager
 from src.resolution_engine import (
@@ -254,6 +255,602 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Game outcome resolver
+# ---------------------------------------------------------------------------
+
+# NFL team abbreviation aliases (long name → abbreviation)
+_TEAM_ALIASES: dict[str, str] = {
+    "chiefs": "KC",
+    "kansas city": "KC",
+    "eagles": "PHI",
+    "philadelphia": "PHI",
+    "cowboys": "DAL",
+    "dallas": "DAL",
+    "patriots": "NE",
+    "new england": "NE",
+    "bills": "BUF",
+    "buffalo": "BUF",
+    "ravens": "BAL",
+    "baltimore": "BAL",
+    "49ers": "SF",
+    "san francisco": "SF",
+    "lions": "DET",
+    "detroit": "DET",
+    "bears": "CHI",
+    "chicago": "CHI",
+    "bengals": "CIN",
+    "cincinnati": "CIN",
+    "browns": "CLE",
+    "cleveland": "CLE",
+    "broncos": "DEN",
+    "denver": "DEN",
+    "texans": "HOU",
+    "houston": "HOU",
+    "colts": "IND",
+    "indianapolis": "IND",
+    "jaguars": "JAX",
+    "jacksonville": "JAX",
+    "titans": "TEN",
+    "tennessee": "TEN",
+    "raiders": "LV",
+    "las vegas": "LV",
+    "chargers": "LAC",
+    "los angeles chargers": "LAC",
+    "rams": "LAR",
+    "los angeles rams": "LAR",
+    "dolphins": "MIA",
+    "miami": "MIA",
+    "vikings": "MIN",
+    "minnesota": "MIN",
+    "giants": "NYG",
+    "new york giants": "NYG",
+    "jets": "NYJ",
+    "new york jets": "NYJ",
+    "steelers": "PIT",
+    "pittsburgh": "PIT",
+    "seahawks": "SEA",
+    "seattle": "SEA",
+    "buccaneers": "TB",
+    "tampa bay": "TB",
+    "commanders": "WAS",
+    "washington": "WAS",
+    "falcons": "ATL",
+    "atlanta": "ATL",
+    "panthers": "CAR",
+    "carolina": "CAR",
+    "saints": "NO",
+    "new orleans": "NO",
+    "cardinals": "ARI",
+    "arizona": "ARI",
+    "packers": "GB",
+    "green bay": "GB",
+}
+
+
+def _normalize_team(name: str) -> Optional[str]:
+    """Map a team name/nickname to its SportsData.io abbreviation."""
+    name_lower = name.lower().strip()
+    # Direct abbreviation match (e.g. "KC", "PHI")
+    for alias, abbr in _TEAM_ALIASES.items():
+        if alias in name_lower:
+            return abbr
+    # Already an abbreviation?
+    if len(name_lower) <= 3:
+        return name.upper()
+    return None
+
+
+def _extract_game_claim(claim: str) -> dict:
+    """
+    Parse a game_outcome claim to extract structured components.
+    Returns dict with keys: team_a, team_b, season_year, win_prediction (bool or None),
+    playoff_prediction (bool or None), team_focus.
+    """
+    claim_lower = claim.lower()
+    result: dict = {}
+
+    # Extract season year
+    year_match = re.search(r"20\d{2}", claim)
+    if year_match:
+        result["season_year"] = int(year_match.group())
+
+    # Win/defeat prediction: "Chiefs beat/defeat/top Eagles"
+    win_patterns = [
+        r"([a-z ]+?)\s+(?:will\s+)?(?:beat|defeat|top|win against|beat out)\s+(?:the\s+)?([a-z ]+?)(?:\s+in|\s+during|\s*$)",
+        r"([a-z ]+?)\s+(?:over|vs\.?)\s+([a-z ]+?)(?:\s+in|\s*$)",
+    ]
+    for pattern in win_patterns:
+        m = re.search(pattern, claim_lower)
+        if m:
+            team_a = _normalize_team(m.group(1).strip())
+            team_b = _normalize_team(m.group(2).strip())
+            if team_a and team_b:
+                result["team_a"] = team_a
+                result["team_b"] = team_b
+                result["win_prediction"] = True  # team_a beats team_b
+                break
+
+    # Playoff prediction: "Bears will make playoffs" / "Bears miss playoffs"
+    playoff_make = re.search(
+        r"([a-z ]+?)\s+(?:will\s+)?(?:make|reach|qualify for|get to)\s+(?:the\s+)?playoffs",
+        claim_lower,
+    )
+    if playoff_make:
+        team = _normalize_team(playoff_make.group(1).strip())
+        if team:
+            result["team_focus"] = team
+            result["playoff_prediction"] = True
+
+    playoff_miss = re.search(
+        r"([a-z ]+?)\s+(?:will\s+)?(?:miss|fail to make|not make)\s+(?:the\s+)?playoffs",
+        claim_lower,
+    )
+    if playoff_miss:
+        team = _normalize_team(playoff_miss.group(1).strip())
+        if team:
+            result["team_focus"] = team
+            result["playoff_prediction"] = False
+
+    # Super Bowl win: "Chiefs win Super Bowl"
+    sb_win = re.search(
+        r"([a-z ]+?)\s+(?:will\s+)?win\s+(?:the\s+)?super bowl", claim_lower
+    )
+    if sb_win:
+        team = _normalize_team(sb_win.group(1).strip())
+        if team:
+            result["team_focus"] = team
+            result["super_bowl_win"] = True
+
+    return result
+
+
+def _load_game_scores(db: DBManager, season_year: int) -> pd.DataFrame:
+    """
+    Load game scores for a season from bronze_sportsdataio_scores.
+    Returns empty DataFrame if table doesn't exist.
+    """
+    project_id = os.environ["GCP_PROJECT_ID"]
+    query = f"""
+        SELECT
+            HomeTeam, AwayTeam, Season, Week,
+            HomeScore, AwayScore,
+            IsPlayoffGame
+        FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_scores`
+        WHERE Season = {season_year}
+          AND HomeScore IS NOT NULL
+          AND AwayScore IS NOT NULL
+    """
+    try:
+        return db.fetch_df(query)
+    except (NotFound, Exception) as e:
+        logger.warning(f"Game scores not available (season {season_year}): {e}")
+        return pd.DataFrame()
+
+
+def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
+    """
+    Resolve game_outcome predictions against actual game results.
+    Data source: bronze_sportsdataio_scores (HomeTeam, AwayTeam, HomeScore, AwayScore).
+    """
+    summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+
+    pending = get_pending_predictions(sport="NFL", db=db)
+    game_preds = pending[pending["claim_category"] == "game_outcome"]
+
+    if game_preds.empty:
+        logger.info("No pending game_outcome predictions to resolve.")
+        return summary
+
+    current_year = pd.Timestamp.now().year
+    # NFL regular season ends in January; postseason in February
+    # Only resolve predictions for seasons that have fully concluded
+    # (i.e. prior year, or current year after February)
+    season_data_cache: dict[int, pd.DataFrame] = {}
+
+    for _, pred in game_preds.iterrows():
+        summary["checked"] += 1
+        claim = pred["extracted_claim"]
+        phash = pred["prediction_hash"]
+        season_year = pred.get("season_year")
+
+        if pd.isna(season_year):
+            logger.info(f"  SKIP {phash[:12]}… — no season_year in metadata")
+            summary["skipped"] += 1
+            continue
+
+        season_year = int(season_year)
+
+        # NFL season YYYY ends with the Super Bowl in February of YYYY+1.
+        # Only resolve if we are past February of season_year+1.
+        season_end_year = season_year + 1
+        now = pd.Timestamp.now()
+        season_complete = now.year > season_end_year or (
+            now.year == season_end_year and now.month > 2
+        )
+        if not season_complete:
+            logger.info(f"  SKIP {phash[:12]}… — {season_year} season not complete")
+            summary["skipped"] += 1
+            continue
+
+        parsed = _extract_game_claim(claim)
+        if not parsed:
+            logger.info(f"  SKIP {phash[:12]}… — can't parse game claim: {claim[:60]}")
+            summary["skipped"] += 1
+            continue
+
+        # Load season data (cached per season)
+        if season_year not in season_data_cache:
+            season_data_cache[season_year] = _load_game_scores(db, season_year)
+        scores_df = season_data_cache[season_year]
+
+        if scores_df.empty:
+            logger.info(f"  SKIP {phash[:12]}… — no game score data for {season_year}")
+            summary["skipped"] += 1
+            continue
+
+        correct: Optional[bool] = None
+        notes_parts: list[str] = []
+
+        if "team_a" in parsed and "team_b" in parsed:
+            # Head-to-head win prediction
+            team_a, team_b = parsed["team_a"], parsed["team_b"]
+            matchups = scores_df[
+                (
+                    (scores_df["HomeTeam"] == team_a) & (scores_df["AwayTeam"] == team_b)
+                )
+                | (
+                    (scores_df["HomeTeam"] == team_b)
+                    & (scores_df["AwayTeam"] == team_a)
+                )
+            ]
+            if matchups.empty:
+                logger.info(
+                    f"  SKIP {phash[:12]}… — no {team_a} vs {team_b} games found"
+                )
+                summary["skipped"] += 1
+                continue
+
+            # Check if team_a won in any matchup (or most matchups if multiple)
+            team_a_wins = 0
+            team_b_wins = 0
+            for _, game in matchups.iterrows():
+                if game["HomeTeam"] == team_a:
+                    if game["HomeScore"] > game["AwayScore"]:
+                        team_a_wins += 1
+                    else:
+                        team_b_wins += 1
+                else:
+                    if game["AwayScore"] > game["HomeScore"]:
+                        team_a_wins += 1
+                    else:
+                        team_b_wins += 1
+            correct = team_a_wins > team_b_wins
+            notes_parts.append(
+                f"{team_a} vs {team_b}: {team_a} won {team_a_wins}, lost {team_b_wins}"
+            )
+
+        elif "team_focus" in parsed and "playoff_prediction" in parsed:
+            # Playoff prediction
+            team = parsed["team_focus"]
+            expected_playoff = parsed["playoff_prediction"]
+            playoff_games = scores_df[
+                (
+                    (scores_df["HomeTeam"] == team)
+                    | (scores_df["AwayTeam"] == team)
+                )
+                & (scores_df["IsPlayoffGame"] == True)  # noqa: E712
+            ]
+            actually_made_playoffs = len(playoff_games) > 0
+            correct = actually_made_playoffs == expected_playoff
+            notes_parts.append(
+                f"{team} playoff: expected={'made' if expected_playoff else 'missed'}, "
+                f"actual={'made' if actually_made_playoffs else 'missed'}"
+            )
+
+        elif "team_focus" in parsed and "super_bowl_win" in parsed:
+            # Super Bowl win prediction
+            team = parsed["team_focus"]
+            sb_games = scores_df[
+                (
+                    (scores_df["HomeTeam"] == team)
+                    | (scores_df["AwayTeam"] == team)
+                )
+                & (scores_df["IsPlayoffGame"] == True)  # noqa: E712
+            ]
+            if sb_games.empty:
+                summary["skipped"] += 1
+                continue
+            # Super Bowl is the last playoff game; check if team won it
+            last_game = sb_games.iloc[-1]
+            if last_game["HomeTeam"] == team:
+                correct = last_game["HomeScore"] > last_game["AwayScore"]
+            else:
+                correct = last_game["AwayScore"] > last_game["HomeScore"]
+            notes_parts.append(f"{team} Super Bowl win: {correct}")
+
+        else:
+            logger.info(
+                f"  VOID {phash[:12]}… — can't resolve game claim: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "unparseable_game_claim", db=db)
+            summary["voided"] += 1
+            continue
+
+        if correct is None:
+            summary["skipped"] += 1
+            continue
+
+        outcome_notes = "; ".join(notes_parts)
+        status = "CORRECT" if correct else "INCORRECT"
+        logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
+
+        if not dry_run:
+            resolve_binary(
+                prediction_hash=phash,
+                correct=correct,
+                outcome_source="sportsdataio_scores",
+                outcome_notes=outcome_notes,
+                db=db,
+            )
+        summary["resolved"] += 1
+
+    logger.info(
+        f"Game outcome resolution: {summary['resolved']} resolved, "
+        f"{summary['voided']} voided, {summary['skipped']} skipped"
+    )
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# Player performance resolver
+# ---------------------------------------------------------------------------
+
+# Mapping from common stat phrases → column names in bronze_sportsdataio_player_season_stats
+_STAT_ALIASES: dict[str, str] = {
+    "passing yards": "PassingYards",
+    "passing yard": "PassingYards",
+    "pass yards": "PassingYards",
+    "passing touchdowns": "PassingTouchdowns",
+    "passing tds": "PassingTouchdowns",
+    "passing td": "PassingTouchdowns",
+    "tds": "PassingTouchdowns",  # default to passing (resolved by position context)
+    "interceptions": "Interceptions",
+    "rushing yards": "RushingYards",
+    "rushing yard": "RushingYards",
+    "rush yards": "RushingYards",
+    "rushes for": "RushingYards",
+    "rush for": "RushingYards",
+    "rushing touchdowns": "RushingTouchdowns",
+    "rushing tds": "RushingTouchdowns",
+    "receiving yards": "ReceivingYards",
+    "receiving yard": "ReceivingYards",
+    "rec yards": "ReceivingYards",
+    "receiving touchdowns": "ReceivingTouchdowns",
+    "receiving tds": "ReceivingTouchdowns",
+    "receptions": "Receptions",
+    "catches": "Receptions",
+    "sacks": "Sacks",
+    "tackles": "Tackles",
+}
+
+
+def _extract_player_stat_claim(claim: str) -> dict:
+    """
+    Parse a player_performance claim to extract structured components.
+    Returns dict with keys: player_name, stat_column, threshold, operator, season_year.
+    operator is ">=" (at least), ">" (more than), "==" (exactly), "<=" (at most).
+    """
+    claim_lower = claim.lower()
+    result: dict = {}
+
+    # Extract season year
+    year_match = re.search(r"20\d{2}", claim)
+    if year_match:
+        result["season_year"] = int(year_match.group())
+
+    # Extract numeric threshold — patterns like "40+", "40 or more", "at least 40",
+    # "over 40", "more than 40", "1,500", "1500"
+    threshold_patterns = [
+        (r"(?:at least|minimum)\s+([\d,]+)\+?", ">="),
+        (r"(?:over|more than|greater than)\s+([\d,]+)", ">"),
+        (r"([\d,]+)\+\s*(?:or more)?", ">="),
+        (r"([\d,]+)\s+or more", ">="),
+        (r"fewer than\s+([\d,]+)", "<"),
+        (r"under\s+([\d,]+)", "<"),
+        (r"at most\s+([\d,]+)", "<="),
+        (r"exactly\s+([\d,]+)", "=="),
+        (r"(?:at least\s+)?([\d,]+)", ">="),  # bare number — assume "at least"
+    ]
+    for pattern, operator in threshold_patterns:
+        m = re.search(pattern, claim_lower)
+        if m:
+            val_str = m.group(1).replace(",", "")
+            try:
+                result["threshold"] = int(val_str)
+                result["operator"] = operator
+                break
+            except ValueError:
+                continue
+
+    # Extract stat category
+    for phrase, col in sorted(_STAT_ALIASES.items(), key=lambda x: -len(x[0])):
+        if phrase in claim_lower:
+            result["stat_column"] = col
+            break
+
+    # Extract player name — heuristic: words before the verb "will"/"throws"/"records"
+    # Look for capitalized words at start (common for player names)
+    name_match = re.match(
+        r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\s+(?:will|throws?|records?|rushes?|catches?|has|posts?)",
+        claim,
+    )
+    if name_match:
+        result["player_name"] = name_match.group(1)
+
+    return result
+
+
+def _load_player_season_stats(db: DBManager, season_year: int) -> pd.DataFrame:
+    """
+    Load player season stats from bronze_sportsdataio_player_season_stats.
+    Returns empty DataFrame if table doesn't exist.
+    """
+    project_id = os.environ["GCP_PROJECT_ID"]
+    query = f"""
+        SELECT
+            Name, Season,
+            PassingYards, PassingTouchdowns, Interceptions,
+            RushingYards, RushingTouchdowns,
+            ReceivingYards, ReceivingTouchdowns, Receptions,
+            Sacks, Tackles
+        FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_player_season_stats`
+        WHERE Season = {season_year}
+    """
+    try:
+        return db.fetch_df(query)
+    except (NotFound, Exception) as e:
+        logger.warning(f"Player season stats not available (season {season_year}): {e}")
+        return pd.DataFrame()
+
+
+def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
+    """
+    Resolve player_performance predictions against actual season stats.
+    Data source: bronze_sportsdataio_player_season_stats.
+    Only resolves predictions for completed seasons.
+    """
+    summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+
+    pending = get_pending_predictions(sport="NFL", db=db)
+    perf_preds = pending[pending["claim_category"] == "player_performance"]
+
+    if perf_preds.empty:
+        logger.info("No pending player_performance predictions to resolve.")
+        return summary
+
+    current_year = pd.Timestamp.now().year
+    stats_cache: dict[int, pd.DataFrame] = {}
+
+    for _, pred in perf_preds.iterrows():
+        summary["checked"] += 1
+        claim = pred["extracted_claim"]
+        phash = pred["prediction_hash"]
+        season_year = pred.get("season_year")
+
+        if pd.isna(season_year):
+            logger.info(f"  SKIP {phash[:12]}… — no season_year")
+            summary["skipped"] += 1
+            continue
+
+        season_year = int(season_year)
+
+        # NFL season YYYY ends with the Super Bowl in February of YYYY+1.
+        season_end_year = season_year + 1
+        now = pd.Timestamp.now()
+        season_complete = now.year > season_end_year or (
+            now.year == season_end_year and now.month > 2
+        )
+        if not season_complete:
+            logger.info(
+                f"  SKIP {phash[:12]}… — {season_year} season not complete"
+            )
+            summary["skipped"] += 1
+            continue
+
+        parsed = _extract_player_stat_claim(claim)
+
+        if "stat_column" not in parsed or "threshold" not in parsed:
+            logger.info(
+                f"  VOID {phash[:12]}… — can't parse stat claim: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "unparseable_stat_claim", db=db)
+            summary["voided"] += 1
+            continue
+
+        # Load stats (cached per season)
+        if season_year not in stats_cache:
+            stats_cache[season_year] = _load_player_season_stats(db, season_year)
+        stats_df = stats_cache[season_year]
+
+        if stats_df.empty:
+            logger.info(
+                f"  SKIP {phash[:12]}… — no player stats data for {season_year}"
+            )
+            summary["skipped"] += 1
+            continue
+
+        # Find the player
+        player_name = parsed.get("player_name") or pred.get("target_player_name") or ""
+        player_name_lower = _normalize_name(player_name)
+
+        if not player_name_lower:
+            logger.info(f"  SKIP {phash[:12]}… — no player name: {claim[:60]}")
+            summary["skipped"] += 1
+            continue
+
+        stats_df["name_lower"] = stats_df["Name"].str.lower().str.strip()
+        player_rows = stats_df[
+            stats_df["name_lower"].str.contains(player_name_lower, na=False)
+        ]
+
+        if player_rows.empty:
+            logger.info(
+                f"  SKIP {phash[:12]}… — player '{player_name}' not found in {season_year} stats"
+            )
+            summary["skipped"] += 1
+            continue
+
+        player_row = player_rows.iloc[0]
+        stat_col = parsed["stat_column"]
+        actual_val = player_row.get(stat_col)
+
+        if pd.isna(actual_val):
+            logger.info(
+                f"  SKIP {phash[:12]}… — {stat_col} is NULL for {player_name}"
+            )
+            summary["skipped"] += 1
+            continue
+
+        actual_val = float(actual_val)
+        threshold = float(parsed["threshold"])
+        operator = parsed["operator"]
+
+        op_map = {
+            ">=": actual_val >= threshold,
+            ">": actual_val > threshold,
+            "==": actual_val == threshold,
+            "<=": actual_val <= threshold,
+            "<": actual_val < threshold,
+        }
+        correct = op_map.get(operator, False)
+
+        outcome_notes = (
+            f"{player_name} {stat_col}: actual={actual_val:.0f}, "
+            f"claimed {operator}{threshold:.0f} in {season_year}"
+        )
+        status = "CORRECT" if correct else "INCORRECT"
+        logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
+
+        if not dry_run:
+            resolve_binary(
+                prediction_hash=phash,
+                correct=correct,
+                outcome_source="sportsdataio_player_stats",
+                outcome_notes=outcome_notes,
+                db=db,
+            )
+        summary["resolved"] += 1
+
+    logger.info(
+        f"Player performance resolution: {summary['resolved']} resolved, "
+        f"{summary['voided']} voided, {summary['skipped']} skipped"
+    )
+    return summary
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -274,7 +871,13 @@ def resolve_all(
         if not category or category == "draft_pick":
             summaries["draft_pick"] = resolve_draft_picks(db, dry_run=dry_run)
 
-        # Future: game_outcome, player_performance resolvers
+        if not category or category == "game_outcome":
+            summaries["game_outcome"] = resolve_game_outcomes(db, dry_run=dry_run)
+
+        if not category or category == "player_performance":
+            summaries["player_performance"] = resolve_player_performance(
+                db, dry_run=dry_run
+            )
 
         # Combined summary
         total = {

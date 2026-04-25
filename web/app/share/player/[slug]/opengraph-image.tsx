@@ -49,7 +49,7 @@ export default async function Image({ params }: Props) {
   }
 
   const isRisky =
-    (player.risk_cap_millions || 0) > (player.cap_hit_millions || 1) * 0.4;
+    (player.dead_cap_millions || 0) > (player.cap_hit_millions || 1) * 0.4;
   const accentHex = isRisky ? "#f43f5e" : "#10b981";
   const bgTop = isRisky ? "#4c0519" : "#022c22";
   const label = isRisky ? "TOXIC" : "ALPHA";

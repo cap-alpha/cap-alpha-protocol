@@ -8,14 +8,13 @@ No LLM calls are made.
 import pytest
 
 from src.team_batcher import (
-    ArticleRecord,
     NFL_TEAMS,
+    ArticleRecord,
     annotate_team_mentions,
     batch_articles_by_team,
     build_batched_prompt,
     extract_team_mentions,
 )
-
 
 # ---------------------------------------------------------------------------
 # extract_team_mentions
@@ -24,7 +23,9 @@ from src.team_batcher import (
 
 class TestExtractTeamMentions:
     def test_full_team_name(self):
-        assert extract_team_mentions("The Chicago Bears drafted Caleb Williams.") == {"CHI"}
+        assert extract_team_mentions("The Chicago Bears drafted Caleb Williams.") == {
+            "CHI"
+        }
 
     def test_short_name_only(self):
         assert extract_team_mentions("Bears fans are excited.") == {"CHI"}
@@ -37,7 +38,9 @@ class TestExtractTeamMentions:
         assert extract_team_mentions("PATRIOTS signed a new quarterback.") == {"NE"}
 
     def test_abbreviation_match(self):
-        assert "BAL" in extract_team_mentions("Ravens QB Lamar Jackson throws for 300 yards.")
+        assert "BAL" in extract_team_mentions(
+            "Ravens QB Lamar Jackson throws for 300 yards."
+        )
 
     def test_no_team_returns_empty(self):
         assert extract_team_mentions("Today is a beautiful day.") == set()
@@ -45,7 +48,9 @@ class TestExtractTeamMentions:
     def test_all_32_teams_covered(self):
         # Every abbreviated team should appear in at least one entry in NFL_TEAMS values
         all_abbrs = set(NFL_TEAMS.values())
-        assert len(all_abbrs) == 32, f"Expected 32 teams, got {len(all_abbrs)}: {all_abbrs}"
+        assert (
+            len(all_abbrs) == 32
+        ), f"Expected 32 teams, got {len(all_abbrs)}: {all_abbrs}"
 
     def test_legacy_alias(self):
         assert extract_team_mentions("Oakland Raiders moved to Las Vegas.") == {"LV"}
@@ -58,7 +63,9 @@ class TestExtractTeamMentions:
         assert "GB" in result
 
     def test_multiple_mentions_same_team_deduped(self):
-        result = extract_team_mentions("Chiefs win. Chiefs are great. Kansas City Chiefs.")
+        result = extract_team_mentions(
+            "Chiefs win. Chiefs are great. Kansas City Chiefs."
+        )
         assert result == {"KC"}
 
 
@@ -67,7 +74,9 @@ class TestExtractTeamMentions:
 # ---------------------------------------------------------------------------
 
 
-def _make_article(content_hash: str, text: str, date: str = "", pundit: str = "") -> ArticleRecord:
+def _make_article(
+    content_hash: str, text: str, date: str = "", pundit: str = ""
+) -> ArticleRecord:
     return ArticleRecord(
         content_hash=content_hash,
         raw_text=text,
@@ -92,7 +101,9 @@ class TestBatchArticlesByTeam:
 
     def test_splits_into_sub_batches_when_over_limit(self):
         articles = [
-            _make_article(f"h{i}", "Bears offensive coordinator speaks.", date=f"2026-04-{i:02d}")
+            _make_article(
+                f"h{i}", "Bears offensive coordinator speaks.", date=f"2026-04-{i:02d}"
+            )
             for i in range(1, 8)  # 7 articles about Bears
         ]
         batches = batch_articles_by_team(articles, max_per_batch=3)

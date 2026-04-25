@@ -30,9 +30,9 @@ import pandas as pd
 
 from src.assertion_extractor import (
     PunditPrediction,
+    _deduplicate_claims,
     get_unprocessed_media,
     mark_as_processed,
-    _deduplicate_claims,
 )
 from src.cryptographic_ledger import ingest_batch
 from src.db_manager import DBManager
@@ -85,7 +85,11 @@ def _build_pundit_predictions(
         raw_player = pred.get("target_player_name") or pred.get("target_player")
         player_name = None
         if raw_player:
-            player_name = "MULTI" if ("," in raw_player and len(raw_player.split(",")) > 1) else raw_player
+            player_name = (
+                "MULTI"
+                if ("," in raw_player and len(raw_player.split(",")) > 1)
+                else raw_player
+            )
 
         result.append(
             PunditPrediction(
@@ -154,7 +158,9 @@ def run_batched_extraction(
     }
 
     try:
-        media_df = get_unprocessed_media(db, limit=limit, include_unmatched=include_unmatched)
+        media_df = get_unprocessed_media(
+            db, limit=limit, include_unmatched=include_unmatched
+        )
         if media_df.empty:
             logger.info("No unprocessed media found.")
             return summary
@@ -179,8 +185,10 @@ def run_batched_extraction(
         processed_hashes: set[str] = set()
         all_predictions: list[PunditPrediction] = []
 
-        logger.info(f"[batched] {sum(len(bs) for bs in team_batches.values())} team-batches "
-                    f"across {len(team_batches)} teams")
+        logger.info(
+            f"[batched] {sum(len(bs) for bs in team_batches.values())} team-batches "
+            f"across {len(team_batches)} teams"
+        )
 
         for team_abbr, sub_batches in team_batches.items():
             for batch in sub_batches:
@@ -204,11 +212,16 @@ def run_batched_extraction(
 
                 try:
                     raw_predictions = provider.extract_predictions(prompt)
-                    filtered = [p for p in raw_predictions if p.get("extracted_claim", "").strip()]
+                    filtered = [
+                        p
+                        for p in raw_predictions
+                        if p.get("extracted_claim", "").strip()
+                    ]
 
                     current_year = datetime.now().year
                     temporal_ok = [
-                        p for p in filtered
+                        p
+                        for p in filtered
                         if not (
                             isinstance(p.get("season_year"), (int, float))
                             and int(p.get("season_year")) < current_year
@@ -216,7 +229,9 @@ def run_batched_extraction(
                     ]
                     deduped = _deduplicate_claims(temporal_ok)
                 except Exception as e:
-                    logger.warning(f"[batched] Extraction error for team={team_abbr}: {e}")
+                    logger.warning(
+                        f"[batched] Extraction error for team={team_abbr}: {e}"
+                    )
                     summary["errors"] += 1
                     for art in batch:
                         processed_hashes.add(art.content_hash)
@@ -241,8 +256,16 @@ def run_batched_extraction(
                             break
 
                     src_row = row_lookup.get(source_art.content_hash)
-                    pundit_id = str(src_row.get("matched_pundit_id") or "unknown") if src_row is not None else "unknown"
-                    source_url = str(src_row.get("source_url", "")) if src_row is not None else ""
+                    pundit_id = (
+                        str(src_row.get("matched_pundit_id") or "unknown")
+                        if src_row is not None
+                        else "unknown"
+                    )
+                    source_url = (
+                        str(src_row.get("source_url", ""))
+                        if src_row is not None
+                        else ""
+                    )
 
                     preds = _build_pundit_predictions(
                         [pred], source_art, pundit_id, source_url

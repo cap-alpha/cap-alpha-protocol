@@ -149,7 +149,12 @@ class GeminiProvider(LLMProvider):
                         description="How explicit/confident the prediction is",
                     ),
                 },
-                required=["extracted_claim", "claim_category", "stance", "confidence_note"],
+                required=[
+                    "extracted_claim",
+                    "claim_category",
+                    "stance",
+                    "confidence_note",
+                ],
             ),
         )
 

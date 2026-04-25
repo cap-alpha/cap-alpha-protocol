@@ -349,11 +349,13 @@ export type TimelineEvent = {
   player_name: string;
   event_date: string | null;
   event_year: number;
-  event_type: 'CONTRACT' | 'PREDICTION' | 'RESOLUTION';
+  event_type: 'CONTRACT' | 'PREDICTION' | 'RESOLUTION' | 'ML_ALERT' | 'MEDIA_CONSENSUS' | 'PERFORMANCE_DROP';
   title: string;
   description: string;
   source_url?: string | null;
   team?: string | null;
+  year?: number;
+  week?: number;
 };
 
 async function fetchPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {

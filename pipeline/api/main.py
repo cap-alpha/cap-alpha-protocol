@@ -9,9 +9,11 @@ from pydantic import BaseModel
 
 try:
     from api.pundit_router import router as pundit_router
+    from api.cap_router import router as cap_router
 except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from api.pundit_router import router as pundit_router
+    from api.cap_router import router as cap_router
 
 try:
     from src.adversarial_engine import AdversarialEngine
@@ -27,9 +29,52 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Pundit Prediction Ledger API",
-    description="Cryptographically verified NFL pundit prediction tracking",
+    title="Cap Alpha Protocol API",
+    description="""
+## Cap Alpha Protocol — B2B Intelligence API
+
+Cryptographically verified NFL contract analytics and pundit prediction tracking.
+
+### Authentication
+
+`/v1/cap/` endpoints require a **B2B API key** passed as the `X-API-Key` request header.
+Contact [api@capalphaprotocol.com](mailto:api@capalphaprotocol.com) to request credentials.
+
+### Vendor Payloads
+
+| Payload | Description | Endpoint |
+|---------|-------------|----------|
+| **Pundit Index** | Per-pundit accuracy scores, Brier scores, weighted rankings | `GET /v1/leaderboard`, `GET /v1/pundits/` |
+| **FMV Trajectory** | Fair-market value + risk tier + dead-cap exposure per player | `GET /v1/cap/players` |
+| **Cap Intelligence** | Team-level cap totals, risk cap, surplus value | `GET /v1/cap/teams` |
+| **Integrity Proof** | Cryptographic hash chain verification | `GET /v1/integrity/verify` |
+
+### Rate Limits
+
+| Tier | Requests/day |
+|------|-------------|
+| free | 100 |
+| standard | 1,000 |
+| premium | 10,000 |
+""",
     version="1.0.0",
+    openapi_tags=[
+        {
+            "name": "pundit-ledger",
+            "description": "Pundit prediction tracking and accuracy leaderboards",
+        },
+        {
+            "name": "cap-intelligence",
+            "description": "NFL player and team cap data (requires X-API-Key)",
+        },
+    ],
+    contact={
+        "name": "Cap Alpha Protocol",
+        "email": "api@capalphaprotocol.com",
+    },
+    license_info={
+        "name": "Proprietary — B2B License Required",
+    },
 )
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -42,6 +87,7 @@ app.add_middleware(
 )
 
 app.include_router(pundit_router)
+app.include_router(cap_router)
 
 # Initialize Engine (only if trade modules loaded successfully)
 if _TRADE_AVAILABLE:

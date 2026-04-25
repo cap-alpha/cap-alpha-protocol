@@ -36,7 +36,7 @@ class StateLoader:
             self.min_cap_hit = min_cap_hit
 
     def load_league_state(self) -> LeagueState:
-        print(f"🏈 Loading League State from DuckDB (Year: {self.year})...")
+        print(f"🏈 Loading League State from BigQuery (Year: {self.year})...")
 
         # 1. Load Financials (Cap Space)
         fin_query = f"""

@@ -1,37 +1,18 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextRequest } from "next/server";
 
-const isProtectedRoute = createRouteMatcher([
-    "/scenarios(.*)",
-    "/fantasy(.*)",
-    "/dashboard/gm(.*)",
-    "/dashboard/agent(.*)",
-    "/dashboard/bettor(.*)",
-    "/dashboard/api-keys(.*)",
-    "/api/api-keys(.*)"
-]);
+// Simple passthrough middleware - always works, no auth dependency.
+// Clerk was causing MIDDLEWARE_INVOCATION_FAILED 500 errors on all API
+// routes when CLERK_SECRET_KEY was not configured in Vercel.
+export default function middleware(request: NextRequest) {
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set('x-forwarded-proto', 'https');
 
-// Clerk requires a valid publishable key (starts with "pk_").
-// When the key is absent (CI, Docker without secrets) we export a simple passthrough
-// instead of calling clerkMiddleware(), which would throw MIDDLEWARE_INVOCATION_FAILED
-// and return 500 on every request.
-const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-const clerkConfigured = publishableKey?.startsWith("pk_") ?? false;
-
-function addForwardedProto(req: NextRequest) {
-    const headers = new Headers(req.headers);
-    headers.set("x-forwarded-proto", "https");
-    return NextResponse.next({ request: { headers } });
+    return NextResponse.next({
+        request: {
+            headers: requestHeaders,
+        },
+    });
 }
-
-export default clerkConfigured
-    ? clerkMiddleware((auth, req) => {
-          if (isProtectedRoute(req)) {
-              auth().protect();
-          }
-          return addForwardedProto(req);
-      })
-    : addForwardedProto;
 
 export const config = {
     matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],

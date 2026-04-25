@@ -106,7 +106,6 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [x] SP28-1: Investigate and fix the missing team logos on the Team Changer UI. (GH-#103)
 - [x] SP28-2: Implement Playwright visual regression tests specifically for the Team Changer grid. (GH-#104)
 - [x] SP28-3: Audit existing `e2e` Playwright test suite to identify gaps in coverage. (GH-#105)
-
 ---
 
 ## Milestone 4: Pundit Prediction Ledger — Draft Launch (2026-04-24)
@@ -124,3 +123,4 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [x] SP32-2: Team-batching pre-processor — group articles by team for efficient extraction. (GH-#181)
 - [x] SP32-3: End-to-end local RAG pipeline integration + benchmarking vs Gemini baseline. (GH-#182)
 - [x] SP32-4: Modernize tooling — ruff, pyproject.toml, enterprise-grade CI. (GH-#192)
+

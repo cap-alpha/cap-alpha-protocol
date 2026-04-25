@@ -346,6 +346,11 @@ def _append_pundit_predictions(
                 else raw_player
             )
 
+        raw_stance = pred.get("stance", "neutral")
+        stance = (
+            raw_stance if raw_stance in ("bullish", "bearish", "neutral") else "neutral"
+        )
+
         target.append(
             PunditPrediction(
                 pundit_id=str(pundit_id),
@@ -358,6 +363,7 @@ def _append_pundit_predictions(
                 target_player_id=None,
                 target_player_name=player_name,
                 target_team=pred.get("target_team"),
+                stance=stance,
                 sport=str(row.get("sport", sport)),
             )
         )

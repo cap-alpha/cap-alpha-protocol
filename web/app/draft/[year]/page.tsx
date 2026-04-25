@@ -4,8 +4,6 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-
 interface Prediction {
   prediction_hash: string;
   pundit_id: string;
@@ -90,7 +88,7 @@ export default function DraftScoreboard() {
 
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch(`${API_URL}/v1/draft/${year}`, {
+      const res = await fetch(`/api/draft/${year}`, {
         cache: "no-store",
       });
       if (!res.ok) throw new Error(`API returned ${res.status}`);

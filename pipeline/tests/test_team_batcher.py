@@ -6,7 +6,6 @@ No LLM calls are made.
 """
 
 import pytest
-
 from src.team_batcher import (
     NFL_TEAMS,
     ArticleRecord,

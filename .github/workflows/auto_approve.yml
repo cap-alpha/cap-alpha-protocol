@@ -1,0 +1,70 @@
+name: Auto Approve PRs
+
+# Triggers after any of the required CI workflows complete.
+# Checks that ALL required checks pass before approving.
+on:
+  workflow_run:
+    workflows:
+      - "CI Pipeline"
+      - "Data Quality Tests"
+      - "Frontend Preflight Check"
+    types: [completed]
+
+jobs:
+  auto-approve:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      checks: read
+    steps:
+      - name: Approve PR if all required checks pass
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # Find the open PR for this branch
+          PR=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number -q '.[0].number' 2>/dev/null)
+          if [ -z "$PR" ]; then
+            echo "No open PR for branch $BRANCH — skipping"
+            exit 0
+          fi
+
+          echo "Evaluating PR #$PR on branch $BRANCH (sha $HEAD_SHA)"
+
+          # All checks that must pass before we approve
+          REQUIRED_CHECKS=(
+            "Lint Code"
+            "Run Data Quality Tests (3.11)"
+            "test (3.10)"
+            "preflight-build"
+          )
+
+          ALL_PASS=true
+          for check in "${REQUIRED_CHECKS[@]}"; do
+            STATUS=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs" \
+              --jq "[.check_runs[] | select(.name == \"$check\")] | sort_by(.completed_at) | last | .conclusion" \
+              2>/dev/null)
+            echo "  [$check]: $STATUS"
+            if [ "$STATUS" != "success" ]; then
+              ALL_PASS=false
+            fi
+          done
+
+          if [ "$ALL_PASS" != "true" ]; then
+            echo "Not all required checks pass — skipping approval"
+            exit 0
+          fi
+
+          # Skip if already approved
+          ALREADY_APPROVED=$(gh pr view "$PR" --repo "$REPO" --json reviews \
+            --jq '[.reviews[] | select(.state == "APPROVED")] | length' 2>/dev/null)
+          if [ "${ALREADY_APPROVED:-0}" -gt "0" ]; then
+            echo "PR #$PR already approved — skipping"
+            exit 0
+          fi
+
+          echo "All required checks green — approving PR #$PR"
+          gh pr review "$PR" --repo "$REPO" --approve \
+            --body "All required CI checks pass (Lint, unit tests, data quality, frontend build). Auto-approving for merge queue."

@@ -26,7 +26,6 @@ import yaml
 from bs4 import BeautifulSoup
 from duckduckgo_search import DDGS
 from readability import Document
-
 from src.db_manager import DBManager
 from src.media_ingestor import MediaItem, compute_content_hash
 
@@ -46,9 +45,11 @@ def fetch_article_text(url: str) -> dict:
     soup = BeautifulSoup(html, "html.parser")
     text = soup.get_text(separator=" ", strip=True)
 
-    # Try to extract author from meta tags
+    # Extract author — try multiple methods
     full_soup = BeautifulSoup(resp.text, "html.parser")
     author = None
+
+    # Method 1: meta tags
     for meta in full_soup.find_all("meta"):
         name = meta.get("name", "").lower()
         prop = meta.get("property", "").lower()
@@ -58,6 +59,44 @@ def fetch_article_text(url: str) -> dict:
         ):
             author = meta.get("content")
             break
+
+    # Method 2: JSON-LD structured data
+    if not author:
+        for script in full_soup.find_all("script", type="application/ld+json"):
+            try:
+                import json as _json
+
+                ld = _json.loads(script.string or "")
+                if isinstance(ld, list):
+                    ld = ld[0]
+                if isinstance(ld.get("author"), dict):
+                    author = ld["author"].get("name")
+                elif isinstance(ld.get("author"), list) and ld["author"]:
+                    author = (
+                        ld["author"][0].get("name")
+                        if isinstance(ld["author"][0], dict)
+                        else str(ld["author"][0])
+                    )
+                elif isinstance(ld.get("author"), str):
+                    author = ld["author"]
+                if author:
+                    break
+            except Exception:
+                continue
+
+    # Method 3: common byline patterns in HTML
+    if not author:
+        for selector in [
+            ".author-name",
+            ".byline",
+            ".article-author",
+            "[data-testid='author-name']",
+            ".contributor-name",
+        ]:
+            el = full_soup.select_one(selector)
+            if el and el.get_text(strip=True):
+                author = el.get_text(strip=True)
+                break
 
     # Try publish date
     pub_date = None

@@ -27,7 +27,6 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import pandas as pd
-
 from src.assertion_extractor import (
     PunditPrediction,
     _deduplicate_claims,

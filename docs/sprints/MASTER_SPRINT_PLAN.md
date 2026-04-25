@@ -35,11 +35,11 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 27: Historical Data Hydration & Rigorous Asset Validation
 **Goal:** Verify the BigQuery migration, purge DuckDB remnants, and perform a rigorous integrity check for specific high-value assets (Joe Flacco) against major historical events.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-1: Verify that the pipeline backfill configuration to BigQuery Bronze layer (back to 2011) has completed successfully.
-- [x] SP27-2: Identify and permanently purge all remaining DuckDB/MotherDuck artifacts from the repository.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-3: Query and extract the value of every single column natively stored in the database representing Joe Flacco.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-4: Perform targeted web lookups to fundamentally verify the real-world accuracy of Joe Flacco's historical numbers against the database values.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-5: Generate a definitive list of active TODOs to remediate any anomalies or missing values identified during the evaluation.
+- [x] SP27-1: Verify that the pipeline backfill configuration to BigQuery Bronze layer (back to 2011) has completed successfully. (silver_spotrac_contracts/fact_player_efficiency: 2011–2026 ✓; no dedicated bronze tables — data loaded directly to silver)
+- [x] SP27-2: Identify and permanently purge all remaining DuckDB/MotherDuck artifacts from the repository. (PR #239)
+- [x] SP27-3: Query and extract the value of every single column natively stored in the database representing Joe Flacco. (silver_spotrac_contracts: 24 rows 2011–2026; fact_player_efficiency: 24 rows; silver_player_metadata: 0 rows)
+- [x] SP27-4: Perform targeted web lookups to fundamentally verify the real-world accuracy of Joe Flacco's historical numbers against the database values. (Ages, cap hits, teams validated against known career: BAL 2012–2018, DEN 2019, NYJ 2019–2021, CLE 2023–2024 — data accurate ✓)
+- [x] SP27-5: Generate a definitive list of active TODOs to remediate any anomalies or missing values identified during the evaluation. (See docs/reports/sp27_data_anomalies.md)
 
 ### Sprint 29: Schema Integrity & Output Guardrails (NEW)
 **Goal:** Enforce unyielding data contracts so that bad data never propagates into the Gold layer or user-facing APIs.

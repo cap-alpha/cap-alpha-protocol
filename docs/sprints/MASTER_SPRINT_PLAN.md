@@ -116,11 +116,11 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [ ] SP31-1: Run full ingest + extraction cycle to populate prediction ledger before draft. (GH-#202)
 - [ ] SP31-2: NFL Draft Day extraction — capture pundit draft predictions from all media sources. (GH-#196)
 - [ ] SP31-3: Run draft_pick resolution passes as picks happen. (GH-#197)
-- [ ] SP31-4: Historical article backfill — scrape draft prediction archives beyond RSS window. (GH-#213)
-- [ ] SP31-5: Fix cross-article dedup — same pundit, same prediction from multiple sources. (GH-#210)
+- [x] SP31-4: Historical article backfill — scrape draft prediction archives beyond RSS window. (GH-#213)
+- [x] SP31-5: Fix cross-article dedup — same pundit, same prediction from multiple sources. (GH-#210)
 
 ### Sprint 32: Extraction Quality & Eval Harness
-- [ ] SP32-1: Eval harness + re-extraction batch to 50+ quality predictions (≥70% precision). (GH-#190)
+- [/] SP32-1: Eval harness + re-extraction batch to 50+ quality predictions (≥70% precision). (GH-#190) (Claimed by Agent)
 - [ ] SP32-2: Team-batching pre-processor — group articles by team for efficient extraction. (GH-#181)
 - [ ] SP32-3: End-to-end local RAG pipeline integration + benchmarking vs Gemini baseline. (GH-#182)
-- [ ] SP32-4: Modernize tooling — ruff, pyproject.toml, enterprise-grade CI. (GH-#192)
+- [x] SP32-4: Modernize tooling — ruff, pyproject.toml, enterprise-grade CI. (GH-#192)

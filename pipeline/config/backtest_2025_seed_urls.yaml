@@ -1,0 +1,85 @@
+# Search queries for 2025 NFL season backtest article discovery
+#
+# Targets preseason predictions, playoff forecasts, Super Bowl picks, MVP calls,
+# win totals, and draft predictions from the 2025 NFL season (Sep 2025 – Feb 2026).
+# All outcomes are now known, making this ideal for precision/recall validation.
+#
+# Run:
+#   python -m src.url_ingestor --config config/backtest_2025_seed_urls.yaml --search
+#   python -m src.url_ingestor --config config/backtest_2025_seed_urls.yaml --search --dry-run
+#
+# Note: url_ingestor filters titles for at least one of:
+#   ["draft", "mock", "pick", "prediction", "prospect"]
+# All queries below are designed to surface articles that match this filter.
+
+search_queries:
+  # Preseason win-total + season predictions
+  - "2025 NFL season predictions preseason picks"
+  - "2025 NFL win totals predictions all 32 teams"
+  - "NFL 2025 season preview predictions AFC NFC"
+
+  # Playoff predictions
+  - "2025 NFL playoff predictions picks bracket"
+  - "2025 NFC AFC championship predictions picks"
+
+  # Super Bowl
+  - "2025 Super Bowl prediction picks winner"
+  - "Super Bowl LX prediction 2026 picks"
+
+  # MVP and awards
+  - "2025 NFL MVP prediction picks Mahomes"
+  - "2025 NFL awards predictions MVP Offensive Defensive Player"
+
+  # Draft
+  - "2025 NFL draft mock draft predictions round 1"
+  - "2025 NFL mock draft big board picks"
+  - "NFL draft 2025 picks predictions first round"
+
+  # Individual pundit season previews (likely to have testable claims)
+  - "Mel Kiper 2025 NFL predictions picks"
+  - "Peter Schrager 2025 NFL picks predictions"
+  - "Bill Barnwell 2025 NFL predictions"
+  - "Mike Florio 2025 NFL predictions picks"
+
+# Map domains to source IDs
+source_mapping:
+  "espn.com":
+    source_id: espn_nfl
+  "nbcsports.com":
+    source_id: pft_nbc
+  "profootballtalk":
+    source_id: pft_nbc
+  "nfl.com":
+    source_id: nfl_official
+  "cbssports.com":
+    source_id: cbs_nfl
+  "yahoo.com":
+    source_id: yahoo_nfl
+  "si.com":
+    source_id: si_nfl
+  "bleacherreport.com":
+    source_id: bleacher_report
+  "theathletic.com":
+    source_id: theathletic_nfl
+  "theringer.com":
+    source_id: theringer_nfl
+  "foxsports.com":
+    source_id: fox_nfl
+  "nflnetwork.com":
+    source_id: nfl_network
+
+# Domains to skip (non-article content)
+skip_domains:
+  - "youtube.com"
+  - "twitter.com"
+  - "x.com"
+  - "reddit.com"
+  - "facebook.com"
+  - "instagram.com"
+  - "tiktok.com"
+  - "wikipedia.org"
+  - "nflmockdraftdatabase.com"
+  - "drafttek.com"
+  - "walterfootball.com"
+  - "sportsline.com"  # paywalled, low yield
+  - "covers.com"      # betting aggregator

@@ -510,6 +510,7 @@ class TestIntegrityCheck:
 
 
 class TestTradeEndpointsGuarded:
+    @patch("api.main._TRADE_AVAILABLE", False)
     def test_evaluate_returns_503(self, client):
         resp = client.post(
             "/api/trade/evaluate",
@@ -522,6 +523,7 @@ class TestTradeEndpointsGuarded:
         )
         assert resp.status_code == 503
 
+    @patch("api.main._TRADE_AVAILABLE", False)
     def test_counter_returns_503(self, client):
         resp = client.post(
             "/api/trade/counter",
@@ -534,6 +536,7 @@ class TestTradeEndpointsGuarded:
         )
         assert resp.status_code == 503
 
+    @patch("api.main._TRADE_AVAILABLE", False)
     def test_vegas_returns_503(self, client):
         resp = client.post(
             "/api/analyze/vegas",
@@ -546,6 +549,7 @@ class TestTradeEndpointsGuarded:
         )
         assert resp.status_code == 503
 
+    @patch("api.main._TRADE_AVAILABLE", False)
     def test_find_partner_returns_503(self, client):
         resp = client.get("/api/trade/find_partner/P_MAHOMES?cap_hit=45.0")
         assert resp.status_code == 503

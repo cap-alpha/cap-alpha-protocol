@@ -212,9 +212,16 @@ class TestPunditDetail:
 
     def test_summary_queries_mv_accuracy_summary(self, client, mock_db):
         breakdown_df = pd.DataFrame(
-            [{"claim_category": "player_performance", "total": 1,
-              "resolved": 1, "correct": 1, "accuracy_rate": 1.0,
-              "avg_weighted_score": 1.0}]
+            [
+                {
+                    "claim_category": "player_performance",
+                    "total": 1,
+                    "resolved": 1,
+                    "correct": 1,
+                    "accuracy_rate": 1.0,
+                    "avg_weighted_score": 1.0,
+                }
+            ]
         )
         mock_db.client.query.side_effect = [
             _mock_bq_job(make_single_pundit_summary_df()),

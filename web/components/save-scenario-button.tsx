@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import { useUser, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Save, Loader2 } from "lucide-react";
 import {
@@ -17,6 +16,18 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const hasClerkConfig = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Dynamically import Clerk components only if configured
+let useUser: any = null;
+let SignInButton: any = null;
+
+if (hasClerkConfig) {
+    const clerk = require("@clerk/nextjs");
+    useUser = clerk.useUser;
+    SignInButton = clerk.SignInButton;
+}
+
 interface SaveScenarioButtonProps {
     rosterState: any; // The current state of the roster (post-cuts)
     // @ts-ignore
@@ -25,7 +36,8 @@ interface SaveScenarioButtonProps {
 
 export function SaveScenarioButton({ rosterState, defaultName = "My Roster Scenario" }: SaveScenarioButtonProps) {
     // @ts-ignore
-    const { isSignedIn, user } = useUser();
+    const clerkUser = hasClerkConfig && useUser ? useUser() : { isSignedIn: false, user: null };
+    const { isSignedIn, user } = clerkUser;
     const [isOpen, setIsOpen] = useState(false);
     const [name, setName] = useState(defaultName);
     const [isLoading, setIsLoading] = useState(false);
@@ -57,13 +69,23 @@ export function SaveScenarioButton({ rosterState, defaultName = "My Roster Scena
     };
 
     if (!isSignedIn) {
+        // Only show SignInButton if Clerk is configured
+        if (hasClerkConfig && SignInButton) {
+            return (
+                <SignInButton mode="modal">
+                    <Button variant="outline" className="gap-2">
+                        <Save className="h-4 w-4" />
+                        Sign in to Save
+                    </Button>
+                </SignInButton>
+            );
+        }
+        // If Clerk not configured, just show disabled button
         return (
-            <SignInButton mode="modal">
-                <Button variant="outline" className="gap-2">
-                    <Save className="h-4 w-4" />
-                    Sign in to Save
-                </Button>
-            </SignInButton>
+            <Button variant="outline" className="gap-2" disabled>
+                <Save className="h-4 w-4" />
+                Save (Auth Required)
+            </Button>
         );
     }
 

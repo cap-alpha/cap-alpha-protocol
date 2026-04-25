@@ -1,5 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
 const isProtectedRoute = createRouteMatcher([
     "/scenarios(.*)",
@@ -11,25 +11,37 @@ const isProtectedRoute = createRouteMatcher([
     "/api/api-keys(.*)"
 ]);
 
-export default clerkMiddleware((auth, req) => {
-    if (isProtectedRoute(req)) {
-        auth().protect();
-    }
-    
+// Fallback middleware when Clerk is not configured
+function passthroughMiddleware(req: NextRequest) {
     const requestHeaders = new Headers(req.headers);
-    requestHeaders.set('x-forwarded-proto', 'https'); // Often needed for local headless testing behind proxies
-    
-    const response = NextResponse.next({
+    requestHeaders.set('x-forwarded-proto', 'https');
+
+    return NextResponse.next({
         request: {
             headers: requestHeaders,
         },
     });
+}
 
-    // We can also set CSP here if next.config.js headers are not enough:
-    // response.headers.set('Content-Security-Policy', "worker-src 'self' blob:;");
-    
-    return response;
-});
+// Use Clerk if keys are available, otherwise passthrough
+const hasClerkConfig = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY && !!process.env.CLERK_SECRET_KEY;
+
+export default hasClerkConfig
+    ? clerkMiddleware((auth, req) => {
+        if (isProtectedRoute(req)) {
+            auth().protect();
+        }
+
+        const requestHeaders = new Headers(req.headers);
+        requestHeaders.set('x-forwarded-proto', 'https');
+
+        return NextResponse.next({
+            request: {
+                headers: requestHeaders,
+            },
+        });
+    })
+    : passthroughMiddleware;
 
 export const config = {
     matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],

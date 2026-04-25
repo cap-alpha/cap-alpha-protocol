@@ -2,14 +2,28 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton, useUser, SignInButton } from "@clerk/nextjs";
 import { GlobalSearch } from "./global-search";
 import { useState, useEffect } from "react";
 import { useTeam } from "./team-context";
 
+const hasClerkConfig = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Dynamically import Clerk components only if configured
+let UserButton: any = null;
+let SignInButton: any = null;
+let useUser: any = null;
+
+if (hasClerkConfig) {
+    const clerk = require("@clerk/nextjs");
+    UserButton = clerk.UserButton;
+    SignInButton = clerk.SignInButton;
+    useUser = clerk.useUser;
+}
+
 export function Navbar() {
     const pathname = usePathname();
-    const { isSignedIn, isLoaded } = useUser();
+    const clerkUser = hasClerkConfig && useUser ? useUser() : { isSignedIn: false, isLoaded: true };
+    const { isSignedIn, isLoaded } = clerkUser;
     const { activeTeam, setTeamSelectorOpen } = useTeam();
     const [isScrolled, setIsScrolled] = useState(false);
 
@@ -83,9 +97,9 @@ export function Navbar() {
 
                 <div className="flex items-center gap-4">
                     <GlobalSearch />
-                    
-                    {/* Auth */}
-                    {isLoaded && (
+
+                    {/* Auth - only show if Clerk is configured */}
+                    {hasClerkConfig && isLoaded && (
                         isSignedIn ? (
                             <UserButton afterSignOutUrl="/" appearance={{ elements: { avatarBox: "w-9 h-9 border border-emerald-500/50" } }} />
                         ) : (

@@ -1,7 +1,6 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { useUser } from "@clerk/nextjs";
 import { updateUserTeam } from "@/app/actions/user";
 
 interface TeamContextType {
@@ -14,8 +13,13 @@ interface TeamContextType {
 
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
 
+const hasClerkConfig = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
 export function TeamProvider({ children }: { children: ReactNode }) {
-    const { user, isLoaded } = useUser();
+    // Only use useUser if Clerk is configured
+    const clerkUser = hasClerkConfig ? require("@clerk/nextjs").useUser() : { user: null, isLoaded: true };
+    const { user, isLoaded } = clerkUser;
+
     const [activeTeam, setActiveTeamState] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isTeamSelectorOpen, setTeamSelectorOpen] = useState(false);

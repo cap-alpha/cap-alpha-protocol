@@ -1,11 +1,26 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth, SignIn } from "@clerk/nextjs";
+
+const hasClerkConfig = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Dynamically import Clerk components only if configured
+let useAuth: any = null;
+let SignIn: any = null;
+
+if (hasClerkConfig) {
+    const clerk = require("@clerk/nextjs");
+    useAuth = clerk.useAuth;
+    SignIn = clerk.SignIn;
+}
 
 export function AuthInterstitial() {
-    const { isLoaded, isSignedIn } = useAuth();
+    const clerkAuth = hasClerkConfig && useAuth ? useAuth() : { isLoaded: true, isSignedIn: false };
+    const { isLoaded, isSignedIn } = clerkAuth;
     const [showSignIn, setShowSignIn] = useState(false);
+
+    // Don't show interstitial if Clerk is not configured
+    if (!hasClerkConfig) return null;
 
     useEffect(() => {
         if (!isLoaded) return;

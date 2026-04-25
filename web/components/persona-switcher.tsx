@@ -4,12 +4,24 @@ import React from "react";
 import { usePersona, Persona } from "./persona-context";
 import { Activity, CircleDollarSign, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth, SignInButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+
+const hasClerkConfig = !!process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
+// Dynamically import Clerk components only if configured
+let useAuth: any = null;
+let SignInButton: any = null;
+
+if (hasClerkConfig) {
+    const clerk = require("@clerk/nextjs");
+    useAuth = clerk.useAuth;
+    SignInButton = clerk.SignInButton;
+}
 
 export default function PersonaSwitcher() {
     const { persona, setPersona } = usePersona();
-    const { isSignedIn } = useAuth();
+    const clerkAuth = hasClerkConfig && useAuth ? useAuth() : { isSignedIn: false };
+    const { isSignedIn } = clerkAuth;
     const router = useRouter();
 
     const options: { id: Persona; label: string; icon: React.ReactNode; isPro: boolean; path: string }[] = [
@@ -47,11 +59,15 @@ export default function PersonaSwitcher() {
                 );
 
                 if (option.isPro && !isSignedIn) {
-                    return (
-                        <SignInButton key={option.id} mode="modal" fallbackRedirectUrl={option.path}>
-                            {ButtonContent}
-                        </SignInButton>
-                    );
+                    // Only wrap with SignInButton if Clerk is configured
+                    if (hasClerkConfig && SignInButton) {
+                        return (
+                            <SignInButton key={option.id} mode="modal" fallbackRedirectUrl={option.path}>
+                                {ButtonContent}
+                            </SignInButton>
+                        );
+                    }
+                    return ButtonContent;
                 }
 
                 return ButtonContent;

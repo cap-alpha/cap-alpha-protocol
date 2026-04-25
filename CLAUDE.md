@@ -6,7 +6,7 @@
 >
 > - **Never edit files in the main checkout.** A PreToolUse hook (`.claude/hooks/require-worktree.sh`) blocks Edit/Write/MultiEdit when CWD is the main repo. If you see that error, switch to a worktree.
 > - **Use `EnterWorktree` first**, or run `git worktree add .claude/worktrees/<name> -b <branch>` and `cd` into it before any edit.
-> - **Land PRs with `gh pr merge <n> --squash --auto`** (queue), never with direct merge.
+> - **Land PRs with `gh pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits).
 > - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 >
 > Established 2026-04-07 after multi-agent coordination failures.
@@ -74,7 +74,7 @@ cat .agent/current.md
 # 4. Do your work, commit, push, open the PR
 
 # 5. Queue the PR for landing — never direct merge
-gh pr merge <pr-number> --squash --auto
+gh pr merge <pr-number> --rebase --auto
 
 # 6. After the PR lands on main, release locks
 .agent/claim.sh release issue:129 claude-sonnet-<session>

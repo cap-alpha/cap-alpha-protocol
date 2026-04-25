@@ -127,7 +127,7 @@ sources:
         match_authors: ["Tom Pelissero"]
 
   - id: si_nfl
-    name: "Sports Illustrated NFL"
+    name: "Sports Illustrated NFL / MMQB"
     sport: "NFL"
     type: rss
     scrape_full_text: true
@@ -137,6 +137,108 @@ sources:
       - id: albert_breer
         name: "Albert Breer"
         match_authors: ["Albert Breer"]
+      - id: conor_orr
+        name: "Conor Orr"
+        match_authors: ["Conor Orr"]
+
+  - id: cbssports_nfl
+    name: "CBS Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.cbssports.com/rss/headlines/nfl/"
+    enabled: true
+    default_pundit:
+      id: cbs_nfl_staff
+      name: "CBS Sports NFL Staff"
+    pundits:
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco"]
+      - id: jason_la_canfora
+        name: "Jason La Canfora"
+        match_authors: ["Jason La Canfora"]
+      - id: chris_trapasso
+        name: "Chris Trapasso"
+        match_authors: ["Chris Trapasso"]
+
+  - id: yahoo_nfl
+    name: "Yahoo Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://sports.yahoo.com/nfl/rss/"
+    enabled: true
+    default_pundit:
+      id: yahoo_nfl_staff
+      name: "Yahoo Sports NFL Staff"
+    pundits:
+      - id: charles_robinson
+        name: "Charles Robinson"
+        match_authors: ["Charles Robinson"]
+      - id: charles_mcdonald
+        name: "Charles McDonald"
+        match_authors: ["Charles McDonald"]
+
+  - id: usatoday_draftwire
+    name: "USA Today / Draft Wire"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://draftwire.usatoday.com/feed/"
+    enabled: true
+    default_pundit:
+      id: draftwire_staff
+      name: "Draft Wire Staff"
+    pundits:
+      - id: luke_easterling
+        name: "Luke Easterling"
+        match_authors: ["Luke Easterling"]
+
+  - id: foxsports_nfl
+    name: "Fox Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    # URL unverified — Fox Sports may not have a public RSS feed
+    url: "https://www.foxsports.com/rss?tag=nfl"
+    enabled: false
+    default_pundit:
+      id: fox_nfl_staff
+      name: "Fox Sports NFL Staff"
+    pundits:
+      - id: jay_glazer
+        name: "Jay Glazer"
+        match_authors: ["Jay Glazer"]
+
+  - id: bleacherreport_nfl
+    name: "Bleacher Report NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    # URL unverified — BR may have retired their RSS feeds
+    url: "https://bleacherreport.com/articles/feed?tag_id=16"
+    enabled: false
+    default_pundit:
+      id: br_nfl_staff
+      name: "Bleacher Report NFL Staff"
+    pundits: []
+
+  - id: sportingnews_nfl
+    name: "Sporting News NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    # URL unverified — Sporting News RSS availability unclear
+    url: "https://www.sportingnews.com/us/nfl/rss"
+    enabled: false
+    default_pundit:
+      id: sportingnews_nfl_staff
+      name: "Sporting News NFL Staff"
+    pundits:
+      - id: vinnie_iyer
+        name: "Vinnie Iyer"
+        match_authors: ["Vinnie Iyer"]
 
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
   - id: pat_mcafee_show
@@ -235,6 +337,39 @@ sources:
       - id: rich_eisen
         name: "Rich Eisen"
         match_authors: ["Rich Eisen"]
+
+  - id: chris_simms_unbuttoned
+    name: "Chris Simms Unbuttoned"
+    sport: "NFL"
+    type: youtube_transcript
+    # TODO: verify channel_id
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
+    enabled: false
+    pundits:
+      - id: chris_simms
+        name: "Chris Simms"
+        match_authors: ["Chris Simms"]
+
+  - id: good_morning_football
+    name: "Good Morning Football"
+    sport: "NFL"
+    type: youtube_transcript
+    # TODO: verify channel_id
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
+    enabled: false
+    pundits: []
+
+  - id: skip_bayless_yt
+    name: "Skip Bayless"
+    sport: "NFL"
+    type: youtube_transcript
+    # TODO: verify channel_id — Skip Bayless personal YouTube channel
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
+    enabled: false
+    pundits:
+      - id: skip_bayless
+        name: "Skip Bayless"
+        match_authors: ["Skip Bayless"]
 
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:

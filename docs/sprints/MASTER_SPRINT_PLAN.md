@@ -46,6 +46,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [x] SP29-1: Enforce strict BigQuery `NOT NULL` constraints and foreign key mappings across all core identity tables (Players, Teams, Contracts). (GH-#218)
 - [x] SP29-2: Implement automated dbt/Great Expectations data quality checks that run post-ingestion, instantly alerting on standard deviation outliers or missing cap figures. (GH-#107)
 
+
 ### Sprint 22: Media Accountability & Prediction Tracking (Data Layer)
 **Goal:** Track public assertions made by major sports personalities across X and mainstream media, mapping their narrative influence against empirical "sharp" line movements.
 - [x] SP22-1: **Data Ingestion (Media Pipes)** - Integrate APIs/Scrapers (e.g., X, YouTube transcripts via Whisper, Action Network) to chronologically log public predictions. (GH-#78)

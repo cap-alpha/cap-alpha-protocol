@@ -54,6 +54,8 @@ VALID_CATEGORIES = {
     "draft_pick",
     "injury",
     "contract",
+    "award_prediction",  # Named NFL awards: MVP, OPOY, DPOY, ROY, etc.
+    "fa_signing",  # Free agency: player signs with a specific team
 }
 
 EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the content below.
@@ -67,6 +69,8 @@ Rules — what TO extract:
 - Predictions can be about players, teams, or the league — they don't have to name a specific player
 - MOCK DRAFT PICKS ARE PREDICTIONS: when an author projects "Pick #3: Arvell Reese to Arizona Cardinals", that is a draft_pick prediction
 - For draft_pick predictions: extract the player's FULL CORRECT NAME, the PICK NUMBER, and the TEAM
+- FREE AGENCY SIGNING PREDICTIONS: "Player X will sign with Team Y" are fa_signing predictions
+- AWARD PREDICTIONS: "Player X will win MVP/OPOY/DPOY/Rookie of the Year" are award_prediction predictions
 
 Examples of good extractions:
   "Fernando Mendoza will be drafted #1 overall by the Las Vegas Raiders" (draft_pick, target_player: Fernando Mendoza) → stance: neutral
@@ -76,11 +80,16 @@ Examples of good extractions:
   "Patrick Mahomes will throw 40+ touchdowns in 2026" (player_performance, target_player: Patrick Mahomes) → stance: bullish
   "The Bears will make the playoffs in 2026" (game_outcome, target_player: null) → stance: bullish
   "No quarterback other than Mendoza will go in Round 1" (draft_pick, target_player: null) → stance: neutral
+  "Davante Adams will sign with the Dallas Cowboys" (fa_signing, target_player: Davante Adams) → stance: neutral
+  "Aaron Rodgers will sign with the Miami Dolphins" (fa_signing, target_player: Aaron Rodgers) → stance: neutral
+  "Saquon Barkley will win Offensive Player of the Year" (award_prediction, target_player: Saquon Barkley) → stance: bullish
+  "Josh Allen will win MVP this season" (award_prediction, target_player: Josh Allen) → stance: bullish
+  "The Bills will win 12 or more games" (game_outcome, target_player: null) → stance: bullish
 
 Stance rules:
 - bullish: prediction is positive/optimistic about the subject
 - bearish: prediction is negative/pessimistic about the subject
-- neutral: no clear directional bias (draft picks, trades, purely factual future events)
+- neutral: no clear directional bias (draft picks, trades, FA signings, purely factual future events)
 
 Special handling for DRAFT PICKS:
 - For draft_pick claims, ALWAYS extract the draft year (e.g., 2025, 2026 draft)
@@ -100,7 +109,15 @@ Rules — what NOT to extract:
 - Claims about events from PAST SEASONS that are already concluded
 
 For the "target_player" field: use the player's FULL NAME exactly as written in the article. If the prediction is about a team or the league with no specific player, set target_player to null.
-For the "claim_category" field: use "draft_pick" for draft predictions, "game_outcome" for win/loss/playoff predictions, "player_performance" for stat/award predictions, "trade" for trade predictions, "contract" for contract/signing predictions, "injury" for injury predictions.
+For the "claim_category" field:
+  - "draft_pick" — draft position/team predictions (including mock drafts)
+  - "game_outcome" — win/loss/playoff/season win total predictions
+  - "player_performance" — specific stat thresholds (touchdowns, yards, etc.)
+  - "award_prediction" — named NFL awards: MVP, OPOY, DPOY, Offensive/Defensive ROY, CPOY, Walter Payton Man of the Year
+  - "fa_signing" — free agency: player signs with or joins a specific team
+  - "trade" — player traded to a specific team
+  - "contract" — contract extension/restructure predictions (NOT signing predictions — use fa_signing)
+  - "injury" — injury status or return timeline predictions
 
 If the article contains no concrete, falsifiable predictions with clear stances, return an empty list.
 

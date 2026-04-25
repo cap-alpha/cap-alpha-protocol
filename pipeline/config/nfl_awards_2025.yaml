@@ -1,0 +1,39 @@
+# NFL 2025 Season Award Winners
+# Used by resolve_daily.py resolve_award_predictions() to score pundit award picks.
+#
+# Populate after the NFL Honors ceremony (typically the Saturday before Super Bowl).
+# Leave null if the award has not yet been announced.
+#
+# Award name keys match the keyword sets in _parse_award_claim():
+#   mvp, opoy, dpoy, offensive_rookie, defensive_rookie, coach_of_the_year,
+#   comeback_player, walter_payton_man_of_the_year, super_bowl_mvp
+
+season: 2025
+
+awards:
+  # AP Most Valuable Player
+  mvp: null
+
+  # AP Offensive Player of the Year
+  opoy: null
+
+  # AP Defensive Player of the Year
+  dpoy: null
+
+  # AP Offensive Rookie of the Year
+  offensive_rookie: null
+
+  # AP Defensive Rookie of the Year
+  defensive_rookie: null
+
+  # AP Coach of the Year
+  coach_of_the_year: null
+
+  # AP Comeback Player of the Year
+  comeback_player: null
+
+  # Walter Payton NFL Man of the Year
+  walter_payton_man_of_the_year: null
+
+  # Super Bowl MVP (same season)
+  super_bowl_mvp: null

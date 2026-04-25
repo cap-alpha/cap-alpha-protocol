@@ -1,0 +1,97 @@
+name: Pundit Prediction Pipeline
+
+on:
+  schedule:
+    # Run every 30 minutes during active hours (8am-midnight ET = 12:00-04:00 UTC)
+    - cron: '3,33 12-23,0-4 * * *'
+    # Run every 2 hours during off-hours
+    - cron: '3 5-11 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max articles to extract per run'
+        required: false
+        default: '50'
+
+jobs:
+  ingest-extract-resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipeline/requirements.txt
+
+      - name: Authenticate to GCP
+        run: |
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/gcp-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV
+
+      - name: Ingest new articles
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          cd pipeline
+          python -m src.media_ingestor 2>&1 | tail -20
+        continue-on-error: true
+
+      - name: Extract predictions
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          cd pipeline
+          python -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched 2>&1 | tail -20
+        continue-on-error: true
+
+      - name: Refresh SportsDataIO draft data
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          SPORTS_DATA_IO_API_KEY: ${{ secrets.SPORTS_DATA_IO_API_KEY }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          cd pipeline
+          python -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()" 2>&1 | tail -5
+        continue-on-error: true
+
+      - name: Resolve predictions
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          cd pipeline
+          python -m src.resolve_daily --category draft_pick 2>&1 | tail -20
+        continue-on-error: true
+
+      - name: Report status
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          cd pipeline
+          python -c "
+          from src.db_manager import DBManager
+          db = DBManager()
+          total = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_ledger')
+          pending = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_ledger WHERE resolution_status = \"PENDING\"')
+          correct = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_resolutions WHERE resolution_status = \"CORRECT\"')
+          incorrect = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_resolutions WHERE resolution_status = \"INCORRECT\"')
+          print(f'Pipeline complete: {total.iloc[0][\"n\"]} total | {pending.iloc[0][\"n\"]} pending | {correct.iloc[0][\"n\"]} correct | {incorrect.iloc[0][\"n\"]} incorrect')
+          "
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/gcp-key.json

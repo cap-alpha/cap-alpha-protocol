@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Optional
 
 import pandas as pd
-
 from src.cryptographic_ledger import hash_predictions_to_ledger
 from src.data_quality_tests import DataQualityTester
 from src.historical_scraper import scrape_all_years

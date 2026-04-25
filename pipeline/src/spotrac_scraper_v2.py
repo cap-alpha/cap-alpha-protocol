@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-
 from src.config import DATA_RAW_DIR
 
 logging.basicConfig(level=logging.INFO)
@@ -578,7 +577,8 @@ class SpotracScraper:
         chrome_bin = os.environ.get("CHROME_BIN")
         if chrome_bin:
             options.binary_location = chrome_bin
-            from selenium.webdriver.chrome.service import Service as ChromeService
+            from selenium.webdriver.chrome.service import \
+                Service as ChromeService
 
             # If we are in docker, we expect chromium-driver to be at /usr/bin/chromium-driver
             # but we can try without explicit service path first if it's in PATH
@@ -592,7 +592,8 @@ class SpotracScraper:
             else:
                 self.driver = webdriver.Chrome(options=options)
         else:
-            from selenium.webdriver.chrome.service import Service as ChromeService
+            from selenium.webdriver.chrome.service import \
+                Service as ChromeService
             from webdriver_manager.chrome import ChromeDriverManager
 
             self.driver = webdriver.Chrome(
@@ -612,7 +613,9 @@ class SpotracScraper:
                 self.driver.current_url
                 return
         except Exception:
-            logger.warning("⚠️ Selenium session lost/invalid, re-initializing driver...")
+            logger.warning(
+                "⚠️ Selenium session lost/invalid, re-initializing driver..."
+            )
             if self.driver:
                 try:
                     self.driver.quit()

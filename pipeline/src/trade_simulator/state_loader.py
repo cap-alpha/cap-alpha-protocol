@@ -16,7 +16,6 @@ from typing import Dict, List
 
 import pandas as pd
 from google.api_core.exceptions import NotFound
-
 from src.db_manager import DBManager
 
 from .state import LeagueState, TeamState

@@ -9,20 +9,14 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
-from src.resolution_engine import (
-    ResolutionResult,
-    _compute_brier_score,
-    _compute_timeliness_weight,
-    _compute_weighted_score,
-    get_pending_predictions,
-    get_pundit_accuracy_summary,
-    record_resolution,
-    resolve_binary,
-    resolve_manual,
-    resolve_probabilistic,
-    void_prediction,
-)
+from src.resolution_engine import (ResolutionResult, _compute_brier_score,
+                                   _compute_timeliness_weight,
+                                   _compute_weighted_score,
+                                   get_pending_predictions,
+                                   get_pundit_accuracy_summary,
+                                   record_resolution, resolve_binary,
+                                   resolve_manual, resolve_probabilistic,
+                                   void_prediction)
 
 FAKE_HASH = "a" * 64
 

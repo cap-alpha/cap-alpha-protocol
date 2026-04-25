@@ -4,7 +4,6 @@ import sys
 from pathlib import Path
 
 import pytest
-
 from src.db_manager import DBManager
 
 # Setup logging
@@ -34,8 +33,9 @@ def test_gold_layer_build_integrity():
         # We don't want to actually overwrite the production table here if we can avoid it,
         # but create_gold_layer does 'CREATE OR REPLACE'.
         # For a test, we'll try to execute the core logic into a temp table.
-        from scripts.medallion_pipeline import GoldLayer
         from src.db_manager import DBManager
+
+        from scripts.medallion_pipeline import GoldLayer
 
         # We can't easily run create_gold_layer on a temp table without modifying it,
         # but we can verify it runs on the current DB.
@@ -60,9 +60,9 @@ def test_no_row_explosion():
                 f"SELECT COUNT(*) FROM fact_player_efficiency WHERE player_name = '{player}' AND year = 2025"
             ).fetchone()[0]
             # A player might be on two teams (max 2 rows usually), but 16 is definitely an explosion.
-            assert count <= 2, (
-                f"Row explosion detected for {player}: {count} rows. Expected <= 2."
-            )
+            assert (
+                count <= 2
+            ), f"Row explosion detected for {player}: {count} rows. Expected <= 2."
 
 
 def test_penalty_linkage():
@@ -83,9 +83,9 @@ def test_penalty_linkage():
         penalty_link_count = db.execute(
             "SELECT COUNT(*) FROM fact_player_efficiency WHERE year = 2025 AND total_penalty_yards > 0"
         ).fetchone()[0]
-        assert penalty_link_count > 0, (
-            "No players in the Gold Layer have penalty data for 2025."
-        )
+        assert (
+            penalty_link_count > 0
+        ), "No players in the Gold Layer have penalty data for 2025."
 
 
 def test_team_dead_cap_integrity():
@@ -105,9 +105,9 @@ def test_team_dead_cap_integrity():
 
         assert ari_2023_dc is not None, "ARI 2023 data missing from Gold Layer"
         # Adjusted expectations based on previous discrepancies, but structurally correct now
-        assert 68.0 < ari_2023_dc < 72.0, (
-            f"ARI 2023 Dead Cap deviation: {ari_2023_dc}M found, expected ~69.78M"
-        )
+        assert (
+            68.0 < ari_2023_dc < 72.0
+        ), f"ARI 2023 Dead Cap deviation: {ari_2023_dc}M found, expected ~69.78M"
 
 
 def test_contract_name_deduplication():

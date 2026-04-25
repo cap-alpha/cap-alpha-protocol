@@ -12,24 +12,13 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
-
-from src.media_ingestor import (
-    MediaItem,
-    SourceResult,
-    _extract_video_id,
-    _is_youtube_short,
-    _passes_keyword_filter,
-    compute_content_hash,
-    fetch_rss,
-    get_existing_hashes,
-    ingest_from_urls,
-    ingest_source,
-    load_media_config,
-    match_pundit,
-    match_pundit_by_author,
-    match_pundit_by_byline,
-    run_daily_ingestion,
-)
+from src.media_ingestor import (MediaItem, SourceResult, _extract_video_id,
+                                _is_youtube_short, _passes_keyword_filter,
+                                compute_content_hash, fetch_rss,
+                                get_existing_hashes, ingest_from_urls,
+                                ingest_source, load_media_config, match_pundit,
+                                match_pundit_by_author, match_pundit_by_byline,
+                                run_daily_ingestion)
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -606,9 +595,9 @@ class TestConfigLoading:
         config = load_media_config()
         for source in config["sources"]:
             if source.get("enabled") and "youtube" in source.get("type", ""):
-                assert "UNKNOWN" not in source["url"], (
-                    f"Source {source['id']} has UNKNOWN channel_id and is enabled"
-                )
+                assert (
+                    "UNKNOWN" not in source["url"]
+                ), f"Source {source['id']} has UNKNOWN channel_id and is enabled"
 
 
 # ---------------------------------------------------------------------------

@@ -3,7 +3,6 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 import pandas as pd
-
 from src.db_manager import DBManager
 
 logger = logging.getLogger(__name__)

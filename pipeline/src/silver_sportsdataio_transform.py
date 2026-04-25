@@ -1,7 +1,6 @@
 import logging
 
 import pandas as pd
-
 from db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO)

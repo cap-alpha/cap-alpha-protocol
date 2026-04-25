@@ -6,7 +6,6 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.linear_model import LassoCV
 from sklearn.preprocessing import StandardScaler
-
 from src.db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO)

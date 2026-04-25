@@ -7,15 +7,9 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-
-from src.llm_provider import (
-    PREDICTION_SCHEMA_DESCRIPTION,
-    GeminiProvider,
-    OllamaProvider,
-    _FallbackProvider,
-    get_provider,
-    load_llm_config,
-)
+from src.llm_provider import (PREDICTION_SCHEMA_DESCRIPTION, GeminiProvider,
+                              OllamaProvider, _FallbackProvider, get_provider,
+                              load_llm_config)
 
 # ---------------------------------------------------------------------------
 # _parse_json_response (shared helper)

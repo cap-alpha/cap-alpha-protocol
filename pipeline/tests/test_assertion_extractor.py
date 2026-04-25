@@ -11,18 +11,11 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 from google.api_core.exceptions import NotFound
-
-from src.assertion_extractor import (
-    VALID_CATEGORIES,
-    ExtractionResult,
-    _deduplicate_claims,
-    extract_assertions,
-    get_unprocessed_media,
-    mark_as_processed,
-    reset_processed_hashes,
-    run_extraction,
-    should_filter_article,
-)
+from src.assertion_extractor import (VALID_CATEGORIES, ExtractionResult,
+                                     _deduplicate_claims, extract_assertions,
+                                     get_unprocessed_media, mark_as_processed,
+                                     reset_processed_hashes, run_extraction,
+                                     should_filter_article)
 
 # ---------------------------------------------------------------------------
 # Fixtures

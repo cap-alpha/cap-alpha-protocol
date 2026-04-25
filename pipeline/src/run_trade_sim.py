@@ -10,7 +10,6 @@ Constraint: No forced narratives. Data driven only.
 import sys
 
 import pandas as pd
-
 from trade_simulator import CONTENDER, Agent, StateLoader, TeamPersona
 
 

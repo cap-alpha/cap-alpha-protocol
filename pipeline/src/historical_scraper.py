@@ -10,13 +10,8 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
-
-from src.compensation_model import (
-    CompensationDataModel,
-    Player,
-    PlayerCapImpact,
-    PlayerContract,
-)
+from src.compensation_model import (CompensationDataModel, Player,
+                                    PlayerCapImpact, PlayerContract)
 from src.pfr_scraper import _build_run_tags, scrape_pfr_player_rosters
 
 logging.basicConfig(level=logging.INFO)

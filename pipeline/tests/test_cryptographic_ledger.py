@@ -11,18 +11,12 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
-
-from src.cryptographic_ledger import (
-    HASH_SEED,
-    PunditPrediction,
-    _canonical_payload,
-    compute_chain_hash,
-    compute_prediction_hash,
-    get_latest_chain_hash,
-    ingest_batch,
-    ingest_prediction,
-    verify_chain_integrity,
-)
+from src.cryptographic_ledger import (HASH_SEED, PunditPrediction,
+                                      _canonical_payload, compute_chain_hash,
+                                      compute_prediction_hash,
+                                      get_latest_chain_hash, ingest_batch,
+                                      ingest_prediction,
+                                      verify_chain_integrity)
 
 # ---------------------------------------------------------------------------
 # Fixtures

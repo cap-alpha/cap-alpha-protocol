@@ -166,13 +166,11 @@ class TestDataFreshness:
     def test_raw_pundit_media_ingested_within_48h(self, bq_client, project):
         """Ensures the ingestor has run recently (pipeline health check)."""
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-        row = next(
-            bq_client.query(f"""
+        row = next(bq_client.query(f"""
             SELECT COUNT(*) AS cnt
             FROM `{project}.nfl_dead_money.raw_pundit_media`
             WHERE ingested_at >= '{cutoff}'
-        """).result()
-        )
+        """).result())
         assert row.cnt > 0, (
             "No rows ingested in the last 48h. "
             "Last ingest may be stale. Run python -m src.media_ingestor"
@@ -180,15 +178,13 @@ class TestDataFreshness:
 
     def test_raw_pundit_media_has_multiple_sources(self, bq_client, project):
         """Verifies more than 1 RSS source was ingested (not just a single feed)."""
-        row = next(
-            bq_client.query(f"""
+        row = next(bq_client.query(f"""
             SELECT COUNT(DISTINCT source_id) AS cnt
             FROM `{project}.nfl_dead_money.raw_pundit_media`
-        """).result()
-        )
-        assert row.cnt >= 2, (
-            f"Only {row.cnt} source(s) in raw_pundit_media — expected multiple feeds"
-        )
+        """).result())
+        assert (
+            row.cnt >= 2
+        ), f"Only {row.cnt} source(s) in raw_pundit_media — expected multiple feeds"
 
 
 # ---------------------------------------------------------------------------
@@ -200,14 +196,12 @@ class TestSportFieldDataQuality:
     def test_raw_pundit_media_sport_never_null_on_recent_rows(self, bq_client, project):
         """All rows ingested after migration 007 must have sport set."""
         # Use the migration timestamp as a proxy — rows after 2026-04-03 must have sport
-        row = next(
-            bq_client.query(f"""
+        row = next(bq_client.query(f"""
             SELECT COUNT(*) AS cnt
             FROM `{project}.nfl_dead_money.raw_pundit_media`
             WHERE sport IS NULL
               AND ingested_at >= '2026-04-03'
-        """).result()
-        )
+        """).result())
         assert row.cnt == 0, (
             f"{row.cnt} rows ingested after 2026-04-03 have NULL sport. "
             f"Media ingestor sport field not writing correctly."
@@ -215,33 +209,29 @@ class TestSportFieldDataQuality:
 
     def test_raw_pundit_media_sport_values_are_valid(self, bq_client, project):
         """All non-NULL sport values must be in the known valid set."""
-        rows = list(
-            bq_client.query(f"""
+        rows = list(bq_client.query(f"""
             SELECT DISTINCT sport
             FROM `{project}.nfl_dead_money.raw_pundit_media`
             WHERE sport IS NOT NULL
-        """).result()
-        )
+        """).result())
         for row in rows:
-            assert row.sport in VALID_SPORTS, (
-                f"Unknown sport value '{row.sport}' in raw_pundit_media"
-            )
+            assert (
+                row.sport in VALID_SPORTS
+            ), f"Unknown sport value '{row.sport}' in raw_pundit_media"
 
     def test_prediction_ledger_sport_values_valid_if_populated(
         self, bq_client, project
     ):
         """If the ledger has rows, all sport values must be valid."""
-        rows = list(
-            bq_client.query(f"""
+        rows = list(bq_client.query(f"""
             SELECT DISTINCT sport
             FROM `{project}.gold_layer.prediction_ledger`
             WHERE sport IS NOT NULL
-        """).result()
-        )
+        """).result())
         for row in rows:
-            assert row.sport in VALID_SPORTS, (
-                f"Unknown sport value '{row.sport}' in prediction_ledger"
-            )
+            assert (
+                row.sport in VALID_SPORTS
+            ), f"Unknown sport value '{row.sport}' in prediction_ledger"
 
 
 # ---------------------------------------------------------------------------
@@ -261,16 +251,14 @@ class TestCryptographicLedger:
 
     def test_prediction_ledger_no_duplicate_hashes(self, bq_client, project):
         """Duplicate prediction_hashes would indicate a broken ingest (non-idempotent)."""
-        row = next(
-            bq_client.query(f"""
+        row = next(bq_client.query(f"""
             SELECT COUNT(*) AS cnt FROM (
                 SELECT prediction_hash, COUNT(*) AS c
                 FROM `{project}.gold_layer.prediction_ledger`
                 GROUP BY prediction_hash
                 HAVING c > 1
             )
-        """).result()
-        )
+        """).result())
         assert row.cnt == 0, (
             f"{row.cnt} duplicate prediction_hash(es) in ledger — "
             f"ingest is not idempotent or content hash collision"
@@ -278,19 +266,17 @@ class TestCryptographicLedger:
 
     def test_prediction_resolutions_no_duplicate_hashes(self, bq_client, project):
         """Each prediction_hash should appear at most once in resolutions."""
-        row = next(
-            bq_client.query(f"""
+        row = next(bq_client.query(f"""
             SELECT COUNT(*) AS cnt FROM (
                 SELECT prediction_hash, COUNT(*) AS c
                 FROM `{project}.gold_layer.prediction_resolutions`
                 GROUP BY prediction_hash
                 HAVING c > 1
             )
-        """).result()
-        )
-        assert row.cnt == 0, (
-            f"{row.cnt} duplicate prediction_hash(es) in prediction_resolutions"
-        )
+        """).result())
+        assert (
+            row.cnt == 0
+        ), f"{row.cnt} duplicate prediction_hash(es) in prediction_resolutions"
 
 
 # ---------------------------------------------------------------------------
@@ -301,31 +287,27 @@ class TestCryptographicLedger:
 class TestReferentialIntegrity:
     def test_resolutions_have_matching_ledger_rows(self, bq_client, project):
         """Every resolution must have a corresponding ledger entry."""
-        row = next(
-            bq_client.query(f"""
+        row = next(bq_client.query(f"""
             SELECT COUNT(*) AS orphan_count
             FROM `{project}.gold_layer.prediction_resolutions` r
             LEFT JOIN `{project}.gold_layer.prediction_ledger` l
                 ON r.prediction_hash = l.prediction_hash
             WHERE l.prediction_hash IS NULL
-        """).result()
-        )
-        assert row.orphan_count == 0, (
-            f"{row.orphan_count} orphaned resolution(s) with no matching ledger row"
-        )
+        """).result())
+        assert (
+            row.orphan_count == 0
+        ), f"{row.orphan_count} orphaned resolution(s) with no matching ledger row"
 
     def test_content_hash_is_unique_per_source_in_raw_media(self, bq_client, project):
         """Dedup logic should prevent the same content_hash from being written twice."""
-        row = next(
-            bq_client.query(f"""
+        row = next(bq_client.query(f"""
             SELECT COUNT(*) AS cnt FROM (
                 SELECT content_hash, COUNT(*) AS c
                 FROM `{project}.nfl_dead_money.raw_pundit_media`
                 GROUP BY content_hash
                 HAVING c > 1
             )
-        """).result()
-        )
+        """).result())
         assert row.cnt == 0, (
             f"{row.cnt} duplicate content_hash(es) in raw_pundit_media — "
             f"dedup logic not working"

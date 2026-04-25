@@ -13,15 +13,13 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-
-from src.assertion_extractor import (
-    EXTRACTION_PROMPT,
-    extract_assertions,
-    run_extraction,
-)
-from src.cryptographic_ledger import PunditPrediction, ingest_batch, ingest_prediction
+from src.assertion_extractor import (EXTRACTION_PROMPT, extract_assertions,
+                                     run_extraction)
+from src.cryptographic_ledger import (PunditPrediction, ingest_batch,
+                                      ingest_prediction)
 from src.media_ingestor import MediaItem, fetch_rss, ingest_source
-from src.resolution_engine import get_pending_predictions, get_pundit_accuracy_summary
+from src.resolution_engine import (get_pending_predictions,
+                                   get_pundit_accuracy_summary)
 
 # ---------------------------------------------------------------------------
 # PunditPrediction dataclass

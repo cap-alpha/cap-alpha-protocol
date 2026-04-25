@@ -23,13 +23,9 @@ from typing import Optional
 
 import pandas as pd
 from google.api_core.exceptions import NotFound
-
 from src.db_manager import DBManager
-from src.resolution_engine import (
-    get_pending_predictions,
-    resolve_binary,
-    void_prediction,
-)
+from src.resolution_engine import (get_pending_predictions, resolve_binary,
+                                   void_prediction)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"

@@ -27,7 +27,6 @@ from datetime import date
 from typing import Optional
 
 import pandas as pd
-
 from src.db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO)

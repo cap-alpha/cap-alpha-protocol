@@ -23,6 +23,23 @@ services:
     command: >
       bash -c "pip install --no-cache-dir -r pipeline/requirements.txt && tail -f /dev/null"
 
+  api:
+    image: python:3.11-slim
+    container_name: nfl_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./pipeline:/app/pipeline
+      - ~/.config/gcloud:/app/.config/gcloud:ro
+    environment:
+      - PYTHONPATH=/app/pipeline
+      - GCP_PROJECT_ID=cap-alpha-protocol
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/.config/gcloud/application_default_credentials.json
+    working_dir: /app
+    command: >
+      bash -c "pip install --no-cache-dir -r pipeline/requirements.txt &&
+      uvicorn pipeline.api.main:app --host 0.0.0.0 --port 8000"
+
   web:
     image: node:20
     container_name: nfl_web

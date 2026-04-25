@@ -3,10 +3,10 @@
 
 -- Raw game logs from Pro-Football-Reference
 CREATE TABLE IF NOT EXISTS silver_pfr_game_logs (
-    player_name STRING,
-    team STRING,
-    year INTEGER,
-    week INTEGER,
+    player_name STRING NOT NULL,
+    team STRING NOT NULL,
+    year INTEGER NOT NULL,
+    week INTEGER NOT NULL,
     game_url STRING,
     Passing_Yds STRING,
     Rushing_Yds STRING,
@@ -20,22 +20,22 @@ CREATE TABLE IF NOT EXISTS silver_pfr_game_logs (
 
 -- Player penalty statistics
 CREATE TABLE IF NOT EXISTS silver_penalties (
-    player_name_short STRING,
-    team STRING,
-    year INTEGER,
+    player_name_short STRING NOT NULL,
+    team STRING NOT NULL,
+    year INTEGER NOT NULL,
     penalty_count INTEGER,
     penalty_yards INTEGER
 );
 
 -- Contract data from Spotrac (SCD Type 2 Ledger)
 CREATE TABLE IF NOT EXISTS silver_spotrac_contracts (
-    contract_id STRING,
+    contract_id STRING NOT NULL,
     player_id STRING,
-    player_name STRING,
-    team STRING,
-    year INTEGER,
+    player_name STRING NOT NULL,
+    team STRING NOT NULL,
+    year INTEGER NOT NULL,
     position STRING,
-    cap_hit_millions FLOAT64,
+    cap_hit_millions FLOAT64 NOT NULL,
     dead_cap_millions FLOAT64,
     signing_bonus_millions FLOAT64,
     guaranteed_money_millions FLOAT64,
@@ -48,26 +48,26 @@ CREATE TABLE IF NOT EXISTS silver_spotrac_contracts (
     effective_start_date TIMESTAMP,
     effective_end_date TIMESTAMP,
     is_current BOOLEAN,
-    system_ingest_time TIMESTAMP
+    system_ingest_time TIMESTAMP NOT NULL
 );
 
 -- Positional ranking data
 CREATE TABLE IF NOT EXISTS silver_spotrac_rankings (
-    player_name STRING,
-    year INTEGER,
+    player_name STRING NOT NULL,
+    year INTEGER NOT NULL,
     ranking_cap_hit_millions FLOAT64
 );
 
 -- Team-level cap and performance data
 CREATE TABLE IF NOT EXISTS silver_team_cap (
-    team STRING,
-    year INTEGER,
+    team STRING NOT NULL,
+    year INTEGER NOT NULL,
     win_pct FLOAT64
 );
 
 -- Static player attributes
 CREATE TABLE IF NOT EXISTS silver_player_metadata (
-    full_name STRING,
+    full_name STRING NOT NULL,
     birth_date STRING,
     college STRING,
     draft_round INTEGER,
@@ -77,42 +77,42 @@ CREATE TABLE IF NOT EXISTS silver_player_metadata (
 
 -- NFLPA Merchandise sales rankings
 CREATE TABLE IF NOT EXISTS silver_player_merch (
-    Player STRING,
+    Player STRING NOT NULL,
     Rank INTEGER
 );
 
 -- Forbes team valuation data
 CREATE TABLE IF NOT EXISTS silver_team_finance (
-    Team STRING,
-    Year INTEGER,
+    Team STRING NOT NULL,
+    Year INTEGER NOT NULL,
     Revenue_M FLOAT64,
     OperatingIncome_M FLOAT64
 );
 
 -- Salary breakdown
 CREATE TABLE IF NOT EXISTS silver_spotrac_salaries (
-    player_name STRING,
-    team STRING,
-    year INTEGER,
+    player_name STRING NOT NULL,
+    team STRING NOT NULL,
+    year INTEGER NOT NULL,
     position STRING,
     dead_cap STRING
 );
 
 -- Draft history data
 CREATE TABLE IF NOT EXISTS silver_pfr_draft_history (
-    player_name STRING,
-    team STRING,
-    year INTEGER,
+    player_name STRING NOT NULL,
+    team STRING NOT NULL,
+    year INTEGER NOT NULL,
     draft_round INTEGER,
     draft_pick INTEGER
 );
 
 -- Gold Layer: Player Efficiency Analytics
 CREATE TABLE IF NOT EXISTS fact_player_efficiency (
-    player_name STRING,
-    team STRING,
-    year INTEGER,
-    position STRING,
+    player_name STRING NOT NULL,
+    team STRING NOT NULL,
+    year INTEGER NOT NULL,
+    position STRING NOT NULL,
     age INTEGER,
     college STRING,
     draft_round INTEGER,
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS fact_player_efficiency (
     total_penalty_yards INTEGER,
     total_sacks FLOAT64,
     total_int FLOAT64,
-    cap_hit_millions FLOAT64,
+    cap_hit_millions FLOAT64 NOT NULL,
     dead_cap_millions FLOAT64,
     signing_bonus_millions FLOAT64,
     guaranteed_money_millions FLOAT64,

@@ -415,6 +415,74 @@ class DataQualityTester:
         print("=" * 60)
 
 
+# ============================================================================
+# NOT NULL Contract Enforcement
+# Maps table names to their identity columns that must never be NULL.
+# Mirrors the not_null: true entries in contracts/schema.yaml.
+# ============================================================================
+
+NOT_NULL_CONTRACTS: Dict[str, List[str]] = {
+    "silver_pfr_game_logs": ["player_name", "team", "year", "week"],
+    "silver_penalties": ["player_name_short", "team", "year"],
+    "silver_spotrac_contracts": [
+        "contract_id",
+        "player_name",
+        "team",
+        "year",
+        "cap_hit_millions",
+        "system_ingest_time",
+    ],
+    "silver_spotrac_rankings": ["player_name", "year"],
+    "silver_team_cap": ["team", "year"],
+    "silver_player_metadata": ["full_name"],
+    "silver_player_merch": ["Player"],
+    "silver_team_finance": ["Team", "Year"],
+    "silver_spotrac_salaries": ["player_name", "team", "year"],
+    "silver_pfr_draft_history": ["player_name", "team", "year"],
+    "fact_player_efficiency": [
+        "player_name",
+        "team",
+        "year",
+        "position",
+        "cap_hit_millions",
+    ],
+}
+
+
+def validate_not_null_constraints(df: pd.DataFrame, table_name: str) -> None:
+    """
+    Validate that a DataFrame satisfies the NOT NULL contract for the given table.
+
+    Raises ValueError listing every column and NULL-row count if any identity
+    column contains NULLs. Call this immediately before any BigQuery write to
+    prevent bad data from propagating into downstream Gold layer tables.
+
+    Args:
+        df: DataFrame about to be written to BigQuery.
+        table_name: Target table name (unqualified, e.g. 'silver_spotrac_contracts').
+
+    Raises:
+        ValueError: If any NOT NULL column contains NULL values.
+    """
+    required_cols = NOT_NULL_CONTRACTS.get(table_name)
+    if not required_cols:
+        return  # No contract defined for this table — skip silently
+
+    violations: List[str] = []
+    for col in required_cols:
+        if col not in df.columns:
+            violations.append(f"  {col}: column missing from DataFrame")
+            continue
+        null_count = int(df[col].isna().sum())
+        if null_count > 0:
+            violations.append(f"  {col}: {null_count} NULL row(s)")
+
+    if violations:
+        raise ValueError(
+            f"NOT NULL contract violation for '{table_name}':\n" + "\n".join(violations)
+        )
+
+
 if __name__ == "__main__":
     tester = DataQualityTester()
     tester.run_all_tests()

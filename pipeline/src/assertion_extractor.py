@@ -32,7 +32,12 @@ from google.api_core.exceptions import NotFound
 
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
-from src.llm_provider import LLMProvider, get_provider_with_fallback, load_llm_config
+from src.llm_provider import (
+    LLMProvider,
+    get_provider,
+    get_provider_with_fallback,
+    load_llm_config,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
@@ -317,6 +322,42 @@ def reset_processed_hashes(db: DBManager, source_id: Optional[str] = None) -> in
     return rows_deleted
 
 
+# ---------------------------------------------------------------------------
+# Pre-filter (Issue #180)
+# ---------------------------------------------------------------------------
+
+FILTER_PROMPT = """You are a sports media classifier. Given the article text below, decide whether it contains at least one testable prediction about a future sporting event or player performance.
+
+Answer with a single word: "yes" if the article contains predictions, or "no" if it does not (e.g. game recaps, injury reports, general analysis without predictions).
+
+Sport: {sport}
+
+Article (first 1500 chars):
+{text}
+
+Answer:"""
+
+
+def should_filter_article(
+    text: str,
+    filter_provider=None,
+    sport: str = "NFL",
+) -> bool:
+    """Return True if the article should be filtered out (no predictions), False to keep.
+
+    Fail-open: errors or missing provider always return False (keep the article).
+    """
+    if filter_provider is None:
+        return False
+    try:
+        prompt = FILTER_PROMPT.format(sport=sport, text=text[:1500])
+        answer = filter_provider.classify(prompt)
+        return not answer.strip().lower().startswith("yes")
+    except Exception as exc:
+        logger.warning(f"Pre-filter error (fail-open): {exc}")
+        return False
+
+
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
@@ -325,6 +366,7 @@ def run_extraction(
     db: Optional[DBManager] = None,
     provider: Optional[LLMProvider] = None,
     provider_name: Optional[str] = None,
+    disable_filter: bool = False,
     # Legacy parameter — ignored if provider is set
     gemini_client=None,
 ) -> dict:
@@ -355,8 +397,20 @@ def run_extraction(
         "predictions_ingested": 0,
         "errors": 0,
         "skipped_no_predictions": 0,
+        "filtered_out": 0,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
+
+    # Set up pre-filter provider if enabled
+    filter_provider = None
+    if not disable_filter and not dry_run:
+        config = load_llm_config()
+        filter_cfg = config.get("filter", {})
+        if filter_cfg.get("enabled"):
+            try:
+                filter_provider = get_provider("filter", config)
+            except Exception as exc:
+                logger.warning(f"Pre-filter provider init failed (disabled): {exc}")
 
     try:
         media_df = get_unprocessed_media(
@@ -381,6 +435,22 @@ def run_extraction(
                     f"({row.get('title', 'untitled')[:50]})"
                 )
                 continue
+
+            # Pre-filter: skip articles with no predictions
+            if filter_provider is not None:
+                article_sport = str(row.get("sport", sport))
+                if should_filter_article(
+                    str(row.get("raw_text", "")),
+                    filter_provider=filter_provider,
+                    sport=article_sport,
+                ):
+                    logger.info(
+                        f"Pre-filter skipped {content_hash[:16]}… "
+                        f"({row.get('title', 'untitled')[:50]})"
+                    )
+                    summary["filtered_out"] += 1
+                    processed_hashes.append(content_hash)
+                    continue
 
             # Format publish date for the prompt
             pub_date = ""

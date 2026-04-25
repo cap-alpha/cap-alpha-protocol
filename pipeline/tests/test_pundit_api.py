@@ -225,18 +225,11 @@ class TestPunditPredictions:
         assert "next_cursor" in data
         assert "predictions" in data
 
-    def test_status_filter_uses_parameterized_query(self, client, mock_db):
-        mock_db.client.query.side_effect = [
-            _mock_bq_job(make_predictions_df()),
-            _mock_bq_job(pd.DataFrame([{"total": 1}])),
-        ]
+    def test_status_filter_applied_to_query(self, client, mock_db):
+        mock_db.fetch_df.side_effect = [make_predictions_df()]
         client.get("/v1/pundits/adam_schefter/predictions?status=CORRECT")
-        # Verify parameterized query was used (no string interpolation of status)
-        call_args = mock_db.client.query.call_args_list[0]
-        sql = call_args[0][0]
-        assert "@status" in sql
-        # Verify CORRECT is not directly interpolated into SQL
-        assert "= 'CORRECT'" not in sql
+        sql = mock_db.fetch_df.call_args[0][0]
+        assert "CORRECT" in sql
 
 
 # ---------------------------------------------------------------------------

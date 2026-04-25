@@ -103,6 +103,43 @@ def load_media_config(config_path: Optional[Path] = None) -> dict:
         return yaml.safe_load(f)
 
 
+def load_config_from_bq(db: DBManager, fallback_yaml_path: Optional[Path] = None) -> dict:
+    """Load source/pundit config from BigQuery registry, falling back to YAML.
+
+    Tries to read from nfl_dead_money.source_registry and pundit_registry via
+    RegistryManager.  If the registry is empty or unavailable, silently falls
+    back to the static YAML config so the ingestor never stops working.
+
+    Args:
+        db: Active DBManager instance.
+        fallback_yaml_path: Path to media_sources.yaml; uses default if None.
+
+    Returns:
+        Config dict in the same shape as load_media_config() (YAML format).
+    """
+    from src.registry_manager import RegistryManager  # local import to avoid circular
+
+    try:
+        rm = RegistryManager(db)
+        config = rm.get_source_config()
+        if config.get("sources"):
+            logger.info(
+                f"Loaded {len(config['sources'])} source(s) from BQ registry"
+            )
+            # Merge YAML defaults section (BQ registry doesn't store global defaults)
+            try:
+                yaml_config = load_media_config(fallback_yaml_path)
+                config.setdefault("defaults", yaml_config.get("defaults", {}))
+            except Exception:
+                config.setdefault("defaults", {})
+            return config
+        logger.info("BQ registry is empty — falling back to YAML config")
+    except Exception as e:
+        logger.warning(f"BQ registry unavailable ({e}) — falling back to YAML config")
+
+    return load_media_config(fallback_yaml_path)
+
+
 # ---------------------------------------------------------------------------
 # Content hashing & dedup
 # ---------------------------------------------------------------------------
@@ -854,20 +891,33 @@ def run_daily_ingestion(
     source_filter: Optional[str] = None,
     dry_run: bool = False,
     db: Optional[DBManager] = None,
+    use_bq_registry: bool = False,
 ) -> list[SourceResult]:
     """
     Main daily entry point. Iterates all enabled sources, fetches content,
     deduplicates, and writes to BigQuery.
 
+    Args:
+        config_path: Path to media_sources.yaml. Ignored when use_bq_registry=True.
+        source_filter: If set, only process the source with this ID.
+        dry_run: Preview without writing to BQ.
+        db: Existing DBManager to reuse; creates one if None.
+        use_bq_registry: When True, load source/pundit config from BQ registry
+            (nfl_dead_money.source_registry + pundit_registry) with automatic
+            YAML fallback. When False (default), load from YAML only.
+
     Returns a manifest of SourceResults for observability.
     """
-    config = load_media_config(config_path)
-    defaults = config.get("defaults", {})
-    sources = config.get("sources", [])
-
     close_db = db is None
     if db is None:
         db = DBManager()
+
+    if use_bq_registry:
+        config = load_config_from_bq(db, fallback_yaml_path=config_path)
+    else:
+        config = load_media_config(config_path)
+    defaults = config.get("defaults", {})
+    sources = config.get("sources", [])
 
     results = []
     try:
@@ -925,6 +975,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config", help="Path to media_sources.yaml (default: pipeline/config/)"
     )
+    parser.add_argument(
+        "--use-bq-registry",
+        action="store_true",
+        help="Load source/pundit config from BQ registry (falls back to YAML)",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config) if args.config else None
@@ -932,6 +987,7 @@ if __name__ == "__main__":
         config_path=config_path,
         source_filter=args.source,
         dry_run=args.dry_run,
+        use_bq_registry=args.use_bq_registry,
     )
 
     # Print summary table

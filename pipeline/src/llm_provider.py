@@ -34,6 +34,7 @@ PREDICTION_SCHEMA_DESCRIPTION = """
 Return a JSON array of objects. Each object must have:
 - "extracted_claim": string — concise, testable statement (REQUIRED)
 - "claim_category": string — one of: player_performance, game_outcome, trade, draft_pick, injury, contract (REQUIRED)
+- "stance": string — directional sentiment: "bullish" (positive outcome predicted), "bearish" (negative outcome predicted), or "neutral" (no clear directional bias) (REQUIRED)
 - "season_year": integer or null — season year the prediction applies to
 - "target_player": string or null — player name if about a specific player
 - "target_team": string or null — team abbreviation (e.g. "KC", "CHI")
@@ -133,6 +134,11 @@ class GeminiProvider(LLMProvider):
                             "contract",
                         ],
                     ),
+                    "stance": types.Schema(
+                        type=types.Type.STRING,
+                        enum=["bullish", "bearish", "neutral"],
+                        description="Directional sentiment: bullish=positive outcome predicted, bearish=negative, neutral=no clear bias",
+                    ),
                     "season_year": types.Schema(type=types.Type.INTEGER, nullable=True),
                     "target_player": types.Schema(
                         type=types.Type.STRING, nullable=True
@@ -143,7 +149,7 @@ class GeminiProvider(LLMProvider):
                         description="How explicit/confident the prediction is",
                     ),
                 },
-                required=["extracted_claim", "claim_category", "confidence_note"],
+                required=["extracted_claim", "claim_category", "stance", "confidence_note"],
             ),
         )
 

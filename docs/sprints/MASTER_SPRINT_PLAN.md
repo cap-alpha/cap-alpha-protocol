@@ -48,10 +48,10 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 22: Media Accountability & Prediction Tracking (Data Layer)
 **Goal:** Track public assertions made by major sports personalities across X and mainstream media, mapping their narrative influence against empirical "sharp" line movements.
-- [ ] SP22-1: **Data Ingestion (Media Pipes)** - Integrate APIs/Scrapers (e.g., X, YouTube transcripts via Whisper, Action Network) to chronologically log public predictions. (GH-#78)
-- [ ] SP22-2: **NLP Assertion Extraction** - Build an LLM-based parsing pipeline to convert unstructured media quotes into structured prediction vectors. (GH-#79)
-- [ ] SP22-3: **Reverse Line Movement Integration** - Ingest live Vegas line movements and Ticket vs. Money percentages to track where "Sharp" money is flowing. (GH-#80)
-- [ ] SP22-4: **Contrary Syndicate Detection** - Flag instances where a personality pushes a narrative but sharp money aggressively moves the opposite direction. (GH-#81)
+- [x] SP22-1: **Data Ingestion (Media Pipes)** - Integrate APIs/Scrapers (e.g., X, YouTube transcripts via Whisper, Action Network) to chronologically log public predictions. (GH-#78)
+- [x] SP22-2: **NLP Assertion Extraction** - Build an LLM-based parsing pipeline to convert unstructured media quotes into structured prediction vectors. (GH-#79)
+- [x] SP22-3: **Reverse Line Movement Integration** - Ingest live Vegas line movements and Ticket vs. Money percentages to track where "Sharp" money is flowing. (GH-#80)
+- [x] SP22-4: **Contrary Syndicate Detection** - Flag instances where a personality pushes a narrative but sharp money aggressively moves the opposite direction. (GH-#81)
 
 ### Sprint 23: Adversarial Sentiment & Prediction Defense
 **Goal:** Harden the Alpha Flywheel and Intelligence Pipeline against coordinated bad actors attempting to skew Media Sentiment via manufactured narratives.

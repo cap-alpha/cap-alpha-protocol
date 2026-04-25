@@ -128,7 +128,7 @@ _TEAM_PATTERNS = {
     "cardinals": "ARI",
     "titans": "TEN",
     "chiefs": "KC",
-    "commanders": "WSH",
+    "commanders": "WAS",
     "saints": "NO",
     "browns": "CLE",
     "cowboys": "DAL",

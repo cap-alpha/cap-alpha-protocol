@@ -74,8 +74,7 @@ def main():
             from src.ml_governance import MLGovernance
             import joblib
             import pandas as pd
-            import duckdb
-            
+
             governance = MLGovernance()
             candidate = governance.get_latest_candidate()
             if candidate:

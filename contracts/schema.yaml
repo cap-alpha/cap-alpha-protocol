@@ -1,15 +1,16 @@
 # NFL Cap Alpha Protocol Data Contract
-# Version: 1.0.0
-# Source of Truth for Pipeline (DuckDB) and Web (TypeScript)
+# Version: 1.1.0
+# Source of Truth for Pipeline (BigQuery) and Web (TypeScript)
+# not_null: true marks columns that must never be NULL (enforced in BQ DDL + pre-write validation)
 
 tables:
   silver_pfr_game_logs:
     description: "Raw game logs from Pro-Football-Reference"
     columns:
-      player_name: { type: "STRING", description: "Player active name" }
-      team: { type: "STRING", description: "Team abbreviation" }
-      year: { type: "INTEGER", description: "Season year" }
-      week: { type: "INTEGER", description: "NFL Week integer" }
+      player_name: { type: "STRING", not_null: true, description: "Player active name" }
+      team: { type: "STRING", not_null: true, description: "Team abbreviation" }
+      year: { type: "INTEGER", not_null: true, description: "Season year" }
+      week: { type: "INTEGER", not_null: true, description: "NFL Week integer" }
       game_url: { type: "STRING", description: "Unique URL per game" }
       Passing_Yds: { type: "STRING", description: "Passing Yards (raw)" }
       Rushing_Yds: { type: "STRING", description: "Rushing Yards (raw)" }
@@ -23,22 +24,22 @@ tables:
   silver_penalties:
     description: "Player penalty statistics"
     columns:
-      player_name_short: { type: "STRING", description: "Short name (e.g. T.Brady)" }
-      team: { type: "STRING", description: "Team abbreviation" }
-      year: { type: "INTEGER", description: "Season year" }
+      player_name_short: { type: "STRING", not_null: true, description: "Short name (e.g. T.Brady)" }
+      team: { type: "STRING", not_null: true, description: "Team abbreviation" }
+      year: { type: "INTEGER", not_null: true, description: "Season year" }
       penalty_count: { type: "INTEGER", description: "Number of penalties" }
       penalty_yards: { type: "INTEGER", description: "Yards lost to penalties" }
 
   silver_spotrac_contracts:
     description: "Contract data from Spotrac (SCD Type 2 Ledger)"
     columns:
-      contract_id: { type: "STRING", description: "Surrogate key (MD5 of name+team+year)" }
+      contract_id: { type: "STRING", not_null: true, description: "Surrogate key (MD5 of name+team+year)" }
       player_id: { type: "STRING", description: "Foreign key to player dimension" }
-      player_name: { type: "STRING", description: "Player full name" }
-      team: { type: "STRING", description: "Team abbreviation" }
-      year: { type: "INTEGER", description: "Season year" }
+      player_name: { type: "STRING", not_null: true, description: "Player full name" }
+      team: { type: "STRING", not_null: true, description: "Team abbreviation" }
+      year: { type: "INTEGER", not_null: true, description: "Season year" }
       position: { type: "STRING", description: "Player position" }
-      cap_hit_millions: { type: "FLOAT", description: "Cap hit in millions" }
+      cap_hit_millions: { type: "FLOAT", not_null: true, description: "Cap hit in millions" }
       dead_cap_millions: { type: "FLOAT", description: "Dead cap in millions" }
       signing_bonus_millions: { type: "FLOAT", description: "Signing bonus in millions" }
       guaranteed_money_millions: { type: "FLOAT", description: "Guaranteed money in millions" }
@@ -51,26 +52,26 @@ tables:
       effective_start_date: { type: "TIMESTAMP", description: "SCD2: Date row became active" }
       effective_end_date: { type: "TIMESTAMP", description: "SCD2: Date row was superseded (NULL if active)" }
       is_current: { type: "BOOLEAN", description: "SCD2: Is this the current active record?" }
-      system_ingest_time: { type: "TIMESTAMP", description: "SCD2: Time record was ingested into BigQuery" }
+      system_ingest_time: { type: "TIMESTAMP", not_null: true, description: "SCD2: Time record was ingested into BigQuery" }
 
   silver_spotrac_rankings:
     description: "Positional ranking data"
     columns:
-      player_name: { type: "STRING", description: "Player full name" }
-      year: { type: "INTEGER", description: "Season year" }
+      player_name: { type: "STRING", not_null: true, description: "Player full name" }
+      year: { type: "INTEGER", not_null: true, description: "Season year" }
       ranking_cap_hit_millions: { type: "FLOAT", description: "Ranked cap hit" }
 
   silver_team_cap:
     description: "Team-level cap and performance data"
     columns:
-      team: { type: "STRING", description: "Team abbreviation" }
-      year: { type: "INTEGER", description: "Season year" }
+      team: { type: "STRING", not_null: true, description: "Team abbreviation" }
+      year: { type: "INTEGER", not_null: true, description: "Season year" }
       win_pct: { type: "FLOAT", description: "Winning percentage" }
 
   silver_player_metadata:
     description: "Static player attributes"
     columns:
-      full_name: { type: "STRING", description: "Player full name" }
+      full_name: { type: "STRING", not_null: true, description: "Player full name" }
       birth_date: { type: "STRING", description: "DOB (YYYY-MM-DD)" }
       college: { type: "STRING", description: "College attended" }
       draft_round: { type: "INTEGER", description: "Draft round" }
@@ -80,43 +81,42 @@ tables:
   silver_player_merch:
     description: "NFLPA Merchandise sales rankings"
     columns:
-      Player: { type: "STRING", description: "Player name" }
+      Player: { type: "STRING", not_null: true, description: "Player name" }
       Rank: { type: "INTEGER", description: "Sales rank" }
 
   silver_team_finance:
     description: "Forbes team valuation data"
     columns:
-      Team: { type: "STRING", description: "Team name/city" }
-      Year: { type: "INTEGER", description: "Fiscal year" }
+      Team: { type: "STRING", not_null: true, description: "Team name/city" }
+      Year: { type: "INTEGER", not_null: true, description: "Fiscal year" }
       Revenue_M: { type: "FLOAT", description: "Revenue in millions" }
       OperatingIncome_M: { type: "FLOAT", description: "Operating income in millions" }
 
   silver_spotrac_salaries:
     description: "Salary breakdown"
     columns:
-      player_name: { type: "STRING", description: "Player name" }
-      team: { type: "STRING", description: "Team abbreviation" }
-      year: { type: "INTEGER", description: "Season year" }
+      player_name: { type: "STRING", not_null: true, description: "Player name" }
+      team: { type: "STRING", not_null: true, description: "Team abbreviation" }
+      year: { type: "INTEGER", not_null: true, description: "Season year" }
       position: { type: "STRING", description: "Player position" }
       dead_cap: { type: "STRING", description: "Raw dead cap string" }
 
   silver_pfr_draft_history:
     description: "Draft history data"
     columns:
-      player_name: { type: "STRING", description: "Player name" }
-      team: { type: "STRING", description: "Drafting team" }
-      year: { type: "INTEGER", description: "Draft year" }
+      player_name: { type: "STRING", not_null: true, description: "Player name" }
+      team: { type: "STRING", not_null: true, description: "Drafting team" }
+      year: { type: "INTEGER", not_null: true, description: "Draft year" }
       draft_round: { type: "INTEGER", description: "Round" }
       draft_pick: { type: "INTEGER", description: "Pick" }
 
   fact_player_efficiency:
     description: "Gold Layer: Player Efficiency Analytics"
     columns:
-      player_name: { type: "STRING", description: "Player active name" }
-      team: { type: "STRING", description: "Team abbreviation" }
-      year: { type: "INTEGER", description: "Season year" }
-      position: { type: "STRING", description: "Primary position" }
-      position: { type: "STRING", description: "Primary position" }
+      player_name: { type: "STRING", not_null: true, description: "Player active name" }
+      team: { type: "STRING", not_null: true, description: "Team abbreviation" }
+      year: { type: "INTEGER", not_null: true, description: "Season year" }
+      position: { type: "STRING", not_null: true, description: "Primary position" }
       age: { type: "INTEGER", description: "Player age" }
       college: { type: "STRING", description: "College attended" }
       draft_round: { type: "INTEGER", description: "Draft round" }
@@ -132,7 +132,7 @@ tables:
       total_penalty_yards: { type: "INTEGER", description: "Total penalty yards" }
       total_sacks: { type: "FLOAT", description: "Total Sacks" }
       total_int: { type: "FLOAT", description: "Total Interceptions" }
-      cap_hit_millions: { type: "FLOAT", description: "Cap hit (M)" }
+      cap_hit_millions: { type: "FLOAT", not_null: true, description: "Cap hit (M)" }
       dead_cap_millions: { type: "FLOAT", description: "Dead cap (M)" }
       signing_bonus_millions: { type: "FLOAT", description: "Signing bonus (M)" }
       guaranteed_money_millions: { type: "FLOAT", description: "Guaranteed money (M)" }

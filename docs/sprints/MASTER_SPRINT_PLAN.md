@@ -56,7 +56,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 ### Sprint 23: Adversarial Sentiment & Prediction Defense
 **Goal:** Harden the Alpha Flywheel and Intelligence Pipeline against coordinated bad actors attempting to skew Media Sentiment via manufactured narratives.
 - [x] SP23-1: **Bot & Astroturfing Detection:** Filter out synthetic articles and highly repetitive NLP phrasing that signals a coordinated attack. (GH-#83) — BotDetector: 4 signals (n-gram Jaccard, template phrases, duplicate sentences, source burst); wired into media_ingestor.py as pre-write quarantine filter; verdicts CLEAN/SUSPICIOUS/BOT; 16 unit tests.
-- [ ] SP23-2: **Source Reputation Weighting:** Enforce a heuristic decay on unverified domains or publishers whose historical accuracy metric drops below an acceptable baseline. (GH-#84)
+- [x] SP23-2: **Source Reputation Weighting:** Enforce a heuristic decay on unverified domains or publishers whose historical accuracy metric drops below an acceptable baseline. (GH-#84) — SourceReputationEngine: 5-tier weight (SUPPRESSED→LOW→MODERATE→HIGH→UNVERIFIED) built from prediction resolution accuracy; gold_layer.source_reputation rebuilt daily; wired into run_daily.py; 24 unit tests.
 - [ ] SP23-3: **Anomaly Flagging (Suspicious Volume Spike):** If a player receives an atypical surge of negative sentiment divergence, quarantine the signals for manual review. (GH-#85)
 
 ### Sprint 19: Immutable Auditability (Cryptographic Ledger)

@@ -162,6 +162,15 @@ def main():
             f"print('asset_precompute results:', results)"
             f"\"",
         ),
+        (
+            "source_reputation",
+            f"python -c \""
+            f"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+            f"from src.source_reputation import compute_and_persist; "
+            f"n = compute_and_persist(); "
+            f"print(f'source_reputation: {{n}} source rows written')"
+            f"\"",
+        ),
     ]
 
     results = []

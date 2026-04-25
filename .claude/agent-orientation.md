@@ -1,32 +1,27 @@
 # Agent Orientation Cache
 
-> Last updated: 2026-04-23
-> Updated by: bootstrap agent
+> Last updated: 2026-04-25
+> Updated by: bootstrap agent (refresh: ruff linter, local venv, post-gitignore)
 
-This file provides shared conventions and operational guidance for all agents working on this repo. Read CLAUDE.md for the authoritative source — this cache distills the most common operations.
+This file provides shared conventions for all /go agents. Read CLAUDE.md for the authoritative source — this cache distills the most common operations.
 
 ---
 
 ## Repository summary
 
-NFL contract analytics pipeline + **Pundit Prediction Ledger** product. Medallion architecture (bronze→silver→gold) on BigQuery. Python ETL pipeline, FastAPI backend, Next.js frontend.
+NFL contract analytics + **Pundit Prediction Ledger** product. Medallion architecture (bronze→silver→gold) on BigQuery. Python ETL, FastAPI backend, Next.js frontend.
 
 ## Branch naming
 
-Pattern: `feat/<issue>-<slug>` or `fix/<issue>-<slug>`
-
-Examples from recent history:
-- `feat/124-scoring-methodology-v2`
-- `fix/170-target-player-name`
-- `worktree-llm-provider-178`
-- `feat/142-api-key-data-model`
+Agent branches: `worktree-<type>-<issue>-<slug>` (e.g. `worktree-feat-240-parallel-extraction`)
+Manual branches: `feat/<issue>-<slug>` or `fix/<slug>`
+Worktree dirs: `.claude/worktrees/<slug>/`
 
 ## Commit messages
 
 Format: `type(scope): description`
-
-Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `spike`
-Scopes: `extract`, `ingest`, `resolve`, `api`, `web`, `ci`, `pipeline`, `schema`, `billing`, `e2e`
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `spike`, `ops`, `perf`
+Scopes: `extract`, `ingest`, `resolve`, `api`, `web`, `ci`, `pipeline`, `schema`, `billing`, `e2e`, `agents`, `backtest`
 
 ## PR format
 
@@ -38,14 +33,13 @@ Closes #<issue>
 
 ## Test plan
 - [x] item
-- [ ] item
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 ## Landing PRs
 
-**Always** use the merge queue:
+Always use the merge queue:
 ```bash
 gh pr merge <number> --squash --auto
 ```
@@ -53,112 +47,100 @@ Never merge directly. Never force-push.
 
 ## CI checks
 
-CI runs on `push`, `pull_request`, and `merge_group` events against `main`.
-
 Key workflow: `.github/workflows/ci.yml`
-- Python 3.10, installs from `pipeline/requirements.txt`
-- Runs `pytest pipeline/tests/ -v -m "not integration"` (skips API tests)
+- Python 3.10, `pipeline/requirements-dev.txt`
+- Lint: `ruff check` + `ruff format --check`
+- Tests: `pytest pipeline/tests/ -v -m "not integration"` (skips API + BQ integration tests)
 
-Other workflows: `tests.yml`, `canary.yml`, `frontend_preflight.yml`, `deploy.yml`, `production.yml`
+`claude-review` check FAILS on all PRs (ANTHROPIC_API_KEY not set) — NOT a required check.
+E2E Docker tests FAIL (known issue #160) — NOT a required check.
 
-## Running tests locally
+## Running checks locally
 
 ```bash
-# Unit tests (in Docker)
-make up
-docker compose --env-file docker_env.txt exec pipeline bash -c "python -m pytest pipeline/tests/ -v --tb=short"
-
-# Linting (local Python is fine)
-black --check pipeline/src/
-isort --check pipeline/src/
-flake8 pipeline/src/
+make check      # lint + unit tests (local .venv, no Docker)
+make test       # unit tests only
+make lint       # ruff check + format check
+make lint-fix   # auto-fix with ruff
 ```
+
+No Docker required for tests/lint — uses local `.venv/`.
 
 ## Worktree requirement
 
-All edits MUST happen in a git worktree. A PreToolUse hook blocks Edit/Write in the main checkout.
+All edits MUST happen in a git worktree. Hook blocks Edit/Write in main checkout.
 
 ```bash
-# Use EnterWorktree tool, or manually:
-git worktree add .claude/worktrees/<name> -b <branch>
-cd .claude/worktrees/<name>
+git worktree add .claude/worktrees/<slug> -b worktree-<slug>
+cd .claude/worktrees/<slug>
 ```
 
 ## Claim protocol
 
-Before working on an issue, post a claim comment:
+### 1. GitHub comment
+Post on the issue:
 ```
 🤖 intending to work on this at <UTC timestamp>
-```
-Wait ~2 minutes, re-read comments. Only proceed if your claim is earliest.
 
-When done or blocked, post:
+— 🤖 `go`
 ```
-🤖 releasing issue
+Wait ~2 min. Only proceed if your claim is the EARLIEST timestamp.
+If prior claim exists: post "🤖 yielding to earlier claim".
+
+### 2. File-level locks (shared files only)
+From your worktree:
+```bash
+.agent/claim.sh claim issue:<n> claude-sonnet-<session>
 ```
 
-Also use `.agent/claim.sh` for file-level locks on shared files:
+### 3. Done comment
+```
+🤖 PR #<n> opened and queued for merge: <url>
+
+Changes:
+- ...
+
+— 🤖 `go`
+```
+
+### Shared files (claim before editing)
 - `pipeline/src/assertion_extractor.py`
 - `pipeline/src/cryptographic_ledger.py`
 - `pipeline/src/db_manager.py`
 - `pipeline/config/media_sources.yaml`
 - `web/app/layout.tsx`
 
-## Issue selection criteria
+## Issue selection
 
-**Exclude:**
-- `icebox` label
-- `agent-feedback` label
-- Issues with active claims (<2h old)
-- Master/tracking issues (#177, #139)
-- Issues requiring external actions (Stripe setup, legal, billing accounts)
+**Exclude:** `icebox`, `agent-feedback` labels; active claims (<2h); umbrella issues (#204, #177, #139); external-action issues (#140–141, #149–150).
 
-**Prefer:**
-- Clear scope, small surface area
-- `backend`, `data`, `infrastructure` labels
-- Bug fixes over new features when both available
-
-## Labels to know
-
-| Label | Meaning |
-|---|---|
-| `critical-path` | Blocks release |
-| `icebox` | Deprioritized — skip |
-| `product` | Product requirement |
-| `monetization` | Revenue features |
-| `data` | Data pipeline |
-| `infrastructure` | Backend/DevOps |
-| `backend` | Server-side logic |
+**Prefer:** `critical-path`, `backend`, `data`, `infrastructure`; clear scope; bug fixes over features.
 
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `pipeline/src/db_manager.py` | All BigQuery access (shared — claim before editing) |
-| `pipeline/src/assertion_extractor.py` | LLM-based prediction extraction (shared) |
+| `pipeline/src/db_manager.py` | All BigQuery access (shared) |
+| `pipeline/src/assertion_extractor.py` | LLM extraction (shared) |
 | `pipeline/src/cryptographic_ledger.py` | Immutable ledger (shared) |
-| `pipeline/src/config.py` | Central configuration |
+| `pipeline/src/config.py` | Central config |
 | `pipeline/config/media_sources.yaml` | Source/pundit config (shared) |
-| `pipeline/config/llm_config.yaml` | LLM provider selection |
-| `pipeline/src/llm_provider.py` | Pluggable LLM abstraction |
+| `pipeline/src/llm_provider.py` | Pluggable LLM |
 | `web/app/layout.tsx` | Next.js root layout (shared) |
+
+## LLM provider
+
+Local Ollama (Qwen 2.5 32B). `ollama serve` must be running for extraction. No cloud API needed.
 
 ## BigQuery conventions
 
 - `STRING` not `VARCHAR`, `FLOAT64`/`INT64`, `SAFE_CAST` not `TRY_CAST`, `MOD()` not `%`
-- All SQL must compile natively for BigQuery
-- Medallion layers: `bronze` (raw) → `silver` (cleaned) → `gold` (features/aggregates)
+- Medallion: `bronze` → `silver` → `gold`
+- All BQ access via `pipeline/src/db_manager.py`
 
-## Currently open PRs (as of 2026-04-23)
+## Identity footer
 
-These issues/branches are actively being worked — avoid conflicts:
-- #184 — fix/160-e2e-clerk-resilience
-- #183 — feat/178-llm-provider-abstraction
-- #176 — fix/169-resolution-engine-v2
-- #174 — fix/168-extractor-quality-v2
-- #173 — fix/167-pipeline-fail-loud-v2
-- #172 — fix/166-pundit-matching
-- #165 — feat/146-147-stripe-integration
-- #164 — feat/144-rate-limiting
-- #161 — fix/160-e2e-tests
-- #159 — feat/158-pundit-assertion-spike
+All GitHub comments must end with:
+```
+— 🤖 `go`
+```

@@ -461,11 +461,11 @@ class TestRunExtraction:
 
 
 class TestLLMProvider:
-    def test_provider_factory_returns_gemini_by_default(self):
+    def test_provider_factory_returns_ollama_by_default(self):
         from src.llm_provider import load_llm_config
 
         config = load_llm_config()
-        assert config["extraction"]["provider"] == "gemini"
+        assert config["extraction"]["provider"] == "ollama"
 
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS

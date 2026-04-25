@@ -671,9 +671,7 @@ def ingest_from_urls(
             if col in df.columns:
                 df[col] = df[col].where(df[col].notna(), None)
         db.append_dataframe_to_table(df, RAW_MEDIA_TABLE)
-        logger.info(
-            f"[backfill] Wrote {len(items)} new items for source '{source_id}'"
-        )
+        logger.info(f"[backfill] Wrote {len(items)} new items for source '{source_id}'")
     elif dry_run and items:
         logger.info(
             f"[backfill] DRY RUN: would write {len(items)} new items "

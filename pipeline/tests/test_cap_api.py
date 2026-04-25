@@ -12,8 +12,8 @@ from fastapi.testclient import TestClient
 
 # Patch DB before importing the app
 with patch("src.db_manager.DBManager._initialize_connection"):
-    from api.main import app
     from api.cap_router import get_db
+    from api.main import app
 
 
 VALID_KEY = "test-api-key-abc123"
@@ -43,44 +43,52 @@ def client(mock_db):
 
 
 def _cap_df():
-    return pd.DataFrame([{
-        "player_name": "Patrick Mahomes",
-        "team": "KAN",
-        "year": 2024,
-        "position": "QB",
-        "cap_hit_millions": 45.0,
-        "dead_cap_millions": 10.0,
-        "signing_bonus_millions": 20.0,
-        "guaranteed_money_millions": 210.0,
-        "fair_market_value": 48.0,
-        "ml_risk_score": 0.15,
-        "edce_risk": 5.2,
-        "availability_rating": 1.0,
-        "games_played": 17,
-    }])
+    return pd.DataFrame(
+        [
+            {
+                "player_name": "Patrick Mahomes",
+                "team": "KAN",
+                "year": 2024,
+                "position": "QB",
+                "cap_hit_millions": 45.0,
+                "dead_cap_millions": 10.0,
+                "signing_bonus_millions": 20.0,
+                "guaranteed_money_millions": 210.0,
+                "fair_market_value": 48.0,
+                "ml_risk_score": 0.15,
+                "edce_risk": 5.2,
+                "availability_rating": 1.0,
+                "games_played": 17,
+            }
+        ]
+    )
 
 
 def _team_df():
-    return pd.DataFrame([{
-        "team": "KAN",
-        "year": 2024,
-        "total_cap": 230.0,
-        "cap_space": 25.4,
-        "risk_cap": 30.0,
-        "qb_spending": 45.0,
-        "wr_spending": 20.0,
-        "rb_spending": 5.0,
-        "te_spending": 15.0,
-        "dl_spending": 10.0,
-        "lb_spending": 8.0,
-        "db_spending": 12.0,
-        "ol_spending": 35.0,
-        "k_spending": 1.0,
-        "p_spending": 1.0,
-        "win_pct": 0.824,
-        "win_total": 14.0,
-        "conference": "AFC",
-    }])
+    return pd.DataFrame(
+        [
+            {
+                "team": "KAN",
+                "year": 2024,
+                "total_cap": 230.0,
+                "cap_space": 25.4,
+                "risk_cap": 30.0,
+                "qb_spending": 45.0,
+                "wr_spending": 20.0,
+                "rb_spending": 5.0,
+                "te_spending": 15.0,
+                "dl_spending": 10.0,
+                "lb_spending": 8.0,
+                "db_spending": 12.0,
+                "ol_spending": 35.0,
+                "k_spending": 1.0,
+                "p_spending": 1.0,
+                "win_pct": 0.824,
+                "win_total": 14.0,
+                "conference": "AFC",
+            }
+        ]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -207,7 +215,9 @@ class TestCapPlayerProfile:
     def test_returns_404_for_unknown_player(self, client, mock_db, monkeypatch):
         monkeypatch.delenv("B2B_API_KEYS", raising=False)
         mock_db.client.query.return_value = _mock_bq_job(pd.DataFrame())
-        resp = client.get("/v1/cap/players/Unknown Player", headers={"X-API-Key": "dev"})
+        resp = client.get(
+            "/v1/cap/players/Unknown Player", headers={"X-API-Key": "dev"}
+        )
         assert resp.status_code == 404
 
     def test_query_uses_parameterized_player_name(self, client, mock_db, monkeypatch):
@@ -262,31 +272,45 @@ class TestCapTeams:
 
 class TestCapFmvTrajectory:
     def _make_multi_year_df(self):
-        return pd.DataFrame([
-            {
-                "year": 2023, "team": "KAN", "position": "QB",
-                "cap_hit_millions": 40.0, "dead_cap_millions": 8.0,
-                "fair_market_value": 42.0, "edce_risk": 4.0,
-                "efficiency_ratio": 1.1, "true_bust_variance": 0.0,
-                "ytd_performance_value": 44.0, "ml_risk_score": 0.12,
-                "availability_rating": 1.0, "games_played": 17,
-            },
-            {
-                "year": 2024, "team": "KAN", "position": "QB",
-                "cap_hit_millions": 45.0, "dead_cap_millions": 10.0,
-                "fair_market_value": 48.0, "edce_risk": 5.2,
-                "efficiency_ratio": 1.07, "true_bust_variance": 0.0,
-                "ytd_performance_value": 48.0, "ml_risk_score": 0.15,
-                "availability_rating": 1.0, "games_played": 17,
-            },
-        ])
+        return pd.DataFrame(
+            [
+                {
+                    "year": 2023,
+                    "team": "KAN",
+                    "position": "QB",
+                    "cap_hit_millions": 40.0,
+                    "dead_cap_millions": 8.0,
+                    "fair_market_value": 42.0,
+                    "edce_risk": 4.0,
+                    "efficiency_ratio": 1.1,
+                    "true_bust_variance": 0.0,
+                    "ytd_performance_value": 44.0,
+                    "ml_risk_score": 0.12,
+                    "availability_rating": 1.0,
+                    "games_played": 17,
+                },
+                {
+                    "year": 2024,
+                    "team": "KAN",
+                    "position": "QB",
+                    "cap_hit_millions": 45.0,
+                    "dead_cap_millions": 10.0,
+                    "fair_market_value": 48.0,
+                    "edce_risk": 5.2,
+                    "efficiency_ratio": 1.07,
+                    "true_bust_variance": 0.0,
+                    "ytd_performance_value": 48.0,
+                    "ml_risk_score": 0.15,
+                    "availability_rating": 1.0,
+                    "games_played": 17,
+                },
+            ]
+        )
 
     def test_returns_200(self, client, mock_db, monkeypatch):
         monkeypatch.delenv("B2B_API_KEYS", raising=False)
         mock_db.client.query.return_value = _mock_bq_job(self._make_multi_year_df())
-        resp = client.get(
-            "/v1/cap/fmv/Patrick Mahomes", headers={"X-API-Key": "dev"}
-        )
+        resp = client.get("/v1/cap/fmv/Patrick Mahomes", headers={"X-API-Key": "dev"})
         assert resp.status_code == 200
 
     def test_response_includes_trajectory(self, client, mock_db, monkeypatch):
@@ -342,9 +366,7 @@ class TestRateLimiting:
 
         # First 2 requests should succeed
         for _ in range(2):
-            resp = client.get(
-                "/v1/cap/teams", headers={"X-API-Key": "rate-test-key"}
-            )
+            resp = client.get("/v1/cap/teams", headers={"X-API-Key": "rate-test-key"})
             assert resp.status_code == 200
 
         # 3rd request should be rate-limited

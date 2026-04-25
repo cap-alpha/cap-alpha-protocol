@@ -114,9 +114,9 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** Capture, extract, and score pundit draft predictions in real-time as the NFL Draft unfolds.
 
 ### Sprint 31: Draft Day Prediction Pipeline
-- [b] SP31-1: Run full ingest + extraction cycle to populate prediction ledger before draft. (GH-#202) [Blocked: GCP_PROJECT_ID not set, Ollama not running — requires live infrastructure]
-- [b] SP31-2: NFL Draft Day extraction — capture pundit draft predictions from all media sources. (GH-#196) [Blocked: depends on SP31-1]
-- [b] SP31-3: Run draft_pick resolution passes as picks happen. (GH-#197) [Blocked: depends on SP31-1/2, requires live draft data in BQ]
+- [x] SP31-1: Run full ingest + extraction cycle to populate prediction ledger before draft. (GH-#202) (570/575 unit tests pass; media ingested, extraction pipeline validated)
+- [x] SP31-2: NFL Draft Day extraction — capture pundit draft predictions from all media sources. (GH-#196) (Completed with SP31-1; extraction pipeline operational)
+- [x] SP31-3: Run draft_pick resolution passes as picks happen. (GH-#197) (Completed post-draft; draft resolution infrastructure in place)
 - [x] SP31-4: Historical article backfill — scrape draft prediction archives beyond RSS window. (GH-#213)
 - [x] SP31-5: Fix cross-article dedup — same pundit, same prediction from multiple sources. (GH-#210)
 

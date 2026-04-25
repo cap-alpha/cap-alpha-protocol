@@ -41,12 +41,21 @@ export function PunditLeaderboardPreview() {
 
     useEffect(() => {
         fetch("/api/ledger/pundits")
-            .then((r) => r.json())
+            .then((r) => {
+                if (!r.ok) {
+                    console.error(`[Leaderboard] API returned ${r.status}`);
+                    return { pundits: [] };
+                }
+                return r.json();
+            })
             .then((data) => {
                 const all: PunditStat[] = data.pundits || [];
                 setTotalPredictions(all.reduce((a, p) => a + p.total_predictions, 0));
                 setTotalResolved(all.reduce((a, p) => a + p.resolved_predictions, 0));
                 setPundits(all.slice(0, 5));
+            })
+            .catch((err) => {
+                console.error("[Leaderboard] Fetch error:", err);
             })
             .finally(() => setLoading(false));
     }, []);

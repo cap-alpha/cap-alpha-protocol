@@ -175,6 +175,9 @@ export default function LedgerPage() {
         ]).then(([punditsData, recentData]) => {
             setPundits(punditsData.pundits || []);
             setRecent(recentData.predictions || []);
+        }).catch((err) => {
+            console.error("[Ledger] Failed to load data:", err);
+        }).finally(() => {
             setLoading(false);
         });
     }, [sportFilter]);

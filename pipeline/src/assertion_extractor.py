@@ -190,7 +190,23 @@ def extract_assertions(
         predictions = provider.extract_predictions(prompt)
         # Filter empty claims, then deduplicate near-identical ones
         valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
-        deduped = _deduplicate_claims(valid)
+        # Hard temporal filter: reject predictions about past seasons/drafts
+        current_year = datetime.now().year
+        filtered = []
+        for p in valid:
+            sy = p.get("season_year")
+            if (
+                sy is not None
+                and isinstance(sy, (int, float))
+                and int(sy) < current_year
+            ):
+                logger.info(
+                    f"Temporal filter: rejected stale claim (season_year={sy}): "
+                    f"{p.get('extracted_claim', '')[:60]}"
+                )
+                continue
+            filtered.append(p)
+        deduped = _deduplicate_claims(filtered)
         return ExtractionResult(
             content_hash=content_hash,
             predictions=deduped,

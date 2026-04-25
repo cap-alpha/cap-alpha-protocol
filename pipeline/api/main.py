@@ -9,9 +9,11 @@ from pydantic import BaseModel
 
 try:
     from api.pundit_router import router as pundit_router
+    from api.cap_router import router as cap_router
 except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from api.pundit_router import router as pundit_router
+    from api.cap_router import router as cap_router
 
 try:
     from src.adversarial_engine import AdversarialEngine
@@ -42,6 +44,7 @@ app.add_middleware(
 )
 
 app.include_router(pundit_router)
+app.include_router(cap_router)  # SP30-1: B2B Cap Intelligence API (requires X-API-Key)
 
 # Initialize Engine (only if trade modules loaded successfully)
 if _TRADE_AVAILABLE:

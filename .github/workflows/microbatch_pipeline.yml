@@ -1,0 +1,75 @@
+name: Micro-Batch Data Pipeline (SP18.5-2)
+
+# Runs every 30 minutes during peak NFL hours (12:00–23:00 UTC / 8am–7pm EDT).
+# Full nightly pipeline still runs independently via nightly_pipeline.yml.
+# Can also be triggered manually with an optional stage parameter.
+on:
+  schedule:
+    - cron: '*/30 12-23 * * *'
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 'Run a specific stage only (leave blank for all)'
+        required: false
+        default: ''
+
+jobs:
+  microbatch:
+    name: Micro-Batch ETL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipeline/requirements.txt
+
+      - name: Bronze Delta Ingest
+        if: ${{ github.event.inputs.stage == '' || github.event.inputs.stage == 'bronze' }}
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+        # When the official vendor API is procured (SP18-1), replace this with
+        # the vendor-specific ingestor that uses MicrobatchTrigger.detect_changes().
+        # For now, run the media ingestor as the high-frequency delta source.
+        run: |
+          python -m src.media_ingestor
+
+      - name: Silver Delta Transform
+        if: ${{ github.event.inputs.stage == '' || github.event.inputs.stage == 'silver' }}
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+        run: |
+          python -m src.silver_sportsdataio_transform
+
+      - name: Assertion Extraction (LLM delta)
+        if: ${{ github.event.inputs.stage == '' || github.event.inputs.stage == 'assertions' }}
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          OLLAMA_BASE_URL: ${{ secrets.OLLAMA_BASE_URL }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+        run: |
+          python -m src.assertion_extractor --limit 20
+
+      - name: Resolution Engine
+        if: ${{ github.event.inputs.stage == '' || github.event.inputs.stage == 'resolve' }}
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_SERVICE_ACCOUNT_JSON: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline:${{ github.workspace }}
+        run: |
+          python -m src.resolve_daily

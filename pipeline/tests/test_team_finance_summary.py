@@ -214,9 +214,9 @@ def test_main_calls_build_team_finance_summary(monkeypatch):
     monkeypatch.setattr(sys, "argv", ["medallion_pipeline.py", "--year", "2024"])
     mp.main()
 
-    assert (
-        "team_finance_summary" in calls
-    ), "build_team_finance_summary() not called from main() gold path"
+    assert "team_finance_summary" in calls, (
+        "build_team_finance_summary() not called from main() gold path"
+    )
     assert calls.index("fact_player_efficiency") < calls.index(
         "team_finance_summary"
     ), "team_finance_summary should run AFTER fact_player_efficiency"

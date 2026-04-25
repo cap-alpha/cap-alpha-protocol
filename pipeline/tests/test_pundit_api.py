@@ -90,35 +90,60 @@ def test_health_check(client):
 
 class TestLeaderboard:
     def test_returns_200(self, client, mock_db):
-        mock_db.fetch_df.return_value = make_summary_df()
+        # leaderboard makes 2 _parameterized_query calls: data + count
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_summary_df()),
+            _mock_bq_job(pd.DataFrame([{"total": 2}])),
+        ]
         resp = client.get("/v1/leaderboard")
         assert resp.status_code == 200
 
     def test_returns_leaderboard_list(self, client, mock_db):
-        mock_db.fetch_df.return_value = make_summary_df()
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_summary_df()),
+            _mock_bq_job(pd.DataFrame([{"total": 2}])),
+        ]
         data = client.get("/v1/leaderboard").json()
         assert "leaderboard" in data
         assert len(data["leaderboard"]) == 2
 
     def test_total_field_present(self, client, mock_db):
-        mock_db.fetch_df.return_value = make_summary_df()
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_summary_df()),
+            _mock_bq_job(pd.DataFrame([{"total": 2}])),
+        ]
         data = client.get("/v1/leaderboard").json()
         assert data["total"] == 2
 
     def test_empty_leaderboard(self, client, mock_db):
-        mock_db.fetch_df.return_value = pd.DataFrame()
+        # Empty first result → early return, no count query
+        mock_db.client.query.return_value = _mock_bq_job(pd.DataFrame())
         data = client.get("/v1/leaderboard").json()
         assert data["leaderboard"] == []
 
-    def test_limit_param(self, client, mock_db):
-        mock_db.fetch_df.return_value = make_summary_df()
-        data = client.get("/v1/leaderboard?limit=1").json()
-        assert len(data["leaderboard"]) == 1
+    def test_limit_param_in_sql(self, client, mock_db):
+        # LIMIT is pushed to SQL via @lim — verify parameterized usage
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_summary_df()),
+            _mock_bq_job(pd.DataFrame([{"total": 2}])),
+        ]
+        client.get("/v1/leaderboard?limit=1")
+        sql = mock_db.client.query.call_args_list[0][0][0]
+        assert "@lim" in sql
 
     def test_db_error_returns_500(self, client, mock_db):
-        mock_db.fetch_df.side_effect = Exception("BQ down")
+        mock_db.client.query.side_effect = Exception("BQ down")
         resp = client.get("/v1/leaderboard")
         assert resp.status_code == 500
+
+    def test_queries_mv_accuracy_summary(self, client, mock_db):
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_summary_df()),
+            _mock_bq_job(pd.DataFrame([{"total": 2}])),
+        ]
+        client.get("/v1/leaderboard")
+        sql = mock_db.client.query.call_args_list[0][0][0]
+        assert "mv_pundit_accuracy_summary" in sql
 
 
 # ---------------------------------------------------------------------------
@@ -128,15 +153,21 @@ class TestLeaderboard:
 
 class TestListPundits:
     def test_returns_200(self, client, mock_db):
-        mock_db.fetch_df.return_value = make_summary_df()
+        mock_db.client.query.return_value = _mock_bq_job(make_summary_df())
         resp = client.get("/v1/pundits/")
         assert resp.status_code == 200
 
     def test_contains_pundits_key(self, client, mock_db):
-        mock_db.fetch_df.return_value = make_summary_df()
+        mock_db.client.query.return_value = _mock_bq_job(make_summary_df())
         data = client.get("/v1/pundits/").json()
         assert "pundits" in data
         assert data["total"] == 2
+
+    def test_queries_mv_accuracy_summary(self, client, mock_db):
+        mock_db.client.query.return_value = _mock_bq_job(make_summary_df())
+        client.get("/v1/pundits/")
+        sql = mock_db.client.query.call_args[0][0]
+        assert "mv_pundit_accuracy_summary" in sql
 
 
 # ---------------------------------------------------------------------------
@@ -144,9 +175,12 @@ class TestListPundits:
 # ---------------------------------------------------------------------------
 
 
+def make_single_pundit_summary_df():
+    return make_summary_df().iloc[:1].reset_index(drop=True)
+
+
 class TestPunditDetail:
     def test_returns_200_for_known_pundit(self, client, mock_db):
-        # _parameterized_query uses db.client.query() for breakdown
         breakdown_df = pd.DataFrame(
             [
                 {
@@ -159,9 +193,11 @@ class TestPunditDetail:
                 }
             ]
         )
-        mock_db.client.query.return_value = _mock_bq_job(breakdown_df)
-        # get_pundit_accuracy_summary uses db.fetch_df
-        mock_db.fetch_df.return_value = make_summary_df()
+        # First call: MV summary (single pundit); second call: category breakdown
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_single_pundit_summary_df()),
+            _mock_bq_job(breakdown_df),
+        ]
         resp = client.get("/v1/pundits/adam_schefter")
         assert resp.status_code == 200
         data = resp.json()
@@ -169,10 +205,27 @@ class TestPunditDetail:
         assert "accuracy_by_category" in data
 
     def test_returns_404_for_unknown_pundit(self, client, mock_db):
+        # MV returns empty → 404 before breakdown query runs
         mock_db.client.query.return_value = _mock_bq_job(pd.DataFrame())
-        mock_db.fetch_df.return_value = make_summary_df()
         resp = client.get("/v1/pundits/unknown_pundit")
         assert resp.status_code == 404
+
+    def test_summary_queries_mv_accuracy_summary(self, client, mock_db):
+        breakdown_df = pd.DataFrame(
+            [{"claim_category": "player_performance", "total": 1,
+              "resolved": 1, "correct": 1, "accuracy_rate": 1.0,
+              "avg_weighted_score": 1.0}]
+        )
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_single_pundit_summary_df()),
+            _mock_bq_job(breakdown_df),
+        ]
+        client.get("/v1/pundits/adam_schefter")
+        # First query must target the MV
+        sql = mock_db.client.query.call_args_list[0][0][0]
+        assert "mv_pundit_accuracy_summary" in sql
+        # Must be parameterized, not string-interpolated
+        assert "@pundit_id" in sql
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +379,12 @@ class TestRecentPredictions:
         client.get("/v1/predictions/recent?limit=5")
         sql = mock_db.client.query.call_args[0][0]
         assert "@lim" in sql
+
+    def test_queries_mv_recent_resolved(self, client, mock_db):
+        mock_db.client.query.return_value = _mock_bq_job(pd.DataFrame())
+        client.get("/v1/predictions/recent")
+        sql = mock_db.client.query.call_args[0][0]
+        assert "mv_recent_resolved_predictions" in sql
 
 
 # ---------------------------------------------------------------------------

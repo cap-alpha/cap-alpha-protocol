@@ -11,6 +11,13 @@ Endpoints:
   GET /v1/draft/{year}/results              — Draft resolution scoreboard for a given year
   GET /v1/leaderboard                       — Ranked pundits by weighted score / accuracy
   GET /v1/integrity/verify                  — Hash chain integrity check (tamper detection)
+
+Performance note (SP20-2 / GH-#71):
+  Hot endpoints (/leaderboard, /pundits/, /pundits/{id}, /predictions/recent) now read from
+  pre-computed BigQuery materialized views instead of live JOIN+GROUP BY aggregations:
+    gold_layer.mv_pundit_accuracy_summary         — refreshes every 15 min
+    gold_layer.mv_recent_resolved_predictions     — refreshes every 60 min
+  Migration: pipeline/migrations/010_create_pundit_materialized_views.sql
 """
 
 import logging
@@ -23,7 +30,6 @@ from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryP
 
 from src.cryptographic_ledger import verify_chain_integrity
 from src.db_manager import DBManager
-from src.resolution_engine import get_pundit_accuracy_summary
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +37,8 @@ router = APIRouter(prefix="/v1", tags=["pundit-ledger"])
 
 LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
+MV_ACCURACY_SUMMARY = "gold_layer.mv_pundit_accuracy_summary"
+MV_RECENT_RESOLVED = "gold_layer.mv_recent_resolved_predictions"
 
 
 def get_db() -> DBManager:
@@ -70,17 +78,30 @@ def leaderboard(
 ) -> Dict[str, Any]:
     """
     Returns pundits ranked by weighted accuracy score (accuracy × timeliness).
-    5-minute cache TTL.
+    Reads from mv_pundit_accuracy_summary (15-minute refresh cadence).
     """
     try:
-        df = get_pundit_accuracy_summary(db=db)
+        params = [ScalarQueryParameter("lim", "INT64", limit)]
+        query = f"""
+            SELECT *
+            FROM {_full(MV_ACCURACY_SUMMARY)}
+            ORDER BY avg_weighted_score DESC NULLS LAST
+            LIMIT @lim
+        """
+        df = _parameterized_query(db, query, params)
         if df.empty:
             return {"leaderboard": [], "total": 0}
 
-        top = df.head(limit)
+        count_df = _parameterized_query(
+            db,
+            f"SELECT COUNT(*) AS total FROM {_full(MV_ACCURACY_SUMMARY)}",
+            [],
+        )
+        total = int(count_df.iloc[0]["total"]) if not count_df.empty else 0
+
         return {
-            "leaderboard": top.where(top.notna(), None).to_dict(orient="records"),
-            "total": len(df),
+            "leaderboard": df.where(df.notna(), None).to_dict(orient="records"),
+            "total": total,
         }
     except Exception as e:
         logger.error(f"Leaderboard error: {e}")
@@ -98,9 +119,15 @@ def list_pundits(
 ) -> Dict[str, Any]:
     """
     Returns all pundits with aggregate accuracy stats.
+    Reads from mv_pundit_accuracy_summary (15-minute refresh cadence).
     """
     try:
-        df = get_pundit_accuracy_summary(db=db)
+        query = f"""
+            SELECT *
+            FROM {_full(MV_ACCURACY_SUMMARY)}
+            ORDER BY avg_weighted_score DESC NULLS LAST
+        """
+        df = _parameterized_query(db, query, [])
         return {
             "pundits": df.where(df.notna(), None).to_dict(orient="records"),
             "total": len(df),
@@ -122,9 +149,26 @@ def pundit_detail(
 ) -> Dict[str, Any]:
     """
     Returns a single pundit's accuracy broken down by claim category.
+    Summary fetched from mv_pundit_accuracy_summary (filtered by pundit_id).
     """
     try:
-        query = f"""
+        params = [ScalarQueryParameter("pundit_id", "STRING", pundit_id)]
+
+        # Fetch summary for this single pundit from the MV — no full-table scan
+        summary_query = f"""
+            SELECT *
+            FROM {_full(MV_ACCURACY_SUMMARY)}
+            WHERE pundit_id = @pundit_id
+            LIMIT 1
+        """
+        summary_df = _parameterized_query(db, summary_query, params)
+        if summary_df.empty:
+            raise HTTPException(
+                status_code=404, detail=f"Pundit '{pundit_id}' not found"
+            )
+
+        # Per-category breakdown is scoped to one pundit; live query is appropriate
+        breakdown_query = f"""
             SELECT
                 l.claim_category,
                 COUNT(*) AS total,
@@ -142,17 +186,9 @@ def pundit_detail(
             GROUP BY l.claim_category
             ORDER BY total DESC
         """
-        params = [ScalarQueryParameter("pundit_id", "STRING", pundit_id)]
-        breakdown_df = _parameterized_query(db, query, params)
+        breakdown_df = _parameterized_query(db, breakdown_query, params)
 
-        summary_df = get_pundit_accuracy_summary(db=db)
-        pundit_row = summary_df[summary_df["pundit_id"] == pundit_id]
-        if pundit_row.empty:
-            raise HTTPException(
-                status_code=404, detail=f"Pundit '{pundit_id}' not found"
-            )
-
-        summary = pundit_row.iloc[0].where(pundit_row.iloc[0].notna(), None).to_dict()
+        summary = summary_df.iloc[0].where(summary_df.iloc[0].notna(), None).to_dict()
         breakdown = breakdown_df.where(breakdown_df.notna(), None).to_dict(
             orient="records"
         )
@@ -260,33 +296,16 @@ def recent_predictions(
 ) -> Dict[str, Any]:
     """
     Returns the most recently resolved predictions across all pundits.
+    Reads from mv_recent_resolved_predictions (60-minute refresh cadence).
     """
     try:
+        params = [ScalarQueryParameter("lim", "INT64", limit)]
         query = f"""
-            SELECT
-                l.prediction_hash,
-                l.pundit_id,
-                l.pundit_name,
-                l.ingestion_timestamp,
-                l.extracted_claim,
-                l.claim_category,
-                l.season_year,
-                l.target_player_id,
-                l.target_team,
-                r.resolution_status,
-                r.resolved_at,
-                r.binary_correct,
-                r.brier_score,
-                r.weighted_score,
-                r.outcome_notes
-            FROM {_full(LEDGER_TABLE)} l
-            INNER JOIN {_full(RESOLUTIONS_TABLE)} r
-                ON l.prediction_hash = r.prediction_hash
-            WHERE r.resolution_status IN ('CORRECT', 'INCORRECT')
-            ORDER BY r.resolved_at DESC
+            SELECT *
+            FROM {_full(MV_RECENT_RESOLVED)}
+            ORDER BY resolved_at DESC
             LIMIT @lim
         """
-        params = [ScalarQueryParameter("lim", "INT64", limit)]
         df = _parameterized_query(db, query, params)
         return {
             "predictions": df.where(df.notna(), None).to_dict(orient="records"),

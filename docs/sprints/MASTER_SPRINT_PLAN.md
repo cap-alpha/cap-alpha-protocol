@@ -124,3 +124,4 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [x] SP32-3: End-to-end local RAG pipeline integration + benchmarking vs Gemini baseline. (GH-#182)
 - [x] SP32-4: Modernize tooling — ruff, pyproject.toml, enterprise-grade CI. (GH-#192)
 
+

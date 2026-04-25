@@ -65,9 +65,14 @@ Rules — what TO extract:
 - Concrete, falsifiable claims about FUTURE outcomes with a clear stance
 - Must have: a SUBJECT (player/team) + a TESTABLE OUTCOME + a TIMEFRAME (season, game, date)
 - Examples of good extractions:
-  "Patrick Mahomes will win MVP in 2025"
-  "The Bears will make the playoffs in 2025"
-  "Travis Kelce will retire after the 2025 season"
+  "Patrick Mahomes will win MVP in 2025" → stance: bullish
+  "The Browns will miss the playoffs in 2025" → stance: bearish
+  "Travis Kelce will retire after the 2025 season" → stance: neutral
+
+Stance rules:
+- bullish: prediction is positive/optimistic about the subject (win award, make playoffs, exceed stats target)
+- bearish: prediction is negative/pessimistic about the subject (miss playoffs, underperform, get cut, lose)
+- neutral: no clear directional bias (retirement, trade, purely factual future event)
 
 Rules — what NOT to extract:
 - HEDGED statements: "wouldn't surprise me if", "I could see", "most likely", "might", "probably"
@@ -497,6 +502,12 @@ def run_extraction(
                     else:
                         player_name = raw_player
 
+                raw_stance = pred.get("stance", "neutral")
+                stance = (
+                    raw_stance
+                    if raw_stance in ("bullish", "bearish", "neutral")
+                    else "neutral"
+                )
                 all_predictions.append(
                     PunditPrediction(
                         pundit_id=str(pundit_id),
@@ -509,6 +520,7 @@ def run_extraction(
                         target_player_id=None,
                         target_player_name=player_name,
                         target_team=pred.get("target_team"),
+                        stance=stance,
                         sport=str(row.get("sport", sport)),
                     )
                 )

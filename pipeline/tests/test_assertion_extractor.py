@@ -724,6 +724,137 @@ class TestLLMProvider:
 
 
 # ---------------------------------------------------------------------------
+# Stance field extraction
+# ---------------------------------------------------------------------------
+
+
+class TestStanceExtraction:
+    """Stance (bullish/bearish/neutral) is mapped from LLM output to PunditPrediction."""
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_bullish_stance_is_passed_through(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Mahomes wins MVP in 2026",
+                    "claim_category": "player_performance",
+                    "stance": "bullish",
+                    "confidence_note": "strong",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["pred_hash_1"]
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        prediction = mock_ingest.call_args[0][0][0]
+        assert prediction.stance == "bullish"
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_bearish_stance_is_passed_through(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Browns miss playoffs in 2026",
+                    "claim_category": "game_outcome",
+                    "stance": "bearish",
+                    "confidence_note": "explicit",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["pred_hash_1"]
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        prediction = mock_ingest.call_args[0][0][0]
+        assert prediction.stance == "bearish"
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_neutral_stance_is_passed_through(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Kelce retires after 2026 season",
+                    "claim_category": "player_performance",
+                    "stance": "neutral",
+                    "confidence_note": "rumor",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["pred_hash_1"]
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        prediction = mock_ingest.call_args[0][0][0]
+        assert prediction.stance == "neutral"
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_missing_stance_defaults_to_neutral(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """If LLM omits stance (pre-migration model), default to neutral."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Allen goes to Pro Bowl",
+                    "claim_category": "player_performance",
+                    "confidence_note": "strong",
+                    # no "stance" key
+                }
+            ],
+        )
+        mock_ingest.return_value = ["pred_hash_1"]
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        prediction = mock_ingest.call_args[0][0][0]
+        assert prediction.stance == "neutral"
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_invalid_stance_normalized_to_neutral(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """Unexpected stance values from LLM are coerced to neutral."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Eagles win NFC East",
+                    "claim_category": "game_outcome",
+                    "stance": "positive",  # non-standard value
+                    "confidence_note": "strong",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["pred_hash_1"]
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        prediction = mock_ingest.call_args[0][0][0]
+        assert prediction.stance == "neutral"
+
+
+# ---------------------------------------------------------------------------
 # Constants validation (legacy — kept for backward compat)
 # ---------------------------------------------------------------------------
 

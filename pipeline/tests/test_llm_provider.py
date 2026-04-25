@@ -307,3 +307,69 @@ class TestFallbackProvider:
         fp = _FallbackProvider(primary, fallback)
         result = fp.classify("prompt")
         assert result == "no"
+
+
+# ---------------------------------------------------------------------------
+# Stance field in schema and parsing
+# ---------------------------------------------------------------------------
+
+
+class TestStanceField:
+    def test_schema_description_includes_stance(self):
+        assert "stance" in PREDICTION_SCHEMA_DESCRIPTION
+        assert "bullish" in PREDICTION_SCHEMA_DESCRIPTION
+        assert "bearish" in PREDICTION_SCHEMA_DESCRIPTION
+        assert "neutral" in PREDICTION_SCHEMA_DESCRIPTION
+
+    def setup_method(self):
+        self.provider = OllamaProvider.__new__(OllamaProvider)
+        self.provider.model = "qwen2.5:32b"
+
+    def test_parse_preserves_bullish_stance(self):
+        data = [
+            {
+                "extracted_claim": "Mahomes wins MVP",
+                "claim_category": "player_performance",
+                "stance": "bullish",
+                "confidence_note": "explicit",
+            }
+        ]
+        result = self.provider._parse_json_response(json.dumps(data))
+        assert len(result) == 1
+        assert result[0]["stance"] == "bullish"
+
+    def test_parse_preserves_bearish_stance(self):
+        data = [
+            {
+                "extracted_claim": "Browns miss playoffs",
+                "claim_category": "game_outcome",
+                "stance": "bearish",
+                "confidence_note": "explicit",
+            }
+        ]
+        result = self.provider._parse_json_response(json.dumps(data))
+        assert result[0]["stance"] == "bearish"
+
+    def test_parse_preserves_neutral_stance(self):
+        data = [
+            {
+                "extracted_claim": "Kelce retires after 2026",
+                "claim_category": "player_performance",
+                "stance": "neutral",
+                "confidence_note": "rumor",
+            }
+        ]
+        result = self.provider._parse_json_response(json.dumps(data))
+        assert result[0]["stance"] == "neutral"
+
+    def test_parse_passes_through_missing_stance(self):
+        """Missing stance key is preserved as-is; assertion_extractor handles normalization."""
+        data = [
+            {
+                "extracted_claim": "Allen to Pro Bowl",
+                "claim_category": "player_performance",
+                "confidence_note": "strong",
+            }
+        ]
+        result = self.provider._parse_json_response(json.dumps(data))
+        assert "stance" not in result[0]

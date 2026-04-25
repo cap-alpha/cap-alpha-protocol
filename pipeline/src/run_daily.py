@@ -171,6 +171,15 @@ def main():
             f"print(f'source_reputation: {{n}} source rows written')"
             f"\"",
         ),
+        (
+            "anomaly_flagging",
+            f"python -c \""
+            f"import sys; sys.path.insert(0, '{PROJECT_ROOT}'); "
+            f"from src.anomaly_flagging import run_anomaly_detection; "
+            f"summary = run_anomaly_detection(); "
+            f"print('anomaly_flagging summary:', summary)"
+            f"\"",
+        ),
     ]
 
     results = []

@@ -57,7 +57,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** Harden the Alpha Flywheel and Intelligence Pipeline against coordinated bad actors attempting to skew Media Sentiment via manufactured narratives.
 - [x] SP23-1: **Bot & Astroturfing Detection:** Filter out synthetic articles and highly repetitive NLP phrasing that signals a coordinated attack. (GH-#83) — BotDetector: 4 signals (n-gram Jaccard, template phrases, duplicate sentences, source burst); wired into media_ingestor.py as pre-write quarantine filter; verdicts CLEAN/SUSPICIOUS/BOT; 16 unit tests.
 - [x] SP23-2: **Source Reputation Weighting:** Enforce a heuristic decay on unverified domains or publishers whose historical accuracy metric drops below an acceptable baseline. (GH-#84) — SourceReputationEngine: 5-tier weight (SUPPRESSED→LOW→MODERATE→HIGH→UNVERIFIED) built from prediction resolution accuracy; gold_layer.source_reputation rebuilt daily; wired into run_daily.py; 24 unit tests.
-- [ ] SP23-3: **Anomaly Flagging (Suspicious Volume Spike):** If a player receives an atypical surge of negative sentiment divergence, quarantine the signals for manual review. (GH-#85)
+- [x] SP23-3: **Anomaly Flagging (Suspicious Volume Spike):** If a player receives an atypical surge of negative sentiment divergence, quarantine the signals for manual review. (GH-#85) — AnomalyFlagEngine: z-score spike detection (soft≥2.5/hard≥4.0) over 30-day rolling window; writes to gold_layer.sentiment_anomaly_flags; wired into run_daily.py; 12 unit tests.
 
 ### Sprint 19: Immutable Auditability (Cryptographic Ledger)
 **Goal:** Prove absolute honesty in Fair Market Value predictions by eliminating hindsight bias. Implement a verifiable cryptographic ledger.

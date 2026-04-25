@@ -44,6 +44,7 @@ except TypeError:
     _yt_client = None
     _YT_API_V1 = False
 
+from src.bot_detector import BotDetector
 from src.db_manager import DBManager
 
 logging.basicConfig(
@@ -88,6 +89,7 @@ class SourceResult:
     items_fetched: int = 0
     items_new: int = 0
     items_deduped: int = 0
+    items_quarantined: int = 0  # items blocked by bot/astroturfing detector
     error: Optional[str] = None
     duration_seconds: float = 0.0
 
@@ -548,6 +550,7 @@ def ingest_source(
     defaults: dict,
     db: DBManager,
     dry_run: bool = False,
+    bot_detector: Optional[BotDetector] = None,
 ) -> SourceResult:
     """
     Fetches content from a single source, deduplicates, and writes new items to BQ.
@@ -600,6 +603,26 @@ def ingest_source(
     existing_hashes = get_existing_hashes(db, source_id, dedup_window)
     new_items = [item for item in items if item.content_hash not in existing_hashes]
     result.items_deduped = len(items) - len(new_items)
+
+    # Bot/astroturfing detection — quarantine synthetic content before writing
+    if bot_detector is not None and new_items:
+        clean_items = []
+        for item in new_items:
+            detection = bot_detector.assess(
+                text=item.raw_text or item.title or "",
+                source_id=item.source_id,
+                published_at=item.published_at,
+            )
+            if detection.should_quarantine:
+                logger.warning(
+                    f"[{source_id}] Quarantined item {item.content_hash[:12]}… "
+                    f"— bot verdict: {detection.reason}"
+                )
+                result.items_quarantined += 1
+            else:
+                clean_items.append(item)
+        new_items = clean_items
+
     result.items_new = len(new_items)
 
     if new_items and not dry_run:
@@ -668,6 +691,10 @@ def run_daily_ingestion(
     if db is None:
         db = DBManager()
 
+    # Single BotDetector instance shared across all sources so the rolling
+    # window accumulates articles from all sources (cross-source coordination).
+    detector = BotDetector()
+
     results = []
     try:
         for source in sources:
@@ -679,7 +706,9 @@ def run_daily_ingestion(
                 continue
 
             try:
-                result = ingest_source(source, defaults, db, dry_run=dry_run)
+                result = ingest_source(
+                    source, defaults, db, dry_run=dry_run, bot_detector=detector
+                )
                 results.append(result)
             except Exception as e:
                 # Catch-all: never let one source crash the entire run
@@ -694,10 +723,12 @@ def run_daily_ingestion(
 
         # Log run manifest
         total_new = sum(r.items_new for r in results)
+        total_quarantined = sum(r.items_quarantined for r in results)
         total_errors = sum(1 for r in results if r.error)
         logger.info(
             f"Daily ingestion complete: {len(results)} sources, "
-            f"{total_new} new items, {total_errors} errors"
+            f"{total_new} new items, {total_quarantined} quarantined, "
+            f"{total_errors} errors"
         )
 
         if total_errors > 0:

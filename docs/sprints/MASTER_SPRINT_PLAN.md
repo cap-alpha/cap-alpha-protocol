@@ -48,14 +48,14 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 22: Media Accountability & Prediction Tracking (Data Layer)
 **Goal:** Track public assertions made by major sports personalities across X and mainstream media, mapping their narrative influence against empirical "sharp" line movements.
-- [ ] SP22-1: **Data Ingestion (Media Pipes)** - Integrate APIs/Scrapers (e.g., X, YouTube transcripts via Whisper, Action Network) to chronologically log public predictions. (GH-#78)
-- [ ] SP22-2: **NLP Assertion Extraction** - Build an LLM-based parsing pipeline to convert unstructured media quotes into structured prediction vectors. (GH-#79)
-- [ ] SP22-3: **Reverse Line Movement Integration** - Ingest live Vegas line movements and Ticket vs. Money percentages to track where "Sharp" money is flowing. (GH-#80)
-- [ ] SP22-4: **Contrary Syndicate Detection** - Flag instances where a personality pushes a narrative but sharp money aggressively moves the opposite direction. (GH-#81)
+- [x] SP22-1: **Data Ingestion (Media Pipes)** - Integrate APIs/Scrapers (e.g., X, YouTube transcripts via Whisper, Action Network) to chronologically log public predictions. (GH-#78) — media_ingestor.py: config-driven RSS + YouTube ingestion → bronze_layer.raw_pundit_media; 718 lines + media_sources.yaml.
+- [x] SP22-2: **NLP Assertion Extraction** - Build an LLM-based parsing pipeline to convert unstructured media quotes into structured prediction vectors. (GH-#79) — assertion_extractor.py: pluggable LLM (Ollama/Gemini/Claude) → PunditPrediction → prediction_ledger; 528 lines.
+- [b] SP22-3: **Reverse Line Movement Integration** - Ingest live Vegas line movements and Ticket vs. Money percentages to track where "Sharp" money is flowing. (GH-#80) — Blocked: requires Action Network API credentials (paid subscription).
+- [b] SP22-4: **Contrary Syndicate Detection** - Flag instances where a personality pushes a narrative but sharp money aggressively moves the opposite direction. (GH-#81) — Blocked: depends on SP22-3 Vegas data feed.
 
 ### Sprint 23: Adversarial Sentiment & Prediction Defense
 **Goal:** Harden the Alpha Flywheel and Intelligence Pipeline against coordinated bad actors attempting to skew Media Sentiment via manufactured narratives.
-- [ ] SP23-1: **Bot & Astroturfing Detection:** Filter out synthetic articles and highly repetitive NLP phrasing that signals a coordinated attack. (GH-#83)
+- [x] SP23-1: **Bot & Astroturfing Detection:** Filter out synthetic articles and highly repetitive NLP phrasing that signals a coordinated attack. (GH-#83) — BotDetector: 4 signals (n-gram Jaccard, template phrases, duplicate sentences, source burst); wired into media_ingestor.py as pre-write quarantine filter; verdicts CLEAN/SUSPICIOUS/BOT; 16 unit tests.
 - [ ] SP23-2: **Source Reputation Weighting:** Enforce a heuristic decay on unverified domains or publishers whose historical accuracy metric drops below an acceptable baseline. (GH-#84)
 - [ ] SP23-3: **Anomaly Flagging (Suspicious Volume Spike):** If a player receives an atypical surge of negative sentiment divergence, quarantine the signals for manual review. (GH-#85)
 

@@ -2,11 +2,14 @@ from src.db_manager import DBManager
 import pandas as pd
 from tabulate import tabulate
 
+
 def generate_report(year: int = 2025):
     con = DBManager()
-    
+
     # Check if table exists
-    tables = con.execute("SELECT table_name FROM information_schema.tables WHERE table_name = 'fact_player_efficiency'").fetchall()
+    tables = con.execute(
+        "SELECT table_name FROM information_schema.tables WHERE table_name = 'fact_player_efficiency'"
+    ).fetchall()
     if not tables:
         print("Error: fact_player_efficiency table not found.")
         con.close()
@@ -27,12 +30,14 @@ def generate_report(year: int = 2025):
     ORDER BY total_roi DESC 
     LIMIT 25
     """
-    
+
     df = con.sql(query).df()
-    
-    print(f"\n--- Top 25 VALUE KINGS (Football Efficiency + Off-Field Impact) - {year} ---")
-    print(tabulate(df, headers='keys', tablefmt='github', showindex=False))
-    
+
+    print(
+        f"\n--- Top 25 VALUE KINGS (Football Efficiency + Off-Field Impact) - {year} ---"
+    )
+    print(tabulate(df, headers="keys", tablefmt="github", showindex=False))
+
     # Discipline Audit
     penalty_query = f"""
     SELECT 
@@ -47,11 +52,21 @@ def generate_report(year: int = 2025):
     ORDER BY theoretical_loss_M DESC
     LIMIT 10
     """
-    
-    print(f"\n--- DISCIPLINE AUDIT: Top 10 Value Killers (Penalty Attribution) - {year} ---")
-    print(tabulate(con.sql(penalty_query).df(), headers='keys', tablefmt='github', showindex=False))
-    
+
+    print(
+        f"\n--- DISCIPLINE AUDIT: Top 10 Value Killers (Penalty Attribution) - {year} ---"
+    )
+    print(
+        tabulate(
+            con.sql(penalty_query).df(),
+            headers="keys",
+            tablefmt="github",
+            showindex=False,
+        )
+    )
+
     con.close()
+
 
 if __name__ == "__main__":
     generate_report(year=2025)

@@ -39,10 +39,10 @@ logger = logging.getLogger(__name__)
 
 # Cloud provider cost estimates (per 1M tokens, approximate)
 _COST_PER_1M_INPUT: dict[str, float] = {
-    "gemini": 0.35,   # gemini-2.5-flash
-    "claude": 3.00,   # claude-sonnet-4-6
-    "openai": 5.00,   # gpt-4o
-    "ollama": 0.00,   # local, zero cost
+    "gemini": 0.35,  # gemini-2.5-flash
+    "claude": 3.00,  # claude-sonnet-4-6
+    "openai": 5.00,  # gpt-4o
+    "ollama": 0.00,  # local, zero cost
 }
 
 _AVG_TOKENS_PER_ARTICLE = 500  # rough estimate
@@ -99,7 +99,9 @@ def run_single_benchmark(
         annotate_team_mentions(arts)
         team_batches = batch_articles_by_team(arts, max_per_batch=5)
         total_batches = sum(len(bs) for bs in team_batches.values())
-        logger.info(f"[{provider_name}/batched] {len(arts)} articles → {total_batches} batches")
+        logger.info(
+            f"[{provider_name}/batched] {len(arts)} articles → {total_batches} batches"
+        )
 
         for team, sub_batches in team_batches.items():
             for batch in sub_batches:
@@ -178,9 +180,13 @@ def print_comparison(results: list[dict]) -> None:
         best_extraction = max(results, key=lambda r: r["predictions_extracted"])
         fastest = min(results, key=lambda r: r["elapsed_s"])
         cheapest = min(results, key=lambda r: r["estimated_cost_usd"])
-        print(f"\nBest extraction: {best_extraction['provider']} ({best_extraction['predictions_extracted']} predictions)")
+        print(
+            f"\nBest extraction: {best_extraction['provider']} ({best_extraction['predictions_extracted']} predictions)"
+        )
         print(f"Fastest:        {fastest['provider']} ({fastest['elapsed_s']:.1f}s)")
-        print(f"Cheapest:       {cheapest['provider']} (${cheapest['estimated_cost_usd']:.4f})")
+        print(
+            f"Cheapest:       {cheapest['provider']} (${cheapest['estimated_cost_usd']:.4f})"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +196,9 @@ def print_comparison(results: list[dict]) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="Extraction quality benchmark")
-    parser.add_argument("--limit", type=int, default=50, help="Articles to benchmark on")
+    parser.add_argument(
+        "--limit", type=int, default=50, help="Articles to benchmark on"
+    )
     parser.add_argument(
         "--provider",
         choices=["ollama", "gemini", "claude", "all"],
@@ -198,7 +206,9 @@ def main():
         help="Provider to benchmark (default: all)",
     )
     parser.add_argument("--model", default="", help="Override model name")
-    parser.add_argument("--dry-run", action="store_true", help="Show article count, skip LLM")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show article count, skip LLM"
+    )
     args = parser.parse_args()
 
     with DBManager() as db:
@@ -206,7 +216,9 @@ def main():
 
         media_df = get_unprocessed_media(db, limit=args.limit)
         if media_df.empty:
-            logger.error("No articles found in raw_pundit_media. Run media ingestion first.")
+            logger.error(
+                "No articles found in raw_pundit_media. Run media ingestion first."
+            )
             sys.exit(1)
 
         articles = media_df.to_dict("records")
@@ -238,7 +250,9 @@ def main():
 
     results = []
     for provider_name, model, use_batching in benchmarks:
-        logger.info(f"\nRunning benchmark: {provider_name}/{model} (batched={use_batching})")
+        logger.info(
+            f"\nRunning benchmark: {provider_name}/{model} (batched={use_batching})"
+        )
         try:
             result = run_single_benchmark(provider_name, model, articles, use_batching)
             results.append(result)

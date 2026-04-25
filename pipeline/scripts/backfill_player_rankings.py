@@ -4,6 +4,7 @@ Historical backfill for player rankings (2015-2024).
 Snapshots each year with delays between runs to avoid triggering anti-bot protection.
 Idempotent: skips years that already have CSVs.
 """
+
 import argparse
 import logging
 import time
@@ -12,13 +13,21 @@ from pathlib import Path
 import subprocess
 import sys
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 log = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).parent.parent.absolute()
 
 
-def backfill(start_year: int = 2015, end_year: int = 2024, outdir: Path = None, delay_secs: int = 30, force: bool = False):
+def backfill(
+    start_year: int = 2015,
+    end_year: int = 2024,
+    outdir: Path = None,
+    delay_secs: int = 30,
+    force: bool = False,
+):
     if outdir is None:
         outdir = PROJECT_ROOT / "data" / "raw"
     outdir.mkdir(parents=True, exist_ok=True)
@@ -46,12 +55,16 @@ def backfill(start_year: int = 2015, end_year: int = 2024, outdir: Path = None, 
         cmd = [
             sys.executable,
             str(PROJECT_ROOT / "scripts" / "player_rankings_snapshot.py"),
-            "--year", str(year),
-            "--retries", "3",
+            "--year",
+            str(year),
+            "--retries",
+            "3",
         ]
 
         try:
-            result = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=180)
+            result = subprocess.run(
+                cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True, timeout=180
+            )
             if result.returncode == 0:
                 log.info(f"   ✓ Success: {result.stdout.strip()}")
                 successful.append(year)
@@ -84,13 +97,19 @@ def backfill(start_year: int = 2015, end_year: int = 2024, outdir: Path = None, 
         return True
 
 
-if __name__ == '__main__':
-    ap = argparse.ArgumentParser(description='Backfill player rankings for historical years')
-    ap.add_argument('--start-year', type=int, default=2015)
-    ap.add_argument('--end-year', type=int, default=2024)
-    ap.add_argument('--outdir', type=str, default=None)
-    ap.add_argument('--delay', type=int, default=30, help='Delay between runs (seconds)')
-    ap.add_argument('--force', action='store_true', help='Re-snapshot even if CSV exists')
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser(
+        description="Backfill player rankings for historical years"
+    )
+    ap.add_argument("--start-year", type=int, default=2015)
+    ap.add_argument("--end-year", type=int, default=2024)
+    ap.add_argument("--outdir", type=str, default=None)
+    ap.add_argument(
+        "--delay", type=int, default=30, help="Delay between runs (seconds)"
+    )
+    ap.add_argument(
+        "--force", action="store_true", help="Re-snapshot even if CSV exists"
+    )
     args = ap.parse_args()
 
     outdir = Path(args.outdir) if args.outdir else None

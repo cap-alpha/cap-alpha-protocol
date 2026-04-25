@@ -11,7 +11,10 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.db_manager import DBManager
 from src.config_loader import get_db_path, get_bronze_dir
 from src.financial_ingestion import load_team_financials, load_player_merch
-from src.spotrac_scraper_v2 import scrape_and_save_player_contracts, scrape_and_save_player_rankings
+from src.spotrac_scraper_v2 import (
+    scrape_and_save_player_contracts,
+    scrape_and_save_player_rankings,
+)
 from src.overthecap_scraper import OverTheCapScraper
 
 logging.basicConfig(level=logging.INFO)
@@ -19,8 +22,10 @@ logger = logging.getLogger(__name__)
 
 BRONZE_DIR = get_bronze_dir()
 
+
 def clean_doubled_name(name):
-    if not isinstance(name, str): return name
+    if not isinstance(name, str):
+        return name
     parts = name.strip().split()
     if len(parts) >= 3 and parts[0] == parts[-1]:
         return " ".join(parts[1:])
@@ -35,51 +40,60 @@ def clean_doubled_name(name):
                 return " ".join(parts[:mid])
     return name
 
+
 class BronzeLayer:
     """Bronze Layer: Raw Data Architecture (Direct to BigQuery)"""
+
     def __init__(self, db: DBManager):
         self.db = db
 
     def ingest_contracts(self, year: int):
         import datetime
-        logger.info(f"BronzeLayer: Scraping OverTheCap contracts for {year} to bypass Spotrac 403 blocks...")
+
+        logger.info(
+            f"BronzeLayer: Scraping OverTheCap contracts for {year} to bypass Spotrac 403 blocks..."
+        )
         try:
             scraper = OverTheCapScraper()
             df = scraper.scrape_team_contracts(year)
             if df is None or df.empty:
                 logger.error("Scraper returned empty DataFrame.")
                 return
-            
+
             # Inject Iceberg-like versioning timestamp
-            df['_ingestion_timestamp'] = pd.Timestamp.utcnow()
-            
+            df["_ingestion_timestamp"] = pd.Timestamp.utcnow()
+
             # Append directly to BigQuery Bronze Table
             self.db.append_dataframe_to_table(df, "bronze_overthecap_contracts")
-            logger.info("BronzeLayer: Successfully materialized contracts to bronze_overthecap_contracts.")
+            logger.info(
+                "BronzeLayer: Successfully materialized contracts to bronze_overthecap_contracts."
+            )
         except Exception as e:
             logger.error(f"BronzeLayer: Failed to ingest OTC contracts: {e}")
 
     @staticmethod
     def find_files(pattern: str, year: int) -> List[Path]:
         possible_globs = [
-            BRONZE_DIR / 'spotrac' / str(year) / f"{pattern}*.csv",
-            Path('data/raw') / f"{pattern}_{year}*.csv",
-            Path('data_raw_DEPRECATED') / f"{pattern}_{year}*.csv",
+            BRONZE_DIR / "spotrac" / str(year) / f"{pattern}*.csv",
+            Path("data/raw") / f"{pattern}_{year}*.csv",
+            Path("data_raw_DEPRECATED") / f"{pattern}_{year}*.csv",
             # Handle penalties specific glob
-            BRONZE_DIR / 'penalties' / str(year) / f"{pattern}*.csv"
+            BRONZE_DIR / "penalties" / str(year) / f"{pattern}*.csv",
         ]
-        
+
         for g in possible_globs:
             files = list(g.parent.glob(g.name))
             if files:
                 # Sort by modification time (newest first) to get latest scrape
                 files.sort(key=lambda x: x.stat().st_mtime)
                 return [files[-1]]
-                
+
         return []
+
 
 class SilverLayer:
     """SilverLayer: Cleaning, Normalizing, and Loading into Structured Tables."""
+
     def __init__(self, db: DBManager):
         self.db = db
 
@@ -88,27 +102,29 @@ class SilverLayer:
         schema_path = Path(__file__).parent.parent.parent / "contracts" / "schema.sql"
         if not schema_path.exists():
             # Fallback for Docker if mounted differently or during build
-             schema_path = Path("/app/contracts/schema.sql")
-        
+            schema_path = Path("/app/contracts/schema.sql")
+
         if not schema_path.exists():
             raise FileNotFoundError(f"Schema contract not found at {schema_path}")
 
         with open(schema_path, "r") as f:
             sql_content = f.read()
-            
+
         # Split by semicolon to execute one by one, skipping empty lines
         statements = [s.strip() for s in sql_content.split(";") if s.strip()]
-        
+
         for sql in statements:
             try:
                 self.db.execute(sql)
             except Exception as e:
-                logger.warning(f"Failed to execute schema statement: {e}. Statement: {sql[:50]}...")
+                logger.warning(
+                    f"Failed to execute schema statement: {e}. Statement: {sql[:50]}..."
+                )
 
     def ingest_contracts(self, year: int):
         logger.info(f"SilverLayer: Ingesting Contracts data from Bronze for {year}")
         try:
-            # Emulate Iceberg logic: fetch the LATEST ingestion 
+            # Emulate Iceberg logic: fetch the LATEST ingestion
             # We use MAX(_ingestion_timestamp) partitioned by year to get the newest snapshot.
             query = f"""
                 WITH latest_scrape AS (
@@ -128,38 +144,49 @@ class SilverLayer:
         except Exception as e:
             logger.error(f"Failed to query bronze_overthecap_contracts: {e}")
             return
-            
-        df['player_name'] = df['player_name'].apply(clean_doubled_name)
-        
+
+        df["player_name"] = df["player_name"].apply(clean_doubled_name)
+
         # Map OverTheCap columns to the expected Silver schema (which previously relied on Spotrac)
-        df['cap_hit_millions'] = df['year_cap_hit_millions'].fillna(0.0)
-        df['dead_cap_millions'] = df['guaranteed_money_millions'].fillna(0.0)
-        df['signing_bonus_millions'] = df['signing_bonus_millions'].fillna(0.0)
-        df['total_contract_value_millions'] = df['total_value_millions'].fillna(0.0)
-        
+        df["cap_hit_millions"] = df["year_cap_hit_millions"].fillna(0.0)
+        df["dead_cap_millions"] = df["guaranteed_money_millions"].fillna(0.0)
+        df["signing_bonus_millions"] = df["signing_bonus_millions"].fillna(0.0)
+        df["total_contract_value_millions"] = df["total_value_millions"].fillna(0.0)
+
         # OverTheCap does not provide granular base_salary or age on the generic table layout
         required_cols = [
-            'age', 'base_salary_millions', 'prorated_bonus_millions', 
-            'roster_bonus_millions', 'guaranteed_salary_millions'
+            "age",
+            "base_salary_millions",
+            "prorated_bonus_millions",
+            "roster_bonus_millions",
+            "guaranteed_salary_millions",
         ]
         for col in required_cols:
             df[col] = None
 
-        logger.info(f"SilverLayer: Upserting {len(df)} contract records for {year} into silver_spotrac_contracts...")
+        logger.info(
+            f"SilverLayer: Upserting {len(df)} contract records for {year} into silver_spotrac_contracts..."
+        )
         self.db.execute(f"DELETE FROM silver_spotrac_contracts WHERE year = {year}")
-        self.db.execute("""
+        self.db.execute(
+            """
             INSERT INTO silver_spotrac_contracts (player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, age, base_salary_millions, prorated_bonus_millions, roster_bonus_millions, guaranteed_salary_millions)
             SELECT player_name, team, year, position, cap_hit_millions, dead_cap_millions, signing_bonus_millions, guaranteed_money_millions, total_contract_value_millions, SAFE_CAST(age AS INT64), SAFE_CAST(base_salary_millions AS FLOAT64), SAFE_CAST(prorated_bonus_millions AS FLOAT64), SAFE_CAST(roster_bonus_millions AS FLOAT64), SAFE_CAST(guaranteed_salary_millions AS FLOAT64) FROM df
-        """, {"df": df})
+        """,
+            {"df": df},
+        )
 
         # Emulate Spotrac Salaries schema using OverTheCap guaranteed money so Gold Layer dependencies don't break
         df_sal = df.copy()
-        df_sal['dead_cap'] = df_sal['dead_cap_millions'].astype(str)
+        df_sal["dead_cap"] = df_sal["dead_cap_millions"].astype(str)
         self.db.execute(f"DELETE FROM silver_spotrac_salaries WHERE year = {year}")
-        self.db.execute("""
+        self.db.execute(
+            """
             INSERT INTO silver_spotrac_salaries (player_name, team, year, position, dead_cap)
             SELECT player_name, team, year, position, dead_cap FROM df_sal
-        """, {"df_sal": df_sal})
+        """,
+            {"df_sal": df_sal},
+        )
 
     def ingest_pfr(self, year: int):
         logger.info(f"SilverLayer: Ingesting PFR Data for {year}")
@@ -171,7 +198,7 @@ class SilverLayer:
             f"data/bronze/pfr/{year}/game_logs_{year}.csv",
             f"data/bronze/pfr/game_logs_{year}.csv",
             f"data_raw_DEPRECATED/pfr/{year}/game_logs_{year}.csv",
-            f"data_raw_DEPRECATED/pfr/game_logs_{year}.csv"
+            f"data_raw_DEPRECATED/pfr/game_logs_{year}.csv",
         ]:
             try:
                 if os.path.exists(p):
@@ -179,34 +206,46 @@ class SilverLayer:
                     break
             except Exception:
                 pass
-                
+
         if not file_path:
-             logger.warning(f"No PFR data found for {year} in any candidate paths")
-             return
+            logger.warning(f"No PFR data found for {year} in any candidate paths")
+            return
 
         df = pd.read_csv(file_path)
-        
+
         # Handle raw MultiIndex CSV column names if present
         rename_map = {
             "Unnamed: 0_level_0_Player": "player_name",
             "Unnamed: 1_level_0_Tm": "team",
             "Def Interceptions_Int": "Interceptions",
-            "Unnamed: 7_level_0_Sk": "Sacks"
+            "Unnamed: 7_level_0_Sk": "Sacks",
         }
         df = df.rename(columns=rename_map)
 
         # Ensure defensive columns exist
-        if 'Sacks' not in df.columns: df['Sacks'] = 0
-        if 'Interceptions' not in df.columns: df['Interceptions'] = 0
-        
+        if "Sacks" not in df.columns:
+            df["Sacks"] = 0
+        if "Interceptions" not in df.columns:
+            df["Interceptions"] = 0
+
         # Ensure correct types
-        numeric_cols = ['Passing_Yds', 'Rushing_Yds', 'Receiving_Yds', 'Passing_TD', 'Rushing_TD', 'Receiving_TD', 'Sacks', 'Interceptions']
+        numeric_cols = [
+            "Passing_Yds",
+            "Rushing_Yds",
+            "Receiving_Yds",
+            "Passing_TD",
+            "Rushing_TD",
+            "Receiving_TD",
+            "Sacks",
+            "Interceptions",
+        ]
         for col in numeric_cols:
-             if col in df.columns:
-                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            if col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
         self.db.execute(f"DELETE FROM silver_pfr_game_logs WHERE year = {year}")
-        self.db.execute("""
+        self.db.execute(
+            """
             INSERT INTO silver_pfr_game_logs (player_name, team, year, week, game_url, Passing_Yds, Rushing_Yds, Receiving_Yds, Passing_TD, Rushing_TD, Receiving_TD, Sacks, Interceptions)
             SELECT 
                 player_name, team, year, week, game_url, 
@@ -214,74 +253,116 @@ class SilverLayer:
                 Passing_TD, Rushing_TD, Receiving_TD,
                 Sacks, Interceptions
             FROM df
-        """, {"df": df})
+        """,
+            {"df": df},
+        )
 
     def ingest_penalties(self, year: int):
         logger.info(f"SilverLayer: Ingesting Penalties for {year}")
         files = BronzeLayer.find_files("improved_penalties", year)
-        if not files: return
-        
+        if not files:
+            return
+
         df = pd.read_csv(files[-1])
         city_map = {
-            "Houston": "HOU", "Dallas": "DAL", "Kansas City": "KC", "Buffalo": "BUF",
-            "Pittsburgh": "PIT", "Denver": "DEN", "Baltimore": "BAL", "New Orleans": "NO",
-            "New England": "NE", "Washington": "WAS", "Carolina": "CAR", "Atlanta": "ATL",
-            "Indianapolis": "IND", "Minnesota": "MIN", "Las Vegas": "LV", "Detroit": "DET",
-            "Green Bay": "GB", "Chicago": "CHI", "New York Jets": "NYJ", "New York Giants": "NYG",
-            "San Francisco": "SF", "Tampa Bay": "TB", "Seattle": "SEA", "Miami": "MIA",
-            "Jacksonville": "JAX", "Cleveland": "CLE", "Cincinnati": "CIN", "Arizona": "ARI",
-            "Philadelphia": "PHI", "Tennessee": "TEN", "Los Angeles Rams": "LAR", "Los Angeles Chargers": "LAC"
+            "Houston": "HOU",
+            "Dallas": "DAL",
+            "Kansas City": "KC",
+            "Buffalo": "BUF",
+            "Pittsburgh": "PIT",
+            "Denver": "DEN",
+            "Baltimore": "BAL",
+            "New Orleans": "NO",
+            "New England": "NE",
+            "Washington": "WAS",
+            "Carolina": "CAR",
+            "Atlanta": "ATL",
+            "Indianapolis": "IND",
+            "Minnesota": "MIN",
+            "Las Vegas": "LV",
+            "Detroit": "DET",
+            "Green Bay": "GB",
+            "Chicago": "CHI",
+            "New York Jets": "NYJ",
+            "New York Giants": "NYG",
+            "San Francisco": "SF",
+            "Tampa Bay": "TB",
+            "Seattle": "SEA",
+            "Miami": "MIA",
+            "Jacksonville": "JAX",
+            "Cleveland": "CLE",
+            "Cincinnati": "CIN",
+            "Arizona": "ARI",
+            "Philadelphia": "PHI",
+            "Tennessee": "TEN",
+            "Los Angeles Rams": "LAR",
+            "Los Angeles Chargers": "LAC",
         }
-        df['team'] = df['team_city'].map(city_map)
-        
+        df["team"] = df["team_city"].map(city_map)
+
         self.db.execute(f"DELETE FROM silver_penalties WHERE year = {year}")
         # Explicitly select schema columns to avoid binder errors on extra columns
-        self.db.execute("""
+        self.db.execute(
+            """
             INSERT INTO silver_penalties (player_name_short, team, year, penalty_count, penalty_yards)
             SELECT player_name_short, team, year, penalty_count, penalty_yards FROM df
-        """, {"df": df})
+        """,
+            {"df": df},
+        )
 
     def ingest_team_cap(self):
         logger.info("SilverLayer: Ingesting Team Cap data")
         dead_money_dir = BRONZE_DIR / "dead_money"
         files = list(dead_money_dir.rglob("team_cap_*.csv"))
-        if not files: return
-        
+        if not files:
+            return
+
         dfs = [pd.read_csv(f) for f in files]
         df = pd.concat(dfs)
-        self.db.execute("CREATE OR REPLACE TABLE silver_team_cap AS SELECT DISTINCT * FROM df", {"df": df})
+        self.db.execute(
+            "CREATE OR REPLACE TABLE silver_team_cap AS SELECT DISTINCT * FROM df",
+            {"df": df},
+        )
 
     def ingest_others(self):
         logger.info("SilverLayer: Ingesting other static datasets")
         fin_path = BRONZE_DIR / "other" / "finance" / "team_valuations_2024.csv"
         if fin_path.exists():
             load_team_financials(self.db.con, fin_path)
-        
+
         merch_path = BRONZE_DIR / "other" / "merch" / "nflpa_player_sales_2024.csv"
         if merch_path.exists():
             load_player_merch(self.db.con, merch_path)
 
         draft_file = Path("data/raw/pfr/draft_history.csv")
         if draft_file.exists():
-             df_draft = pd.read_csv(draft_file)
-             self.db.execute("CREATE OR REPLACE TABLE silver_pfr_draft_history AS SELECT * FROM df_draft", {"df_draft": df_draft})
-             
+            df_draft = pd.read_csv(draft_file)
+            self.db.execute(
+                "CREATE OR REPLACE TABLE silver_pfr_draft_history AS SELECT * FROM df_draft",
+                {"df_draft": df_draft},
+            )
+
     def ingest_player_metadata(self):
         logger.info("SilverLayer: Ingesting player metadata")
         meta_file = Path("data/raw/player_metadata.csv")
         if meta_file.exists():
             df_meta = pd.read_csv(meta_file)
             # Normalize column names if needed, assume match for now
-            self.db.execute("CREATE OR REPLACE TABLE silver_player_metadata AS SELECT * FROM df_meta", {"df_meta": df_meta})
+            self.db.execute(
+                "CREATE OR REPLACE TABLE silver_player_metadata AS SELECT * FROM df_meta",
+                {"df_meta": df_meta},
+            )
+
 
 class GoldLayer:
     """Gold Layer: Aggregating into Feature-Rich Analytics Tables."""
+
     def __init__(self, db: DBManager):
         self.db = db
 
     def build_fact_player_efficiency(self):
         logger.info("GoldLayer: Building fact_player_efficiency...")
-        
+
         self.db.execute("""
         CREATE OR REPLACE TABLE fact_player_efficiency AS
         WITH pfr_agg AS (
@@ -441,15 +522,19 @@ class GoldLayer:
         """)
         logger.info("✓ Gold Layer populated: fact_player_efficiency")
 
+
 def main():
     import argparse
     from datetime import datetime
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("--year", type=int, required=False, help="Defaults to current active NFL season")
+    parser.add_argument(
+        "--year", type=int, required=False, help="Defaults to current active NFL season"
+    )
     parser.add_argument("--skip-gold", action="store_true")
     parser.add_argument("--gold-only", action="store_true")
     args = parser.parse_args()
-    
+
     # Calculate dynamic NFL year (Rollover in March)
     target_year = args.year
     if not target_year:
@@ -476,6 +561,7 @@ def main():
             gold.build_fact_player_efficiency()
             # ML Enrichment is now decoupled and run via src/inference.py in the orchestration layer
             # This avoids circular dependencies with FeatureFactory
+
 
 if __name__ == "__main__":
     main()

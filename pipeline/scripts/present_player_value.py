@@ -1,16 +1,16 @@
-
 from src.db_manager import DBManager
 import pandas as pd
 
 DB_PATH = "data/nfl_data.db"
 
+
 def present_value(year):
     con = DBManager()
-    
+
     print(f"\n==================== {year} SEASON AUDIT ====================")
     print(f"🏆 Top 10 'High Value' Players ({year}) - High Production, Low Cap Hit")
     print("-" * 80)
-    
+
     query = f"""
     SELECT DISTINCT
         player_name, 
@@ -27,10 +27,10 @@ def present_value(year):
     ORDER BY value_metric_proxy DESC
     LIMIT 10
     """
-    
+
     df = con.execute(query).df()
     print(df.to_string(index=False))
-    
+
     print(f"\n☢️ 'The Time Bombs' - Highest EDCE (Dead Cap Risk) ({year})")
     print("-" * 80)
     query_risk = f"""
@@ -49,8 +49,9 @@ def present_value(year):
     """
     df_risk = con.execute(query_risk).df()
     print(df_risk.to_string(index=False))
-    
+
     con.close()
+
 
 if __name__ == "__main__":
     # Run for the full 10-year range (including current SB season 2025)
@@ -59,5 +60,3 @@ if __name__ == "__main__":
             present_value(y)
         except Exception as e:
             print(f"Skipping {y}: {e}")
-
-

@@ -120,8 +120,7 @@ def run_backfill(source_filter: str | None = None, dry_run: bool = False) -> Non
                 logger.error(f"  → FAILED: {e}")
 
     logger.info(
-        f"\nBackfill complete: {total_new} new items ingested, "
-        f"{total_skipped} skipped"
+        f"\nBackfill complete: {total_new} new items ingested, {total_skipped} skipped"
     )
 
 

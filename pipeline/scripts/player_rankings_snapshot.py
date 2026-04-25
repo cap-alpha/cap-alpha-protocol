@@ -6,6 +6,7 @@ Non-interactive weekly snapshot for Spotrac player rankings.
 - Parses text to CSV (robust fallback)
 - Retries, idempotent, logs summary
 """
+
 import argparse
 import logging
 import os
@@ -22,20 +23,24 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 log = logging.getLogger(__name__)
 
 NAME_RE = re.compile(r"([A-Z][a-zA-Z.'\-]+(?:\s+[A-Z][a-zA-Z.'\-]+)+)")
 CURR_RE = re.compile(r"\$([0-9][0-9,]*(?:\.[0-9]{2})?)")
 TEAM_RE = re.compile(r"\b([A-Z]{2,3})\b")
-POS_RE = re.compile(r"\b(QB|WR|RB|TE|CB|S|FS|SS|LB|OLB|ILB|MLB|DE|DT|EDGE|OT|OG|C|DL|DB|K|P|LS)\b")
+POS_RE = re.compile(
+    r"\b(QB|WR|RB|TE|CB|S|FS|SS|LB|OLB|ILB|MLB|DE|DT|EDGE|OT|OG|C|DL|DB|K|P|LS)\b"
+)
 
 
 def parse_text_to_df(text: str, year: int) -> pd.DataFrame:
     lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
     rows = []
     for i, ln in enumerate(lines):
-        if '$' not in ln:
+        if "$" not in ln:
             continue
         mcur = CURR_RE.search(ln)
         if not mcur:
@@ -49,19 +54,22 @@ def parse_text_to_df(text: str, year: int) -> pd.DataFrame:
             name = mname.group(1)
         mteam = TEAM_RE.findall(ln)
         for t in mteam or []:
-            if len(t) in (2,3):
-                team = t; break
+            if len(t) in (2, 3):
+                team = t
+                break
         mpos = POS_RE.search(ln)
         if mpos:
             pos = mpos.group(1)
         if not name:
             # fallback: previous lines
-            for j in range(1,4):
-                if i-j < 0: break
-                prev = lines[i-j]
+            for j in range(1, 4):
+                if i - j < 0:
+                    break
+                prev = lines[i - j]
                 mname2 = NAME_RE.search(prev)
                 if mname2:
-                    name = mname2.group(1); break
+                    name = mname2.group(1)
+                    break
                 if not pos:
                     mpos2 = POS_RE.search(prev)
                     if mpos2:
@@ -69,25 +77,33 @@ def parse_text_to_df(text: str, year: int) -> pd.DataFrame:
                 if not team:
                     mteam2 = TEAM_RE.findall(prev)
                     for t in mteam2 or []:
-                        if len(t) in (2,3):
-                            team = t; break
+                        if len(t) in (2, 3):
+                            team = t
+                            break
         if name:
             try:
-                val_num = float(''.join(ch for ch in val if ch.isdigit() or ch=='.'))
+                val_num = float("".join(ch for ch in val if ch.isdigit() or ch == "."))
             except Exception:
                 val_num = None
             rows.append([name, team, pos, val_num, year])
     # dedupe by (name, value)
-    seen = set(); out = []
+    seen = set()
+    out = []
     for r in rows:
         k = (r[0], r[3])
         if k not in seen:
             seen.add(k)
             out.append(r)
-    return pd.DataFrame(out, columns=['Player','Team','Position','CapValue','Year'])
+    return pd.DataFrame(out, columns=["Player", "Team", "Position", "CapValue", "Year"])
 
 
-def snapshot(year: int, outdir: Path, retries: int = 3, headless: bool = True, force: bool = False) -> Path:
+def snapshot(
+    year: int,
+    outdir: Path,
+    retries: int = 3,
+    headless: bool = True,
+    force: bool = False,
+) -> Path:
     outdir.mkdir(parents=True, exist_ok=True)
     csv_path = outdir / f"player_rankings_{year}.csv"
     if csv_path.exists() and not force:
@@ -114,7 +130,7 @@ def snapshot(year: int, outdir: Path, retries: int = 3, headless: bool = True, f
         pass
 
     last_err = None
-    for attempt in range(1, retries+1):
+    for attempt in range(1, retries + 1):
         driver = None
         try:
             driver = webdriver.Firefox(options=opts)
@@ -128,16 +144,23 @@ def snapshot(year: int, outdir: Path, retries: int = 3, headless: bool = True, f
                 time.sleep(2)
                 ActionChains(driver).send_keys(Keys.HOME).perform()
                 time.sleep(1)
-                driver.execute_script("document.documentElement.scrollTop = document.documentElement.scrollHeight")
+                driver.execute_script(
+                    "document.documentElement.scrollTop = document.documentElement.scrollHeight"
+                )
                 time.sleep(2)
             except Exception:
                 pass
 
             html = driver.page_source
             try:
-                main_text = driver.execute_script("return (document.querySelector('main')||document.body).innerText;") or ''
+                main_text = (
+                    driver.execute_script(
+                        "return (document.querySelector('main')||document.body).innerText;"
+                    )
+                    or ""
+                )
             except Exception:
-                main_text = ''
+                main_text = ""
 
             # dump artifacts
             (outdir / f"spotrac_{year}_raw.html").write_text(html)
@@ -167,11 +190,11 @@ def snapshot(year: int, outdir: Path, retries: int = 3, headless: bool = True, f
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--year', type=int, default=datetime.now().year)
-    ap.add_argument('--outdir', type=str, default="data/raw")
-    ap.add_argument('--retries', type=int, default=3)
-    ap.add_argument('--no-headless', action='store_true')
-    ap.add_argument('--force', action='store_true')
+    ap.add_argument("--year", type=int, default=datetime.now().year)
+    ap.add_argument("--outdir", type=str, default="data/raw")
+    ap.add_argument("--retries", type=int, default=3)
+    ap.add_argument("--no-headless", action="store_true")
+    ap.add_argument("--force", action="store_true")
     args = ap.parse_args()
 
     out_path = snapshot(
@@ -184,5 +207,5 @@ def main():
     print(out_path)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

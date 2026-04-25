@@ -85,8 +85,11 @@ CORE_CONTRACTS: list[ColumnContract] = [
             "pundit_id",
             "pundit_name",
             "raw_assertion_text",
+            "prompt_version",
+            "llm_provider",
+            "llm_model",
         ],
-        description="Gold prediction ledger",
+        description="Gold prediction ledger with prompt versioning + LLM tracking",
     ),
     ColumnContract(
         dataset="gold_layer",

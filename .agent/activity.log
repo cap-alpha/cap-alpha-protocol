@@ -4,5 +4,12 @@
 # Resources: issue:<n>  pr:<n>  file:<path>  branch:<name>
 # Rotation: entries older than 7 days are pruned weekly via .agent/claim.sh
 #
-2026-04-08T03:03:50Z | agent-test | CLAIM | issue:test-coord
-2026-04-08T03:03:50Z | agent-test | RELEASE | issue:test-coord
+2026-04-25T16:09:58Z | claude-sonnet-1777133398 | CLAIM | issue:247
+2026-04-25T16:10:08Z | claude-sonnet-1777133408 | CLAIM | file:pipeline/src/assertion_extractor.py
+2026-04-25T16:10:08Z | claude-sonnet-1777133408 | CLAIM | file:pipeline/src/cryptographic_ledger.py
+2026-04-25T16:20:54Z | claude-sonnet-1777133408 | RELEASE | file:pipeline/src/assertion_extractor.py
+2026-04-25T16:20:54Z | claude-sonnet-1777133408 | RELEASE | file:pipeline/src/cryptographic_ledger.py
+2026-04-25T16:20:54Z | claude-sonnet-1777133398 | RELEASE | issue:247
+2026-04-25T18:56:17Z | claude-haiku-4-5-20251001 | CLAIM | issue:247
+2026-04-25T18:56:18Z | claude-haiku-4-5-20251001 | CLAIM | file:pipeline/src/cryptographic_ledger.py
+2026-04-25T18:56:18Z | claude-haiku-4-5-20251001 | CLAIM | file:pipeline/src/assertion_extractor.py

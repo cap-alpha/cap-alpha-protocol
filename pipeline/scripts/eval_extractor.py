@@ -146,14 +146,18 @@ def print_report(results: list[EvalResult], metrics: dict) -> None:
     print("=" * 70)
     print(f"Cases evaluated : {metrics['total_cases']}")
     print(f"  GOOD (should extract) : {metrics['total_good_cases']}")
-    print(f"  BAD  (should skip)    : {metrics['total_cases'] - metrics['total_good_cases']}")
+    print(
+        f"  BAD  (should skip)    : {metrics['total_cases'] - metrics['total_good_cases']}"
+    )
     print(f"Total predictions extracted: {metrics['total_extracted_predictions']}")
     print()
     print(f"Precision : {metrics['precision']:.2%}  (target: ≥70%)")
     print(f"Recall    : {metrics['recall']:.2%}")
     print(f"F1        : {metrics['f1']:.2%}")
     print(f"Accuracy  : {metrics['accuracy']:.2%}")
-    print(f"  TP={metrics['tp']}  FP={metrics['fp']}  TN={metrics['tn']}  FN={metrics['fn']}")
+    print(
+        f"  TP={metrics['tp']}  FP={metrics['fp']}  TN={metrics['tn']}  FN={metrics['fn']}"
+    )
     print()
 
     # Per-item breakdown
@@ -184,8 +188,10 @@ def print_report(results: list[EvalResult], metrics: dict) -> None:
     # Pass/fail verdict
     target_precision = 0.70
     passed = metrics["precision"] >= target_precision
-    print(f"\n{'PASS' if passed else 'FAIL'} — precision "
-          f"{metrics['precision']:.2%} {'≥' if passed else '<'} {target_precision:.0%} target")
+    print(
+        f"\n{'PASS' if passed else 'FAIL'} — precision "
+        f"{metrics['precision']:.2%} {'≥' if passed else '<'} {target_precision:.0%} target"
+    )
     print("=" * 70)
 
 
@@ -205,9 +211,11 @@ def build_provider(provider_name: str, model: str) -> LLMProvider:
         return OllamaProvider(model=model)
     if provider_name == "gemini":
         from src.llm_provider import GeminiProvider
+
         return GeminiProvider()
     if provider_name == "claude":
         from src.llm_provider import ClaudeProvider
+
         return ClaudeProvider()
     raise ValueError(f"Unknown provider: {provider_name}")
 
@@ -219,9 +227,13 @@ def run_eval(
 ) -> list[EvalResult]:
     results = []
     for i, case in enumerate(fixtures, 1):
-        logger.info(f"[{i}/{len(fixtures)}] {case.id} ({case.label}) — {case.notes[:50]}")
+        logger.info(
+            f"[{i}/{len(fixtures)}] {case.id} ({case.label}) — {case.notes[:50]}"
+        )
         if dry_run:
-            extraction = ExtractionResult(content_hash=case.content_hash, predictions=[])
+            extraction = ExtractionResult(
+                content_hash=case.content_hash, predictions=[]
+            )
         else:
             extraction = extract_assertions(
                 content_hash=case.content_hash,

@@ -344,7 +344,7 @@ def search_predictions(
             params.append(ScalarQueryParameter("player", "STRING", player))
         if pundit_name:
             where_clauses.append(
-                "LOWER(l.pundit_name) LIKE " "CONCAT('%', LOWER(@pundit_name), '%')"
+                "LOWER(l.pundit_name) LIKE CONCAT('%', LOWER(@pundit_name), '%')"
             )
             params.append(ScalarQueryParameter("pundit_name", "STRING", pundit_name))
 

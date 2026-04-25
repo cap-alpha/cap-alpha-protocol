@@ -3,9 +3,9 @@ Unit tests for post-ingestion data quality checks (SP29-2 / GH-#107).
 No BigQuery required — all checks operate on in-memory DataFrames.
 """
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
 
 from src.data_quality_tests import (
     CAP_FIGURE_MIN_COVERAGE,
@@ -16,7 +16,6 @@ from src.data_quality_tests import (
     check_stddev_outliers,
     run_post_ingestion_checks,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -182,7 +181,9 @@ class TestCheckMissingCapFigures:
 class TestRunPostIngestionChecks:
     def test_clean_data_returns_passing_report(self):
         df = _contracts_df([10.0, 12.0, 15.0, 11.0, 13.0])
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=False)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=False
+        )
         assert isinstance(report, QualityReport)
         assert report.passed is True
         assert report.table_name == "silver_spotrac_contracts"
@@ -191,23 +192,31 @@ class TestRunPostIngestionChecks:
     def test_critical_violation_raises_when_raise_enabled(self):
         df = _contracts_df([0.0] * 10)
         with pytest.raises(DataQualityAlert, match="silver_spotrac_contracts"):
-            run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=True)
+            run_post_ingestion_checks(
+                df, "silver_spotrac_contracts", raise_on_critical=True
+            )
 
     def test_critical_violation_no_raise_when_disabled(self):
         df = _contracts_df([0.0] * 10)
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=False)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=False
+        )
         assert report.passed is False
         assert any(v.severity == "CRITICAL" for v in report.violations)
 
     def test_warning_only_does_not_raise(self):
         # Outlier triggers WARNING only
         df = _contracts_df([10.0, 12.0, 15.0, 11.0, 13.0, 9999.0])
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=True)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=True
+        )
         assert report.passed is True  # CRITICAL=0, WARNING>0 → passed
 
     def test_warning_only_sets_passed_true(self):
         df = _contracts_df([10.0, 12.0, 15.0, 11.0, 13.0, 9999.0])
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=False)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=False
+        )
         assert report.passed is True
         warnings = [v for v in report.violations if v.severity == "WARNING"]
         assert len(warnings) > 0
@@ -220,20 +229,28 @@ class TestRunPostIngestionChecks:
 
     def test_empty_dataframe_returns_clean_report(self):
         df = pd.DataFrame()
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=False)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=False
+        )
         assert report.passed is True
 
     def test_report_bool_true_when_passed(self):
         df = _contracts_df([10.0, 12.0, 15.0, 11.0, 13.0])
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=False)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=False
+        )
         assert bool(report) is True
 
     def test_report_bool_false_when_failed(self):
         df = _contracts_df([0.0] * 10)
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=False)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=False
+        )
         assert bool(report) is False
 
     def test_report_summary_contains_table_name(self):
         df = _contracts_df([10.0, 12.0, 15.0, 11.0, 13.0])
-        report = run_post_ingestion_checks(df, "silver_spotrac_contracts", raise_on_critical=False)
+        report = run_post_ingestion_checks(
+            df, "silver_spotrac_contracts", raise_on_critical=False
+        )
         assert "silver_spotrac_contracts" in report.summary()

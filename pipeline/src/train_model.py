@@ -57,9 +57,7 @@ class RiskModeler:
             import time
 
             start_time = time.time()
-            logger.info(
-                "Skipping persistence of staging_feature_matrix "
-            )
+            logger.info("Skipping persistence of staging_feature_matrix ")
             # self.con.register('df_view', df)
             # self.con.execute("CREATE OR REPLACE TABLE staging_feature_matrix AS SELECT * FROM df_view")
             # elapsed = time.time() - start_time

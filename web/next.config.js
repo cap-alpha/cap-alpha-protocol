@@ -1,5 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+    images: {
+        remotePatterns: [
+            {
+                protocol: "https",
+                hostname: "a.espncdn.com",
+                pathname: "/i/teamlogos/**",
+            },
+        ],
+    },
     experimental: {
         serverComponentsExternalPackages: ['duckdb', 'duckdb-async', '@mapbox/node-pre-gyp', 'node-gyp'],
     },

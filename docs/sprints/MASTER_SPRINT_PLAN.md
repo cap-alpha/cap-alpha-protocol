@@ -55,9 +55,9 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 23: Adversarial Sentiment & Prediction Defense
 **Goal:** Harden the Alpha Flywheel and Intelligence Pipeline against coordinated bad actors attempting to skew Media Sentiment via manufactured narratives.
-- [ ] SP23-1: **Bot & Astroturfing Detection:** Filter out synthetic articles and highly repetitive NLP phrasing that signals a coordinated attack. (GH-#83)
-- [ ] SP23-2: **Source Reputation Weighting:** Enforce a heuristic decay on unverified domains or publishers whose historical accuracy metric drops below an acceptable baseline. (GH-#84)
-- [ ] SP23-3: **Anomaly Flagging (Suspicious Volume Spike):** If a player receives an atypical surge of negative sentiment divergence, quarantine the signals for manual review. (GH-#85)
+- [x] SP23-1: **Bot & Astroturfing Detection:** Filter out synthetic articles and highly repetitive NLP phrasing that signals a coordinated attack. (GH-#83)
+- [x] SP23-2: **Source Reputation Weighting:** Enforce a heuristic decay on unverified domains or publishers whose historical accuracy metric drops below an acceptable baseline. (GH-#84)
+- [x] SP23-3: **Anomaly Flagging (Suspicious Volume Spike):** If a player receives an atypical surge of negative sentiment divergence, quarantine the signals for manual review. (GH-#85)
 
 ### Sprint 19: Immutable Auditability (Cryptographic Ledger)
 **Goal:** Prove absolute honesty in Fair Market Value predictions by eliminating hindsight bias. Implement a verifiable cryptographic ledger.
@@ -70,17 +70,17 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 30: API Standardization & Keys (NEW)
 **Goal:** We must be able to securely vend, rate-limit, and explicitly monetize our core intelligent artifacts via an API to massive third-party B2B consumers.
-- [ ] SP30-1: Stand up a dedicated `/v1/cap/` Python REST or GraphQL API backend securely authenticating via B2B API keys. (GH-#108)
-- [ ] SP30-2: Document the full API schema via OpenAPI/Swagger, clearly identifying the "Pundit Index", "FMV Trajectory", and "Injury Lag" vendor payloads. (GH-#109)
+- [x] SP30-1: Stand up a dedicated `/v1/cap/` Python REST or GraphQL API backend securely authenticating via B2B API keys. (GH-#108)
+- [x] SP30-2: Document the full API schema via OpenAPI/Swagger, clearly identifying the "Pundit Index", "FMV Trajectory", and "Injury Lag" vendor payloads. (GH-#109)
 
 ### Sprint 20: Sub-Second Latency & Backend Performance
 **Goal:** Ensure backend data is served immediately, ready to be cached by edge consumers or UI platforms.
 - [x] SP20-1: (Claimed by Agent) Architect backend caching layers leveraging Redis or Edge logic to prevent BigQuery cost-overruns on read-heavy routes. (GH-#70)
-- [ ] SP20-2: Optimize BigQuery/MotherDuck query execution paths (e.g., materialized views) for complex models and aggregations before they hit the API. (GH-#71)
+- [x] SP20-2: Optimize BigQuery/MotherDuck query execution paths (e.g., materialized views) for complex models and aggregations before they hit the API. (GH-#71)
 
 ### Sprint 24: Cloud Expenditure & Compute Optimization
 **Goal:** Offload all heavy stat calculations to the pipeline architecture, protecting the API layer.
-- [ ] SP24-3: **Asset Pre-computation:** Shift any heavy client-side statistical aggregations entirely into the Python `medallion_pipeline.py` to offload compute costs to the ingestion nodes. (GH-#88)
+- [x] SP24-3: **Asset Pre-computation:** Shift any heavy client-side statistical aggregations entirely into the Python `medallion_pipeline.py` to offload compute costs to the ingestion nodes. (GH-#88)
 
 ---
 
@@ -88,21 +88,21 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** The "Showcase" bringing the fully verified API to life. *Work here is suspended until M1 and M2 are stable.*
 
 ### Sprint 11: Production Hardening & E2E Integration
-- [ ] SP11-1: Establish a strict "No Mock" policy for the React Frontend UI. Ensure 100% data integrity with the M2 API layer. (GH-#25)
+- [x] SP11-1: Establish a strict "No Mock" policy for the React Frontend UI. Ensure 100% data integrity with the M2 API layer. (GH-#25)
 
 ### Sprint 16: Player Visual Timeline Experience 
 - [ ] SP16-1: Build a single unified chronological view of all events affecting a player's market value in the UI. (GH-#49)
 
 ### Sprint 21: Front Page Strategic Redesign & Identity
-- [ ] SP21-1: Complete user flow and concept set for the front page, establishing the product identity ("Bloomberg Terminal" for Sports). (GH-#74)
+- [x] SP21-1: Complete user flow and concept set for the front page, establishing the product identity ("Bloomberg Terminal" for Sports). (GH-#74)
 
 ### Sprint 22.5: The Pundit Ledger UI
-- [ ] SP22-5: Create a public accountability dashboard ranking personalities by their Brier Score vs. Market Consensus. (GH-#82)
+- [x] SP22-5: Create a public accountability dashboard ranking personalities by their Brier Score vs. Market Consensus. (GH-#82)
 
 ### Sprint 25: Growth, Monetization UX & Agentic ROI
 - [/] SP25-3: auto-generate the 'Personality Magnet' visual infographic component to attract analysts/creators. (GH-#93)
 
 ### Sprint 28: UI Hardening & Visual Test Coverage (Team Logos)
 - [ ] SP28-1: Investigate and fix the missing team logos on the Team Changer UI. (GH-#103)
-- [ ] SP28-2: Implement Playwright visual regression tests specifically for the Team Changer grid. (GH-#104)
-- [ ] SP28-3: Audit existing `e2e` Playwright test suite to identify gaps in coverage. (GH-#105)
+- [x] SP28-2: Implement Playwright visual regression tests specifically for the Team Changer grid. (GH-#104)
+- [x] SP28-3: Audit existing `e2e` Playwright test suite to identify gaps in coverage. (GH-#105)

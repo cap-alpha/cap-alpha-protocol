@@ -23,27 +23,27 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 **Goal:** Sever reliance on scraped/competitor data by integrating official, deterministic data feeds (e.g., Sportradar, official NFL API, or premium vendor) to ensure we own our pipeline.
 - [x] SP18-1: Select and procure an official data vendor API for real-time and historical NFL player/contract data (e.g., Sportradar API, Stats Perform). (Blocked on User Procurement) (GH-#60)
   - 💬 **1 comment(s)** on GitHub. See https://github.com/ucalegon206/cap-alpha-protocol/issues/60
-- [ ] SP18-2: Build a robust Python ingestion client to hydrate the BigQuery Bronze layer directly from the official authenticated API. (GH-#61)
-- [ ] SP18-3: Validate the new official feed against our internal predictions and backtests, ensuring schema compatibility and resolving any data discrepancies. (GH-#62)
-- [ ] SP18-4: Deprecate legacy web scraper pipelines and reroute all downstream Silver/Gold transformations to rely exclusively on the new official Bronze data. (GH-#63)
+- [b] SP18-2: Build a robust Python ingestion client to hydrate the BigQuery Bronze layer directly from the official authenticated API. (GH-#61) — Blocked: SP18-1 vendor procurement not complete; no API credentials available.
+- [b] SP18-3: Validate the new official feed against our internal predictions and backtests, ensuring schema compatibility and resolving any data discrepancies. (GH-#62) — Blocked: depends on SP18-2.
+- [b] SP18-4: Deprecate legacy web scraper pipelines and reroute all downstream Silver/Gold transformations to rely exclusively on the new official Bronze data. (GH-#63) — Blocked: depends on SP18-2/3.
 
 ### Sprint 18.5: High-Frequency Silver Data Model Redesign
 **Goal:** Refactor the Silver data model architecture to natively ingest, merge, and temporalize high-frequency updates (hourly/daily deltas) replacing legacy nightly-batch assumptions.
-- [ ] SP18.5-1: Audit all Silver layer tables and document necessary schema updates (e.g., adding distinct `valid_from` / `valid_until` timestamps for SCD Type 2 tracking). (GH-#64)
+- [x] SP18.5-1: Audit all Silver layer tables and document necessary schema updates (e.g., adding distinct `valid_from` / `valid_until` timestamps for SCD Type 2 tracking). (GH-#64) — Audit delivered: docs/sprints/SP18.5-1_silver_layer_audit.md
 - [ ] SP18.5-2: Architect an event-driven or micro-batch ETL trigger pipeline to process state changes as they stream from the official provider. (GH-#65)
 - [ ] SP18.5-3: Rewrite Downstream Gold/Fact aggregations to gracefully consume and deduplicate high-frequency Silver deltas without re-running the entire history. (GH-#66)
 
 ### Sprint 27: Historical Data Hydration & Rigorous Asset Validation
 **Goal:** Verify the BigQuery migration, purge DuckDB remnants, and perform a rigorous integrity check for specific high-value assets (Joe Flacco) against major historical events.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-1: Verify that the pipeline backfill configuration to BigQuery Bronze layer (back to 2011) has completed successfully.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-2: Identify and permanently purge all remaining DuckDB/MotherDuck artifacts from the repository.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-3: Query and extract the value of every single column natively stored in the database representing Joe Flacco.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-4: Perform targeted web lookups to fundamentally verify the real-world accuracy of Joe Flacco's historical numbers against the database values.
-- [{9fb98ecc-450d-4df0-8ab4-ae49321f4a80}] (TTL: 2026-03-30T17:00:00Z) SP27-5: Generate a definitive list of active TODOs to remediate any anomalies or missing values identified during the evaluation.
+- [-] SP27-1: Verify that the pipeline backfill configuration to BigQuery Bronze layer (back to 2011) has completed successfully. (TTL expired 2026-03-30)
+- [-] SP27-2: Identify and permanently purge all remaining DuckDB/MotherDuck artifacts from the repository. (TTL expired 2026-03-30)
+- [-] SP27-3: Query and extract the value of every single column natively stored in the database representing Joe Flacco. (TTL expired 2026-03-30)
+- [-] SP27-4: Perform targeted web lookups to fundamentally verify the real-world accuracy of Joe Flacco's historical numbers against the database values. (TTL expired 2026-03-30)
+- [-] SP27-5: Generate a definitive list of active TODOs to remediate any anomalies or missing values identified during the evaluation. (TTL expired 2026-03-30)
 
 ### Sprint 29: Schema Integrity & Output Guardrails (NEW)
 **Goal:** Enforce unyielding data contracts so that bad data never propagates into the Gold layer or user-facing APIs.
-- [ ] SP29-1: Enforce strict BigQuery `NOT NULL` constraints and foreign key mappings across all core identity tables (Players, Teams, Contracts). (GH-#106)
+- [x] SP29-1: Enforce strict BigQuery `NOT NULL` constraints and foreign key mappings across all core identity tables (Players, Teams, Contracts). (GH-#106) — Migration 015 + validate_not_null_constraints() + 9 unit tests
 - [ ] SP29-2: Implement automated dbt/Great Expectations data quality checks that run post-ingestion, instantly alerting on standard deviation outliers or missing cap figures. (GH-#107)
 
 ### Sprint 22: Media Accountability & Prediction Tracking (Data Layer)

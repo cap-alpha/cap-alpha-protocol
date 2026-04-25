@@ -5,6 +5,7 @@ from typing import Optional
 
 import pandas as pd
 
+from src.data_validation import validate_not_null_constraints
 from src.db_manager import DBManager
 
 logger = logging.getLogger(__name__)
@@ -43,9 +44,14 @@ def execute_scd2_merge(
 
     # Add default SCD metrics for the incoming payloads before loading to staging
     df["effective_start_date"] = pd.Timestamp.utcnow()
-    df["effective_end_date"] = pd.NaT  # Null
+    df["effective_end_date"] = pd.NaT  # Null = currently active
     df["is_current"] = True
     df["system_ingest_time"] = pd.Timestamp.utcnow()
+    if "source_name" not in df.columns:
+        df["source_name"] = "spotrac"
+
+    # Enforce NOT NULL constraints before writing (mirrors migration 015)
+    validate_not_null_constraints(df, target_table)
 
     # Strictly isolate single definitive snapshot per surrogate key per batch
     df = df.drop_duplicates(subset=["contract_id"], keep="last")

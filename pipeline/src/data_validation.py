@@ -24,6 +24,118 @@ def get_current_nfl_year() -> int:
     return now.year if now.month >= 3 else now.year - 1
 
 
+# Required columns by table — mirrors the NOT NULL constraints in migration 015.
+# Column names reflect the CURRENT live schema (pre-rename).
+# When migration 015 renames effective_start_date->valid_from etc., update these lists.
+REQUIRED_COLUMNS: Dict[str, list] = {
+    "silver_spotrac_contracts": [
+        "contract_id",
+        "player_id",
+        "player_name",
+        "team",
+        "year",
+        "position",
+        "effective_start_date",  # becomes valid_from after migration 015 rename
+        "is_current",
+        "source_name",
+        "system_ingest_time",    # becomes system_ingest_ts after migration 015 rename
+    ],
+    "silver_player_metadata": [
+        "player_id",
+        "full_name",
+        "position",
+        "effective_start_date",
+        "is_current",
+        "source_name",
+        "system_ingest_ts",
+    ],
+    "silver_teams": [
+        "team_abbr",
+        "team_name",
+        "city",
+        "conference",
+        "division",
+        "active",
+        "system_ingest_ts",
+    ],
+}
+
+
+def validate_not_null_constraints(
+    df: pd.DataFrame,
+    table_name: str,
+    raise_on_violation: bool = True,
+) -> Dict[str, any]:
+    """
+    Enforces NOT NULL / REQUIRED constraints before any Silver table write.
+
+    Mirrors the BigQuery column modes defined in migration 015.  Call this
+    immediately before execute_scd2_merge() or append_dataframe_to_table()
+    to prevent null contract_id / player_name / etc. from silently entering
+    the ledger.
+
+    Args:
+        df: DataFrame about to be written.
+        table_name: Target BigQuery table name (bare name, no project/dataset).
+        raise_on_violation: If True, raises ValueError on the first violation.
+            Set False to collect all violations and return a report.
+
+    Returns:
+        Dict with keys: is_valid (bool), violations (list of dicts).
+
+    Raises:
+        ValueError: if raise_on_violation=True and any required column is null.
+    """
+    required = REQUIRED_COLUMNS.get(table_name, [])
+    if not required:
+        logger.warning(
+            f"validate_not_null_constraints: no required-column spec for '{table_name}'. "
+            "Skipping constraint check. Add table to REQUIRED_COLUMNS to enforce."
+        )
+        return {"is_valid": True, "violations": []}
+
+    violations = []
+    for col in required:
+        if col not in df.columns:
+            violations.append(
+                {
+                    "column": col,
+                    "issue": "missing_column",
+                    "null_count": len(df),
+                    "message": f"Required column '{col}' is absent from the DataFrame.",
+                }
+            )
+            continue
+
+        null_mask = df[col].isna() | (df[col].astype(str).str.strip() == "")
+        null_count = int(null_mask.sum())
+        if null_count > 0:
+            violations.append(
+                {
+                    "column": col,
+                    "issue": "null_values",
+                    "null_count": null_count,
+                    "sample_rows": df[null_mask].head(3).to_dict("records"),
+                    "message": f"Column '{col}' has {null_count} null/empty value(s) — NOT NULL violated.",
+                }
+            )
+
+    is_valid = len(violations) == 0
+    if not is_valid:
+        summary = "; ".join(v["message"] for v in violations)
+        logger.error(
+            f"NOT NULL constraint violation(s) for '{table_name}': {summary}"
+        )
+        if raise_on_violation:
+            raise ValueError(
+                f"NOT NULL constraints violated for '{table_name}'. "
+                f"Fix the following columns before writing: "
+                f"{[v['column'] for v in violations]}"
+            )
+
+    return {"is_valid": is_valid, "violations": violations}
+
+
 def validate_data_freshness(db_manager) -> Dict[str, any]:
     """
     [CRITICAL QA GATE]

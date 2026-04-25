@@ -3,9 +3,10 @@
 All tests use a mock DBManager so no BigQuery connection is needed.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock, patch
 
 from src.microbatch_trigger import MicrobatchTrigger
 
@@ -18,9 +19,11 @@ def _make_db(known_rows=None):
 
     if known_rows is None:
         known_rows = []
-    db.fetch_df.return_value = pd.DataFrame(
-        known_rows, columns=["entity_key", "content_hash"]
-    ) if known_rows else pd.DataFrame(columns=["entity_key", "content_hash"])
+    db.fetch_df.return_value = (
+        pd.DataFrame(known_rows, columns=["entity_key", "content_hash"])
+        if known_rows
+        else pd.DataFrame(columns=["entity_key", "content_hash"])
+    )
 
     return db
 
@@ -30,17 +33,23 @@ class TestDetectChanges:
         db = _make_db(known_rows=[])
         trigger = MicrobatchTrigger(db, "test_ns")
 
-        df = pd.DataFrame([
-            {"PlayerID": "1", "Name": "Alice", "Team": "KC"},
-            {"PlayerID": "2", "Name": "Bob", "Team": "SF"},
-        ])
-        changed = trigger.detect_changes(df, key_col="PlayerID", hash_cols=["Name", "Team"])
+        df = pd.DataFrame(
+            [
+                {"PlayerID": "1", "Name": "Alice", "Team": "KC"},
+                {"PlayerID": "2", "Name": "Bob", "Team": "SF"},
+            ]
+        )
+        changed = trigger.detect_changes(
+            df, key_col="PlayerID", hash_cols=["Name", "Team"]
+        )
         assert len(changed) == 2
 
     def test_unchanged_rows_excluded(self):
-        df = pd.DataFrame([
-            {"PlayerID": "1", "Name": "Alice", "Team": "KC"},
-        ])
+        df = pd.DataFrame(
+            [
+                {"PlayerID": "1", "Name": "Alice", "Team": "KC"},
+            ]
+        )
         # Pre-compute expected hash
         trigger_temp = MicrobatchTrigger.__new__(MicrobatchTrigger)
         trigger_temp.namespace = "test_ns"
@@ -49,7 +58,9 @@ class TestDetectChanges:
         db = _make_db(known_rows=[{"entity_key": "1", "content_hash": expected_hash}])
         trigger = MicrobatchTrigger(db, "test_ns")
 
-        changed = trigger.detect_changes(df, key_col="PlayerID", hash_cols=["Name", "Team"])
+        changed = trigger.detect_changes(
+            df, key_col="PlayerID", hash_cols=["Name", "Team"]
+        )
         assert len(changed) == 0
 
     def test_changed_row_detected(self):
@@ -57,7 +68,9 @@ class TestDetectChanges:
         trigger = MicrobatchTrigger(db, "test_ns")
 
         df = pd.DataFrame([{"PlayerID": "1", "Name": "Alice", "Team": "NE"}])
-        changed = trigger.detect_changes(df, key_col="PlayerID", hash_cols=["Name", "Team"])
+        changed = trigger.detect_changes(
+            df, key_col="PlayerID", hash_cols=["Name", "Team"]
+        )
         assert len(changed) == 1
         assert changed.iloc[0]["Team"] == "NE"
 
@@ -69,17 +82,21 @@ class TestDetectChanges:
 
         known = [
             {"entity_key": "1", "content_hash": hash_unchanged},  # unchanged
-            {"entity_key": "2", "content_hash": "stale_hash"},    # will change
+            {"entity_key": "2", "content_hash": "stale_hash"},  # will change
         ]
         db = _make_db(known_rows=known)
         trigger = MicrobatchTrigger(db, "test_ns")
 
-        current_df = pd.DataFrame([
-            {"PlayerID": "1", "Name": "Alice", "Team": "KC"},   # same — unchanged
-            {"PlayerID": "2", "Name": "Bob",   "Team": "DAL"},  # team changed
-            {"PlayerID": "3", "Name": "Carol",  "Team": "PHI"}, # new
-        ])
-        changed = trigger.detect_changes(current_df, key_col="PlayerID", hash_cols=["Name", "Team"])
+        current_df = pd.DataFrame(
+            [
+                {"PlayerID": "1", "Name": "Alice", "Team": "KC"},  # same — unchanged
+                {"PlayerID": "2", "Name": "Bob", "Team": "DAL"},  # team changed
+                {"PlayerID": "3", "Name": "Carol", "Team": "PHI"},  # new
+            ]
+        )
+        changed = trigger.detect_changes(
+            current_df, key_col="PlayerID", hash_cols=["Name", "Team"]
+        )
         assert len(changed) == 2
         changed_keys = set(changed["PlayerID"].tolist())
         assert "2" in changed_keys
@@ -89,14 +106,18 @@ class TestDetectChanges:
     def test_empty_input_returns_empty(self):
         db = _make_db()
         trigger = MicrobatchTrigger(db, "test_ns")
-        result = trigger.detect_changes(pd.DataFrame(), key_col="PlayerID", hash_cols=["Name"])
+        result = trigger.detect_changes(
+            pd.DataFrame(), key_col="PlayerID", hash_cols=["Name"]
+        )
         assert result.empty
 
     def test_content_hash_column_added(self):
         db = _make_db()
         trigger = MicrobatchTrigger(db, "test_ns")
         df = pd.DataFrame([{"PlayerID": "1", "Name": "X", "Team": "Y"}])
-        changed = trigger.detect_changes(df, key_col="PlayerID", hash_cols=["Name", "Team"])
+        changed = trigger.detect_changes(
+            df, key_col="PlayerID", hash_cols=["Name", "Team"]
+        )
         assert "_content_hash" in changed.columns
         assert len(changed.iloc[0]["_content_hash"]) == 64  # SHA-256 hex = 64 chars
 

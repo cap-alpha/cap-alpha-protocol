@@ -1,7 +1,8 @@
 """Unit tests for PostIngestionQualityGate (SP29-2)."""
 
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from src.post_ingestion_quality import PostIngestionQualityGate, QualityGateError
 
@@ -27,7 +28,7 @@ def _proxy(value):
 class TestNullCapFigures:
     def test_passes_when_null_rate_below_threshold(self):
         db = _make_db()
-        db.execute.return_value = _proxy((5, 200))   # 2.5% null
+        db.execute.return_value = _proxy((5, 200))  # 2.5% null
         gate = _make_gate(db)
         result = gate.check_null_cap_figures()
         assert result.passed is True
@@ -86,7 +87,7 @@ class TestDuplicateContracts:
 class TestFreshness:
     def test_passes_when_recent(self):
         db = _make_db()
-        db.execute.return_value = _proxy((2,))   # 2 hours old
+        db.execute.return_value = _proxy((2,))  # 2 hours old
         gate = _make_gate(db)
         result = gate.check_freshness()
         assert result.passed is True
@@ -107,6 +108,7 @@ class TestRunAll:
 
         # Simulate check_null_cap_figures returning a blocking failure
         from src.post_ingestion_quality import QualityResult
+
         bad_result = QualityResult(
             check_name="null_cap_figures",
             passed=False,
@@ -122,7 +124,14 @@ class TestRunAll:
         from src.post_ingestion_quality import QualityResult as QR
 
         def ok(name):
-            return QR(check_name=name, passed=True, blocking=True, metric=0.0, threshold=0.0, message="ok")
+            return QR(
+                check_name=name,
+                passed=True,
+                blocking=True,
+                metric=0.0,
+                threshold=0.0,
+                message="ok",
+            )
 
         gate.check_outlier_cap_figures = lambda: ok("outlier_cap_figures")
         gate.check_team_completeness = lambda: ok("team_completeness")
@@ -138,7 +147,14 @@ class TestRunAll:
 
         from src.post_ingestion_quality import QualityResult as QR
 
-        bad = QR(check_name="x", passed=False, blocking=True, metric=1.0, threshold=0.0, message="fail")
+        bad = QR(
+            check_name="x",
+            passed=False,
+            blocking=True,
+            metric=1.0,
+            threshold=0.0,
+            message="fail",
+        )
 
         gate.check_null_cap_figures = lambda: bad
         gate.check_outlier_cap_figures = lambda: bad

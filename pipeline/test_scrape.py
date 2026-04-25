@@ -1,7 +1,9 @@
 import sys
 from pathlib import Path
+
 sys.path.append(str(Path(__file__).parent.parent))
 from src.spotrac_scraper_v2 import SpotracScraper
+
 
 def main():
     try:
@@ -14,6 +16,7 @@ def main():
                 print("FAILED: Dataframe is empty.")
     except Exception as e:
         print(f"ERROR: {e}")
+
 
 if __name__ == "__main__":
     main()

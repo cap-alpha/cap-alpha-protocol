@@ -343,7 +343,9 @@ def get_pundit_accuracy_summary(
             )
 
         # Fallback: full JOIN scan
-        sport_filter_base = f"WHERE COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
+        sport_filter_base = (
+            f"WHERE COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
+        )
         query = f"""
             SELECT
                 l.pundit_id,

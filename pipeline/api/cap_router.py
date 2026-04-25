@@ -81,7 +81,9 @@ def require_api_key(
         df = db.fetch_df(query)
     except Exception as exc:
         logger.error(f"API key lookup failed: {exc}")
-        raise HTTPException(status_code=500, detail="Key validation service unavailable")
+        raise HTTPException(
+            status_code=500, detail="Key validation service unavailable"
+        )
 
     if df.empty:
         raise HTTPException(status_code=401, detail="Invalid API key")
@@ -104,7 +106,9 @@ def require_api_key(
 
 @router.get("/players", summary="Paginated cap roster across all NFL teams")
 def list_players(
-    team: Optional[str] = Query(default=None, description="Filter by team abbreviation"),
+    team: Optional[str] = Query(
+        default=None, description="Filter by team abbreviation"
+    ),
     position: Optional[str] = Query(default=None, description="Filter by position"),
     risk_tier: Optional[str] = Query(
         default=None,

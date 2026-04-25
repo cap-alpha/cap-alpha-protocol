@@ -34,9 +34,9 @@ from src.db_manager import DBManager
 logger = logging.getLogger(__name__)
 
 NFL_TEAM_COUNT = 32
-OUTLIER_STDDEV_THRESHOLD = 4.0   # cap values > mean + 4σ are flagged
-MAX_NULL_CAP_RATE = 0.15          # >15% null cap_hit_millions = failure
-MAX_FRESHNESS_HOURS = 48          # silver data must be < 48 h old
+OUTLIER_STDDEV_THRESHOLD = 4.0  # cap values > mean + 4σ are flagged
+MAX_NULL_CAP_RATE = 0.15  # >15% null cap_hit_millions = failure
+MAX_FRESHNESS_HOURS = 48  # silver data must be < 48 h old
 
 
 @dataclass
@@ -52,6 +52,7 @@ class QualityResult:
 
 class QualityGateError(RuntimeError):
     """Raised when a blocking quality check fails."""
+
     def __init__(self, results: List[QualityResult]):
         failed = [r for r in results if not r.passed and r.blocking]
         msgs = "; ".join(r.message for r in failed)
@@ -120,7 +121,9 @@ class PostIngestionQualityGate:
                     logger.info(f"[QA] PASS  {result.check_name}: {result.message}")
                 else:
                     log_fn = logger.error if result.blocking else logger.warning
-                    log_fn(f"[QA] {'FAIL' if result.blocking else 'WARN'}  {result.check_name}: {result.message}")
+                    log_fn(
+                        f"[QA] {'FAIL' if result.blocking else 'WARN'}  {result.check_name}: {result.message}"
+                    )
                     if result.detail:
                         logger.debug(f"[QA] Detail: {result.detail}")
             except Exception as e:
@@ -211,7 +214,7 @@ class PostIngestionQualityGate:
         outlier_rate = outlier_count / total if total > 0 else 0.0
 
         # Non-blocking: outliers are suspicious but not necessarily wrong (elite players)
-        passed = outlier_count <= max(5, total * 0.01)   # allow up to 1% or 5 players
+        passed = outlier_count <= max(5, total * 0.01)  # allow up to 1% or 5 players
         return QualityResult(
             check_name="outlier_cap_figures",
             passed=passed,

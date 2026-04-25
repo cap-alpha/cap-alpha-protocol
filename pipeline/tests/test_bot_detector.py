@@ -1,16 +1,17 @@
 """Unit tests for BotDetector (SP23-1, GH-#83)."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
-from datetime import datetime, timezone, timedelta
 
 from src.bot_detector import (
-    BotDetector,
-    BotDetectionResult,
-    NGRAM_SOFT_THRESHOLD,
-    NGRAM_HARD_THRESHOLD,
     DUPLICATE_SENTENCE_SOFT,
-    SOURCE_BURST_SOFT,
+    NGRAM_HARD_THRESHOLD,
+    NGRAM_SOFT_THRESHOLD,
     SOURCE_BURST_HARD,
+    SOURCE_BURST_SOFT,
+    BotDetectionResult,
+    BotDetector,
 )
 
 
@@ -78,8 +79,12 @@ class TestNgramSimilarity:
 
     def test_high_overlap_triggers_suspicious(self):
         # Two articles sharing ~60% of 2-grams
-        base = "Patrick Mahomes led the Chiefs to victory with multiple touchdowns scored"
-        variant = base + " during a close game against the Raiders in overtime final minute"
+        base = (
+            "Patrick Mahomes led the Chiefs to victory with multiple touchdowns scored"
+        )
+        variant = (
+            base + " during a close game against the Raiders in overtime final minute"
+        )
         det = BotDetector()
         det.assess(base, source_id="src_a", published_at=_ts())
         result = det.assess(variant, source_id="src_b", published_at=_ts(1))
@@ -144,8 +149,12 @@ class TestSourceBurst:
             "Teams were busy shipping players across the league. "
         )
         for i in range(SOURCE_BURST_SOFT + 1):
-            unique_suffix = f" Article number {i} with unique content padding for dedup."
-            det.assess(base_text + unique_suffix, source_id="spam_source", published_at=_ts(i))
+            unique_suffix = (
+                f" Article number {i} with unique content padding for dedup."
+            )
+            det.assess(
+                base_text + unique_suffix, source_id="spam_source", published_at=_ts(i)
+            )
         result = det.assess(
             base_text + " Final completely unique article here.",
             source_id="spam_source",
@@ -160,7 +169,11 @@ class TestSourceBurst:
         for i in range(SOURCE_BURST_HARD + 1):
             det.assess(base + str(i) * 20, source_id="flood_src", published_at=_ts(i))
         # Must exceed MIN_TEXT_LENGTH (80); "final extra words" pushes it over
-        result = det.assess(base + "final extra words added", source_id="flood_src", published_at=_ts(SOURCE_BURST_HARD + 2))
+        result = det.assess(
+            base + "final extra words added",
+            source_id="flood_src",
+            published_at=_ts(SOURCE_BURST_HARD + 2),
+        )
         burst_signals = [s for s in result.signals if s.name == "source_burst"]
         assert burst_signals
         assert burst_signals[0].severity == "hard"

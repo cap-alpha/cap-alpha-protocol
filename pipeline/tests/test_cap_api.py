@@ -11,8 +11,8 @@ import pytest
 from fastapi.testclient import TestClient
 
 with patch("src.db_manager.DBManager._initialize_connection"):
-    from api.main import app
     from api.cap_router import get_db, require_api_key
+    from api.main import app
 
 VALID_KEY_META = {"owner": "acme_corp", "tier": "standard", "daily_limit": 1000}
 
@@ -217,7 +217,5 @@ class TestApiKeyAuth:
             [{"owner": "x", "tier": "free", "is_active": False, "daily_limit": 100}]
         )
         key_hash = hashlib.sha256(b"testkey").hexdigest()
-        resp = client_no_key.get(
-            "/v1/cap/players", headers={"X-API-Key": "testkey"}
-        )
+        resp = client_no_key.get("/v1/cap/players", headers={"X-API-Key": "testkey"})
         assert resp.status_code == 403

@@ -5,13 +5,16 @@ Data quality checks for player rankings snapshots.
 - Assert cap_value >= 0
 - Log summary statistics
 """
+
 import sys
 import logging
 from pathlib import Path
 from datetime import datetime
 import pandas as pd
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 log = logging.getLogger(__name__)
 
 
@@ -44,23 +47,25 @@ def validate_current_year(year: int = None, data_dir: Path = None) -> bool:
     log.info(f"✓ Row count: {len(df)} ≥ 1500")
 
     # Check cap_value is numeric and non-negative
-    if 'CapValue' not in df.columns:
+    if "CapValue" not in df.columns:
         log.error("❌ FAIL: CapValue column missing")
         return False
 
     try:
-        df['CapValue'] = pd.to_numeric(df['CapValue'], errors='coerce')
+        df["CapValue"] = pd.to_numeric(df["CapValue"], errors="coerce")
     except Exception as e:
         log.error(f"❌ FAIL: Cannot convert CapValue to numeric: {e}")
         return False
 
-    nulls = df['CapValue'].isna().sum()
+    nulls = df["CapValue"].isna().sum()
     if nulls > len(df) * 0.1:  # >10% nulls
-        log.error(f"❌ FAIL: {nulls} null values in CapValue (>{len(df)*0.1:.0f} allowed)")
+        log.error(
+            f"❌ FAIL: {nulls} null values in CapValue (>{len(df)*0.1:.0f} allowed)"
+        )
         return False
     log.info(f"✓ CapValue nulls: {nulls} (<{len(df)*0.1:.0f})")
 
-    neg = (df['CapValue'] < 0).sum()
+    neg = (df["CapValue"] < 0).sum()
     if neg > 0:
         log.warning(f"⚠️  {neg} negative cap values (expected 0)")
     log.info(f"✓ Negative values: {neg}")
@@ -74,7 +79,7 @@ def validate_current_year(year: int = None, data_dir: Path = None) -> bool:
     log.info(f"   Teams: {df['Team'].nunique()}")
 
     # Team distribution
-    team_counts = df['Team'].value_counts()
+    team_counts = df["Team"].value_counts()
     log.info(f"\n🏈 Top 5 Teams by Player Count")
     for team, count in team_counts.head().items():
         log.info(f"   {team}: {count}")
@@ -83,11 +88,12 @@ def validate_current_year(year: int = None, data_dir: Path = None) -> bool:
     return True
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
+
     ap = argparse.ArgumentParser()
-    ap.add_argument('--year', type=int, default=None)
-    ap.add_argument('--data-dir', type=str, default="data/raw")
+    ap.add_argument("--year", type=int, default=None)
+    ap.add_argument("--data-dir", type=str, default="data/raw")
     args = ap.parse_args()
 
     success = validate_current_year(year=args.year, data_dir=Path(args.data_dir))

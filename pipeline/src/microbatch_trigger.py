@@ -97,7 +97,9 @@ class MicrobatchTrigger:
             Adds a `_content_hash` column with the computed hash.
         """
         if current_df is None or current_df.empty:
-            logger.info(f"[{self.namespace}] detect_changes: empty input, nothing to do.")
+            logger.info(
+                f"[{self.namespace}] detect_changes: empty input, nothing to do."
+            )
             return pd.DataFrame()
 
         # Compute content hash for each row
@@ -180,9 +182,7 @@ class MicrobatchTrigger:
     # ------------------------------------------------------------------
 
     def _hash_row(self, row: pd.Series, hash_cols: List[str]) -> str:
-        canonical = "|".join(
-            str(row.get(c, "")) for c in sorted(hash_cols)
-        )
+        canonical = "|".join(str(row.get(c, "")) for c in sorted(hash_cols))
         return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     def _ensure_hash_table(self) -> None:
@@ -207,13 +207,11 @@ class MicrobatchTrigger:
     def _load_known_hashes(self) -> pd.DataFrame:
         """Returns all known hashes for this namespace."""
         try:
-            return self.db.fetch_df(
-                f"""
+            return self.db.fetch_df(f"""
                 SELECT entity_key, content_hash
                 FROM `{self.db.project_id}.{self.db.dataset_id}.{_HASH_TABLE}`
                 WHERE entity_namespace = '{self.namespace}'
-                """
-            )
+                """)
         except Exception as e:
             logger.warning(f"[{self.namespace}] Could not load known hashes: {e}")
             return pd.DataFrame(columns=["entity_key", "content_hash"])

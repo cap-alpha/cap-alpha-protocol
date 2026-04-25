@@ -1,7 +1,12 @@
 from src.db_manager import DBManager
+
 con = DBManager()
 try:
-    print(con.execute("SELECT year, team, predicted_risk_score FROM prediction_results WHERE player_name ILIKE '%Kelce%' ORDER BY year DESC").fetchall())
+    print(
+        con.execute(
+            "SELECT year, team, predicted_risk_score FROM prediction_results WHERE player_name ILIKE '%Kelce%' ORDER BY year DESC"
+        ).fetchall()
+    )
 except Exception as e:
     print("prediction_results not found:", e)
 

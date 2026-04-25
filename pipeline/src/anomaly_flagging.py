@@ -46,10 +46,10 @@ RAW_MEDIA_TABLE = "nfl_dead_money.raw_pundit_media"
 FLAGS_TABLE = "gold_layer.sentiment_anomaly_flags"
 
 LOOKBACK_DAYS = 30
-SPIKE_THRESHOLD_SOFT = 2.5   # z-score: SUSPICIOUS
-SPIKE_THRESHOLD_HARD = 4.0   # z-score: ANOMALY (quarantine)
-MIN_BASELINE_DAYS = 7        # need at least N days of history to compare
-MIN_DAILY_VOLUME = 2         # ignore players with < 2 mentions/day baseline
+SPIKE_THRESHOLD_SOFT = 2.5  # z-score: SUSPICIOUS
+SPIKE_THRESHOLD_HARD = 4.0  # z-score: ANOMALY (quarantine)
+MIN_BASELINE_DAYS = 7  # need at least N days of history to compare
+MIN_DAILY_VOLUME = 2  # ignore players with < 2 mentions/day baseline
 
 
 @dataclass
@@ -130,7 +130,9 @@ class AnomalyFlagEngine:
         for player_name, player_df in df.groupby("player_name"):
             # Separate today vs history
             player_df = player_df.copy()
-            player_df["mention_date"] = pd.to_datetime(player_df["mention_date"]).dt.date
+            player_df["mention_date"] = pd.to_datetime(
+                player_df["mention_date"]
+            ).dt.date
 
             today_rows = player_df[player_df["mention_date"] == today_date]
             history_rows = player_df[player_df["mention_date"] < today_date]
@@ -239,7 +241,9 @@ class AnomalyFlagEngine:
         return {
             "flagged_players": len(anomalies),
             "anomaly_count": sum(1 for a in anomalies if a.flag_type == "ANOMALY"),
-            "suspicious_count": sum(1 for a in anomalies if a.flag_type == "SUSPICIOUS"),
+            "suspicious_count": sum(
+                1 for a in anomalies if a.flag_type == "SUSPICIOUS"
+            ),
             "rows_written": written,
         }
 

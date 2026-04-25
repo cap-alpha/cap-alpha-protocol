@@ -44,12 +44,12 @@ RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
 REPUTATION_TABLE = "gold_layer.source_reputation"
 
 # Reputation thresholds
-MIN_RESOLVED_PREDICTIONS = 10       # below this → unverified, full weight
-UNVERIFIED_WEIGHT = 1.0             # new/unverified sources start at full weight
-HIGH_ACCURACY_THRESHOLD = 0.60     # >= this → no penalty
-LOW_ACCURACY_THRESHOLD = 0.35      # < this → heavy penalty
-SUPPRESS_THRESHOLD = 0.20          # < this → fully suppressed (weight = 0.0)
-PENALTY_WEIGHT = 0.25              # weight for low-accuracy sources
+MIN_RESOLVED_PREDICTIONS = 10  # below this → unverified, full weight
+UNVERIFIED_WEIGHT = 1.0  # new/unverified sources start at full weight
+HIGH_ACCURACY_THRESHOLD = 0.60  # >= this → no penalty
+LOW_ACCURACY_THRESHOLD = 0.35  # < this → heavy penalty
+SUPPRESS_THRESHOLD = 0.20  # < this → fully suppressed (weight = 0.0)
+PENALTY_WEIGHT = 0.25  # weight for low-accuracy sources
 
 
 def _compute_weight(accuracy_rate: Optional[float], resolved_count: int) -> float:

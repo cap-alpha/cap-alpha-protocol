@@ -38,7 +38,7 @@ REQUIRED_COLUMNS: Dict[str, list] = {
         "effective_start_date",  # becomes valid_from after migration 015 rename
         "is_current",
         "source_name",
-        "system_ingest_time",    # becomes system_ingest_ts after migration 015 rename
+        "system_ingest_time",  # becomes system_ingest_ts after migration 015 rename
     ],
     "silver_player_metadata": [
         "player_id",
@@ -123,9 +123,7 @@ def validate_not_null_constraints(
     is_valid = len(violations) == 0
     if not is_valid:
         summary = "; ".join(v["message"] for v in violations)
-        logger.error(
-            f"NOT NULL constraint violation(s) for '{table_name}': {summary}"
-        )
+        logger.error(f"NOT NULL constraint violation(s) for '{table_name}': {summary}")
         if raise_on_violation:
             raise ValueError(
                 f"NOT NULL constraints violated for '{table_name}'. "

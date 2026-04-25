@@ -22,27 +22,30 @@ logger = logging.getLogger(__name__)
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Scrape Spotrac player salaries')
-    parser.add_argument('--year', type=int, required=True, help='NFL season year')
-    parser.add_argument('--output-dir', type=str, default='data/raw', help='Output directory')
-    
+
+    parser = argparse.ArgumentParser(description="Scrape Spotrac player salaries")
+    parser.add_argument("--year", type=int, required=True, help="NFL season year")
+    parser.add_argument(
+        "--output-dir", type=str, default="data/raw", help="Output directory"
+    )
+
     args = parser.parse_args()
-    
+
     logger.info(f"Scraping player salaries for {args.year}...")
-    
+
     try:
         filepath = scrape_and_save_player_salaries(
-            year=args.year,
-            output_dir=args.output_dir
+            year=args.year, output_dir=args.output_dir
         )
         logger.info(f"✅ SUCCESS: Saved to {filepath}")
         return 0
     except Exception as e:
         logger.error(f"❌ FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         return 1
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

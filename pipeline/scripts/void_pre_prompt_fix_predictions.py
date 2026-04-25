@@ -78,9 +78,7 @@ def void_existing_predictions(dry_run: bool = False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Void pre-prompt-fix predictions"
-    )
+    parser = argparse.ArgumentParser(description="Void pre-prompt-fix predictions")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     void_existing_predictions(dry_run=args.dry_run)

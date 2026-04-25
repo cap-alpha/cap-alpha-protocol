@@ -177,9 +177,11 @@ def pundit_predictions(
     before: Optional[str] = Query(
         default=None,
         description="Keyset cursor: ISO-8601 ingestion_timestamp of the last row seen. "
-                    "Omit for the first page. Pass the `next_cursor` from the previous response.",
+        "Omit for the first page. Pass the `next_cursor` from the previous response.",
     ),
-    status: Optional[str] = Query(default=None, description="Filter by resolution_status"),
+    status: Optional[str] = Query(
+        default=None, description="Filter by resolution_status"
+    ),
     db: DBManager = Depends(get_db),
 ) -> Dict[str, Any]:
     """
@@ -190,9 +192,15 @@ def pundit_predictions(
     next page; `next_cursor` is null when there are no more results.
     """
     try:
-        status_filter = f"AND COALESCE(r.resolution_status, 'PENDING') = '{status}'" if status else ""
+        status_filter = (
+            f"AND COALESCE(r.resolution_status, 'PENDING') = '{status}'"
+            if status
+            else ""
+        )
         # Keyset: return rows with ingestion_timestamp strictly before the cursor
-        cursor_filter = f"AND l.ingestion_timestamp < TIMESTAMP('{before}')" if before else ""
+        cursor_filter = (
+            f"AND l.ingestion_timestamp < TIMESTAMP('{before}')" if before else ""
+        )
 
         query = f"""
             SELECT

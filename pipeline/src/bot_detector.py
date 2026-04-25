@@ -169,9 +169,9 @@ class BotDetector:
         self._max_window = max_window_articles
 
         # Deque of (published_at, ngram_set, sentence_hash_set)
-        self._article_window: Deque[
-            Tuple[datetime, Set[str], Set[str]]
-        ] = deque(maxlen=max_window_articles)
+        self._article_window: Deque[Tuple[datetime, Set[str], Set[str]]] = deque(
+            maxlen=max_window_articles
+        )
 
         # source_id → deque of published_at timestamps
         self._source_timestamps: Dict[str, Deque[datetime]] = {}
@@ -275,9 +275,9 @@ class BotDetector:
                         name="duplicate_sentences",
                         value=round(dup_ratio, 3),
                         threshold=DUPLICATE_SENTENCE_SOFT,
-                        severity="hard"
-                        if dup_ratio >= DUPLICATE_SENTENCE_HARD
-                        else "soft",
+                        severity=(
+                            "hard" if dup_ratio >= DUPLICATE_SENTENCE_HARD else "soft"
+                        ),
                     )
                 )
         else:

@@ -1,8 +1,9 @@
 """Unit tests for AssetPrecomputer (SP24-3, GH-#88)."""
 
-import pytest
 from unittest.mock import MagicMock, call, patch
+
 import pandas as pd
+import pytest
 
 from src.asset_precompute import AssetPrecomputer, run_precompute
 

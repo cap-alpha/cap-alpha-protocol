@@ -73,7 +73,9 @@ class IncrementalGoldRefresh:
         dict with keys: build_type, rows_affected, changed_keys (list of tuples)
         """
         if full_refresh:
-            logger.info("IncrementalGoldRefresh: Running FULL refresh of fact_player_efficiency.")
+            logger.info(
+                "IncrementalGoldRefresh: Running FULL refresh of fact_player_efficiency."
+            )
             self._full_rebuild()
             count = self._count_mart()
             self._upsert_watermark("full", count)
@@ -88,7 +90,9 @@ class IncrementalGoldRefresh:
         changed_keys = self._find_changed_keys(since=watermark)
 
         if not changed_keys:
-            logger.info("IncrementalGoldRefresh: No Silver changes detected. Skipping Gold rebuild.")
+            logger.info(
+                "IncrementalGoldRefresh: No Silver changes detected. Skipping Gold rebuild."
+            )
             return {"build_type": "incremental", "rows_affected": 0, "changed_keys": []}
 
         logger.info(
@@ -155,16 +159,12 @@ class IncrementalGoldRefresh:
             logger.warning(f"_find_changed_keys failed: {e}")
             return []
 
-    def _rebuild_keys(
-        self, changed_keys: List[Tuple[str, int, str]]
-    ) -> int:
+    def _rebuild_keys(self, changed_keys: List[Tuple[str, int, str]]) -> int:
         """
         Deletes Gold rows for the changed keys and re-inserts from Silver.
         Uses a temporary staging table to avoid row-by-row round-trips.
         """
-        keys_df = pd.DataFrame(
-            changed_keys, columns=["player_name", "year", "team"]
-        )
+        keys_df = pd.DataFrame(changed_keys, columns=["player_name", "year", "team"])
 
         # Write keys to a temp staging table for use in DELETE + INSERT
         stg_keys = "gold_refresh_keys_stg"
@@ -338,14 +338,12 @@ class IncrementalGoldRefresh:
             self.db.execute(insert_sql)
 
             # Count rows inserted (approximation via changed keys × avg weeks)
-            rows_check = self.db.execute(
-                f"""
+            rows_check = self.db.execute(f"""
                 SELECT COUNT(*) FROM `{full_mart}` T
                 JOIN `{full_stg}` S
                   ON LOWER(TRIM(T.player_name)) = LOWER(TRIM(S.player_name))
                  AND T.year = S.year AND T.team = S.team
-                """
-            ).fetchone()
+                """).fetchone()
             rows_affected = int(rows_check[0]) if rows_check else len(changed_keys)
 
         finally:
@@ -362,6 +360,7 @@ class IncrementalGoldRefresh:
         sys.path.insert(0, str(Path(__file__).parent.parent.parent / "scripts"))
         try:
             from medallion_pipeline import GoldLayer
+
             gold = GoldLayer(self.db)
             gold.build_fact_player_efficiency()
         except Exception as e:

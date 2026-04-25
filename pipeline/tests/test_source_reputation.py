@@ -1,20 +1,21 @@
 """Unit tests for SourceReputationEngine (SP23-2, GH-#84)."""
 
-import pytest
 from unittest.mock import MagicMock, patch
+
 import pandas as pd
+import pytest
 
 from src.source_reputation import (
-    SourceReputationEngine,
-    _compute_weight,
-    extract_domain,
-    compute_and_persist,
-    UNVERIFIED_WEIGHT,
     HIGH_ACCURACY_THRESHOLD,
     LOW_ACCURACY_THRESHOLD,
-    SUPPRESS_THRESHOLD,
-    PENALTY_WEIGHT,
     MIN_RESOLVED_PREDICTIONS,
+    PENALTY_WEIGHT,
+    SUPPRESS_THRESHOLD,
+    UNVERIFIED_WEIGHT,
+    SourceReputationEngine,
+    _compute_weight,
+    compute_and_persist,
+    extract_domain,
 )
 
 
@@ -23,7 +24,10 @@ def _make_db(domain_weights=None):
     db.project_id = "test-project"
     if domain_weights is not None:
         df = pd.DataFrame(
-            [{"source_domain": d, "reputation_weight": w} for d, w in domain_weights.items()]
+            [
+                {"source_domain": d, "reputation_weight": w}
+                for d, w in domain_weights.items()
+            ]
         )
         db.fetch_df.return_value = df
     else:
@@ -46,7 +50,9 @@ class TestComputeWeight:
         assert weight == UNVERIFIED_WEIGHT
 
     def test_high_accuracy_gets_max_weight(self):
-        weight = _compute_weight(accuracy_rate=HIGH_ACCURACY_THRESHOLD, resolved_count=50)
+        weight = _compute_weight(
+            accuracy_rate=HIGH_ACCURACY_THRESHOLD, resolved_count=50
+        )
         assert weight == 1.0
 
     def test_above_high_threshold_gets_max_weight(self):
@@ -54,7 +60,9 @@ class TestComputeWeight:
         assert weight == 1.0
 
     def test_below_suppress_threshold_gets_zero(self):
-        weight = _compute_weight(accuracy_rate=SUPPRESS_THRESHOLD - 0.01, resolved_count=50)
+        weight = _compute_weight(
+            accuracy_rate=SUPPRESS_THRESHOLD - 0.01, resolved_count=50
+        )
         assert weight == 0.0
 
     def test_low_accuracy_gets_penalty_weight(self):
@@ -80,10 +88,15 @@ class TestExtractDomain:
         assert extract_domain("https://www.espn.com/nfl/story") == "espn.com"
 
     def test_strips_www(self):
-        assert extract_domain("http://www.profootballtalk.com/foo") == "profootballtalk.com"
+        assert (
+            extract_domain("http://www.profootballtalk.com/foo")
+            == "profootballtalk.com"
+        )
 
     def test_no_www(self):
-        assert extract_domain("https://theathletic.com/article/123") == "theathletic.com"
+        assert (
+            extract_domain("https://theathletic.com/article/123") == "theathletic.com"
+        )
 
     def test_empty_string(self):
         assert extract_domain("") == ""

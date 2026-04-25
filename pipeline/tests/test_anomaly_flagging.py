@@ -1,18 +1,19 @@
 """Unit tests for AnomalyFlagEngine (SP23-3, GH-#85)."""
 
-import pytest
+from datetime import date, datetime, timedelta, timezone
 from unittest.mock import MagicMock, call
-from datetime import datetime, date, timezone, timedelta
+
 import pandas as pd
+import pytest
 
 from src.anomaly_flagging import (
+    MIN_BASELINE_DAYS,
+    MIN_DAILY_VOLUME,
+    SPIKE_THRESHOLD_HARD,
+    SPIKE_THRESHOLD_SOFT,
     AnomalyFlagEngine,
     PlayerAnomaly,
     run_anomaly_detection,
-    SPIKE_THRESHOLD_SOFT,
-    SPIKE_THRESHOLD_HARD,
-    MIN_BASELINE_DAYS,
-    MIN_DAILY_VOLUME,
 )
 
 
@@ -22,13 +23,17 @@ def _make_db():
     return db
 
 
-def _make_daily_df(player: str, today: date, baseline_counts: list, today_count: int) -> pd.DataFrame:
+def _make_daily_df(
+    player: str, today: date, baseline_counts: list, today_count: int
+) -> pd.DataFrame:
     """Build a daily_count DataFrame with history + today row."""
     rows = []
     for i, count in enumerate(baseline_counts):
         d = today - timedelta(days=len(baseline_counts) - i)
         rows.append({"player_name": player, "mention_date": d, "daily_count": count})
-    rows.append({"player_name": player, "mention_date": today, "daily_count": today_count})
+    rows.append(
+        {"player_name": player, "mention_date": today, "daily_count": today_count}
+    )
     return pd.DataFrame(rows)
 
 

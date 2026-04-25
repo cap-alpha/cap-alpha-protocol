@@ -1,9 +1,10 @@
 """Unit tests for IncrementalGoldRefresh (SP18.5-3)."""
 
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, call, patch
+
 import pandas as pd
 import pytest
-from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, call
 
 
 def _make_db(watermark_ts=None, changed_keys=None, mart_count=100):
@@ -18,9 +19,7 @@ def _make_db(watermark_ts=None, changed_keys=None, mart_count=100):
     if changed_keys is None:
         changed_df = pd.DataFrame(columns=["player_name", "year", "team"])
     else:
-        changed_df = pd.DataFrame(
-            changed_keys, columns=["player_name", "year", "team"]
-        )
+        changed_df = pd.DataFrame(changed_keys, columns=["player_name", "year", "team"])
 
     # Count query
     count_row = (mart_count,)
@@ -45,6 +44,7 @@ def _make_db(watermark_ts=None, changed_keys=None, mart_count=100):
 class TestIncrementalGoldRefresh:
     def _make_trigger(self, db):
         from src.incremental_gold import IncrementalGoldRefresh
+
         # Patch _ensure_watermark_table to avoid DDL calls
         with patch.object(IncrementalGoldRefresh, "_ensure_watermark_table"):
             trigger = IncrementalGoldRefresh(db)
@@ -70,8 +70,9 @@ class TestIncrementalGoldRefresh:
         )
         trigger = self._make_trigger(db)
 
-        with patch.object(trigger, "_rebuild_keys", return_value=42) as mock_rebuild, \
-             patch.object(trigger, "_upsert_watermark") as mock_wm:
+        with patch.object(
+            trigger, "_rebuild_keys", return_value=42
+        ) as mock_rebuild, patch.object(trigger, "_upsert_watermark") as mock_wm:
             result = trigger.refresh()
 
         mock_rebuild.assert_called_once_with(changed)
@@ -84,9 +85,9 @@ class TestIncrementalGoldRefresh:
         db = _make_db()
         trigger = self._make_trigger(db)
 
-        with patch.object(trigger, "_full_rebuild") as mock_full, \
-             patch.object(trigger, "_count_mart", return_value=999) as mock_count, \
-             patch.object(trigger, "_upsert_watermark") as mock_wm:
+        with patch.object(trigger, "_full_rebuild") as mock_full, patch.object(
+            trigger, "_count_mart", return_value=999
+        ) as mock_count, patch.object(trigger, "_upsert_watermark") as mock_wm:
             result = trigger.refresh(full_refresh=True)
 
         mock_full.assert_called_once()

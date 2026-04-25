@@ -8,8 +8,9 @@ from src.data_validation import validate_not_null_constraints
 
 def _base_contracts_df():
     """Minimal valid silver_spotrac_contracts DataFrame."""
-    import pandas as pd
     from datetime import datetime, timezone
+
+    import pandas as pd
 
     now = datetime.now(timezone.utc)
     return pd.DataFrame(

@@ -74,7 +74,10 @@ class TestFixturesFile:
         for item in data:
             assert "id" in item
             assert "label" in item, f"Missing 'label' in {item.get('id')}"
-            assert item["label"] in ("GOOD", "BAD"), f"Invalid label in {item.get('id')}"
+            assert item["label"] in (
+                "GOOD",
+                "BAD",
+            ), f"Invalid label in {item.get('id')}"
             assert "text" in item
 
     def test_balanced_labels(self):
@@ -153,8 +156,14 @@ class TestExtractAssertionsWithMock:
 
     def test_deduplication_within_article(self):
         preds = [
-            {"extracted_claim": "Mahomes will throw for 4000 yards this season", "season_year": 2027},
-            {"extracted_claim": "Mahomes will throw 4000 yards in 2026-27", "season_year": 2027},  # near-dup
+            {
+                "extracted_claim": "Mahomes will throw for 4000 yards this season",
+                "season_year": 2027,
+            },
+            {
+                "extracted_claim": "Mahomes will throw 4000 yards in 2026-27",
+                "season_year": 2027,
+            },  # near-dup
             {"extracted_claim": "Chiefs will win the AFC West", "season_year": 2027},
         ]
         provider = _make_provider(preds)
@@ -191,7 +200,9 @@ class TestEvalHarnessMetrics:
         case.label = label
         extraction = ExtractionResult(
             content_hash="x",
-            predictions=[{"extracted_claim": f"claim_{i}"} for i in range(num_extracted)],
+            predictions=[
+                {"extracted_claim": f"claim_{i}"} for i in range(num_extracted)
+            ],
         )
 
         class _R:
@@ -218,7 +229,9 @@ class TestEvalHarnessMetrics:
 
             @property
             def is_true_negative(self):
-                return not self.predicted_has_prediction and not self.actual_has_prediction
+                return (
+                    not self.predicted_has_prediction and not self.actual_has_prediction
+                )
 
             @property
             def is_false_negative(self):
@@ -250,8 +263,8 @@ class TestEvalHarnessMetrics:
 
         results = [
             self._make_result("GOOD", 1),  # TP
-            self._make_result("BAD", 0),   # TN
-            self._make_result("BAD", 1),   # FP
+            self._make_result("BAD", 0),  # TN
+            self._make_result("BAD", 1),  # FP
             self._make_result("GOOD", 0),  # FN
         ]
         m = compute_metrics(results)

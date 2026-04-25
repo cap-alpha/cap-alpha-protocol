@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 # Column contracts — what we expect to be NOT NULL in each table
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class ColumnContract:
     dataset: str
@@ -63,15 +64,28 @@ CORE_CONTRACTS: list[ColumnContract] = [
     ColumnContract(
         dataset="nfl_dead_money",
         table="raw_pundit_media",
-        columns=["content_hash", "source_id", "source_url", "ingested_at",
-                 "content_type", "fetch_source_type"],
+        columns=[
+            "content_hash",
+            "source_id",
+            "source_url",
+            "ingested_at",
+            "content_type",
+            "fetch_source_type",
+        ],
         description="Bronze media ingestion",
     ),
     ColumnContract(
         dataset="gold_layer",
         table="prediction_ledger",
-        columns=["prediction_hash", "chain_hash", "ingestion_timestamp",
-                 "source_url", "pundit_id", "pundit_name", "raw_assertion_text"],
+        columns=[
+            "prediction_hash",
+            "chain_hash",
+            "ingestion_timestamp",
+            "source_url",
+            "pundit_id",
+            "pundit_name",
+            "raw_assertion_text",
+        ],
         description="Gold prediction ledger",
     ),
     ColumnContract(
@@ -86,6 +100,7 @@ CORE_CONTRACTS: list[ColumnContract] = [
 # ---------------------------------------------------------------------------
 # Validation results
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class NullViolation:
@@ -124,8 +139,7 @@ class ValidationReport:
             )
             for v in self.null_violations:
                 logger.error(
-                    f"  {v.dataset}.{v.table}.{v.column}: "
-                    f"{v.null_count} NULL rows"
+                    f"  {v.dataset}.{v.table}.{v.column}: " f"{v.null_count} NULL rows"
                 )
 
         if self.constraint_violations:
@@ -134,14 +148,13 @@ class ValidationReport:
                 f"constraints (migration 009 not yet applied):"
             )
             for v in self.constraint_violations:
-                logger.warning(
-                    f"  {v.dataset}.{v.table}.{v.column} is NULLABLE"
-                )
+                logger.warning(f"  {v.dataset}.{v.table}.{v.column} is NULLABLE")
 
 
 # ---------------------------------------------------------------------------
 # Validation logic
 # ---------------------------------------------------------------------------
+
 
 def _table_exists(db: DBManager, project_id: str, dataset: str, table: str) -> bool:
     """Returns True if the table exists in BigQuery."""
@@ -240,9 +253,7 @@ def run_pre_check(db: DBManager, project_id: str) -> ValidationReport:
             f"Checking NULLs: {contract.dataset}.{contract.table} "
             f"({contract.description})"
         )
-        report.null_violations.extend(
-            check_null_violations(db, contract, project_id)
-        )
+        report.null_violations.extend(check_null_violations(db, contract, project_id))
     return report
 
 
@@ -264,9 +275,7 @@ def run_full(db: DBManager, project_id: str) -> ValidationReport:
     """Combined pre + post check."""
     report = ValidationReport()
     for contract in CORE_CONTRACTS:
-        report.null_violations.extend(
-            check_null_violations(db, contract, project_id)
-        )
+        report.null_violations.extend(check_null_violations(db, contract, project_id))
         report.constraint_violations.extend(
             check_constraint_violations(db, contract, project_id)
         )

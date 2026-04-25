@@ -2,23 +2,23 @@
 Unit tests for schema_validator.py (Issue #106)
 """
 
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
 import pytest
-from unittest.mock import MagicMock, patch
 
 from src.schema_validator import (
     ColumnContract,
     ConstraintViolation,
     NullViolation,
     ValidationReport,
+    _table_exists,
     check_constraint_violations,
     check_null_violations,
     run_full,
     run_post_check,
     run_pre_check,
-    _table_exists,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -186,17 +186,13 @@ class TestValidationReport:
 
     def test_failed_when_null_violations(self):
         report = ValidationReport(
-            null_violations=[
-                NullViolation("ds", "tbl", "col", 1)
-            ]
+            null_violations=[NullViolation("ds", "tbl", "col", 1)]
         )
         assert report.passed is False
 
     def test_failed_when_constraint_violations(self):
         report = ValidationReport(
-            constraint_violations=[
-                ConstraintViolation("ds", "tbl", "col", "YES")
-            ]
+            constraint_violations=[ConstraintViolation("ds", "tbl", "col", "YES")]
         )
         assert report.passed is False
 
@@ -206,6 +202,7 @@ class TestValidationReport:
 
     def test_print_violations_logs_errors(self, caplog):
         import logging
+
         report = ValidationReport(
             null_violations=[NullViolation("ds", "tbl", "PlayerID", 5)]
         )
@@ -231,16 +228,35 @@ class TestRunChecks:
             if "INFORMATION_SCHEMA.COLUMNS" in query:
                 return pd.DataFrame({"column_name": [], "is_nullable": []})
             # null check — return all-zero row dynamically
-            return pd.DataFrame({col: [0] for col in ["PlayerID", "Name", "Team",
-                                                        "player_name", "team", "position",
-                                                        "year", "content_hash", "source_id",
-                                                        "source_url", "ingested_at",
-                                                        "content_type", "fetch_source_type",
-                                                        "prediction_hash", "chain_hash",
-                                                        "ingestion_timestamp", "pundit_id",
-                                                        "pundit_name", "raw_assertion_text",
-                                                        "resolution_status", "created_at",
-                                                        "updated_at"]})
+            return pd.DataFrame(
+                {
+                    col: [0]
+                    for col in [
+                        "PlayerID",
+                        "Name",
+                        "Team",
+                        "player_name",
+                        "team",
+                        "position",
+                        "year",
+                        "content_hash",
+                        "source_id",
+                        "source_url",
+                        "ingested_at",
+                        "content_type",
+                        "fetch_source_type",
+                        "prediction_hash",
+                        "chain_hash",
+                        "ingestion_timestamp",
+                        "pundit_id",
+                        "pundit_name",
+                        "raw_assertion_text",
+                        "resolution_status",
+                        "created_at",
+                        "updated_at",
+                    ]
+                }
+            )
 
         db.fetch_df.side_effect = fetch_side_effect
         return db
@@ -270,26 +286,61 @@ class TestRunChecks:
                 return pd.DataFrame({"cnt": [1]})
             # First null check: inject a violation
             if call_count[0] == 2:
-                return pd.DataFrame({"player_name": [0], "team": [3], "position": [0],
-                                      "PlayerID": [0], "Name": [0], "Team": [0],
-                                      "year": [0], "content_hash": [0], "source_id": [0],
-                                      "source_url": [0], "ingested_at": [0],
-                                      "content_type": [0], "fetch_source_type": [0],
-                                      "prediction_hash": [0], "chain_hash": [0],
-                                      "ingestion_timestamp": [0], "pundit_id": [0],
-                                      "pundit_name": [0], "raw_assertion_text": [0],
-                                      "resolution_status": [0], "created_at": [0],
-                                      "updated_at": [0]})
-            return pd.DataFrame({col: [0] for col in ["PlayerID", "Name", "Team",
-                                                        "player_name", "team", "position",
-                                                        "year", "content_hash", "source_id",
-                                                        "source_url", "ingested_at",
-                                                        "content_type", "fetch_source_type",
-                                                        "prediction_hash", "chain_hash",
-                                                        "ingestion_timestamp", "pundit_id",
-                                                        "pundit_name", "raw_assertion_text",
-                                                        "resolution_status", "created_at",
-                                                        "updated_at"]})
+                return pd.DataFrame(
+                    {
+                        "player_name": [0],
+                        "team": [3],
+                        "position": [0],
+                        "PlayerID": [0],
+                        "Name": [0],
+                        "Team": [0],
+                        "year": [0],
+                        "content_hash": [0],
+                        "source_id": [0],
+                        "source_url": [0],
+                        "ingested_at": [0],
+                        "content_type": [0],
+                        "fetch_source_type": [0],
+                        "prediction_hash": [0],
+                        "chain_hash": [0],
+                        "ingestion_timestamp": [0],
+                        "pundit_id": [0],
+                        "pundit_name": [0],
+                        "raw_assertion_text": [0],
+                        "resolution_status": [0],
+                        "created_at": [0],
+                        "updated_at": [0],
+                    }
+                )
+            return pd.DataFrame(
+                {
+                    col: [0]
+                    for col in [
+                        "PlayerID",
+                        "Name",
+                        "Team",
+                        "player_name",
+                        "team",
+                        "position",
+                        "year",
+                        "content_hash",
+                        "source_id",
+                        "source_url",
+                        "ingested_at",
+                        "content_type",
+                        "fetch_source_type",
+                        "prediction_hash",
+                        "chain_hash",
+                        "ingestion_timestamp",
+                        "pundit_id",
+                        "pundit_name",
+                        "raw_assertion_text",
+                        "resolution_status",
+                        "created_at",
+                        "updated_at",
+                    ]
+                }
+            )
 
         db.fetch_df.side_effect = fetch_side_effect
         report = run_pre_check(db, "project")

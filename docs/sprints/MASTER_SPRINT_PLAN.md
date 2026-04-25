@@ -91,7 +91,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 - [ ] SP11-1: Establish a strict "No Mock" policy for the React Frontend UI. Ensure 100% data integrity with the M2 API layer. (GH-#25)
 
 ### Sprint 16: Player Visual Timeline Experience 
-- [ ] SP16-1: Build a single unified chronological view of all events affecting a player's market value in the UI. (GH-#49)
+- [x] SP16-1: Build a single unified chronological view of all events affecting a player's market value in the UI. (GH-#49)
 
 ### Sprint 21: Front Page Strategic Redesign & Identity
 - [ ] SP21-1: Complete user flow and concept set for the front page, establishing the product identity ("Bloomberg Terminal" for Sports). (GH-#74)

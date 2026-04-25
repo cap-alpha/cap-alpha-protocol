@@ -1,11 +1,17 @@
 import React from 'react';
 import { TimelineEvent } from "@/app/actions";
-import { ShieldAlert, Newspaper, FileSignature, TrendingDown } from "lucide-react";
+import { CheckCircle2, FileSignature, MessageSquareQuote, XCircle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface VisualTimelineProps {
     timeline: TimelineEvent[];
 }
+
+const EVENT_META: Record<string, { label: string; color: string; Icon: React.ElementType }> = {
+    CONTRACT:   { label: 'Cap Catalyst',        color: 'text-sky-400',     Icon: FileSignature },
+    PREDICTION: { label: 'Pundit Prediction',   color: 'text-amber-400',   Icon: MessageSquareQuote },
+    RESOLUTION: { label: 'Prediction Resolved', color: 'text-emerald-400', Icon: CheckCircle2 },
+};
 
 export function VisualTimeline({ timeline }: VisualTimelineProps) {
     if (!timeline || timeline.length === 0) return null;
@@ -17,46 +23,35 @@ export function VisualTimeline({ timeline }: VisualTimelineProps) {
             </h3>
             <ScrollArea className="h-[600px] w-full pr-4">
                 <div className="relative border-l border-zinc-800 ml-2 space-y-6 py-2">
-                    {timeline.map((event, idx) => (
-                        <div key={idx} className="relative pl-6">
-                            {/* Minimalism node point (No heavy colored rings or scaling animations) */}
-                            <div className="absolute top-1 left-[-4.5px] w-2 h-2 rounded-full bg-zinc-600 ring-4 ring-zinc-950" />
-                            
-                            {/* High-density textual presentation */}
-                            <div className="flex flex-col gap-0.5 mt-[-2px]">
-                                <span className="text-xs font-mono text-zinc-500">
-                                    {event.year} 
-                                    {event.week ? <span className="text-zinc-600"> W{event.week}</span> : ''}
-                                </span>
-                                
-                                <span className={`text-sm ${event.event_type === 'ML_ALERT' ? 'text-rose-400 font-semibold' : 'text-zinc-300'}`}>
-                                    {event.description}
-                                </span>
-
-                                {/* Contextual mini-tags */}
-                                {event.event_type === 'CONTRACT' && (
-                                    <span className="text-[10px] text-zinc-500 mt-1 uppercase tracking-wide flex items-center gap-1">
-                                        <FileSignature className="w-3 h-3"/> Cap Catalyst
+                    {timeline.map((event, idx) => {
+                        const meta = EVENT_META[event.event_type] ?? { label: event.event_type, color: 'text-zinc-400', Icon: XCircle };
+                        const { Icon } = meta;
+                        return (
+                            <div key={idx} className="relative pl-6">
+                                <div className="absolute top-1 left-[-4.5px] w-2 h-2 rounded-full bg-zinc-600 ring-4 ring-zinc-950" />
+                                <div className="flex flex-col gap-0.5 mt-[-2px]">
+                                    <span className="text-xs font-mono text-zinc-500">
+                                        {event.event_date ?? event.event_year}
                                     </span>
-                                )}
-                                {event.event_type === 'ML_ALERT' && (
-                                    <span className="text-[10px] text-rose-500 mt-1 uppercase tracking-wide flex items-center gap-1 opacity-80">
-                                        <ShieldAlert className="w-3 h-3"/> Risk Alert
+                                    <span className="text-sm font-medium text-zinc-200">
+                                        {event.title}
                                     </span>
-                                )}
-                                {event.event_type === 'MEDIA_CONSENSUS' && (
-                                    <span className="text-[10px] text-zinc-500 mt-1 uppercase tracking-wide flex items-center gap-1">
-                                        <Newspaper className="w-3 h-3"/> Media Shift
+                                    <span className="text-xs text-zinc-400 line-clamp-3">
+                                        {event.description}
                                     </span>
-                                )}
-                                {event.event_type === 'PERFORMANCE_DROP' && (
-                                    <span className="text-[10px] text-zinc-500 mt-1 uppercase tracking-wide flex items-center gap-1">
-                                        <TrendingDown className="w-3 h-3"/> Production Drop
+                                    <span className={`text-[10px] ${meta.color} mt-1 uppercase tracking-wide flex items-center gap-1`}>
+                                        <Icon className="w-3 h-3" /> {meta.label}
+                                        {event.source_url && (
+                                            <a href={event.source_url} target="_blank" rel="noopener noreferrer"
+                                               className="ml-2 text-zinc-500 hover:text-zinc-300 normal-case tracking-normal">
+                                                source →
+                                            </a>
+                                        )}
                                     </span>
-                                )}
+                                </div>
                             </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
             </ScrollArea>
         </div>

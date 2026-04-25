@@ -121,6 +121,6 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 
 ### Sprint 32: Extraction Quality & Eval Harness
 - [x] SP32-1: Eval harness + re-extraction batch to 50+ quality predictions (≥70% precision). (GH-#190)
-- [/] SP32-2: Team-batching pre-processor — group articles by team for efficient extraction. (GH-#181) (Claimed by Agent)
-- [ ] SP32-3: End-to-end local RAG pipeline integration + benchmarking vs Gemini baseline. (GH-#182)
+- [x] SP32-2: Team-batching pre-processor — group articles by team for efficient extraction. (GH-#181)
+- [/] SP32-3: End-to-end local RAG pipeline integration + benchmarking vs Gemini baseline. (GH-#182) (Claimed by Agent)
 - [x] SP32-4: Modernize tooling — ruff, pyproject.toml, enterprise-grade CI. (GH-#192)

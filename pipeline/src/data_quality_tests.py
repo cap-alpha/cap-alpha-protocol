@@ -2,17 +2,297 @@
 Data quality tests for NFL compensation dataset.
 
 Validates completeness, consistency, and integrity of scraped data.
+
+Post-ingestion quality checks (SP29-2 / GH-#107):
+  - `run_post_ingestion_checks(df, table_name)` — call after every BigQuery write
+  - Detects standard-deviation outliers in numeric cap/financial columns
+  - Alerts on missing or zero cap figures in contract tables
+  - Returns a `QualityReport`; raises `DataQualityAlert` on CRITICAL violations
+  - All checks are unit-testable without BigQuery
 """
 
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# SP29-2: Post-Ingestion Quality Checks
+# =============================================================================
+
+# Numeric columns to check for statistical outliers (per table).
+# Value is the std-dev multiplier threshold — rows > mean + N*std are flagged.
+STDDEV_OUTLIER_CONFIGS: Dict[str, Dict[str, float]] = {
+    "silver_spotrac_contracts": {
+        "cap_hit_millions": 3.0,
+        "dead_cap_millions": 3.0,
+        "signing_bonus_millions": 3.0,
+        "guaranteed_money_millions": 3.0,
+        "total_contract_value_millions": 3.0,
+    },
+    "silver_spotrac_salaries": {
+        "cap_hit_millions": 3.0,
+    },
+    "silver_spotrac_rankings": {
+        "ranking_cap_hit_millions": 3.0,
+    },
+    "fact_player_efficiency": {
+        "cap_hit_millions": 3.0,
+        "dead_cap_millions": 3.0,
+        "signing_bonus_millions": 3.0,
+        "guaranteed_money_millions": 3.0,
+        "games_played": 3.0,
+        "availability_rating": 3.0,
+    },
+}
+
+# Tables where cap_hit_millions must be > 0 (zero = data pipeline gap).
+# NULL is already covered by NOT_NULL_CONTRACTS (SP29-1); this catches zero/negative.
+CAP_FIGURE_CHECKS: Dict[str, List[str]] = {
+    "silver_spotrac_contracts": ["cap_hit_millions"],
+    "silver_spotrac_salaries": ["cap_hit_millions"],
+    "fact_player_efficiency": ["cap_hit_millions"],
+}
+
+# Minimum proportion of rows that must have a positive cap figure (0–1).
+CAP_FIGURE_MIN_COVERAGE = 0.90
+
+
+@dataclass
+class QualityViolation:
+    """A single data quality rule violation."""
+
+    check: str
+    column: str
+    severity: str  # "CRITICAL" | "WARNING"
+    details: str
+
+
+@dataclass
+class QualityReport:
+    """Aggregated quality check results for one DataFrame write."""
+
+    table_name: str
+    row_count: int
+    passed: bool
+    violations: List[QualityViolation] = field(default_factory=list)
+
+    def __bool__(self) -> bool:
+        return self.passed
+
+    def summary(self) -> str:
+        if self.passed:
+            return f"[OK] {self.table_name} ({self.row_count} rows) — all checks passed"
+        critical = [v for v in self.violations if v.severity == "CRITICAL"]
+        warnings = [v for v in self.violations if v.severity == "WARNING"]
+        parts = [f"[FAIL] {self.table_name} ({self.row_count} rows)"]
+        if critical:
+            parts.append(f"{len(critical)} critical violation(s)")
+        if warnings:
+            parts.append(f"{len(warnings)} warning(s)")
+        return " — ".join(parts)
+
+
+class DataQualityAlert(ValueError):
+    """Raised when a CRITICAL post-ingestion quality violation is detected."""
+
+
+def check_stddev_outliers(
+    df: pd.DataFrame,
+    table_name: str,
+    num_std: Optional[float] = None,
+) -> List[QualityViolation]:
+    """
+    Scan numeric columns defined in STDDEV_OUTLIER_CONFIGS for statistical outliers.
+
+    Uses the IQR (interquartile range) method which is robust to the masking effect
+    where a single extreme outlier inflates both the mean and std, causing the value
+    to appear within ±N σ of the shifted distribution.
+
+    Outlier bounds: [Q1 - multiplier*IQR,  Q3 + multiplier*IQR]
+    Typical multiplier is 3.0 (more lenient than the classic Tukey 1.5 fence).
+
+    Only raises WARNING (not CRITICAL) — outliers may be legitimate superstar contracts.
+    Columns not present in df are silently skipped.
+
+    Args:
+        df: DataFrame freshly written to BigQuery.
+        table_name: BigQuery table (used to look up which columns to check).
+        num_std: Override the IQR multiplier from STDDEV_OUTLIER_CONFIGS.
+
+    Returns:
+        List of QualityViolation (all WARNING severity).
+    """
+    violations: List[QualityViolation] = []
+    col_configs = STDDEV_OUTLIER_CONFIGS.get(table_name, {})
+    if not col_configs or df.empty:
+        return violations
+
+    for col, default_multiplier in col_configs.items():
+        if col not in df.columns:
+            continue
+        series = pd.to_numeric(df[col], errors="coerce").dropna()
+        if len(series) < 5:
+            # Too few rows to compute meaningful statistics
+            continue
+
+        multiplier = num_std if num_std is not None else default_multiplier
+        q1 = series.quantile(0.25)
+        q3 = series.quantile(0.75)
+        iqr = q3 - q1
+        if iqr == 0:
+            continue
+
+        upper = q3 + multiplier * iqr
+        lower = q1 - multiplier * iqr
+        outlier_mask = (series > upper) | (series < lower)
+        outlier_count = int(outlier_mask.sum())
+
+        if outlier_count > 0:
+            sample = series[outlier_mask].round(2).head(3).tolist()
+            violations.append(
+                QualityViolation(
+                    check="stddev_outlier",
+                    column=col,
+                    severity="WARNING",
+                    details=(
+                        f"{outlier_count} outlier row(s) in '{col}' "
+                        f"(Q1={q1:.2f}, Q3={q3:.2f}, IQR={iqr:.2f}, "
+                        f"fence=Q3+{multiplier}×IQR={upper:.2f}). "
+                        f"Sample values: {sample}"
+                    ),
+                )
+            )
+
+    return violations
+
+
+def check_missing_cap_figures(
+    df: pd.DataFrame,
+    table_name: str,
+) -> List[QualityViolation]:
+    """
+    Verify that cap_hit_millions (and other cap columns) have sufficient positive coverage.
+
+    A large proportion of zero/null cap figures indicates a data pipeline gap — e.g. the
+    join to the contracts table failed silently.  Coverage below CAP_FIGURE_MIN_COVERAGE
+    is CRITICAL; non-positive individual rows are WARNING.
+
+    Args:
+        df: DataFrame freshly written to BigQuery.
+        table_name: BigQuery table (used to look up which columns to check).
+
+    Returns:
+        List of QualityViolation.
+    """
+    violations: List[QualityViolation] = []
+    cols_to_check = CAP_FIGURE_CHECKS.get(table_name, [])
+    if not cols_to_check or df.empty:
+        return violations
+
+    for col in cols_to_check:
+        if col not in df.columns:
+            violations.append(
+                QualityViolation(
+                    check="missing_cap_figure",
+                    column=col,
+                    severity="CRITICAL",
+                    details=(
+                        f"Required cap column '{col}' is missing entirely from DataFrame "
+                        f"for table '{table_name}'. Pipeline join likely failed."
+                    ),
+                )
+            )
+            continue
+
+        series = pd.to_numeric(df[col], errors="coerce")
+        total = len(series)
+        positive_count = int((series > 0).sum())
+        coverage = positive_count / total if total > 0 else 0.0
+
+        if coverage < CAP_FIGURE_MIN_COVERAGE:
+            zero_or_null = total - positive_count
+            severity = "CRITICAL" if coverage < 0.5 else "WARNING"
+            violations.append(
+                QualityViolation(
+                    check="missing_cap_figure",
+                    column=col,
+                    severity=severity,
+                    details=(
+                        f"{zero_or_null}/{total} rows ({(1 - coverage):.1%}) have zero "
+                        f"or null '{col}' in '{table_name}'. "
+                        f"Expected ≥{CAP_FIGURE_MIN_COVERAGE:.0%} positive coverage."
+                    ),
+                )
+            )
+
+    return violations
+
+
+def run_post_ingestion_checks(
+    df: pd.DataFrame,
+    table_name: str,
+    raise_on_critical: bool = True,
+) -> QualityReport:
+    """
+    Run all post-ingestion data quality checks on a freshly written DataFrame.
+
+    Call this immediately after writing `df` to BigQuery to catch data pipeline
+    regressions before they propagate to the Gold layer or user-facing APIs.
+
+    Args:
+        df: The DataFrame that was written to BigQuery.
+        table_name: The destination BigQuery table name (short form, no dataset prefix).
+        raise_on_critical: If True (default), raises DataQualityAlert on any CRITICAL
+            violation. Set False to collect all results without raising.
+
+    Returns:
+        QualityReport with all violations.  `report.passed` is True iff no CRITICAL
+        violations were found.
+
+    Raises:
+        DataQualityAlert: If raise_on_critical=True and any CRITICAL violation exists.
+    """
+    all_violations: List[QualityViolation] = []
+
+    all_violations.extend(check_stddev_outliers(df, table_name))
+    all_violations.extend(check_missing_cap_figures(df, table_name))
+
+    critical = [v for v in all_violations if v.severity == "CRITICAL"]
+    passed = len(critical) == 0
+
+    report = QualityReport(
+        table_name=table_name,
+        row_count=len(df),
+        passed=passed,
+        violations=all_violations,
+    )
+
+    # Always log the summary
+    if passed:
+        logger.info(report.summary())
+    else:
+        logger.error(report.summary())
+
+    # Log individual violations
+    for v in all_violations:
+        log_fn = logger.error if v.severity == "CRITICAL" else logger.warning
+        log_fn(f"  [{v.severity}] {v.check} / {v.column}: {v.details}")
+
+    if not passed and raise_on_critical:
+        critical_msgs = "; ".join(v.details for v in critical)
+        raise DataQualityAlert(
+            f"Post-ingestion quality check FAILED for '{table_name}': {critical_msgs}"
+        )
+
+    return report
 
 
 class DataQualityTester:

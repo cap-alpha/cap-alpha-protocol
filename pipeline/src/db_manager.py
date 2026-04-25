@@ -158,9 +158,30 @@ class DBManager:
             raise
 
     def append_dataframe_to_table(self, df: pd.DataFrame, table_name: str):
-        """Appends a Pandas DataFrame directly to a BigQuery table."""
+        """Appends a Pandas DataFrame directly to a BigQuery table.
+
+        Runs post-ingestion quality checks (SP29-2) before writing.  CRITICAL
+        violations abort the write and raise DataQualityAlert; WARNINGs are
+        logged but do not block the write.
+        """
         if self.client is None:
             raise RuntimeError("Database connection not initialized.")
+
+        # --- Post-ingestion quality gate (SP29-2) ---
+        try:
+            from src.data_quality_tests import run_post_ingestion_checks
+
+            run_post_ingestion_checks(df, table_name, raise_on_critical=True)
+        except Exception as quality_exc:
+            # Re-raise DataQualityAlert directly; swallow import/unexpected errors
+            # so that a misconfigured quality module never silently blocks all writes
+            from src.data_quality_tests import DataQualityAlert
+
+            if isinstance(quality_exc, DataQualityAlert):
+                raise
+            logger.warning(
+                f"Quality check module error for '{table_name}' (non-blocking): {quality_exc}"
+            )
 
         try:
             logger.info(f"DBManager: Appending dataframe to '{table_name}'...")

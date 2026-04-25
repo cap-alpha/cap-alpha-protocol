@@ -57,7 +57,6 @@ def main():
     # Show final row counts
     print()
     print("📊 Final table row counts:")
-    import duckdb
     con = DBManager()
     tables = con.execute("SHOW TABLES").fetchall()
     for (table,) in tables:

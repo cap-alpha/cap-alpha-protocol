@@ -76,7 +76,7 @@ This document contains the canonical Sprint Plan for the NFL Dead Money project,
 ### Sprint 20: Sub-Second Latency & Backend Performance
 **Goal:** Ensure backend data is served immediately, ready to be cached by edge consumers or UI platforms.
 - [x] SP20-1: (Claimed by Agent) Architect backend caching layers leveraging Redis or Edge logic to prevent BigQuery cost-overruns on read-heavy routes. (GH-#70)
-- [ ] SP20-2: Optimize BigQuery/MotherDuck query execution paths (e.g., materialized views) for complex models and aggregations before they hit the API. (GH-#71)
+- [x] SP20-2: Optimize BigQuery/MotherDuck query execution paths (e.g., materialized views) for complex models and aggregations before they hit the API. (GH-#71) — migration 017 pundit_leaderboard_mv (60-min refresh); get_pundit_accuracy_summary() reads MV with base-JOIN fallback; pundit_predictions endpoint converted to keyset pagination (cursor-based, O(1)).
 
 ### Sprint 24: Cloud Expenditure & Compute Optimization
 **Goal:** Offload all heavy stat calculations to the pipeline architecture, protecting the API layer.

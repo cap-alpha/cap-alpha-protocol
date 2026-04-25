@@ -173,27 +173,26 @@ def pundit_detail(
 @router.get("/pundits/{pundit_id}/predictions", summary="Pundit prediction history")
 def pundit_predictions(
     pundit_id: str,
-    page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
-    status: Optional[str] = Query(
-        default=None, description="Filter by resolution_status"
+    before: Optional[str] = Query(
+        default=None,
+        description="Keyset cursor: ISO-8601 ingestion_timestamp of the last row seen. "
+                    "Omit for the first page. Pass the `next_cursor` from the previous response.",
     ),
+    status: Optional[str] = Query(default=None, description="Filter by resolution_status"),
     db: DBManager = Depends(get_db),
 ) -> Dict[str, Any]:
     """
-    Paginated prediction history for a pundit with resolution status.
+    Keyset-paginated prediction history for a pundit.
+
+    Uses `before` (ingestion_timestamp cursor) instead of OFFSET for O(1) pagination
+    regardless of dataset size.  Pass `response.next_cursor` as `before` to get the
+    next page; `next_cursor` is null when there are no more results.
     """
     try:
-        offset = (page - 1) * page_size
-        status_clause = ""
-        params: List[ScalarQueryParameter] = [
-            ScalarQueryParameter("pundit_id", "STRING", pundit_id),
-            ScalarQueryParameter("lim", "INT64", page_size),
-            ScalarQueryParameter("off", "INT64", offset),
-        ]
-        if status:
-            status_clause = "AND COALESCE(r.resolution_status, 'PENDING') = @status"
-            params.append(ScalarQueryParameter("status", "STRING", status))
+        status_filter = f"AND COALESCE(r.resolution_status, 'PENDING') = '{status}'" if status else ""
+        # Keyset: return rows with ingestion_timestamp strictly before the cursor
+        cursor_filter = f"AND l.ingestion_timestamp < TIMESTAMP('{before}')" if before else ""
 
         query = f"""
             SELECT
@@ -213,33 +212,29 @@ def pundit_predictions(
                 r.weighted_score,
                 r.outcome_notes
             FROM {_full(LEDGER_TABLE)} l
-            LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
-                ON l.prediction_hash = r.prediction_hash
-            WHERE l.pundit_id = @pundit_id
-            {status_clause}
+            LEFT JOIN {_full(RESOLUTIONS_TABLE)} r ON l.prediction_hash = r.prediction_hash
+            WHERE l.pundit_id = '{pundit_id}'
+            {status_filter}
+            {cursor_filter}
             ORDER BY l.ingestion_timestamp DESC
-            LIMIT @lim OFFSET @off
+            LIMIT {page_size + 1}
         """
-        df = _parameterized_query(db, query, params)
+        df = db.fetch_df(query)
 
-        count_query = f"""
-            SELECT COUNT(*) AS total
-            FROM {_full(LEDGER_TABLE)} l
-            LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
-                ON l.prediction_hash = r.prediction_hash
-            WHERE l.pundit_id = @pundit_id
-            {status_clause}
-        """
-        count_df = _parameterized_query(db, count_query, params)
-        total = int(count_df.iloc[0]["total"]) if not count_df.empty else 0
+        # Determine next cursor: if we got page_size+1 rows, there is another page
+        has_more = len(df) > page_size
+        rows = df.head(page_size)
+        next_cursor = None
+        if has_more and not rows.empty:
+            last_ts = rows.iloc[-1]["ingestion_timestamp"]
+            next_cursor = str(last_ts) if last_ts is not None else None
 
         return {
             "pundit_id": pundit_id,
-            "predictions": df.where(df.notna(), None).to_dict(orient="records"),
-            "page": page,
+            "predictions": rows.where(rows.notna(), None).to_dict(orient="records"),
             "page_size": page_size,
-            "total": total,
-            "pages": max(1, math.ceil(total / page_size)),
+            "has_more": has_more,
+            "next_cursor": next_cursor,
         }
     except Exception as e:
         logger.error(f"Pundit predictions error for {pundit_id}: {e}")

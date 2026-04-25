@@ -314,7 +314,36 @@ def get_pundit_accuracy_summary(
 
     try:
         project_id = os.environ.get("GCP_PROJECT_ID")
-        sport_filter = f"WHERE COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
+        mv_table = f"`{project_id}.gold_layer.pundit_leaderboard_mv`"
+
+        # Prefer the pre-aggregated materialized view (migration 017) for sub-second latency.
+        # Fall back to the base JOIN query if the view does not exist yet.
+        sport_filter = f"WHERE sport = '{sport}'" if sport else ""
+        mv_query = f"""
+            SELECT
+                pundit_id,
+                pundit_name,
+                sport,
+                total_predictions,
+                resolved_count,
+                correct_count,
+                accuracy_rate,
+                avg_brier_score,
+                avg_weighted_score
+            FROM {mv_table}
+            {sport_filter}
+            ORDER BY avg_weighted_score DESC NULLS LAST
+        """
+        try:
+            return db.fetch_df(mv_query)
+        except Exception as mv_err:
+            logger.warning(
+                f"pundit_leaderboard_mv not available ({mv_err}); "
+                "falling back to base table JOIN query"
+            )
+
+        # Fallback: full JOIN scan
+        sport_filter_base = f"WHERE COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
         query = f"""
             SELECT
                 l.pundit_id,
@@ -332,7 +361,7 @@ def get_pundit_accuracy_summary(
             FROM `{project_id}.{LEDGER_TABLE}` l
             LEFT JOIN `{project_id}.{RESOLUTIONS_TABLE}` r
                 ON l.prediction_hash = r.prediction_hash
-            {sport_filter}
+            {sport_filter_base}
             GROUP BY l.pundit_id, l.pundit_name, sport
             ORDER BY avg_weighted_score DESC NULLS LAST
         """

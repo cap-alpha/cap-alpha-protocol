@@ -216,15 +216,13 @@ class TestPunditPredictions:
         assert resp.status_code == 200
 
     def test_pagination_fields_present(self, client, mock_db):
-        mock_db.client.query.side_effect = [
-            _mock_bq_job(make_predictions_df()),
-            _mock_bq_job(pd.DataFrame([{"total": 1}])),
+        mock_db.fetch_df.side_effect = [
+            make_predictions_df(),
         ]
         data = client.get("/v1/pundits/adam_schefter/predictions").json()
-        assert "page" in data
         assert "page_size" in data
-        assert "total" in data
-        assert "pages" in data
+        assert "has_more" in data
+        assert "next_cursor" in data
         assert "predictions" in data
 
     def test_status_filter_uses_parameterized_query(self, client, mock_db):

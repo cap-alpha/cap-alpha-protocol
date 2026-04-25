@@ -23,14 +23,30 @@ jobs:
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
         run: |
-          # Find the open PR for this branch
-          PR=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number -q '.[0].number' 2>/dev/null)
-          if [ -z "$PR" ]; then
+          # Prefer the PR number from the workflow_run payload, then fall back
+          # to branch lookup if the payload does not include it.
+          PR="$PR_NUMBER"
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
+            PR=$(gh pr list --repo "$REPO" --head "$BRANCH" --state open --json number -q '.[0].number' 2>/dev/null)
+          fi
+          if [ -z "$PR" ] || [ "$PR" = "null" ]; then
             echo "No open PR for branch $BRANCH — skipping"
             exit 0
           fi
 
+          CURRENT_PR_HEAD_SHA=$(gh pr view "$PR" --repo "$REPO" --json headRefOid \
+            --jq '.headRefOid' 2>/dev/null)
+          if [ -z "$CURRENT_PR_HEAD_SHA" ] || [ "$CURRENT_PR_HEAD_SHA" = "null" ]; then
+            echo "Could not determine current head SHA for PR #$PR — skipping"
+            exit 0
+          fi
+
+          if [ "$CURRENT_PR_HEAD_SHA" != "$HEAD_SHA" ]; then
+            echo "PR #$PR head SHA changed from $HEAD_SHA to $CURRENT_PR_HEAD_SHA — skipping outdated workflow run"
+            exit 0
+          fi
           echo "Evaluating PR #$PR on branch $BRANCH (sha $HEAD_SHA)"
 
           # All checks that must pass before we approve

@@ -1,15 +1,15 @@
 ---
-description: Safely claim and complete one issue using a shared orientation cache
+description: Safely claim and complete issues using a shared orientation cache — spawns parallel subagents
 ---
 
-# Multi-Agent Work Protocol (Minimal)
+# /go — Parallel Agent Orchestrator
 
-You are one of multiple agents working in parallel.
+You are invoked either as an **ORCHESTRATOR** (default, no issue pre-assigned) or as a
+**WORKER** (orchestrator passed you `ISSUE=<n>`).
 
-Your goal:
-- Complete exactly one unblocked issue
-- Avoid duplicate work
-- Follow repository conventions via a shared cache
+Detect your mode from the invocation context:
+- `ISSUE=<n>` present in this prompt → **WORKER MODE** — skip to STATE 4
+- No issue assigned → **ORCHESTRATOR MODE** — run states 1–3, then spawn workers
 
 If you cannot reliably perform any required step, EXIT safely.
 
@@ -22,19 +22,12 @@ Run autonomously. Do NOT prompt the user for permission on:
 - Opening/commenting on issues and PRs
 - Any command whose purpose is understanding the current state of the codebase or infrastructure
 
-Only pause for user input on items listed in CLAUDE.md "When to ask the user" (reward changes, schema changes, universe changes, billing, scope ambiguity).
+Only pause for user input on items listed in CLAUDE.md "When to ask the user" (reward changes,
+schema changes, universe changes, billing, scope ambiguity).
 
 ---
 
-# Core Flow
-
-1. LOAD_ORIENTATION
-2. PROCESS_FEEDBACK
-3. SELECT_ISSUE
-4. CLAIM
-5. VERIFY
-6. WORK
-7. COMPLETE
+# ORCHESTRATOR MODE (states 1–3 + spawn)
 
 ---
 
@@ -67,86 +60,120 @@ IF feedback affects conventions:
 
 ---
 
-# STATE 3: SELECT_ISSUE
+# STATE 3: SELECT_ISSUES + SPAWN WORKERS
 
-List open issues
+## 3a. Build shortlist
 
-Exclude:
-- do-not-touch labels
-- agent-feedback
-- blocked / dependency issues
-- issues with active claim (<2h)
+List open issues. For each, check:
+- No `do-not-touch`, `agent-feedback`, `icebox` labels
+- Not an umbrella/meta issue
+- No active claim comment within last 2 hours (contains "🤖" / "claim" / "intending", not "releasing")
 
-Prefer:
-- clear scope
-- small surface area
-- ready-to-work labels
+Rank by priority:
+1. `critical-path` bugs
+2. `backend` / `data` / `infrastructure` features with clear scope
+3. Everything else
 
-IF none:
-  EXIT
+Pick up to **3** candidates (more = diminishing returns, GitHub rate limits).
+
+## 3b. Spawn workers in parallel
+
+For each selected issue N, call the **Agent** tool with:
+- `isolation: "worktree"`
+- Prompt: the full text of this file, prepended with `ISSUE=<N>`
+
+Call all Agent tools simultaneously (parallel, not sequential).
+
+## 3c. Collect and report
+
+Wait for all subagents to finish. Print a summary table:
+
+```
+| Issue | Title (short) | Outcome | PR |
+|-------|--------------|---------|-----|
+| #N    | ...          | DONE / YIELDED / BLOCKED | #M |
+```
+
+## 3d. WORKFLOW REVIEW (mandatory)
+
+After the summary, review this run for friction, inefficiency, or gaps in the protocol.
+Output ONE of:
+
+- A bulleted list of concrete improvement suggestions (file to edit, what to change, why)
+- "No improvements needed this run."
+
+Do not skip this step.
+
+---
+
+# WORKER MODE (states 4–7, triggered with ISSUE=<N>)
+
+The orchestrator has pre-assigned you issue **N**. Your only job is to claim it, implement
+the fix, and open a PR. Do not scan for other issues.
 
 ---
 
 # STATE 4: CLAIM
 
-Check issue comments for active claim:
-- contains "🤖" or "claim" or "working"
+Check issue N's comments for an active claim:
+- contains "🤖" or "claim" or "working" or "intending"
 - within last 2 hours
-- not released
+- not followed by "releasing"
 
-IF exists:
-  return to SELECT_ISSUE
+IF active claim exists:
+  EXIT with "yielding — active claim already on #N"
 
-POST comment (with identity footer per agent-orientation.md):
-  "🤖 intending to work on this at <UTC timestamp>
+POST comment on issue N:
+```
+🤖 intending to work on this at <UTC timestamp>
 
-  — 🤖 `go`"
+— 🤖 `go`
+```
 
-WAIT ~2 minutes
+WAIT ~2 minutes (use sleep or background task; do not skip).
 
 ---
 
 # STATE 5: VERIFY
 
-Re-read comments
+Re-read issue N's comments.
 
-Extract all claims
-Sort by timestamp in comment body
+Extract all claim timestamps from comment bodies (ISO-8601 UTC strings).
+Sort ascending.
 
-IF your claim is earliest:
+IF your timestamp is earliest:
   proceed
 
 ELSE:
   POST "🤖 yielding to earlier claim"
-  return to SELECT_ISSUE
+  EXIT
 
 ---
 
 # CHECKPOINT (MANDATORY)
 
-Before work:
+Before any code changes:
 
-[ ] Claim posted
-[ ] Wait completed
-[ ] No earlier claim
-[ ] You are earliest
+[ ] Claim posted on issue N
+[ ] 2-minute wait completed
+[ ] Re-read comments
+[ ] Your timestamp is earliest
 
-IF any false:
-  STOP
+IF any false: STOP
 
 ---
 
 # STATE 6: WORK
 
-- Create branch per repo convention (or fallback: agent/issue-<id>)
+- Create worktree branch: `worktree-<type>-<N>-<slug>`
 - Implement solution
-- Follow all conventions from cache
-- Run all required checks
+- Follow all conventions from orientation cache and CLAUDE.md
+- Run `make check` (lint + unit tests) before committing
 
 DO NOT:
-- modify restricted paths
-- disable checks
-- perform destructive git actions
+- modify restricted/shared files without claiming them first
+- disable linting or test checks
+- perform destructive git actions (force-push, reset --hard)
 
 ---
 
@@ -155,51 +182,56 @@ DO NOT:
 Choose ONE:
 
 ## DONE
-- Open PR (use repo conventions)
-- Include closing keyword (e.g., Closes #id)
-- Comment with PR link
+- Push branch, open PR with `Closes #N` in body
+- Use `gh pr merge <number> --rebase --auto` to queue
+- Comment on issue N:
+  ```
+  🤖 PR #<M> opened and queued for merge: <url>
+
+  Changes:
+  - <bullet summary>
+
+  — 🤖 `go`
+  ```
 
 ## BLOCKED
-- Comment:
+- Comment on issue N explaining:
   - what failed
   - what you tried
-  - what is needed
-- Mark blocked if label exists
-- POST "🤖 releasing issue"
+  - what is needed to unblock
+- POST "🤖 releasing issue — blocked"
+- EXIT
 
 ## INVALID
-- Explain and close issue
-- POST "🤖 releasing issue"
+- Explain why and close the issue
+- POST "🤖 releasing issue — invalid"
+- EXIT
 
 ---
 
-# CACHE LOCK (for updates only)
+# CACHE LOCK (orientation updates only)
 
 Before editing `.claude/agent-orientation.md`:
 
-- Check for open "agent-orientation cache lock"
+- Check for open "agent-orientation cache lock" issue/comment
 - If recent (<30 min): do not proceed
-- If stale: take over
-- If none: create lock
-
-After update:
-- Close lock with PR reference
+- If stale or none: take the lock, update, release with PR reference
 
 ---
 
 # HARD RULES
 
-- One issue per run
-- Never override documented conventions
+- Orchestrator spawns workers; workers do not spawn more workers
+- Max 3 workers per orchestrator run
 - Never ignore active claims
 - Never force-push shared branches
-- Never modify default branch directly
-- When unsure: EXIT or file `agent-feedback`
+- Never push directly to main
+- When unsure: EXIT and file an `agent-feedback` issue
 
 ---
 
 # SUCCESS =
 
-- One issue claimed without conflict
-- Valid PR OR clear blocked report
+- Each worker: one issue claimed without conflict, valid PR OR clear blocked report
+- Orchestrator: summary table printed, workflow review completed
 - Clean repository state

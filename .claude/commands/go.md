@@ -197,7 +197,8 @@ gh pr list --state open --search "<type(scope)>" --json number,title,url
 ```
 
 Resolve as follows:
-- **Existing open PR on this branch** → push to it; do NOT create a new PR. Update the PR body if the scope changed.
+- **Existing open PR on this branch by you** → push to it; do NOT create a new PR. Update the PR body if the scope changed.
+- **Existing open PR on this branch by a different agent** → do NOT push to it; comment linking to it; EXIT.
 - **Open PR closing the same issue** → post a comment linking to it; do NOT create a new PR; EXIT.
 - **Merged/closed PR closing the same issue** → verify the issue is actually closed; if so, EXIT with "already done".
 - **No duplicate found** → proceed to create the PR.

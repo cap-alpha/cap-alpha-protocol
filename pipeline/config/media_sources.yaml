@@ -662,6 +662,136 @@ sources:
         name: "Skip Bayless"
         match_authors: ["Skip Bayless"]
 
+# ── Historical Archive Sources (Wayback Machine backfill 2020–2024) ────────
+# These are NOT fetched by the daily RSS ingestor. Use historical_archive_ingestor.py.
+# They're listed here for discovery / source_id consistency.
+  - id: bleacher_report_archive
+    name: "Bleacher Report NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""  # No live RSS — fetched via Wayback Machine by historical_archive_ingestor.py
+    enabled: false  # Disabled from daily run; used by historical_archive_ingestor only
+    default_pundit:
+      id: br_nfl_staff
+      name: "Bleacher Report NFL Staff"
+    pundits:
+      - id: br_nfl_staff
+        name: "Bleacher Report NFL Staff"
+        match_authors: ["Bleacher Report", "B/R"]
+
+  - id: cbs_nfl_archive
+    name: "CBS Sports NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: cbs_nfl_staff
+      name: "CBS Sports NFL Staff"
+    pundits:
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco", "Prisco"]
+      - id: cbs_nfl_staff
+        name: "CBS Sports NFL Staff"
+        match_authors: ["CBS Sports"]
+
+  - id: espn_nfl_archive
+    name: "ESPN NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: espn_nfl_staff
+      name: "ESPN NFL Staff"
+    pundits:
+      - id: adam_schefter
+        name: "Adam Schefter"
+        match_authors: ["Adam Schefter", "Schefter"]
+      - id: espn_nfl_staff
+        name: "ESPN NFL Staff"
+        match_authors: ["ESPN"]
+
+  - id: theringer_nfl_archive
+    name: "The Ringer NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: ringer_nfl_staff
+      name: "The Ringer NFL Staff"
+    pundits:
+      - id: kevin_clark
+        name: "Kevin Clark"
+        match_authors: ["Kevin Clark"]
+      - id: bill_simmons
+        name: "Bill Simmons"
+        match_authors: ["Bill Simmons"]
+      - id: ringer_nfl_staff
+        name: "The Ringer NFL Staff"
+        match_authors: ["The Ringer"]
+
+  - id: si_nfl_archive
+    name: "Sports Illustrated NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: si_nfl_staff
+      name: "SI NFL Staff"
+    pundits:
+      - id: albert_breer
+        name: "Albert Breer"
+        match_authors: ["Albert Breer"]
+      - id: si_nfl_staff
+        name: "SI NFL Staff"
+        match_authors: ["Sports Illustrated"]
+
+  - id: pft_nbc_archive
+    name: "ProFootballTalk Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: mike_florio
+      name: "Mike Florio"
+    pundits:
+      - id: mike_florio
+        name: "Mike Florio"
+        match_authors: ["Mike Florio", "Florio"]
+
+  - id: yahoo_nfl_archive
+    name: "Yahoo Sports NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: yahoo_nfl_staff
+      name: "Yahoo Sports NFL Staff"
+    pundits:
+      - id: yahoo_nfl_staff
+        name: "Yahoo Sports NFL Staff"
+        match_authors: ["Yahoo Sports"]
+
+  - id: pff_archive
+    name: "Pro Football Focus Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: pff_nfl_staff
+      name: "PFF NFL Staff"
+    pundits:
+      - id: pff_nfl_staff
+        name: "PFF NFL Staff"
+        match_authors: ["PFF", "Pro Football Focus"]
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

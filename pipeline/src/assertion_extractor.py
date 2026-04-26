@@ -8,20 +8,26 @@ Pipeline flow:
   raw_pundit_media (bronze) → LLM extraction → PunditPrediction → prediction_ledger (gold)
 
 Uses a pluggable LLM provider (Gemini, Claude, OpenAI, or Ollama local).
-Provider is selected via pipeline/config/llm_config.yaml.
+Provider is selected via pipeline/config/llm_config.yaml or overridden via:
+  - CLI flag: --provider gemini-flash
+  - Env var:  EXTRACTION_LLM=gemini-flash
 
-Usage (inside Docker):
-    python -m src.assertion_extractor                  # process all unprocessed
-    python -m src.assertion_extractor --limit 50       # process N items
-    python -m src.assertion_extractor --dry-run        # preview without writing
-    python -m src.assertion_extractor --provider ollama # override provider
+Usage:
+    python -m src.assertion_extractor                           # process all unprocessed
+    python -m src.assertion_extractor --limit 50               # process N items
+    python -m src.assertion_extractor --dry-run                # preview without writing
+    python -m src.assertion_extractor --provider ollama        # override provider
+    python -m src.assertion_extractor --provider gemini-flash  # high-speed burst mode
+        --batch-size 500 --allow-historical --max-tokens-budget 2000000
 """
 
 import argparse
+import asyncio
 import hashlib
 import json
 import logging
 import os
+import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -33,7 +39,9 @@ from google.api_core.exceptions import NotFound
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
 from src.llm_provider import (
+    AsyncGeminiProvider,
     LLMProvider,
+    TokenBudgetTracker,
     get_provider,
     get_provider_with_fallback,
     load_llm_config,
@@ -206,6 +214,11 @@ def extract_assertions(
     """
     Sends media text to the configured LLM for structured prediction extraction.
     Returns an ExtractionResult with parsed predictions.
+
+    Args:
+        allow_historical: If True, skip the temporal filter that rejects claims
+            about past seasons. Use for historical backfill runs where articles
+            are from prior years.
     """
     if provider is None:
         # Legacy fallback: create a Gemini provider for backward compatibility
@@ -247,21 +260,23 @@ def extract_assertions(
             # prediction_horizon_days is required to enforce forward-looking assertions.
             # Reject missing, non-numeric, or non-positive values so retroactive recaps
             # cannot pass through when providers omit the field.
-            phd = p.get("prediction_horizon_days")
-            if phd is None or not isinstance(phd, (int, float)):
-                logger.info(
-                    "Temporal filter: rejected claim with missing/invalid "
-                    f"prediction_horizon_days ({phd!r}): "
-                    f"{p.get('extracted_claim', '')[:60]}"
-                )
-                continue
-            if phd <= 0:
-                logger.info(
-                    f"Temporal filter: rejected retroactive recap "
-                    f"(prediction_horizon_days={phd}): "
-                    f"{p.get('extracted_claim', '')[:60]}"
-                )
-                continue
+            # Bypassed with allow_historical=True for backfill of completed seasons.
+            if not allow_historical:
+                phd = p.get("prediction_horizon_days")
+                if phd is None or not isinstance(phd, (int, float)):
+                    logger.info(
+                        "Temporal filter: rejected claim with missing/invalid "
+                        f"prediction_horizon_days ({phd!r}): "
+                        f"{p.get('extracted_claim', '')[:60]}"
+                    )
+                    continue
+                if phd <= 0:
+                    logger.info(
+                        f"Temporal filter: rejected retroactive recap "
+                        f"(prediction_horizon_days={phd}): "
+                        f"{p.get('extracted_claim', '')[:60]}"
+                    )
+                    continue
             filtered.append(p)
         deduped = _deduplicate_claims(filtered)
         return ExtractionResult(
@@ -274,6 +289,24 @@ def extract_assertions(
             predictions=[],
             error=str(e),
         )
+
+
+def _build_prompt(row: "pd.Series", sport: str = "NFL") -> str:  # type: ignore[name-defined]
+    """Build the extraction prompt for a single media row."""
+    pub_date = ""
+    if pd.notna(row.get("published_at")):
+        try:
+            pub_date = pd.Timestamp(row["published_at"]).strftime("%Y-%m-%d")
+        except Exception:
+            pub_date = ""
+    return EXTRACTION_PROMPT.format(
+        sport=str(row.get("sport", sport)),
+        published_date=pub_date or "Unknown",
+        source_name=str(row.get("source_id", "Unknown")),
+        author=str(row.get("author", "Unknown")),
+        title=str(row.get("title", "Untitled")),
+        text=str(row.get("raw_text", ""))[:4000],
+    )
 
 
 def get_unprocessed_media(
@@ -405,6 +438,186 @@ def should_filter_article(
         return False
 
 
+def _row_to_pundit_predictions(
+    row: "pd.Series",  # type: ignore[name-defined]
+    predictions: list[dict],
+    sport: str = "NFL",
+    prompt_version: Optional[str] = None,
+    llm_provider: Optional[str] = None,
+    llm_model: Optional[str] = None,
+) -> list[PunditPrediction]:
+    """Convert raw prediction dicts into PunditPrediction objects for ledger ingestion."""
+    pundit_id = row.get("matched_pundit_id") or "unknown"
+    pundit_name = row.get("matched_pundit_name") or str(row.get("author", "Unknown"))
+    source_url = str(row.get("source_url", ""))
+    results = []
+    for pred in predictions:
+        raw_player = pred.get("target_player")
+        player_name = None
+        if raw_player:
+            if "," in raw_player and len(raw_player.split(",")) > 1:
+                player_name = "MULTI"
+            else:
+                player_name = raw_player
+
+        raw_stance = pred.get("stance", "neutral")
+        stance = (
+            raw_stance if raw_stance in ("bullish", "bearish", "neutral") else "neutral"
+        )
+        results.append(
+            PunditPrediction(
+                pundit_id=str(pundit_id),
+                pundit_name=str(pundit_name),
+                source_url=source_url,
+                raw_assertion_text=str(row.get("raw_text", ""))[:2000],
+                extracted_claim=pred["extracted_claim"],
+                claim_category=pred["claim_category"],
+                season_year=pred.get("season_year"),
+                target_player_id=None,
+                target_player_name=player_name,
+                target_team=pred.get("target_team"),
+                stance=stance,
+                sport=str(row.get("sport", sport)),
+                prompt_version=prompt_version,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+            )
+        )
+    return results
+
+
+def _post_process_predictions(
+    predictions: list[dict],
+    allow_historical: bool = False,
+) -> list[dict]:
+    """Apply temporal filter and dedup to a list of raw prediction dicts."""
+    valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
+    if allow_historical:
+        filtered = valid
+    else:
+        current_year = datetime.now().year
+        filtered = []
+        for p in valid:
+            sy = p.get("season_year")
+            if (
+                sy is not None
+                and isinstance(sy, (int, float))
+                and int(sy) < current_year
+            ):
+                logger.info(
+                    f"Temporal filter: rejected stale claim (season_year={sy}): "
+                    f"{p.get('extracted_claim', '')[:60]}"
+                )
+                continue
+            filtered.append(p)
+    return _deduplicate_claims(filtered)
+
+
+async def _run_extraction_async(
+    media_df: "pd.DataFrame",  # type: ignore[name-defined]
+    sport: str,
+    allow_historical: bool,
+    concurrency: int,
+    max_tokens_budget: int,
+    dry_run: bool,
+) -> tuple[list[PunditPrediction], list[str], dict]:
+    """
+    Async extraction path for gemini-flash burst mode.
+    Runs up to `concurrency` Gemini calls in-flight simultaneously.
+    Returns (all_predictions, processed_hashes, partial_summary).
+    """
+    budget = TokenBudgetTracker(max_tokens=max_tokens_budget)
+    async_provider = AsyncGeminiProvider(
+        model="gemini-2.5-flash",
+        concurrency=concurrency,
+        budget=budget,
+    )
+
+    rows = list(media_df.iterrows())
+    prompts = [_build_prompt(row, sport) for _, row in rows]
+
+    logger.info(
+        f"[gemini-flash] Dispatching {len(prompts)} extractions "
+        f"(concurrency={concurrency}, budget={max_tokens_budget:,} tokens)"
+    )
+
+    if dry_run:
+        for _, row in rows:
+            logger.info(
+                f"DRY RUN: would extract from {row['content_hash'][:16]}… "
+                f"({str(row.get('title', 'untitled'))[:50]})"
+            )
+        return (
+            [],
+            [],
+            {
+                "total_processed": len(rows),
+                "predictions_extracted": 0,
+                "predictions_ingested": 0,
+                "errors": 0,
+                "skipped_no_predictions": 0,
+                "filtered_out": 0,
+            },
+        )
+
+    results = await async_provider.extract_predictions_batch(prompts)
+
+    all_predictions: list[PunditPrediction] = []
+    processed_hashes: list[str] = []
+    partial_summary = {
+        "total_processed": 0,
+        "predictions_extracted": 0,
+        "predictions_ingested": 0,
+        "errors": 0,
+        "skipped_no_predictions": 0,
+        "filtered_out": 0,
+    }
+
+    for (_, row), (raw_preds, err) in zip(rows, results):
+        content_hash = row["content_hash"]
+        partial_summary["total_processed"] += 1
+
+        if err == "budget_exhausted":
+            # Don't mark as processed — will be picked up on next run
+            logger.warning(
+                f"Skipped {content_hash[:16]}… due to exhausted token budget."
+            )
+            continue
+
+        if err:
+            logger.warning(f"Extraction error for {content_hash[:16]}…: {err}")
+            partial_summary["errors"] += 1
+            processed_hashes.append(content_hash)
+            continue
+
+        processed_preds = _post_process_predictions(raw_preds, allow_historical)
+
+        if not processed_preds:
+            partial_summary["skipped_no_predictions"] += 1
+            processed_hashes.append(content_hash)
+            continue
+
+        partial_summary["predictions_extracted"] += len(processed_preds)
+        all_predictions.extend(
+            _row_to_pundit_predictions(
+                row,
+                processed_preds,
+                sport,
+                prompt_version=PROMPT_VERSION,
+                llm_provider="gemini",
+                llm_model="gemini-2.5-flash",
+            )
+        )
+        processed_hashes.append(content_hash)
+
+    partial_summary["token_budget"] = budget.summary()
+    logger.info(
+        f"[gemini-flash] Async extraction done. Token budget: {budget.summary()}"
+    )
+    print(f"[token-budget] {json.dumps(budget.summary())}", file=sys.stderr)
+    return all_predictions, processed_hashes, partial_summary
+
+
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
@@ -415,6 +628,9 @@ def run_extraction(
     provider_name: Optional[str] = None,
     disable_filter: bool = False,
     allow_historical: bool = False,
+    batch_size: int = 100,
+    max_tokens_budget: int = 2_000_000,
+    concurrency: int = 20,
     # Legacy parameter — ignored if provider is set
     gemini_client=None,
 ) -> dict:
@@ -427,16 +643,39 @@ def run_extraction(
     4. Ingest into the cryptographic ledger
     5. Mark as processed
 
+    Args:
+        allow_historical: Skip temporal filter (for backfill runs with old articles).
+        batch_size: Alias for limit — number of articles per run.
+        max_tokens_budget: Token budget cap for gemini-flash runs (default 2M ≈ $0.30).
+        concurrency: Max in-flight Gemini calls (gemini-flash path only).
+
     Returns a summary dict for observability.
     """
+    # batch_size is a more descriptive alias for limit in CLI usage
+    effective_limit = batch_size if batch_size != 100 else limit
+
+    # Resolve provider: explicit arg > EXTRACTION_LLM env var > yaml config
+    env_provider = os.environ.get("EXTRACTION_LLM")
+    effective_provider_name = provider_name or env_provider
+
     close_db = db is None
     if db is None:
         db = DBManager()
 
+    # Validate Gemini API key early, before spending time on BQ queries
+    if effective_provider_name in ("gemini", "gemini-flash"):
+        if not os.environ.get("GEMINI_API_KEY"):
+            raise EnvironmentError(
+                "GEMINI_API_KEY is required for gemini/gemini-flash provider. "
+                "Set it with: export GEMINI_API_KEY=<your-key>"
+            )
+
+    use_async_gemini = effective_provider_name == "gemini-flash" and not dry_run
+
     config = load_llm_config()
-    if provider is None and not dry_run:
-        if provider_name:
-            config.setdefault("extraction", {})["provider"] = provider_name
+    if provider is None and not dry_run and not use_async_gemini:
+        if effective_provider_name:
+            config.setdefault("extraction", {})["provider"] = effective_provider_name
         provider = get_provider_with_fallback("extraction", config)
 
     _pname = getattr(provider, "provider_name", None) if provider else None
@@ -458,12 +697,16 @@ def run_extraction(
         "skipped_no_predictions": 0,
         "extracted_zero_predictions": 0,  # items that parsed OK but LLM found nothing
         "filtered_out": 0,
-        "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
+        "provider": (
+            "gemini-2.5-flash (async)"
+            if use_async_gemini
+            else (getattr(provider, "model", "dry-run") if provider else "dry-run")
+        ),
     }
 
-    # Set up pre-filter provider if enabled
+    # Set up pre-filter provider if enabled (not used in async path — too slow for burst)
     filter_provider = None
-    if not disable_filter and not dry_run:
+    if not disable_filter and not dry_run and not use_async_gemini:
         config = load_llm_config()
         filter_cfg = config.get("filter", {})
         if filter_cfg.get("enabled"):
@@ -474,7 +717,7 @@ def run_extraction(
 
     try:
         media_df = get_unprocessed_media(
-            db, limit=limit, include_unmatched=include_unmatched
+            db, limit=effective_limit, include_unmatched=include_unmatched
         )
         if media_df.empty:
             logger.info("No unprocessed media found.")
@@ -482,6 +725,52 @@ def run_extraction(
 
         logger.info(f"Processing {len(media_df)} unprocessed media items...")
 
+        # ---------------------------------------------------------------
+        # ASYNC PATH: gemini-flash burst mode
+        # ---------------------------------------------------------------
+        if use_async_gemini:
+            all_predictions, processed_hashes, async_summary = asyncio.run(
+                _run_extraction_async(
+                    media_df=media_df,
+                    sport=sport,
+                    allow_historical=allow_historical,
+                    concurrency=concurrency,
+                    max_tokens_budget=max_tokens_budget,
+                    dry_run=dry_run,
+                )
+            )
+            summary.update(async_summary)
+
+            if all_predictions:
+                try:
+                    hashes = ingest_batch(all_predictions, db=db)
+                    summary["predictions_ingested"] = len(hashes)
+                    logger.info(
+                        f"Ingested {len(hashes)} predictions into cryptographic ledger."
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to ingest predictions to ledger: {e}")
+                    summary["errors"] += 1
+
+            if processed_hashes:
+                try:
+                    mark_as_processed(processed_hashes, db=db)
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to mark processed (will re-extract next run): {e}"
+                    )
+
+            logger.info(
+                f"Extraction complete: {summary['total_processed']} processed, "
+                f"{summary['predictions_extracted']} predictions extracted, "
+                f"{summary['predictions_ingested']} ingested, "
+                f"{summary['errors']} errors"
+            )
+            return summary
+
+        # ---------------------------------------------------------------
+        # SERIAL PATH: Ollama / Claude / OpenAI / sync Gemini
+        # ---------------------------------------------------------------
         all_predictions = []
         processed_hashes = []
         # In-memory guard: track hashes that yielded zero predictions this run.
@@ -572,48 +861,17 @@ def run_extraction(
 
             summary["predictions_extracted"] += len(result.predictions)
 
-            # Convert to PunditPredictions for ledger ingestion
-            pundit_id = row.get("matched_pundit_id") or "unknown"
-            pundit_name = row.get("matched_pundit_name") or str(
-                row.get("author", "Unknown")
+            llm_model = getattr(provider, "model", None) if provider else None
+            all_predictions.extend(
+                _row_to_pundit_predictions(
+                    row,
+                    result.predictions,
+                    sport,
+                    prompt_version=PROMPT_VERSION,
+                    llm_provider=provider_type if provider else None,
+                    llm_model=str(llm_model) if llm_model else None,
+                )
             )
-            source_url = str(row.get("source_url", ""))
-
-            for pred in result.predictions:
-                raw_player = pred.get("target_player")
-                player_name = None
-                if raw_player:
-                    if "," in raw_player and len(raw_player.split(",")) > 1:
-                        player_name = "MULTI"
-                    else:
-                        player_name = raw_player
-
-                raw_stance = pred.get("stance", "neutral")
-                stance = (
-                    raw_stance
-                    if raw_stance in ("bullish", "bearish", "neutral")
-                    else "neutral"
-                )
-                all_predictions.append(
-                    PunditPrediction(
-                        pundit_id=str(pundit_id),
-                        pundit_name=str(pundit_name),
-                        source_url=source_url,
-                        raw_assertion_text=str(row.get("raw_text", ""))[:2000],
-                        extracted_claim=pred["extracted_claim"],
-                        claim_category=pred["claim_category"],
-                        season_year=pred.get("draft_year") or pred.get("season_year"),
-                        target_player_id=None,
-                        target_player_name=player_name,
-                        target_team=pred.get("target_team"),
-                        stance=stance,
-                        sport=str(row.get("sport", sport)),
-                        prompt_version=PROMPT_VERSION,
-                        llm_provider=provider_type,
-                        llm_model=getattr(provider, "model", None),
-                    )
-                )
-
             processed_hashes.append(content_hash)
 
             # Rate limiting — delay read from llm_config.yaml extraction.rate_limit_seconds
@@ -660,13 +918,33 @@ def run_extraction(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="NLP Assertion Extraction — Multi-provider LLM"
+        description="NLP Assertion Extraction — Multi-provider LLM",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Default (Ollama, serial):
+  python -m pipeline.src.assertion_extractor --limit 50
+
+  # Gemini Flash burst (historical backfill, 500 articles, ~42 min):
+  python -m pipeline.src.assertion_extractor \\
+      --provider gemini-flash --batch-size 500 \\
+      --allow-historical --max-tokens-budget 2000000
+
+  # Env-var override (no flag needed):
+  EXTRACTION_LLM=gemini-flash python -m pipeline.src.assertion_extractor --batch-size 100
+""",
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=100,
-        help="Max items to process per run",
+        help="Max items to process per run (alias: --batch-size)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Max items to process per run (overrides --limit when set)",
     )
     parser.add_argument(
         "--dry-run",
@@ -686,8 +964,40 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--provider",
-        choices=["gemini", "claude", "openai", "ollama"],
-        help="Override LLM provider (default: from llm_config.yaml)",
+        choices=["gemini", "gemini-flash", "claude", "openai", "ollama"],
+        default=None,
+        help=(
+            "Override LLM provider. 'gemini-flash' enables async burst mode (~20 "
+            "concurrent calls). Also honored via EXTRACTION_LLM env var. "
+            "Default: from llm_config.yaml (currently ollama)."
+        ),
+    )
+    parser.add_argument(
+        "--allow-historical",
+        action="store_true",
+        help=(
+            "Disable temporal filter that rejects past-season claims. "
+            "Use for historical backfill runs where articles are from prior years."
+        ),
+    )
+    parser.add_argument(
+        "--max-tokens-budget",
+        type=int,
+        default=2_000_000,
+        help=(
+            "Token budget cap for gemini-flash runs. Stop and warn when exceeded. "
+            "Default: 2,000,000 tokens ≈ $0.30 on Gemini Flash. "
+            "Only applies to --provider gemini-flash."
+        ),
+    )
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=20,
+        help=(
+            "Max concurrent Gemini Flash API calls (gemini-flash path only). "
+            "Default: 20. Gemini Flash rate limit is ~100 RPM on free tier."
+        ),
     )
     parser.add_argument(
         "--reset-processed",
@@ -709,18 +1019,26 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # Resolve provider: CLI flag > EXTRACTION_LLM env var
+    provider_arg = args.provider or os.environ.get("EXTRACTION_LLM")
+
     if args.reset_processed is not None:
         db = DBManager()
         source = None if args.reset_processed == "__all__" else args.reset_processed
         deleted = reset_processed_hashes(db, source_id=source)
         print(json.dumps({"reset": True, "rows_deleted": deleted}))
     else:
+        # batch_size overrides limit when explicitly set
+        effective_limit = args.batch_size if args.batch_size is not None else args.limit
         result = run_extraction(
-            limit=args.limit,
+            limit=effective_limit,
+            batch_size=effective_limit,
             dry_run=args.dry_run,
             sport=args.sport,
             include_unmatched=args.include_unmatched,
-            provider_name=args.provider,
+            provider_name=provider_arg,
             allow_historical=args.allow_historical,
+            max_tokens_budget=args.max_tokens_budget,
+            concurrency=args.concurrency,
         )
         print(json.dumps(result, indent=2))

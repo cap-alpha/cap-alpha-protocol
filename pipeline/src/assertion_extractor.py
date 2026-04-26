@@ -95,7 +95,7 @@ Examples of good extractions:
   "Fernando Mendoza will be drafted #1 overall by the Las Vegas Raiders" (draft_pick, target_player: Fernando Mendoza) → stance: neutral, prediction_horizon_days: 14
   "Arvell Reese will be drafted #3 overall by the Arizona Cardinals" (draft_pick, target_player: Arvell Reese) → stance: neutral, prediction_horizon_days: 7
   "The Raiders will win the AFC West in 2026" (game_outcome, target_player: null) → stance: bullish, prediction_horizon_days: 180
-  "There will be at least 4 picks for the Jets in the first round of the 2026 draft" (draft_pick, target_player: null) → stance: neutral, prediction_horizon_days: 30
+  "There will be at least 4 picks for the Jets in the first round of the 2026 draft" (draft_pick, target_player: null, target_franchise: NYJ) → stance: neutral, prediction_horizon_days: 30
   "Patrick Mahomes will throw 40+ touchdowns in 2026" (player_performance, target_player: Patrick Mahomes) → stance: bullish, prediction_horizon_days: 210
   "The Bears will make the playoffs in 2026" (game_outcome, target_player: null) → stance: bullish, prediction_horizon_days: 200
   "No quarterback other than Mendoza will go in Round 1" (draft_pick, target_player: null) → stance: neutral, prediction_horizon_days: 5
@@ -245,9 +245,18 @@ def extract_assertions(
                     f"{p.get('extracted_claim', '')[:60]}"
                 )
                 continue
-            # Reject retroactive recaps: LLM signals these with prediction_horizon_days <= 0
+            # prediction_horizon_days is required to enforce forward-looking assertions.
+            # Reject missing, non-numeric, or non-positive values so retroactive recaps
+            # cannot pass through when providers omit the field.
             phd = p.get("prediction_horizon_days")
-            if phd is not None and isinstance(phd, (int, float)) and phd <= 0:
+            if phd is None or not isinstance(phd, (int, float)):
+                logger.info(
+                    "Temporal filter: rejected claim with missing/invalid "
+                    f"prediction_horizon_days ({phd!r}): "
+                    f"{p.get('extracted_claim', '')[:60]}"
+                )
+                continue
+            if phd <= 0:
                 logger.info(
                     f"Temporal filter: rejected retroactive recap "
                     f"(prediction_horizon_days={phd}): "

@@ -813,7 +813,14 @@ class TestLLMProvider:
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS
 
-        assert set(PROVIDERS.keys()) == {"gemini", "claude", "openai", "ollama"}
+        # gemini-flash is an alias for GeminiProvider (burst mode for historical backfill)
+        assert set(PROVIDERS.keys()) == {
+            "gemini",
+            "gemini-flash",
+            "claude",
+            "openai",
+            "ollama",
+        }
 
     def test_json_parse_strips_markdown_fences(self):
         from src.llm_provider import LLMProvider

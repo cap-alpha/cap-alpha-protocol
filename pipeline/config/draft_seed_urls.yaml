@@ -1,0 +1,50 @@
+# Search queries for draft prediction article discovery
+# The crawler searches these queries, finds article URLs, and ingests them automatically
+# Run: python -m src.url_ingestor --search [--dry-run]
+
+search_queries:
+  - "2026 NFL mock draft"
+  - "2026 NFL draft predictions round 1"
+  - "2026 NFL mock draft first round picks"
+  - "NFL draft 2026 who goes number 1"
+  - "Fernando Mendoza NFL draft prediction"
+  - "2026 NFL draft big board"
+  - "NFL draft 2026 picks predictions analysis"
+  - "mock draft 2026 NFL final"
+
+# Map domains to source IDs and default pundits
+source_mapping:
+  "espn.com":
+    source_id: espn_nfl
+  "nbcsports.com":
+    source_id: pft_nbc
+  "profootballtalk":
+    source_id: pft_nbc
+  "nfl.com":
+    source_id: nfl_official
+  "cbssports.com":
+    source_id: cbs_nfl
+  "yahoo.com":
+    source_id: yahoo_nfl
+  "si.com":
+    source_id: si_nfl
+  "bleacherreport.com":
+    source_id: bleacher_report
+  "theathletic.com":
+    source_id: theathletic_nfl
+  "theringer.com":
+    source_id: theringer_nfl
+
+# Domains to skip (non-article, aggregators, etc)
+skip_domains:
+  - "youtube.com"
+  - "twitter.com"
+  - "x.com"
+  - "reddit.com"
+  - "facebook.com"
+  - "instagram.com"
+  - "tiktok.com"
+  - "wikipedia.org"
+  - "nflmockdraftdatabase.com"
+  - "drafttek.com"
+  - "walterfootball.com"

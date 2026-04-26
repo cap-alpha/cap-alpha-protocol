@@ -30,7 +30,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.db_manager import DBManager
 
 
-_CATEGORY_ORDER = ["draft_pick", "game_outcome", "player_performance", "contract", "other"]
+_CATEGORY_ORDER = [
+    "draft_pick",
+    "game_outcome",
+    "player_performance",
+    "contract",
+    "other",
+]
 
 
 def _run_query(db: DBManager, sql: str) -> pd.DataFrame:
@@ -66,7 +72,7 @@ def fetch_prediction_counts(db: DBManager, project_id: str, since: str) -> pd.Da
             status,
             COUNT(*) AS prediction_count,
             COUNT(DISTINCT pundit_name) AS pundit_count
-        FROM `{project_id}.nfl_dead_money.gold_layer.prediction_ledger`
+        FROM `{project_id}.gold_layer.prediction_ledger`
         WHERE ingestion_timestamp >= TIMESTAMP('{since}')
         GROUP BY 1, 2
         ORDER BY 1, 2
@@ -74,7 +80,9 @@ def fetch_prediction_counts(db: DBManager, project_id: str, since: str) -> pd.Da
     )
 
 
-def fetch_resolution_summary(db: DBManager, project_id: str, since: str) -> pd.DataFrame:
+def fetch_resolution_summary(
+    db: DBManager, project_id: str, since: str
+) -> pd.DataFrame:
     """Summarise resolution outcomes since `since`."""
     return _run_query(
         db,
@@ -84,8 +92,8 @@ def fetch_resolution_summary(db: DBManager, project_id: str, since: str) -> pd.D
             r.resolution_status,
             r.resolver,
             COUNT(*) AS count
-        FROM `{project_id}.nfl_dead_money.gold_layer.prediction_resolutions` r
-        JOIN `{project_id}.nfl_dead_money.gold_layer.prediction_ledger` l
+        FROM `{project_id}.gold_layer.prediction_resolutions` r
+        JOIN `{project_id}.gold_layer.prediction_ledger` l
             ON r.prediction_hash = l.prediction_hash
         WHERE r.resolved_at >= TIMESTAMP('{since}')
         GROUP BY 1, 2, 3
@@ -112,8 +120,8 @@ def fetch_pundit_accuracy(db: DBManager, project_id: str, since: str) -> pd.Data
                 ) * 100,
                 1
             ) AS accuracy_pct
-        FROM `{project_id}.nfl_dead_money.gold_layer.prediction_resolutions` r
-        JOIN `{project_id}.nfl_dead_money.gold_layer.prediction_ledger` l
+        FROM `{project_id}.gold_layer.prediction_resolutions` r
+        JOIN `{project_id}.gold_layer.prediction_ledger` l
             ON r.prediction_hash = l.prediction_hash
         WHERE r.resolved_at >= TIMESTAMP('{since}')
           AND l.pundit_name IS NOT NULL
@@ -154,9 +162,7 @@ def compute_precision_metrics(pred_df: pd.DataFrame, res_df: pd.DataFrame) -> di
         }
 
     total = int(pred_df["prediction_count"].sum())
-    voided = int(
-        pred_df.loc[pred_df["status"] == "VOIDED", "prediction_count"].sum()
-    )
+    voided = int(pred_df.loc[pred_df["status"] == "VOIDED", "prediction_count"].sum())
     testable = total - voided
 
     correct = 0
@@ -186,11 +192,11 @@ def run_report(since: str = "2025-01-01") -> None:
     project_id = os.environ.get("GCP_PROJECT_ID", "cap-alpha-protocol")
     db = DBManager()
 
-    print(f"\n{'='*60}")
-    print(f"  2025 NFL SEASON BACKTEST — PRECISION REPORT")
+    print(f"\n{'=' * 60}")
+    print("  2025 NFL SEASON BACKTEST — PRECISION REPORT")
     print(f"  Since: {since}")
     print(f"  Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     art_df = fetch_article_counts(db, project_id, since)
     print_section("ARTICLE INGESTION", art_df)

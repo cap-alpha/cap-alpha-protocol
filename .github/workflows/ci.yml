@@ -41,4 +41,16 @@ jobs:
         pytest pipeline/tests/ -v -m "not integration" \
           --ignore=pipeline/tests/test_api.py \
           --ignore=pipeline/tests/test_api_vegas.py \
-          --ignore=pipeline/tests/test_ledger_bq_integration.py
+          --ignore=pipeline/tests/test_ledger_bq_integration.py \
+          --cov=pipeline/src \
+          --cov-report=xml:coverage.xml \
+          --cov-report=term-missing \
+          --cov-config=pipeline/pyproject.toml
+
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report-${{ matrix.python-version }}
+        path: coverage.xml
+        retention-days: 30

@@ -73,19 +73,36 @@ Rules — what TO extract:
 - FREE AGENCY SIGNING PREDICTIONS: "Player X will sign with Team Y" are fa_signing predictions
 - AWARD PREDICTIONS: "Player X will win MVP/OPOY/DPOY/Rookie of the Year" are award_prediction predictions
 
+⚠️ CRITICAL — TEMPORAL VALIDITY (REJECT retroactive recaps):
+- A prediction MUST be FORWARD-LOOKING relative to the article's PUBLISHED date above.
+- REJECT any statement where the outcome has ALREADY OCCURRED at the article's publication date.
+- If an article is published AFTER the NFL Draft and says "Player X was drafted #N by Team Y" — that is a RECAP FACT, not a prediction. REJECT it.
+- If an article is published AFTER a trade/signing was announced and says "Team Z signed Player Q" — REJECT it.
+- ACCEPT only statements that describe events that had NOT yet happened when the article was published.
+- Each extracted prediction must have a "prediction_horizon_days" field: the estimated number of days from publication to when the event resolves. This MUST be > 0. If you cannot identify a future event (i.e. the event is in the past), set prediction_horizon_days to -1 and DO NOT include this item in your output.
+
+Examples to REJECT (retroactive recaps — outcome already occurred at publication date):
+  "Player X was drafted #257 by the Broncos" (article published after draft day) → REJECT
+  "Team Z hired Coach Q" (article published after hire announced) → REJECT
+  "Kaytron Allen was selected by Washington Commanders with 187th pick" (post-draft article) → REJECT
+
+Examples to ACCEPT (forward-looking predictions — outcome had not yet occurred):
+  "I think Player X will be drafted in round 1" (article pre-draft) → ACCEPT, prediction_horizon_days: 7
+  "Fernando Mendoza will be drafted #1 overall by the Las Vegas Raiders" (pre-draft mock) → ACCEPT, prediction_horizon_days: 14
+
 Examples of good extractions:
-  "Fernando Mendoza will be drafted #1 overall by the Las Vegas Raiders" (draft_pick, target_player: Fernando Mendoza) → stance: neutral
-  "Arvell Reese will be drafted #3 overall by the Arizona Cardinals" (draft_pick, target_player: Arvell Reese) → stance: neutral
-  "The Raiders will win the AFC West in 2026" (game_outcome, target_player: null) → stance: bullish
-  "There will be at least 4 trades in the first round of the 2026 draft" (draft_pick, target_player: null) → stance: neutral
-  "Patrick Mahomes will throw 40+ touchdowns in 2026" (player_performance, target_player: Patrick Mahomes) → stance: bullish
-  "The Bears will make the playoffs in 2026" (game_outcome, target_player: null) → stance: bullish
-  "No quarterback other than Mendoza will go in Round 1" (draft_pick, target_player: null) → stance: neutral
-  "Davante Adams will sign with the Dallas Cowboys" (fa_signing, target_player: Davante Adams) → stance: neutral
-  "Aaron Rodgers will sign with the Miami Dolphins" (fa_signing, target_player: Aaron Rodgers) → stance: neutral
-  "Saquon Barkley will win Offensive Player of the Year" (award_prediction, target_player: Saquon Barkley) → stance: bullish
-  "Josh Allen will win MVP this season" (award_prediction, target_player: Josh Allen) → stance: bullish
-  "The Bills will win 12 or more games" (game_outcome, target_player: null) → stance: bullish
+  "Fernando Mendoza will be drafted #1 overall by the Las Vegas Raiders" (draft_pick, target_player: Fernando Mendoza) → stance: neutral, prediction_horizon_days: 14
+  "Arvell Reese will be drafted #3 overall by the Arizona Cardinals" (draft_pick, target_player: Arvell Reese) → stance: neutral, prediction_horizon_days: 7
+  "The Raiders will win the AFC West in 2026" (game_outcome, target_player: null) → stance: bullish, prediction_horizon_days: 180
+  "There will be at least 4 picks for the Jets in the first round of the 2026 draft" (draft_pick, target_player: null) → stance: neutral, prediction_horizon_days: 30
+  "Patrick Mahomes will throw 40+ touchdowns in 2026" (player_performance, target_player: Patrick Mahomes) → stance: bullish, prediction_horizon_days: 210
+  "The Bears will make the playoffs in 2026" (game_outcome, target_player: null) → stance: bullish, prediction_horizon_days: 200
+  "No quarterback other than Mendoza will go in Round 1" (draft_pick, target_player: null) → stance: neutral, prediction_horizon_days: 5
+  "Davante Adams will sign with the Dallas Cowboys" (fa_signing, target_player: Davante Adams) → stance: neutral, prediction_horizon_days: 30
+  "Aaron Rodgers will sign with the Miami Dolphins" (fa_signing, target_player: Aaron Rodgers) → stance: neutral, prediction_horizon_days: 30
+  "Saquon Barkley will win Offensive Player of the Year" (award_prediction, target_player: Saquon Barkley) → stance: bullish, prediction_horizon_days: 200
+  "Josh Allen will win MVP this season" (award_prediction, target_player: Josh Allen) → stance: bullish, prediction_horizon_days: 200
+  "The Bills will win 12 or more games" (game_outcome, target_player: null) → stance: bullish, prediction_horizon_days: 200
 
 Stance rules:
 - bullish: prediction is positive/optimistic about the subject
@@ -101,6 +118,7 @@ Special handling for DRAFT PICKS:
   "will go top 10 in the next draft" → season_year: [current year + 1]
 
 Rules — what NOT to extract:
+- RETROACTIVE RECAPS: any statement whose outcome had already occurred when the article was published (past tense: "was drafted", "was traded", "was hired", "was signed", "was selected", "was picked")
 - HEDGED statements: "wouldn't surprise me if", "I could see", "most likely", "might", "probably"
 - VAGUE claims that can't be verified: "will be good", "will make plays", "will be a factor"
 - TAUTOLOGIES: "the deal will eventually be released", "they will bring in players"
@@ -119,6 +137,7 @@ For the "claim_category" field:
   - "trade" — player traded to a specific team
   - "contract" — contract extension/restructure predictions (NOT signing predictions — use fa_signing)
   - "injury" — injury status or return timeline predictions
+For the "prediction_horizon_days" field: estimated days from publication date to event resolution. Must be > 0 for valid predictions.
 
 If the article contains no concrete, falsifiable predictions with clear stances, return an empty list.
 
@@ -148,38 +167,6 @@ def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> lis
     """
     if len(predictions) <= 1:
         return predictions
-
-    kept = []
-    for pred in predictions:
-        claim = pred.get("extracted_claim", "").lower()
-        is_dup = False
-        for i, existing in enumerate(kept):
-            existing_claim = existing.get("extracted_claim", "").lower()
-            ratio = SequenceMatcher(None, claim, existing_claim).ratio()
-            if ratio >= threshold:
-                if len(claim) > len(existing_claim):
-                    kept[i] = pred
-                is_dup = True
-                break
-        if not is_dup:
-            kept.append(pred)
-
-    removed = len(predictions) - len(kept)
-    if removed > 0:
-        logger.info(f"Dedup: removed {removed} near-duplicate claims")
-    return kept
-
-
-def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
-    """
-    Remove near-duplicate claims from a single article's extraction.
-    Uses SequenceMatcher to detect semantic overlap. Keeps the longest
-    (most specific) claim from each cluster.
-    """
-    if len(predictions) <= 1:
-        return predictions
-
-    from difflib import SequenceMatcher
 
     kept = []
     for pred in predictions:
@@ -254,6 +241,15 @@ def extract_assertions(
             ):
                 logger.info(
                     f"Temporal filter: rejected stale claim (season_year={sy}): "
+                    f"{p.get('extracted_claim', '')[:60]}"
+                )
+                continue
+            # Reject retroactive recaps: LLM signals these with prediction_horizon_days <= 0
+            phd = p.get("prediction_horizon_days")
+            if phd is not None and isinstance(phd, (int, float)) and phd <= 0:
+                logger.info(
+                    f"Temporal filter: rejected retroactive recap "
+                    f"(prediction_horizon_days={phd}): "
                     f"{p.get('extracted_claim', '')[:60]}"
                 )
                 continue

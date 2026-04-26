@@ -63,35 +63,35 @@ jobs:
           # project governance, or strategic direction.
           SENSITIVE_PATHS=(
             # Agent instructions
-            ".claude/"
-            ".agent/"
-            "CLAUDE.md"
-            "AGENTS.md"
+            "\.claude/"
+            "\.agent/"
+            "CLAUDE\.md"
+            "AGENTS\.md"
             # CI/CD and GitHub config (includes this file — auto_approve.yml
             # must never be self-modifiable without human review)
-            ".github/"
-            ".githooks/"
+            "\.github/"
+            "\.githooks/"
             # Build and dependency config
             "Makefile"
             "docker-compose"
-            "pyproject.toml"
-            ".gitignore"
-            ".dvc/"
+            "pyproject\.toml"
+            "\.gitignore"
+            "\.dvc/"
             # Dependencies — supply chain risk
-            "requirements.txt"
-            "package.json"
-            "package-lock.json"
+            "requirements\.txt"
+            "package\.json"
+            "package-lock\.json"
             # Database migrations — irreversible schema changes
             "pipeline/migrations/"
             "contracts/"
             "dbt/"
             "scripts/"
             # Auth and deployment — controls access and routing
-            "web/middleware.ts"
-            "web/vercel.json"
-            "web/next.config.js"
+            "web/middleware\.ts"
+            "web/vercel\.json"
+            "web/next\.config\.js"
             # Billing, pricing, tiers — changes can increase expenditures
-            "web/lib/api-keys/tiers.ts"
+            "web/lib/api-keys/tiers\.ts"
             "web/app/api/webhooks/"
             "web/lib/stripe"
             "web/app/api/billing/"

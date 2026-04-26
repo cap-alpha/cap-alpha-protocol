@@ -1,0 +1,12 @@
+# API-only requirements — excludes heavy ML/scraping deps not needed for Cloud Run
+fastapi
+uvicorn[standard]
+pydantic
+google-cloud-bigquery
+db-dtypes
+pyarrow
+pandas
+pandas-gbq
+python-dotenv
+httpx
+python-multipart

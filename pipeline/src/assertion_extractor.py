@@ -585,8 +585,8 @@ def run_extraction(
 
             processed_hashes.append(content_hash)
 
-            # Rate limiting — configurable per provider
-            time.sleep(4)
+            # Rate limiting — configurable per provider (reduced to 1s for Gemini Flash burst)
+            time.sleep(1)
 
         # Batch ingest all predictions into the cryptographic ledger
         if all_predictions and not dry_run:

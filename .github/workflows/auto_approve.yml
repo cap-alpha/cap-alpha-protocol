@@ -57,13 +57,16 @@ jobs:
             exit 0
           fi
 
-          # Required check names that must pass before auto-approval.
-          # This list may include multiple check runs from the same workflow.
-          # "test (3.10)"                    — CI Pipeline
-          # "Run Data Quality Tests (3.10)"  — Data Quality Tests
-          # "Lint Code"                      — Data Quality Tests (lint job)
-          # "preflight-build"                — Frontend Preflight Check
-          REQUIRED_CHECKS=("test (3.10)" "Run Data Quality Tests (3.10)" "Lint Code" "preflight-build")
+          # Required checks — kept in sync with main's branch protection rule.
+          # Reading branch protection requires `administration` scope which the
+          # default GITHUB_TOKEN cannot grant; hardcoding is the simplest fix.
+          # If you change branch protection on main, update this list too.
+          REQUIRED_CHECKS=(
+            "Lint Code"
+            "Run Data Quality Tests (3.11)"
+            "test (3.10)"
+            "preflight-build"
+          )
 
           echo "Required checks: ${REQUIRED_CHECKS[*]}"
 

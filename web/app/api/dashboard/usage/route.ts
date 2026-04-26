@@ -102,10 +102,13 @@ export async function GET(req: Request) {
             ORDER BY date DESC
         `;
 
-        const [dailyRows] = await bq.query({
+        const [dailyJob] = await bq.createQueryJob({
             query: dailyQuery,
             params: { userId },
             types: { userId: "STRING" },
+            jobTimeoutMs: 10000,
+        });
+        const [dailyRows] = await dailyJob.getQueryResults({
             timeoutMs: 10000,
         });
 
@@ -132,10 +135,13 @@ export async function GET(req: Request) {
             LIMIT 10
         `;
 
-        const [endpointRows] = await bq.query({
+        const [endpointsJob] = await bq.createQueryJob({
             query: endpointsQuery,
             params: { userId },
             types: { userId: "STRING" },
+            jobTimeoutMs: 10000,
+        });
+        const [endpointRows] = await endpointsJob.getQueryResults({
             timeoutMs: 10000,
         });
 
@@ -160,10 +166,13 @@ export async function GET(req: Request) {
             WHERE user_id = @userId
         `;
 
-        const [limitRows] = await bq.query({
+        const [limitsJob] = await bq.createQueryJob({
             query: limitsQuery,
             params: { userId },
             types: { userId: "STRING" },
+            jobTimeoutMs: 10000,
+        });
+        const [limitRows] = await limitsJob.getQueryResults({
             timeoutMs: 10000,
         });
 

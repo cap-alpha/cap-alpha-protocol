@@ -14,6 +14,7 @@ from src.resolve_daily import (
     _extract_player_stat_claim,
     _normalize_name,
     _normalize_team,
+    _resolve_team_claim,
     resolve_draft_picks,
     resolve_game_outcomes,
     resolve_player_performance,
@@ -556,3 +557,127 @@ class TestResolvePlayerPerformance:
         )
         summary = resolve_player_performance(mock_db, dry_run=False)
         assert summary["checked"] == 0
+
+
+# ---------------------------------------------------------------------------
+# _resolve_team_claim
+# ---------------------------------------------------------------------------
+
+
+_YEAR_DRAFT_DATA_2026 = pd.DataFrame(
+    [
+        {
+            "Name": "Travis Hunter",
+            "name_lower": "travis hunter",
+            "draft_year": 2026,
+            "draft_round": 1,
+            "draft_pick": 2,
+            "draft_team": "NYG",
+        },
+        {
+            "Name": "Shedeur Sanders",
+            "name_lower": "shedeur sanders",
+            "draft_year": 2026,
+            "draft_round": 1,
+            "draft_pick": 5,
+            "draft_team": "CLE",
+        },
+        {
+            "Name": "Ashton Jeanty",
+            "name_lower": "ashton jeanty",
+            "draft_year": 2026,
+            "draft_round": 1,
+            "draft_pick": 6,
+            "draft_team": "LV",
+        },
+        {
+            "Name": "Mason Graham",
+            "name_lower": "mason graham",
+            "draft_year": 2026,
+            "draft_round": 1,
+            "draft_pick": 3,
+            "draft_team": "CLE",
+        },
+    ]
+)
+
+
+class TestResolveTeamClaim:
+    def test_no_team_in_claim_returns_none(self, mock_db):
+        """Claims with no recognizable team are returned as None."""
+        result = _resolve_team_claim(
+            claim="Someone will have two top-10 picks",
+            parsed={},
+            year_draft_data=_YEAR_DRAFT_DATA_2026,
+            phash=FAKE_HASH,
+            db=mock_db,
+            dry_run=True,
+        )
+        assert result is None
+
+    def test_qb_claim_returns_none(self, mock_db):
+        """QB position claims can't be verified from draft data — returns None."""
+        result = _resolve_team_claim(
+            claim="Browns will pick a quarterback in Round 1",
+            parsed={},
+            year_draft_data=_YEAR_DRAFT_DATA_2026,
+            phash=FAKE_HASH,
+            db=mock_db,
+            dry_run=True,
+        )
+        assert result is None
+
+    @patch("src.resolve_daily.resolve_binary")
+    def test_two_top_picks_correct(self, mock_resolve, mock_db):
+        """Team with two picks in top-10 resolves as CORRECT."""
+        result = _resolve_team_claim(
+            claim="Browns will have two top-10 picks in the 2026 draft",
+            parsed={},
+            year_draft_data=_YEAR_DRAFT_DATA_2026,
+            phash=FAKE_HASH,
+            db=mock_db,
+            dry_run=False,
+        )
+        assert result == "resolved"
+        # resolve_binary(phash, correct, ...) — correct is positional arg [1]
+        assert mock_resolve.call_args[0][1] is True
+
+    @patch("src.resolve_daily.resolve_binary")
+    def test_two_top_picks_incorrect(self, mock_resolve, mock_db):
+        """Team with only one top-10 pick resolves as INCORRECT when two expected."""
+        result = _resolve_team_claim(
+            claim="Raiders will have two top-10 picks in the draft",
+            parsed={},
+            year_draft_data=_YEAR_DRAFT_DATA_2026,
+            phash=FAKE_HASH,
+            db=mock_db,
+            dry_run=False,
+        )
+        assert result == "resolved"
+        # resolve_binary(phash, correct, ...) — correct is positional arg [1]
+        assert mock_resolve.call_args[0][1] is False
+
+    @patch("src.resolve_daily.resolve_binary")
+    def test_dry_run_does_not_call_resolve_binary(self, mock_resolve, mock_db):
+        """dry_run=True suppresses the resolve_binary write."""
+        _resolve_team_claim(
+            claim="Browns will have two top-10 picks in the 2026 draft",
+            parsed={},
+            year_draft_data=_YEAR_DRAFT_DATA_2026,
+            phash=FAKE_HASH,
+            db=mock_db,
+            dry_run=True,
+        )
+        mock_resolve.assert_not_called()
+
+    def test_unrecognized_team_pattern_returns_none(self, mock_db):
+        """Team found but no resolvable claim pattern → None."""
+        result = _resolve_team_claim(
+            claim="The Giants will do well in the draft this year",
+            parsed={},
+            year_draft_data=_YEAR_DRAFT_DATA_2026,
+            phash=FAKE_HASH,
+            db=mock_db,
+            dry_run=True,
+        )
+        assert result is None

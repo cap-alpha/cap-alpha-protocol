@@ -1,0 +1,3 @@
+# ruff is the single formatter/linter — see pipeline/pyproject.toml for full config
+[tool.ruff]
+extend = "pipeline/pyproject.toml"

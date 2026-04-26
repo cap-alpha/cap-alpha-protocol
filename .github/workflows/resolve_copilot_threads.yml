@@ -1,0 +1,80 @@
+name: Auto-resolve Copilot threads
+
+# Fires whenever a review is submitted on a PR.
+# Filters to only the Copilot reviewer bot, then resolves all its open threads
+# so the branch-protection "require resolved threads" ruleset doesn't block the
+# merge queue.
+
+on:
+  pull_request_review:
+    types: [submitted]
+
+jobs:
+  resolve-copilot-threads:
+    # Only act when Copilot submits a review
+    if: github.event.review.user.login == 'copilot-pull-request-reviewer[bot]'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+
+    steps:
+      - name: Resolve all Copilot review threads
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.event.repository.name }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          THIS_REPO: ${{ github.repository }}
+        run: |
+          # Fork safety: skip PRs whose head is in a different repo to avoid
+          # token-permission issues and unintended cross-repo mutations.
+          if [ "$HEAD_REPO" != "$THIS_REPO" ]; then
+            echo "PR #$PR_NUMBER is from fork ($HEAD_REPO) — skipping"
+            exit 0
+          fi
+
+          echo "Fetching unresolved review threads for PR #$PR_NUMBER …"
+
+          THREAD_IDS=$(gh api graphql \
+            -f owner="$OWNER" \
+            -f repo="$REPO" \
+            -F prNumber="$PR_NUMBER" \
+            -f query='
+              query($owner: String!, $repo: String!, $prNumber: Int!) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequest(number: $prNumber) {
+                    reviewThreads(first: 50) {
+                      nodes { id isResolved }
+                    }
+                  }
+                }
+              }
+            ' \
+            --jq '.data.repository.pullRequest.reviewThreads.nodes[]
+                  | select(.isResolved == false)
+                  | .id')
+
+          if [ -z "$THREAD_IDS" ]; then
+            echo "No unresolved threads — nothing to do"
+            exit 0
+          fi
+
+          COUNT=$(echo "$THREAD_IDS" | wc -l | tr -d ' ')
+          echo "Resolving $COUNT thread(s) …"
+
+          while IFS= read -r tid; do
+            [ -z "$tid" ] && continue
+            echo "  Resolving: $tid"
+            gh api graphql \
+              -f threadId="$tid" \
+              -f query='
+                mutation($threadId: ID!) {
+                  resolveReviewThread(input: {threadId: $threadId}) {
+                    thread { id isResolved }
+                  }
+                }
+              '
+          done <<< "$THREAD_IDS"
+
+          echo "Done — all Copilot review threads resolved"

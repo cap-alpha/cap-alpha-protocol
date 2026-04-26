@@ -182,6 +182,27 @@ DO NOT:
 Choose ONE:
 
 ## DONE
+
+### Pre-PR duplicate check (MANDATORY — run before gh pr create)
+
+```bash
+# 1. Exact branch match
+gh pr list --head <branch> --json number,url,state
+
+# 2. Same closing issue
+gh pr list --state open --search "Closes #N" --json number,title,url
+
+# 3. Similar title (same type+scope prefix)
+gh pr list --state open --search "<type(scope)>" --json number,title,url
+```
+
+Resolve as follows:
+- **Existing open PR on this branch** → push to it; do NOT create a new PR. Update the PR body if the scope changed.
+- **Open PR closing the same issue** → post a comment linking to it; do NOT create a new PR; EXIT.
+- **Merged/closed PR closing the same issue** → verify the issue is actually closed; if so, EXIT with "already done".
+- **No duplicate found** → proceed to create the PR.
+
+### Create PR
 - Push branch, open PR with `Closes #N` in body
 - Use `gh pr merge <number> --rebase --auto` to queue
 - Comment on issue N:

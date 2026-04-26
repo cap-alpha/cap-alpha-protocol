@@ -57,11 +57,12 @@ jobs:
             exit 0
           fi
 
-          # Required check names (one representative job from each required workflow).
-          # "test (3.10)"     — CI Pipeline
-          # "Run Data Quality Tests (3.10)" — Data Quality Tests
-          # "Lint Code"       — Data Quality Tests (lint job)
-          # "preflight-build" — Frontend Preflight Check
+          # Required check names that must pass before auto-approval.
+          # This list may include multiple check runs from the same workflow.
+          # "test (3.10)"                    — CI Pipeline
+          # "Run Data Quality Tests (3.10)"  — Data Quality Tests
+          # "Lint Code"                      — Data Quality Tests (lint job)
+          # "preflight-build"                — Frontend Preflight Check
           REQUIRED_CHECKS=("test (3.10)" "Run Data Quality Tests (3.10)" "Lint Code" "preflight-build")
 
           echo "Required checks: ${REQUIRED_CHECKS[*]}"
@@ -69,7 +70,7 @@ jobs:
           ALL_PASS=true
           for check in "${REQUIRED_CHECKS[@]}"; do
             STATUS=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs" \
-              --jq "[.check_runs[] | select(.name == \"$check\")] | sort_by(.completed_at) | last | .conclusion" \
+              --jq "[.check_runs[] | select(.name == \"$check\" and .status == \"completed\")] | sort_by(.completed_at) | last | .conclusion" \
               2>/dev/null)
             echo "  [$check]: $STATUS"
             if [ "$STATUS" != "success" ]; then

@@ -12,8 +12,8 @@
 #   ollama:  none (local, optionally OLLAMA_BASE_URL)
 
 extraction:
-  provider: ollama              # gemini | claude | openai | ollama
-  model: qwen2.5:32b            # provider-specific model ID
+  provider: gemini              # gemini | claude | openai | ollama — switched for deadline burst 2026-04-26
+  model: gemini-2.5-flash       # provider-specific model ID
   # ollama models: qwen2.5:32b (recommended, 20GB, excellent structured output),
   #   llama3.1:8b (fast/cheap), llama3.1:70b (needs 48GB+ free RAM)
   # claude models: claude-sonnet-4-20250514, claude-haiku-4-5-20251001

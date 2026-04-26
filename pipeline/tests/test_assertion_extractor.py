@@ -869,3 +869,112 @@ class TestConstants:
             "contract",
         }
         assert VALID_CATEGORIES == expected
+
+
+# ---------------------------------------------------------------------------
+# allow_historical flag (Issue #262 / PR #319)
+# ---------------------------------------------------------------------------
+
+
+class TestAllowHistorical:
+    """Tests for the allow_historical temporal-filter bypass added in #262."""
+
+    def _make_provider_with_past_prediction(self, past_year: int):
+        provider = MagicMock()
+        provider.model = "mock"
+        provider.extract_predictions.return_value = [
+            {
+                "extracted_claim": f"The Chiefs will win the Super Bowl in {past_year}",
+                "claim_category": "game_outcome",
+                "season_year": past_year,
+                "stance": "bullish",
+                "target_player": None,
+            }
+        ]
+        return provider
+
+    def test_past_season_filtered_by_default(self):
+        """Default: temporal filter should drop past-season predictions."""
+        past_year = 2022
+        provider = self._make_provider_with_past_prediction(past_year)
+        result = extract_assertions(
+            content_hash="hash_hist_1",
+            text="The Chiefs won the Super Bowl in 2022.",
+            provider=provider,
+            allow_historical=False,
+        )
+        assert result.predictions == [], (
+            f"Expected past-season ({past_year}) prediction to be filtered out"
+        )
+
+    def test_past_season_passes_with_allow_historical(self):
+        """allow_historical=True should bypass the temporal filter."""
+        past_year = 2022
+        provider = self._make_provider_with_past_prediction(past_year)
+        result = extract_assertions(
+            content_hash="hash_hist_2",
+            text="The Chiefs will win the Super Bowl in 2022.",
+            provider=provider,
+            allow_historical=True,
+        )
+        assert len(result.predictions) == 1, (
+            "Expected past-season prediction to pass when allow_historical=True"
+        )
+        assert result.predictions[0]["season_year"] == past_year
+
+    def test_current_year_always_passes(self):
+        """Current-year predictions should pass regardless of allow_historical."""
+        import datetime as dt
+
+        current_year = dt.datetime.now().year
+        provider = MagicMock()
+        provider.model = "mock"
+        provider.extract_predictions.return_value = [
+            {
+                "extracted_claim": f"Mahomes will throw 40 TDs in {current_year}",
+                "claim_category": "player_performance",
+                "season_year": current_year,
+                "stance": "bullish",
+                "target_player": "Patrick Mahomes",
+            }
+        ]
+        result = extract_assertions(
+            content_hash="hash_current",
+            text=f"Mahomes will throw 40 TDs in {current_year}.",
+            provider=provider,
+            allow_historical=False,
+        )
+        assert len(result.predictions) == 1
+
+    def test_run_extraction_passes_allow_historical(self, mock_db, mock_provider):
+        """run_extraction should thread allow_historical through to extract_assertions."""
+        past_year = 2023
+        import datetime as dt
+
+        mock_provider.extract_predictions.return_value = [
+            {
+                "extracted_claim": f"The Eagles will win in {past_year}",
+                "claim_category": "game_outcome",
+                "season_year": past_year,
+                "stance": "bullish",
+                "target_player": None,
+            }
+        ]
+
+        media_df = make_raw_media_df(1)
+        mock_db.fetch_df.return_value = media_df
+
+        with patch("src.assertion_extractor.ingest_batch") as mock_ingest:
+            mock_ingest.return_value = ["some_hash"]
+            result = run_extraction(
+                limit=10,
+                dry_run=False,
+                db=mock_db,
+                provider=mock_provider,
+                allow_historical=True,
+            )
+
+        # With allow_historical=True, the past prediction should be kept
+        assert result["predictions_extracted"] >= 1, (
+            "Expected predictions to be extracted with allow_historical=True"
+        )

@@ -176,6 +176,98 @@ sources:
         name: "Stephen A. Smith"
         match_authors: ["Stephen A. Smith", "Stephen A"]
 
+  # ── Tier 2 YouTube Expansion (issue #262) ─────────────────────────────────
+  - id: bussin_with_the_boys
+    name: "Bussin' With The Boys"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEJeEfpnO_2J3DVovs-0Pkw"
+    enabled: true
+    pundits:
+      - id: taylor_lewan
+        name: "Taylor Lewan"
+        match_authors: ["Taylor Lewan", "Lewan"]
+      - id: will_compton
+        name: "Will Compton"
+        match_authors: ["Will Compton", "Compton"]
+
+  - id: brett_kollmann
+    name: "Brett Kollmann"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCHGx4e5K0-_n3RMcWHiTb4A"
+    enabled: true
+    pundits:
+      - id: brett_kollmann
+        name: "Brett Kollmann"
+        match_authors: ["Brett Kollmann", "Kollmann"]
+
+  - id: warren_sharp
+    name: "Warren Sharp / Sharp Football"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCcaGl7bsLaVBnDlK-TGFKqA"
+    enabled: true
+    pundits:
+      - id: warren_sharp
+        name: "Warren Sharp"
+        match_authors: ["Warren Sharp", "Sharp Football"]
+
+  - id: locked_on_nfl
+    name: "Locked On NFL"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCFkI6HvC2a-Y33IfiBqLKhg"
+    enabled: true
+    default_pundit:
+      id: locked_on_nfl_staff
+      name: "Locked On NFL Staff"
+    pundits: []
+
+  - id: the_ringer_nfl_yt
+    name: "The Ringer NFL Show (YouTube)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCMqF6BdstA43vNQzs2BMR0w"
+    enabled: true
+    default_pundit:
+      id: ringer_nfl_staff
+      name: "The Ringer NFL"
+    pundits: []
+
+  - id: pff_nfl
+    name: "PFF (Pro Football Focus)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCijBMkVMuT1hl4vAAGjxJPA"
+    enabled: true
+    default_pundit:
+      id: pff_staff
+      name: "PFF Staff"
+    pundits: []
+
+  - id: move_the_sticks
+    name: "Move The Sticks (Daniel Jeremiah)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCaWLWkqRKcVgkz3jocJUjHg"
+    enabled: true
+    pundits:
+      - id: daniel_jeremiah
+        name: "Daniel Jeremiah"
+        match_authors: ["Daniel Jeremiah", "Jeremiah"]
+
+  - id: athletic_football_yt
+    name: "The Athletic Football Show (YouTube)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEShWcVeWL3jL0lNfM4kO8Q"
+    enabled: true
+    default_pundit:
+      id: athletic_nfl_staff
+      name: "The Athletic NFL Staff"
+    pundits: []
+
   # ── Tier 1 YouTube Expansion (issue #129) ──────────────────────────────────
   - id: the_herd
     name: "The Herd with Colin Cowherd"

@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check
+.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry
 
 PYTHON ?= python3
 VENV := .venv
@@ -79,6 +79,21 @@ pipeline-validate:
 pipeline-factcheck:
 	@echo "Running Automated Gemini Search Grounding on Top 50 Predictions..."
 	$(DOCKER) exec -e GEMINI_MODEL="$(if $(MODEL),$(MODEL),gemini-2.5-flash)" pipeline bash -c "python scripts/fact_check_top_50.py $(if $(TEAM),\"$(TEAM)\",)"
+
+# -----------------------------------------------------------------------------
+# RESOLUTION — run locally with GCP credentials (no Docker required)
+# Set GCP_PROJECT_ID in your environment (or source docker_env.txt first).
+# -----------------------------------------------------------------------------
+
+resolve-draft-dry:
+	@echo "Dry-run: draft_pick resolution pass (no writes)..."
+	$(PY) PYTHONPATH=$$(pwd)/pipeline \
+		python -m src.resolve_daily --category draft_pick --dry-run
+
+resolve-draft:
+	@echo "Running draft_pick resolution pass..."
+	$(PY) PYTHONPATH=$$(pwd)/pipeline \
+		python -m src.resolve_daily --category draft_pick
 
 # -----------------------------------------------------------------------------
 # WEB

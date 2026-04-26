@@ -395,10 +395,15 @@ def run_extraction(
             config.setdefault("extraction", {})["provider"] = provider_name
         provider = get_provider_with_fallback("extraction", config)
 
+    _pname = getattr(provider, "provider_name", None) if provider else None
     provider_type = (
-        type(provider).__name__.replace("Provider", "").lower()
-        if provider
-        else "dry-run"
+        _pname
+        if isinstance(_pname, str)
+        else (
+            type(provider).__name__.replace("Provider", "").lower()
+            if provider
+            else "dry-run"
+        )
     )
 
     summary = {

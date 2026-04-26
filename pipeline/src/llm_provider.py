@@ -49,6 +49,8 @@ If no testable predictions exist, return an empty array: []
 class LLMProvider(ABC):
     """Abstract base for LLM extraction backends."""
 
+    provider_name: str = None  # Override in subclasses
+
     def __init__(self, model: str, **kwargs):
         self.model = model
 
@@ -101,6 +103,8 @@ class LLMProvider(ABC):
 
 class GeminiProvider(LLMProvider):
     """Google Gemini API with native schema enforcement."""
+
+    provider_name = "gemini"
 
     def __init__(self, model: str = "gemini-2.5-flash", **kwargs):
         super().__init__(model)
@@ -186,6 +190,8 @@ class GeminiProvider(LLMProvider):
 class ClaudeProvider(LLMProvider):
     """Anthropic Claude API with structured output via system prompt."""
 
+    provider_name = "claude"
+
     def __init__(self, model: str = "claude-sonnet-4-20250514", **kwargs):
         super().__init__(model)
         try:
@@ -223,6 +229,8 @@ class ClaudeProvider(LLMProvider):
 
 class OpenAIProvider(LLMProvider):
     """OpenAI API with JSON mode."""
+
+    provider_name = "openai"
 
     def __init__(self, model: str = "gpt-4o", **kwargs):
         super().__init__(model)
@@ -269,6 +277,8 @@ class OpenAIProvider(LLMProvider):
 
 class OllamaProvider(LLMProvider):
     """Local Ollama models via HTTP API. Zero cost."""
+
+    provider_name = "ollama"
 
     def __init__(
         self,
@@ -402,6 +412,7 @@ class _FallbackProvider(LLMProvider):
         super().__init__(model=primary.model)
         self.primary = primary
         self.fallback = fallback
+        self.provider_name = primary.provider_name
 
     def extract_predictions(self, prompt: str) -> list[dict]:
         try:

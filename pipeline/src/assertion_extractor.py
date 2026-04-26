@@ -190,6 +190,7 @@ def extract_assertions(
     sport: str = "NFL",
     published_date: str = "",
     provider: Optional[LLMProvider] = None,
+    allow_historical: bool = False,
     # Legacy parameter — ignored if provider is set
     client=None,
 ) -> ExtractionResult:
@@ -216,13 +217,16 @@ def extract_assertions(
         predictions = provider.extract_predictions(prompt)
         # Filter empty claims, then deduplicate near-identical ones
         valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
-        # Hard temporal filter: reject predictions about past seasons/drafts
+        # Hard temporal filter: reject predictions about past seasons/drafts.
+        # Bypassed with allow_historical=True for backfill ingestion of
+        # already-completed seasons (2020–2024) where outcomes ARE known.
         current_year = datetime.now().year
         filtered = []
         for p in valid:
             sy = p.get("season_year")
             if (
-                sy is not None
+                not allow_historical
+                and sy is not None
                 and isinstance(sy, (int, float))
                 and int(sy) < current_year
             ):
@@ -383,6 +387,7 @@ def run_extraction(
     provider: Optional[LLMProvider] = None,
     provider_name: Optional[str] = None,
     disable_filter: bool = False,
+    allow_historical: bool = False,
     # Legacy parameter — ignored if provider is set
     gemini_client=None,
 ) -> dict:
@@ -485,6 +490,7 @@ def run_extraction(
                 sport=str(row.get("sport", sport)),
                 published_date=pub_date,
                 provider=provider,
+                allow_historical=allow_historical,
             )
 
             if result.error:
@@ -624,6 +630,14 @@ if __name__ == "__main__":
             "so those items are re-extracted on the next run. Exits after reset."
         ),
     )
+    parser.add_argument(
+        "--allow-historical",
+        action="store_true",
+        help=(
+            "Bypass the temporal filter that drops past-season predictions. "
+            "Use for historical backfill (2020-2024 content) where outcomes are known."
+        ),
+    )
     args = parser.parse_args()
 
     if args.reset_processed is not None:
@@ -638,5 +652,6 @@ if __name__ == "__main__":
             sport=args.sport,
             include_unmatched=args.include_unmatched,
             provider_name=args.provider,
+            allow_historical=args.allow_historical,
         )
         print(json.dumps(result, indent=2))

@@ -327,6 +327,19 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
 
 TRANSCRIPT_CHUNK_SIZE = 3500
 
+# Prediction-dense title filter — skip YouTube videos that are clearly not
+# prediction content (game recaps, highlight compilations, interviews, etc.)
+_PREDICTION_TITLE_RE = re.compile(
+    r"""
+    predict|bold|will\s|won['']?t|preview|grade|rank|MVP|
+    playoff|over[.\-/]under|win\s+total|lock\s+of|pick\s|picks\s|
+    bold\s+call|super\s+bowl|nfl\s+draft|free\s+agent|hot\s+take|
+    week\s+\d+|game\s+day|breakdown|who\s+wins|should\s+the|
+    bet|prop|sleeper|bust|breakout|fantasy
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
 
 def _chunk_transcript(text: str, max_chars: int = TRANSCRIPT_CHUNK_SIZE) -> list[str]:
     """Split transcript text into chunks of ~max_chars, splitting at sentence boundaries."""
@@ -385,19 +398,31 @@ def _fetch_transcript(video_id: str) -> str:
         return " ".join(segment["text"] for segment in transcript_data)
 
 
+_MAX_YOUTUBE_DURATION_SECONDS = 90 * 60  # 90 minutes
+_MIN_YOUTUBE_PUBLISH_YEAR = 2020
+
+
 def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
     """
     Fetches recent videos from a YouTube channel via RSS, then downloads
     auto-generated transcripts for each video.
+
+    Applies optional filters from source config:
+      - title_filter: false (default, opt-in) — set true to only fetch prediction-dense titles
+      - max_duration_seconds: skip videos longer than N seconds (default 5400 = 90 min)
+      - min_publish_year: skip videos published before this year (default 2020)
     """
     url = source["url"]
     source_id = source["id"]
     pundits = source.get("pundits", [])
     sport = source.get("sport", "NFL")
     max_items = defaults.get("max_items_per_feed", 50)
+    apply_title_filter = source.get("title_filter", False)
+    max_duration = source.get("max_duration_seconds", _MAX_YOUTUBE_DURATION_SECONDS)
+    min_year = source.get("min_publish_year", _MIN_YOUTUBE_PUBLISH_YEAR)
 
     # Default pundit for YouTube channels (usually single-pundit channels)
-    default_pundit = pundits[0] if pundits else {}
+    default_pundit = pundits[0] if pundits else source.get("default_pundit", {})
     author = default_pundit.get("name")
     pundit_id = default_pundit.get("id")
     pundit_name = default_pundit.get("name")
@@ -416,8 +441,13 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
 
     items = []
     now = datetime.now(timezone.utc)
+    skipped_title = 0
+    skipped_date = 0
 
-    for entry in feed.entries[:max_items]:
+    for entry in feed.entries[: max_items * 3]:  # over-fetch to allow for filtering
+        if len(items) >= max_items:
+            break
+
         title = entry.get("title", "")
         link = entry.get("link", "")
         if not link:
@@ -427,6 +457,12 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
         # and don't contain full-length pundit commentary worth extracting.
         if _is_youtube_short(link):
             logger.debug(f"[{source_id}] Skipping Short: {title}")
+            continue
+
+        # Title filter: skip videos that are clearly not prediction content
+        if apply_title_filter and not _PREDICTION_TITLE_RE.search(title):
+            skipped_title += 1
+            logger.debug(f"[{source_id}] Title filter skipped: {title}")
             continue
 
         video_id = _extract_video_id(link)
@@ -441,6 +477,14 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
                 published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
             except Exception:
                 pass
+
+        # Date filter: skip pre-2020 content (resolver coverage limit)
+        if published is not None and published.year < min_year:
+            skipped_date += 1
+            logger.debug(
+                f"[{source_id}] Date filter skipped ({published.year}): {title}"
+            )
+            continue
 
         # Download transcript
         try:
@@ -482,6 +526,14 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
                 )
             )
 
+    if skipped_title:
+        logger.info(
+            f"[{source_id}] Title filter skipped {skipped_title} non-prediction videos"
+        )
+    if skipped_date:
+        logger.info(
+            f"[{source_id}] Date filter skipped {skipped_date} pre-{min_year} videos"
+        )
     if not items and feed.entries:
         logger.warning(
             f"[{source_id}] Feed had {len(feed.entries)} entries "

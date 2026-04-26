@@ -79,7 +79,8 @@ Rules — what TO extract:
 - If an article is published AFTER the NFL Draft and says "Player X was drafted #N by Team Y" — that is a RECAP FACT, not a prediction. REJECT it.
 - If an article is published AFTER a trade/signing was announced and says "Team Z signed Player Q" — REJECT it.
 - ACCEPT only statements that describe events that had NOT yet happened when the article was published.
-- Each extracted prediction must have a "prediction_horizon_days" field: the estimated number of days from publication to when the event resolves. This MUST be > 0. If you cannot identify a future event (i.e. the event is in the past), set prediction_horizon_days to -1 and DO NOT include this item in your output.
+- Each extracted prediction that you INCLUDE in your output must have a "prediction_horizon_days" field: the estimated number of days from publication to when the event resolves. This value MUST be > 0.
+- If you cannot identify a future event because the event is already in the past relative to the publication date, REJECT the item and DO NOT include it in your output.
 
 Examples to REJECT (retroactive recaps — outcome already occurred at publication date):
   "Player X was drafted #257 by the Broncos" (article published after draft day) → REJECT

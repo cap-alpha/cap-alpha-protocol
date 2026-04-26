@@ -106,7 +106,7 @@ jobs:
           )
           CHANGED_FILES=$(gh pr view "$PR" --repo "$REPO" --json files --jq '.files[].path' 2>/dev/null)
           for pattern in "${SENSITIVE_PATHS[@]}"; do
-            if echo "$CHANGED_FILES" | grep -Fq "${pattern}"; then
+            if echo "$CHANGED_FILES" | grep -q "${pattern}"; then
               echo "PR #$PR touches sensitive path '${pattern}' — requires human review"
               exit 0
             fi

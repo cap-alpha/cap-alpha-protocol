@@ -53,6 +53,12 @@ services:
     environment:
       - NODE_ENV=development
       - NEXT_TELEMETRY_DISABLED=1
+      # Clerk auth keys — forwarded from the shell environment so the middleware
+      # doesn't crash with MIDDLEWARE_INVOCATION_FAILED when running in CI/Docker.
+      # In CI, these are exported from GitHub Actions secrets before docker compose runs.
+      # Locally, set them in .env.local (not tracked by git).
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY:-}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY:-}
     command: bash -c "npm install && npm run dev"
 
   e2e:

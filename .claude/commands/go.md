@@ -76,6 +76,7 @@ Exclude:
 - agent-feedback
 - blocked / dependency issues
 - issues with active claim (<2h)
+- issues already covered by an open PR (check with `gh pr list --search "Closes #<N>" --state open`)
 
 Prefer:
 - clear scope

@@ -1,3 +1,6 @@
+// @ts-check
+const { withSentryConfig } = require("@sentry/nextjs");
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     images: {
@@ -66,4 +69,17 @@ const nextConfig = {
     },
 };
 
-module.exports = nextConfig;
+module.exports = withSentryConfig(nextConfig, {
+    // Suppress Sentry CLI output during builds
+    silent: !process.env.CI,
+    // Don't upload source maps unless SENTRY_AUTH_TOKEN is set
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT || "cap-alpha-protocol",
+    // Route browser error reports through Next.js to avoid ad-blockers
+    tunnelRoute: "/monitoring-tunnel",
+    // Tree-shake Sentry logger in production
+    disableLogger: true,
+    // Hide source maps from client bundles
+    hideSourceMaps: true,
+});

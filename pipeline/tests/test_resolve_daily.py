@@ -74,6 +74,15 @@ class TestNormalizeTeam:
         result = _normalize_team("KC")
         assert result == "KC"
 
+    def test_commanders_nickname(self):
+        assert _normalize_team("Commanders") == "WAS"
+
+    def test_washington_commanders_full_name(self):
+        assert _normalize_team("Washington Commanders") == "WAS"
+
+    def test_washington_only(self):
+        assert _normalize_team("Washington") == "WAS"
+
 
 # ---------------------------------------------------------------------------
 # _extract_game_claim
@@ -112,7 +121,16 @@ class TestExtractGameClaim:
         )
         # No team identified → no structured output
         assert "team_a" not in result
-        assert "team_focus" not in result
+
+    def test_commanders_playoff_prediction(self):
+        result = _extract_game_claim("Commanders will make the playoffs in 2026")
+        assert result.get("team_focus") == "WAS"
+        assert result.get("playoff_prediction") is True
+
+    def test_washington_playoff_prediction(self):
+        result = _extract_game_claim("Washington will miss the playoffs in 2026")
+        assert result.get("team_focus") == "WAS"
+        assert result.get("playoff_prediction") is False
 
 
 # ---------------------------------------------------------------------------

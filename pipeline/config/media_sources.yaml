@@ -236,6 +236,185 @@ sources:
         name: "Rich Eisen"
         match_authors: ["Rich Eisen"]
 
+  # ── Tier 2 YouTube Expansion (issue #262) ──────────────────────────────────
+  - id: emmanuel_acho
+    name: "Emmanuel Acho"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCBcRF18a7Qf58cCRy5xuWwQ"
+    enabled: true
+    pundits:
+      - id: emmanuel_acho
+        name: "Emmanuel Acho"
+        match_authors: ["Emmanuel Acho", "Acho"]
+
+  - id: i_am_athlete
+    name: "I AM ATHLETE (Brandon Marshall)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC8JNIm02zw8GL3HNSKSaanw"
+    enabled: true
+    pundits:
+      - id: brandon_marshall
+        name: "Brandon Marshall"
+        match_authors: ["Brandon Marshall", "Marshall"]
+
+  - id: the_pivot_podcast
+    name: "The Pivot Podcast"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCr50m3cJNZEMIYAqYoGBFMw"
+    enabled: true
+    pundits:
+      - id: ryan_clark
+        name: "Ryan Clark"
+        match_authors: ["Ryan Clark"]
+      - id: channing_crowder
+        name: "Channing Crowder"
+        match_authors: ["Channing Crowder", "Crowder"]
+      - id: fred_taylor
+        name: "Fred Taylor"
+        match_authors: ["Fred Taylor"]
+
+  - id: nfl_total_access
+    name: "NFL Total Access"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCB0AEMbNKmTRSLHfFdmBDqg"
+    enabled: true
+    pundits:
+      - id: ian_rapoport
+        name: "Ian Rapoport"
+        match_authors: ["Ian Rapoport", "Rapoport"]
+      - id: james_palmer
+        name: "James Palmer"
+        match_authors: ["James Palmer"]
+
+  - id: move_the_sticks
+    name: "Move the Sticks (NFL Network)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCVGasc0sS3lVpkMVs2XXbFQ"
+    enabled: true
+    pundits:
+      - id: daniel_jeremiah
+        name: "Daniel Jeremiah"
+        match_authors: ["Daniel Jeremiah", "Jeremiah"]
+      - id: bucky_brooks
+        name: "Bucky Brooks"
+        match_authors: ["Bucky Brooks", "Brooks"]
+
+  - id: fitzsimmons_and_bells
+    name: "Fitz and The Bells (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCJkQQPHN0mMjFqjk8Ggxhug"
+    enabled: true
+    pundits:
+      - id: ryan_fitzpatrick
+        name: "Ryan Fitzpatrick"
+        match_authors: ["Ryan Fitzpatrick", "Fitzpatrick"]
+
+  - id: nfl_draft_diamonds
+    name: "NFL Draft Diamonds"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCa7nUtAdBqOSFBHhnYIBvtg"
+    enabled: true
+    pundits:
+      - id: nfl_draft_diamonds_staff
+        name: "NFL Draft Diamonds Staff"
+        match_authors: ["Draft Diamonds"]
+
+  - id: pro_football_focus
+    name: "PFF (Pro Football Focus)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCaXkIU1QidjPwiAYu6GcHjg"
+    enabled: true
+    pundits:
+      - id: pff_staff
+        name: "PFF Staff"
+        match_authors: ["PFF", "Pro Football Focus"]
+      - id: mike_renner
+        name: "Mike Renner"
+        match_authors: ["Mike Renner"]
+
+  - id: nfl_network_official
+    name: "NFL Network"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCPhcMnELQwXoqEDK-Qs36sA"
+    enabled: true
+    pundits:
+      - id: nfl_network_staff
+        name: "NFL Network Staff"
+        match_authors: ["NFL Network"]
+
+  - id: ringer_nfl_show
+    name: "The Ringer NFL Show"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCXzrdWJPjBzPKMqiUgjfX7Q"
+    enabled: true
+    pundits:
+      - id: kevin_clark
+        name: "Kevin Clark"
+        match_authors: ["Kevin Clark"]
+      - id: nora_princiotti
+        name: "Nora Princiotti"
+        match_authors: ["Nora Princiotti"]
+
+  - id: locked_on_nfl
+    name: "Locked On NFL"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCaKUFKi_u6gLPDzFvF9pxlg"
+    enabled: true
+    pundits:
+      - id: locked_on_nfl_staff
+        name: "Locked On NFL Staff"
+        match_authors: ["Locked On NFL"]
+
+  - id: get_up_espn
+    name: "Get Up (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    # Disabled: channel_id UCiWLfSweyRNmLpgEHekhoAg may overlap with First Take ESPN channel.
+    # TODO: verify correct channel ID before enabling.
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCiWLfSweyRNmLpgEHekhoAg"
+    enabled: false
+    pundits:
+      - id: mike_greenberg
+        name: "Mike Greenberg"
+        match_authors: ["Mike Greenberg", "Greenberg"]
+
+  - id: dan_orlovsky_espn
+    name: "Dan Orlovsky (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    # Disabled: Dan Orlovsky appears on ESPN's main channel and Get Up; no standalone channel confirmed.
+    # TODO: verify or replace with correct standalone channel ID.
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
+    enabled: false
+    pundits:
+      - id: dan_orlovsky
+        name: "Dan Orlovsky"
+        match_authors: ["Dan Orlovsky", "Orlovsky"]
+
+  - id: bill_barnwell_espn
+    name: "Bill Barnwell (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    # Disabled: Barnwell is primarily a writer; no confirmed standalone YouTube channel.
+    # TODO: verify channel ID before enabling.
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
+    enabled: false
+    pundits:
+      - id: bill_barnwell
+        name: "Bill Barnwell"
+        match_authors: ["Bill Barnwell", "Barnwell"]
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

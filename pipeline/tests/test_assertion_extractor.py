@@ -84,6 +84,7 @@ class TestExtractAssertions:
                 "target_player": "Patrick Mahomes",
                 "target_team": "KC",
                 "confidence_note": "strong assertion",
+                "prediction_horizon_days": 210,
             }
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -121,6 +122,7 @@ class TestExtractAssertions:
                 "extracted_claim": "Josh Allen wins Super Bowl",
                 "claim_category": "game_outcome",
                 "confidence_note": "strong",
+                "prediction_horizon_days": 180,
             }
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -162,10 +164,15 @@ class TestExtractAssertions:
 
     def test_skips_predictions_without_claim(self, mock_provider):
         predictions = [
-            {"extracted_claim": "", "claim_category": "trade"},
+            {
+                "extracted_claim": "",
+                "claim_category": "trade",
+                "prediction_horizon_days": 30,
+            },
             {
                 "extracted_claim": "Valid claim here",
                 "claim_category": "trade",
+                "prediction_horizon_days": 30,
             },
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -227,6 +234,104 @@ class TestExtractAssertions:
         result = _deduplicate_claims(predictions)
         assert len(result) == 1
         assert "Patrick Mahomes" in result[0]["extracted_claim"]
+
+    def test_temporal_filter_rejects_negative_horizon(self, mock_provider):
+        """Items with prediction_horizon_days <= 0 (retroactive) are filtered out."""
+        predictions = [
+            {
+                "extracted_claim": "Red Murdock was drafted #257 by the Denver Broncos",
+                "claim_category": "draft_pick",
+                "prediction_horizon_days": -1,
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Post-draft recap article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_rejects_zero_horizon(self, mock_provider):
+        """Items with prediction_horizon_days == 0 are also filtered out."""
+        predictions = [
+            {
+                "extracted_claim": "Kaytron Allen was selected by Washington",
+                "claim_category": "draft_pick",
+                "prediction_horizon_days": 0,
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Post-draft recap",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_rejects_missing_horizon(self, mock_provider):
+        """Items missing prediction_horizon_days entirely are rejected."""
+        predictions = [
+            {
+                "extracted_claim": "Some player will do something",
+                "claim_category": "player_performance",
+                # prediction_horizon_days intentionally omitted
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_rejects_non_numeric_horizon(self, mock_provider):
+        """Items with a non-numeric prediction_horizon_days are rejected."""
+        predictions = [
+            {
+                "extracted_claim": "Someone will win something",
+                "claim_category": "game_outcome",
+                "prediction_horizon_days": "soon",
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_retains_positive_horizon(self, mock_provider):
+        """Items with a positive prediction_horizon_days are kept."""
+        predictions = [
+            {
+                "extracted_claim": "Fernando Mendoza will be drafted #1 overall",
+                "claim_category": "draft_pick",
+                "prediction_horizon_days": 14,
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Pre-draft mock article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 1
+        assert result.predictions[0]["extracted_claim"] == (
+            "Fernando Mendoza will be drafted #1 overall"
+        )
 
 
 # ---------------------------------------------------------------------------

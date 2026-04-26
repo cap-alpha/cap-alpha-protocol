@@ -12,7 +12,6 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
-
 from src.local_rag_pipeline import (
     _build_pundit_predictions,
     _row_to_article,

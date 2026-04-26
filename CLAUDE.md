@@ -6,7 +6,7 @@
 >
 > - **Never edit files in the main checkout.** A PreToolUse hook (`.claude/hooks/require-worktree.sh`) blocks Edit/Write/MultiEdit when CWD is the main repo. If you see that error, switch to a worktree.
 > - **Use `EnterWorktree` first**, or run `git worktree add .claude/worktrees/<name> -b <branch>` and `cd` into it before any edit.
-> - **Land PRs with `gh pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits).
+> - **Land PRs with `gh pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits). Squash and merge-commit are disabled at the repo level; `main` requires linear history.
 > - **All `gh` issue/PR/comment operations MUST use `scripts/gh-lars`** instead of bare `gh`. Lars Bakken (`kinghrothgar-dev`) is the default GitHub identity. Token stored in `.env.personas` (git-ignored).
 > - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 >
@@ -80,7 +80,7 @@ cat .agent/current.md
 
 # 4. Do your work, commit, push, open the PR
 
-# 5. Queue the PR for landing — never direct merge
+# 5. Queue the PR for landing — never direct merge. Always rebase.
 gh pr merge <pr-number> --rebase --auto
 
 # 6. After the PR lands on main, release locks
@@ -94,6 +94,12 @@ gh pr merge <pr-number> --rebase --auto
 - `activity.log` is append-only audit history; entries older than 7 days pruned weekly.
 - Stale locks auto-evict after 60 minutes (`STALE_MINUTES` env var to override).
 - `claim.sh` refuses to run from the main checkout unless `ALLOW_MAIN_CHECKOUT=1`.
+
+### Agent commit identity
+Inside any agent worktree, run `scripts/configure_agent_identity.sh` (or `make agent-identity`) once. This sets the worktree's local git author to `Claude Code (agent) <noreply@anthropic.com>` so commits are attributed to Claude rather than the human user. The PR author on GitHub still reflects whoever owns the `gh` token until a dedicated bot account exists.
+
+### Worktree hygiene
+Run `make prune-worktrees` (calls `scripts/prune_worktrees.sh`) periodically to clean up worktrees whose branch has already merged into `main`. Stale worktrees accumulate fast across many agent runs.
 
 ### Shared files (high conflict risk — always claim before editing)
 ```

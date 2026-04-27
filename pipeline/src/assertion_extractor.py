@@ -29,6 +29,7 @@ import logging
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -630,7 +631,8 @@ def run_extraction(
     allow_historical: bool = False,
     batch_size: int = 100,
     max_tokens_budget: int = 2_000_000,
-    concurrency: int = 20,
+    concurrency: int = 1,
+    gemini_concurrency: int = 20,
     # Legacy parameter — ignored if provider is set
     gemini_client=None,
 ) -> dict:
@@ -647,7 +649,10 @@ def run_extraction(
         allow_historical: Skip temporal filter (for backfill runs with old articles).
         batch_size: Alias for limit — number of articles per run.
         max_tokens_budget: Token budget cap for gemini-flash runs (default 2M ≈ $0.30).
-        concurrency: Max in-flight Gemini calls (gemini-flash path only).
+        concurrency: Number of concurrent LLM calls for serial providers (Ollama, Claude,
+            OpenAI, sync Gemini) via ThreadPoolExecutor. Default 1 = sequential (unchanged
+            behavior). Set to 2-3 for Ollama on M4 Pro, 5-10 for cloud APIs.
+        gemini_concurrency: Max in-flight async Gemini Flash calls (gemini-flash path only).
 
     Returns a summary dict for observability.
     """
@@ -734,7 +739,7 @@ def run_extraction(
                     media_df=media_df,
                     sport=sport,
                     allow_historical=allow_historical,
-                    concurrency=concurrency,
+                    concurrency=gemini_concurrency,
                     max_tokens_budget=max_tokens_budget,
                     dry_run=dry_run,
                 )
@@ -769,7 +774,7 @@ def run_extraction(
             return summary
 
         # ---------------------------------------------------------------
-        # SERIAL PATH: Ollama / Claude / OpenAI / sync Gemini
+        # SERIAL / PARALLEL PATH: Ollama / Claude / OpenAI / sync Gemini
         # ---------------------------------------------------------------
         all_predictions = []
         processed_hashes = []
@@ -781,7 +786,9 @@ def run_extraction(
         # table with content_hash + attempts + last_attempted_at) to guard across runs.
         seen_zero_pred_this_run: set[str] = set()
 
-        for _, row in media_df.iterrows():
+        rows_list = [row for _, row in media_df.iterrows()]
+
+        for row in rows_list:
             content_hash = row["content_hash"]
             summary["total_processed"] += 1
 
@@ -790,94 +797,135 @@ def run_extraction(
                     f"DRY RUN: would extract from {content_hash[:16]}… "
                     f"({row.get('title', 'untitled')[:50]})"
                 )
-                continue
 
-            # Skip if this hash already yielded zero predictions earlier this run
-            if content_hash in seen_zero_pred_this_run:
-                logger.debug(
-                    f"Skipping {content_hash[:16]}… (already attempted with zero predictions this run)"
+        if not dry_run:
+            # Pre-filter pass (sequential — filter calls are fast classify calls)
+            to_extract = []
+            for row in rows_list:
+                content_hash = row["content_hash"]
+
+                # Pre-filter: skip articles with no predictions
+                if filter_provider is not None:
+                    article_sport = str(row.get("sport", sport))
+                    if should_filter_article(
+                        str(row.get("raw_text", "")),
+                        filter_provider=filter_provider,
+                        sport=article_sport,
+                    ):
+                        logger.info(
+                            f"Pre-filter skipped {content_hash[:16]}… "
+                            f"({row.get('title', 'untitled')[:50]})"
+                        )
+                        summary["filtered_out"] += 1
+                        processed_hashes.append(content_hash)
+                        continue
+
+                to_extract.append(row)
+
+            def _extract_one(row) -> tuple:
+                """Extract from a single row; returns (row, ExtractionResult)."""
+                pub_date = ""
+                if pd.notna(row.get("published_at")):
+                    try:
+                        pub_date = pd.Timestamp(row["published_at"]).strftime(
+                            "%Y-%m-%d"
+                        )
+                    except Exception:
+                        pub_date = ""
+
+                result = extract_assertions(
+                    content_hash=row["content_hash"],
+                    text=str(row.get("raw_text", "")),
+                    title=str(row.get("title", "")),
+                    author=str(row.get("author", "")),
+                    source_name=str(row.get("source_id", "")),
+                    sport=str(row.get("sport", sport)),
+                    published_date=pub_date,
+                    provider=provider,
+                    allow_historical=allow_historical,
                 )
-                summary["skipped_no_predictions"] += 1
-                continue
+                return (row, result)
 
-            # Pre-filter: skip articles with no predictions
-            if filter_provider is not None:
-                article_sport = str(row.get("sport", sport))
-                if should_filter_article(
-                    str(row.get("raw_text", "")),
-                    filter_provider=filter_provider,
-                    sport=article_sport,
-                ):
-                    logger.info(
-                        f"Pre-filter skipped {content_hash[:16]}… "
-                        f"({row.get('title', 'untitled')[:50]})"
+            def _handle_result(row, result) -> None:
+                """Apply extraction result to summary/lists (called from both paths)."""
+                content_hash = row["content_hash"]
+                if result.error:
+                    logger.warning(
+                        f"Extraction error for {content_hash[:16]}…: {result.error}"
                     )
-                    summary["filtered_out"] += 1
+                    summary["errors"] += 1
                     processed_hashes.append(content_hash)
-                    continue
+                elif not result.predictions:
+                    summary["skipped_no_predictions"] += 1
+                    summary["extracted_zero_predictions"] += 1
+                    seen_zero_pred_this_run.add(content_hash)
+                    title = row.get("title")
+                    title_str = str(title) if pd.notna(title) else "untitled"
+                    logger.info(
+                        f"Zero predictions from {content_hash[:16]}… "
+                        f"({title_str[:60]}) — not marking processed"
+                    )
+                else:
+                    summary["predictions_extracted"] += len(result.predictions)
+                    llm_model = getattr(provider, "model", None) if provider else None
+                    all_predictions.extend(
+                        _row_to_pundit_predictions(
+                            row,
+                            result.predictions,
+                            sport,
+                            prompt_version=PROMPT_VERSION,
+                            llm_provider=provider_type if provider else None,
+                            llm_model=str(llm_model) if llm_model else None,
+                        )
+                    )
+                    processed_hashes.append(content_hash)
 
-            # Format publish date for the prompt
-            pub_date = ""
-            if pd.notna(row.get("published_at")):
-                try:
-                    pub_date = pd.Timestamp(row["published_at"]).strftime("%Y-%m-%d")
-                except Exception:
-                    pub_date = ""
-
-            result = extract_assertions(
-                content_hash=content_hash,
-                text=str(row.get("raw_text", "")),
-                title=str(row.get("title", "")),
-                author=str(row.get("author", "")),
-                source_name=str(row.get("source_id", "")),
-                sport=str(row.get("sport", sport)),
-                published_date=pub_date,
-                provider=provider,
-                allow_historical=allow_historical,
-            )
-
-            if result.error:
-                logger.warning(
-                    f"Extraction error for {content_hash[:16]}…: {result.error}"
-                )
-                summary["errors"] += 1
-                processed_hashes.append(content_hash)
-                continue
-
-            if not result.predictions:
-                summary["skipped_no_predictions"] += 1
-                summary["extracted_zero_predictions"] += 1
-                # Do NOT mark as processed — zero-prediction items are re-queued
-                # on the next run so they get another extraction attempt.
-                # Track in-memory to prevent re-attempt within this run (starvation guard).
-                seen_zero_pred_this_run.add(content_hash)
-                title = row.get("title")
-                title_str = str(title) if pd.notna(title) else "untitled"
-                logger.info(
-                    f"Zero predictions from {content_hash[:16]}… "
-                    f"({title_str[:60]}) — not marking processed"
-                )
-                continue
-
-            summary["predictions_extracted"] += len(result.predictions)
-
-            llm_model = getattr(provider, "model", None) if provider else None
-            all_predictions.extend(
-                _row_to_pundit_predictions(
-                    row,
-                    result.predictions,
-                    sport,
-                    prompt_version=PROMPT_VERSION,
-                    llm_provider=provider_type if provider else None,
-                    llm_model=str(llm_model) if llm_model else None,
-                )
-            )
-            processed_hashes.append(content_hash)
-
-            # Rate limiting — delay read from llm_config.yaml extraction.rate_limit_seconds
             rate_limit = config.get("extraction", {}).get("rate_limit_seconds", 1.0)
-            if rate_limit > 0:
-                time.sleep(rate_limit)
+
+            if concurrency > 1:
+                # Parallel path: N concurrent LLM calls via ThreadPoolExecutor.
+                # Opt-in only — concurrency=1 (default) stays sequential.
+                # Ollama benefits from 2-3 workers on M4 Pro 48GB.
+                # Cloud APIs (Claude, OpenAI) can use 5-10.
+                logger.info(
+                    f"Parallel extraction: {len(to_extract)} articles, "
+                    f"concurrency={concurrency}"
+                )
+                with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                    future_to_row = {
+                        executor.submit(_extract_one, row): row for row in to_extract
+                    }
+                    for future in as_completed(future_to_row):
+                        try:
+                            row, result = future.result()
+                        except Exception as exc:
+                            row = future_to_row[future]
+                            content_hash = row["content_hash"]
+                            logger.error(
+                                f"Unexpected error extracting {content_hash[:16]}…: {exc}"
+                            )
+                            summary["errors"] += 1
+                            processed_hashes.append(content_hash)
+                            continue
+                        _handle_result(row, result)
+            else:
+                # Sequential path (default): one article at a time with rate limiting.
+                for row in to_extract:
+                    # Skip if this hash already yielded zero predictions earlier this run
+                    content_hash = row["content_hash"]
+                    if content_hash in seen_zero_pred_this_run:
+                        logger.debug(
+                            f"Skipping {content_hash[:16]}… (already attempted with zero predictions this run)"
+                        )
+                        summary["skipped_no_predictions"] += 1
+                        continue
+
+                    row, result = _extract_one(row)
+                    _handle_result(row, result)
+
+                    # Rate limiting — delay read from llm_config.yaml extraction.rate_limit_seconds
+                    if rate_limit > 0:
+                        time.sleep(rate_limit)
 
         # Batch ingest all predictions into the cryptographic ledger
         if all_predictions and not dry_run:
@@ -993,6 +1041,16 @@ Examples:
     parser.add_argument(
         "--concurrency",
         type=int,
+        default=1,
+        help=(
+            "Number of concurrent LLM calls for serial providers (Ollama, Claude, "
+            "OpenAI). Default: 1 (sequential, unchanged behavior). "
+            "Set 2-3 for Ollama on M4 Pro, 5-10 for cloud APIs."
+        ),
+    )
+    parser.add_argument(
+        "--gemini-concurrency",
+        type=int,
         default=20,
         help=(
             "Max concurrent Gemini Flash API calls (gemini-flash path only). "
@@ -1032,5 +1090,6 @@ Examples:
             allow_historical=args.allow_historical,
             max_tokens_budget=args.max_tokens_budget,
             concurrency=args.concurrency,
+            gemini_concurrency=args.gemini_concurrency,
         )
         print(json.dumps(result, indent=2))

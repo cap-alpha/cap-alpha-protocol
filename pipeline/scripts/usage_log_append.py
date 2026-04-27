@@ -23,18 +23,26 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 USAGE_LOG = REPO_ROOT / ".claude" / "usage_log.jsonl"
-TRANSCRIPT_DIR = (
+
+_DEFAULT_TRANSCRIPT_DIR = (
     Path.home()
     / ".claude"
     / "projects"
     / "-Users-andrewsmith-portfolio-nfl-dead-money"
 )
+TRANSCRIPT_DIR = Path(os.environ.get("CLAUDE_TRANSCRIPT_DIR", str(_DEFAULT_TRANSCRIPT_DIR)))
+
+# Sanity-check thresholds: refuse to append rows that look obviously wrong
+# unless --force is passed. Prevents the kind of $4k false reading from #329.
+MAX_PLAUSIBLE_DELTA_USD = 500.0
+MAX_PLAUSIBLE_CUMULATIVE_MULTIPLIER = 2.0
 
 RATES = {
     "opus": {"in": 15.0, "out": 75.0, "cache_read": 1.50, "cache_create": 18.75},
@@ -87,6 +95,10 @@ def iter_assistant_turns(since_ts: str | None):
                     if evt.get("type") != "assistant":
                         continue
                     ts = evt.get("timestamp") or evt.get("ts")
+                    # Skip events whose ts is missing or not a string — comparing
+                    # mixed types (e.g. int epoch vs ISO string) raises TypeError.
+                    if ts is not None and not isinstance(ts, str):
+                        continue
                     if since_ts and ts and ts <= since_ts:
                         continue
                     msg = evt.get("message") or {}
@@ -114,6 +126,11 @@ def cost_for(fam: str, usage: dict) -> float:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="bypass sanity-check guards on implausibly large delta/cumulative",
+    )
     args = parser.parse_args()
 
     last_cumulative, last_ts = load_last_cumulative()
@@ -140,6 +157,26 @@ def main() -> int:
 
     if args.dry_run:
         return 0
+
+    if not args.force:
+        if delta > MAX_PLAUSIBLE_DELTA_USD:
+            print(
+                f"ERROR: delta ${delta:.2f} exceeds plausible threshold "
+                f"${MAX_PLAUSIBLE_DELTA_USD:.2f}. Re-run with --force to write anyway.",
+                file=sys.stderr,
+            )
+            return 2
+        if (
+            last_cumulative > 0
+            and new_cumulative > last_cumulative * MAX_PLAUSIBLE_CUMULATIVE_MULTIPLIER
+        ):
+            print(
+                f"ERROR: new cumulative ${new_cumulative:.2f} is more than "
+                f"{MAX_PLAUSIBLE_CUMULATIVE_MULTIPLIER}× prior ${last_cumulative:.2f}. "
+                f"Re-run with --force to write anyway.",
+                file=sys.stderr,
+            )
+            return 2
 
     USAGE_LOG.parent.mkdir(parents=True, exist_ok=True)
     with USAGE_LOG.open("a") as fh:

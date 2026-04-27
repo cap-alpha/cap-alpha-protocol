@@ -371,39 +371,32 @@ def fetch_single_transcript(video_id: str) -> TranscriptResult:
     """
     url = f"https://www.youtube.com/watch?v={video_id}"
     # Attempt 1: youtube-transcript-api
+    e1 = None
     try:
         text = _fetch_transcript_yt_api(video_id)
         if text.strip():
             return TranscriptResult(video_id=video_id, url=url, transcript_text=text)
-    except Exception as e1:
-        err_msg = str(e1)
-        disabled = "disabled" in err_msg.lower() or "no transcript" in err_msg.lower()
+    except Exception as exc:
+        e1 = exc
 
-        if disabled:
-            # Attempt 2: yt-dlp fallback
-            try:
-                text = _fetch_transcript_ytdlp(video_id)
-                if text.strip():
-                    return TranscriptResult(
-                        video_id=video_id,
-                        url=url,
-                        transcript_text=text,
-                        used_ytdlp=True,
-                    )
-            except Exception as e2:
-                return TranscriptResult(
-                    video_id=video_id,
-                    url=url,
-                    transcript_text=None,
-                    error=f"yt-api: {e1}; yt-dlp: {e2}",
-                )
-        else:
+    # Attempt 2: yt-dlp fallback — always tried when yt-api fails or returns empty
+    try:
+        text = _fetch_transcript_ytdlp(video_id)
+        if text.strip():
             return TranscriptResult(
                 video_id=video_id,
                 url=url,
-                transcript_text=None,
-                error=str(e1),
+                transcript_text=text,
+                used_ytdlp=True,
             )
+    except Exception as e2:
+        err_str = f"yt-dlp: {e2}" if e1 is None else f"yt-api: {e1}; yt-dlp: {e2}"
+        return TranscriptResult(
+            video_id=video_id,
+            url=url,
+            transcript_text=None,
+            error=err_str,
+        )
     return TranscriptResult(
         video_id=video_id,
         url=url,

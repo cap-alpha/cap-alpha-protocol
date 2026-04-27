@@ -425,14 +425,77 @@ def _is_youtube_short(url: str) -> bool:
     return "/shorts/" in url
 
 
+def _fetch_transcript_ytdlp(video_id: str) -> str:
+    """Fallback: use yt-dlp to download auto-generated subtitles as VTT, return plain text."""
+    import subprocess
+    import tempfile
+    from pathlib import Path as _Path
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_template = str(_Path(tmpdir) / "%(id)s.%(ext)s")
+        subprocess.run(
+            [
+                "yt-dlp",
+                "--write-auto-sub",
+                "--sub-lang",
+                "en",
+                "--skip-download",
+                "--convert-subs",
+                "vtt",
+                "-o",
+                out_template,
+                url,
+            ],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+        vtt_files = list(_Path(tmpdir).glob("*.vtt"))
+        if not vtt_files:
+            raise FileNotFoundError(f"yt-dlp produced no VTT for {video_id}")
+        vtt_text = vtt_files[0].read_text(encoding="utf-8", errors="ignore")
+    lines = []
+    for line in vtt_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("WEBVTT") or line.startswith("NOTE"):
+            continue
+        if re.match(r"^\d{2}:\d{2}:\d{2}", line) or re.match(
+            r"^<\d{2}:\d{2}:\d{2}", line
+        ):
+            continue
+        cleaned = re.sub(r"<[^>]+>", "", line).strip()
+        if cleaned:
+            lines.append(cleaned)
+    return " ".join(lines)
+
+
 def _fetch_transcript(video_id: str) -> str:
-    """Fetch transcript text, compatible with both old and new API versions."""
-    if _YT_API_V1:
-        result = _yt_client.fetch(video_id)
-        return " ".join(snippet.text for snippet in result)
-    else:
-        transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
-        return " ".join(segment["text"] for segment in transcript_data)
+    """Fetch transcript text, trying youtube-transcript-api then yt-dlp fallback."""
+    e1 = None
+    try:
+        if _YT_API_V1 and _yt_client is not None:
+            result = _yt_client.fetch(video_id)
+            text = " ".join(snippet.text for snippet in result)
+        else:
+            transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+            text = " ".join(segment["text"] for segment in transcript_data)
+        if text.strip():
+            return text
+    except Exception as exc:
+        e1 = exc
+
+    # Fallback: yt-dlp (handles blocked/disabled captions and API changes)
+    try:
+        text = _fetch_transcript_ytdlp(video_id)
+        if text.strip():
+            return text
+    except Exception as e2:
+        raise RuntimeError(
+            f"Transcript unavailable via yt-api ({e1}) and yt-dlp ({e2})"
+        ) from e2
+
+    raise RuntimeError(f"Empty transcript for {video_id} (yt-api error: {e1})")
 
 
 _MAX_YOUTUBE_DURATION_SECONDS = 90 * 60  # 90 minutes

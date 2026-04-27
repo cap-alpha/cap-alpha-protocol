@@ -451,6 +451,7 @@ def run_extraction(
         "predictions_ingested": 0,
         "errors": 0,
         "skipped_no_predictions": 0,
+        "extracted_zero_predictions": 0,  # items that parsed OK but LLM found nothing
         "filtered_out": 0,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
@@ -536,7 +537,14 @@ def run_extraction(
 
             if not result.predictions:
                 summary["skipped_no_predictions"] += 1
-                processed_hashes.append(content_hash)
+                summary["extracted_zero_predictions"] += 1
+                # Do NOT mark as processed — zero-prediction items are re-queued
+                # on the next run so they get another extraction attempt.
+                # Log for observability without permanently burying the source.
+                logger.info(
+                    f"Zero predictions from {content_hash[:16]}… "
+                    f"({row.get('title', 'untitled')[:60]}) — not marking processed"
+                )
                 continue
 
             summary["predictions_extracted"] += len(result.predictions)

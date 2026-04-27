@@ -13,10 +13,24 @@ from fastapi.testclient import TestClient
 # Patch DB before importing the app so startup doesn't attempt BQ connection
 with patch("src.db_manager.DBManager._initialize_connection"):
     from api.main import app
+    from api.api_key_auth import verify_api_key
     from api.pundit_router import get_db
 
 FAKE_HASH = "a" * 64
 FAKE_HASH2 = "b" * 64
+
+# Stub key info bypasses BigQuery lookup in tests
+_STUB_KEY_INFO = {
+    "key_id": "capk_live_test",
+    "user_id": "user_test",
+    "tier": "pro",
+    "status": "active",
+    "scopes": [],
+    "name": "Test Key",
+    "created_at": None,
+    "last_used_at": None,
+    "key_last_four": "test",
+}
 
 
 def _mock_bq_job(df):
@@ -39,7 +53,10 @@ def mock_db():
 
 @pytest.fixture
 def client(mock_db):
+    # Override both the pundit DB dependency and the auth dependency so tests
+    # don't need a real BigQuery connection or a valid API key.
     app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[verify_api_key] = lambda: _STUB_KEY_INFO
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()

@@ -2,6 +2,7 @@
 Pundit Scorecard API — Public REST Endpoints (Issue #113, #198, #201)
 
 Endpoints:
+  GET /v1/me                                — Authenticated key info (tier, rate limits)
   GET /v1/pundits/                          — List all tracked pundits with summary scores
   GET /v1/pundits/{pundit_id}               — Pundit detail with accuracy breakdown by category
   GET /v1/pundits/{pundit_id}/predictions   — Paginated prediction history with resolution status
@@ -11,6 +12,9 @@ Endpoints:
   GET /v1/draft/{year}/results              — Draft resolution scoreboard for a given year
   GET /v1/leaderboard                       — Ranked pundits by weighted score / accuracy
   GET /v1/integrity/verify                  — Hash chain integrity check (tamper detection)
+
+All /v1/* routes require a valid X-API-Key header (except /v1/me which also requires it,
+but returns the key's own metadata).
 """
 
 import logging
@@ -21,13 +25,27 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryParameter
 
+from api.api_key_auth import verify_api_key
 from src.cryptographic_ledger import verify_chain_integrity
 from src.db_manager import DBManager
 from src.resolution_engine import get_pundit_accuracy_summary
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v1", tags=["pundit-ledger"])
+# Rate limits by tier (requests per minute)
+TIER_RATE_LIMITS: Dict[str, int] = {
+    "free": 10,
+    "pro": 60,
+    "api_starter": 120,
+    "api_growth": 300,
+    "enterprise": 1000,
+}
+
+router = APIRouter(
+    prefix="/v1",
+    tags=["pundit-ledger"],
+    dependencies=[Depends(verify_api_key)],
+)
 
 LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
@@ -56,6 +74,35 @@ def _parameterized_query(db: DBManager, sql: str, params: List[ScalarQueryParame
     )
     job = db.client.query(sql, job_config=job_config)
     return job.to_dataframe()
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/me — authenticated key metadata
+# ---------------------------------------------------------------------------
+
+
+@router.get("/me", summary="Authenticated API key info")
+def me(
+    key_info: Dict[str, Any] = Depends(verify_api_key),
+) -> Dict[str, Any]:
+    """
+    Returns the tier, rate limit, scopes, and last-used info for the
+    authenticated API key.  Useful for SDK clients to surface quota info.
+    """
+    tier = key_info.get("tier", "free")
+    rate_limit = TIER_RATE_LIMITS.get(tier, TIER_RATE_LIMITS["free"])
+    return {
+        "key_id": key_info.get("key_id"),
+        "name": key_info.get("name"),
+        "user_id": key_info.get("user_id"),
+        "tier": tier,
+        "status": key_info.get("status"),
+        "scopes": key_info.get("scopes") or [],
+        "rate_limit_per_minute": rate_limit,
+        "created_at": str(key_info.get("created_at")) if key_info.get("created_at") else None,
+        "last_used_at": str(key_info.get("last_used_at")) if key_info.get("last_used_at") else None,
+        "key_last_four": key_info.get("key_last_four"),
+    }
 
 
 # ---------------------------------------------------------------------------

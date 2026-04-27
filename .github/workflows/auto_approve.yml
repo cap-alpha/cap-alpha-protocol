@@ -16,7 +16,6 @@ jobs:
     permissions:
       pull-requests: write
       checks: read
-      administration: read
     steps:
       - name: Approve PR if all required checks pass
         env:
@@ -58,19 +57,17 @@ jobs:
             exit 0
           fi
 
-          # Dynamically fetch required checks from branch protection — no hardcoded names.
-          # If the API call fails or returns nothing, skip approval rather than approve blindly.
-          REQUIRED_CHECKS=()
-          while IFS= read -r check; do
-            [[ -n "$check" ]] && REQUIRED_CHECKS+=("$check")
-          done < <(gh api "repos/$REPO/branches/main/protection" \
-            --jq '.required_status_checks.checks[].context' 2>/dev/null)
-
-          if [ "${#REQUIRED_CHECKS[@]}" -eq 0 ]; then
-            echo "Could not fetch required checks from branch protection API — skipping approval"
-            exit 0
-          fi
-          echo "Required checks (from branch protection): ${REQUIRED_CHECKS[*]}"
+          # Required checks — kept in sync with main's branch protection rule.
+          # Reading branch protection requires `administration` scope which the
+          # default GITHUB_TOKEN cannot grant; hardcoding is the simplest fix.
+          # If you change branch protection on main, update this list too.
+          REQUIRED_CHECKS=(
+            "Lint Code"
+            "Run Data Quality Tests (3.11)"
+            "test (3.10)"
+            "preflight-build"
+          )
+          echo "Required checks: ${REQUIRED_CHECKS[*]}"
 
           ALL_PASS=true
           for check in "${REQUIRED_CHECKS[@]}"; do

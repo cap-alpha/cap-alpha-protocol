@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check
+.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check prune-worktrees agent-identity
 
 PYTHON ?= python3
 VENV := .venv
@@ -44,6 +44,16 @@ lint-fix:
 		ruff format pipeline/src/ pipeline/tests/
 
 check: lint test
+
+# -----------------------------------------------------------------------------
+# AGENT HOUSEKEEPING
+# -----------------------------------------------------------------------------
+
+prune-worktrees:
+	./scripts/prune_worktrees.sh
+
+agent-identity:
+	./scripts/configure_agent_identity.sh
 
 # -----------------------------------------------------------------------------
 # DOCKER — scraping, E2E, pipeline orchestration

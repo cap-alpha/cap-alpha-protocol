@@ -324,7 +324,7 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
     return (
         <div className="space-y-2">
             {/* Column headers */}
-            <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px] gap-3 px-4 pb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-600">
+            <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px_80px] gap-3 px-4 pb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-600">
                 <span>#</span>
                 <span>Pundit</span>
                 <span>Accuracy</span>
@@ -332,6 +332,7 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                 <span className="text-right">Wrong</span>
                 <span className="text-right">Brier ↓</span>
                 <span className="text-right">Picks</span>
+                <span className="text-right"></span>
             </div>
 
             {pundits.map((p, idx) => (
@@ -345,7 +346,7 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                     )}
                 >
                     {/* Desktop layout */}
-                    <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px] gap-3 items-center">
+                    <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px_80px] gap-3 items-center">
                         <RankBadge rank={idx + 1} />
 
                         <div className="min-w-0">
@@ -371,6 +372,16 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                         <span className="text-right text-xs font-mono text-zinc-500 tabular-nums">
                             {p.total_predictions}
                         </span>
+                        <div className="flex justify-end">
+                            {p.pundit_id && p.pundit_id !== "None" ? (
+                                <Link
+                                    href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                                    className="text-[10px] font-mono text-zinc-600 hover:text-emerald-400 transition-colors inline-flex items-center gap-0.5"
+                                >
+                                    Card <ArrowRight className="w-2.5 h-2.5" />
+                                </Link>
+                            ) : null}
+                        </div>
                     </div>
 
                     {/* Mobile layout */}
@@ -398,6 +409,14 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                                     </span>
                                 )}
                             </div>
+                            {p.pundit_id && p.pundit_id !== "None" && (
+                                <Link
+                                    href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                                    className="text-[10px] font-mono text-zinc-600 hover:text-emerald-400 transition-colors inline-flex items-center gap-0.5 mt-1"
+                                >
+                                    Card <ArrowRight className="w-2.5 h-2.5" />
+                                </Link>
+                            )}
                         </div>
                     </div>
                 </div>

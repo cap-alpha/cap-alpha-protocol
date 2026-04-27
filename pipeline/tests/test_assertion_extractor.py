@@ -1120,3 +1120,126 @@ class TestAllowHistorical:
         assert result["predictions_extracted"] >= 1, (
             "Expected predictions to be extracted with allow_historical=True"
         )
+
+
+# ---------------------------------------------------------------------------
+# Concurrency flag (Issue #240)
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrency:
+    """Tests for --concurrency N flag on the serial (non-gemini-flash) path."""
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_1_is_sequential_default(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """concurrency=1 (default) produces the same results as the original serial path."""
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Mahomes wins MVP in 2026",
+                    "claim_category": "player_performance",
+                    "stance": "bullish",
+                    "confidence_note": "strong",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["pred_hash_1", "pred_hash_2", "pred_hash_3"]
+
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, concurrency=1
+        )
+
+        assert summary["total_processed"] == 3
+        assert summary["predictions_extracted"] == 3
+        assert mock_extract.call_count == 3
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_gt1_processes_all_articles(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """concurrency=3 still processes all articles and collects predictions."""
+        mock_db.fetch_df.return_value = make_raw_media_df(4)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Bears win NFC North",
+                    "claim_category": "game_outcome",
+                    "stance": "bullish",
+                    "confidence_note": "explicit",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["p1", "p2", "p3", "p4"]
+
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, concurrency=3
+        )
+
+        assert summary["total_processed"] == 4
+        assert summary["predictions_extracted"] == 4
+        assert mock_extract.call_count == 4
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_gt1_handles_per_article_errors(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """With concurrency > 1, a per-article error doesn't abort the whole batch."""
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        # First call errors; subsequent calls succeed
+        mock_extract.side_effect = [
+            ExtractionResult(
+                content_hash="hash_0",
+                predictions=[],
+                error="LLM timeout",
+            ),
+            ExtractionResult(
+                content_hash="hash_1",
+                predictions=[
+                    {
+                        "extracted_claim": "Allen wins MVP",
+                        "claim_category": "award_prediction",
+                        "stance": "bullish",
+                        "confidence_note": "strong",
+                    }
+                ],
+            ),
+            ExtractionResult(
+                content_hash="hash_2",
+                predictions=[],
+                error="Connection refused",
+            ),
+        ]
+        mock_ingest.return_value = ["ph1"]
+
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, concurrency=2
+        )
+
+        assert summary["total_processed"] == 3
+        assert summary["errors"] == 2
+        assert summary["predictions_extracted"] == 1
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_default_is_1(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """run_extraction default concurrency=1 — no ThreadPoolExecutor for serial providers."""
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+        mock_ingest.return_value = []
+
+        # Should run without error at default concurrency
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["total_processed"] == 2

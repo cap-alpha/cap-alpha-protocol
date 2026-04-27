@@ -155,3 +155,20 @@ make test-e2e
 - **Recognize when you're spinning wheels.** 2-3 attempts at the same fix without convergence = stop. Summarize and hand back.
 - Diagnose before retrying. Try a *different* approach.
 - Stay on target. No speculative refactoring or gold-plating.
+
+## Model selection — auto-applied, no slash command required
+
+Every Agent/subagent dispatch on this project must pick a model by classifying the task. Do not default by reflex.
+
+| Task class | Model | Examples |
+|---|---|---|
+| **Planning** (architectural, strategic, optimization) | `claude-opus-4-7` | system design, sprint scoping, cost/CI optimization, prompt redesign, validity-logic decisions |
+| **Coding + major follow-ups** | `claude-sonnet-4-6` | feature implementation, multi-file edits, real bug fixes, recurring monitors needing reasoning, substantive code review |
+| **Triage + minor fixes** | `claude-haiku-4-5-20251001` | counts, log tails, PR-list scans, status reports, single-file typo/lint fixes, label changes |
+
+Rules:
+- **Cap concurrent Opus at 1** (parent counts). For fan-out, use Sonnet × N or Haiku × N.
+- **Anchor Haiku prompts** with "answer ONLY from tool output" — it hallucinates without grounding.
+- **When in doubt between two tiers**, pick the cheaper one and upgrade only if output is visibly inadequate.
+
+**Why:** On 2026-04-26 ~$1,895 burned in 2h with Opus = 79% of spend, mostly routine progress checks Sonnet/Haiku could have done at 5–20× lower cost. The user wants Opus reserved for planning where plan quality compounds, Sonnet for coding, Haiku for cheap status work.

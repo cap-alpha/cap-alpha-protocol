@@ -1,8 +1,12 @@
 name: Claude Code Review
 
 on:
-  pull_request:
-    types: [opened, synchronize, ready_for_review, reopened]
+  # Disabled 2026-04-26: workflow fails on every PR because ANTHROPIC_API_KEY
+  # secret is not set. Re-enable by restoring the pull_request trigger once
+  # the secret is configured in repo settings.
+  workflow_dispatch:
+  # pull_request:
+  #   types: [opened, synchronize, ready_for_review, reopened]
     # Optional: Only run on specific file changes
     # paths:
     #   - "src/**/*.ts"

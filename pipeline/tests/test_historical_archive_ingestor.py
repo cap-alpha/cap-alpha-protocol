@@ -12,6 +12,7 @@ import pytest
 
 from src.historical_archive_ingestor import (
     NFL_TEAMS,
+    _DEDUP_SENTINEL,
     ArchiveArticle,
     build_article_catalog,
     check_yield,
@@ -186,7 +187,7 @@ class TestFetchAndIngestArticle:
         # Pre-populate existing_hashes with the hash that would be computed
         existing = {compute_content_hash(wayback_url, title)}
         result = fetch_and_ingest_article(article, existing, db=None, dry_run=True)
-        assert result is None
+        assert result is _DEDUP_SENTINEL
 
     @patch("src.historical_archive_ingestor.fetch_wayback_text")
     @patch("src.historical_archive_ingestor.get_wayback_url")
@@ -367,6 +368,7 @@ class TestAssertionExtractorAllowHistorical:
                 "target_player": "Patrick Mahomes",
                 "stance": "bullish",
                 "target_team": "Kansas City Chiefs",
+                "prediction_horizon_days": 180,
             }
         ]
 
@@ -420,6 +422,7 @@ class TestAssertionExtractorAllowHistorical:
                 "target_player": None,
                 "stance": "bullish",
                 "target_team": "Kansas City Chiefs",
+                "prediction_horizon_days": 180,
             }
         ]
 

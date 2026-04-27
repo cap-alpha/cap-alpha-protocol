@@ -75,7 +75,7 @@ REQUEST_DELAY = 1.0
 WAYBACK_DELAY = 0.5
 
 HEADERS = {
-    "User-Agent": "PunditPredictionLedger/1.0 (Research; contact king.hrothgar@gmail.com)"
+    "User-Agent": "PunditPredictionLedger/1.0 (Research; https://github.com/cap-alpha/cap-alpha-protocol)"
 }
 
 # ---------------------------------------------------------------------------
@@ -235,7 +235,7 @@ def build_article_catalog(seasons: list[int] | None = None) -> list[ArchiveArtic
         # ── SI.com win total / over-under picks ────────────────────────────────
         articles += [
             ArchiveArticle(
-                original_url=f"https://www.si.com/nfl/2020/{year}/nfl-win-totals-predictions",
+                original_url=f"https://www.si.com/nfl/{year}/nfl-win-totals-predictions",
                 source_id="si_nfl_archive",
                 pundit_name="Albert Breer",
                 pundit_id="albert_breer",
@@ -443,7 +443,7 @@ def get_wayback_url(original_url: str, target_date: str) -> Optional[str]:
         return None
 
 
-def fetch_wayback_text(wayback_url: str) -> Optional[tuple[str, str, str]]:
+def fetch_wayback_text(wayback_url: str) -> Optional[tuple[str, str, Optional[str]]]:
     """
     Fetch a Wayback Machine URL and extract clean article text.
     Returns (title, text, author) or None if extraction fails.
@@ -515,15 +515,21 @@ def compute_content_hash(source_url: str, title: str = "") -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+_DEDUP_SENTINEL = (
+    object()
+)  # returned by fetch_and_ingest_article when skipped for dedup
+
+
 def fetch_and_ingest_article(
     article: ArchiveArticle,
     existing_hashes: set,
     db,
     dry_run: bool = False,
-) -> Optional[dict]:
+):
     """
     Resolves Wayback Machine URL, fetches text, and writes to raw_pundit_media.
-    Returns a row dict if successful, None otherwise.
+    Returns a row dict if successful, _DEDUP_SENTINEL if skipped (already ingested),
+    or None if fetch/extraction failed.
     """
     time.sleep(WAYBACK_DELAY)
     wayback_url = get_wayback_url(article.original_url, article.wayback_date)
@@ -536,7 +542,7 @@ def fetch_and_ingest_article(
     original_hash = compute_content_hash(article.original_url, "")
     if content_hash in existing_hashes or original_hash in existing_hashes:
         logger.debug(f"Already ingested: {article.original_url}")
-        return None
+        return _DEDUP_SENTINEL
 
     time.sleep(REQUEST_DELAY)
     result = fetch_wayback_text(wayback_url)
@@ -551,7 +557,7 @@ def fetch_and_ingest_article(
     content_hash = compute_content_hash(wayback_url, title)
     if content_hash in existing_hashes:
         logger.debug(f"Already ingested (title hash): {title[:60]}")
-        return None
+        return _DEDUP_SENTINEL
 
     now = datetime.now(timezone.utc)
     # Approximate published date: use preseason/draft/week1 date from article metadata
@@ -688,7 +694,9 @@ def run_historical_ingestion(
             )
             processed += 1
 
-            if row is not None:
+            if row is _DEDUP_SENTINEL:
+                summary["articles_skipped_dedup"] += 1
+            elif row is not None:
                 summary["articles_ingested"] += 1
             else:
                 summary["articles_failed"] += 1
@@ -740,7 +748,7 @@ def check_yield(ingestion_summary: dict, extraction_summary: dict) -> bool:
     ingested = ingestion_summary.get("articles_ingested", 0)
     extracted = extraction_summary.get("predictions_extracted", 0)
 
-    if ingested < 10:
+    if ingested < 50:
         # Too few articles to make a meaningful yield judgment
         return True
 
@@ -846,5 +854,8 @@ if __name__ == "__main__":
         )
         print(json.dumps(extraction_result, indent=2, default=str))
 
-        # Check yield
-        check_yield(ingestion_result, extraction_result)
+        # Check yield — exit non-zero if below threshold so automation can detect failure
+        import sys
+
+        if not check_yield(ingestion_result, extraction_result):
+            sys.exit(1)

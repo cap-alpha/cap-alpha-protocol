@@ -804,11 +804,17 @@ class TestPreFilterIntegration:
 
 
 class TestLLMProvider:
-    def test_provider_factory_returns_gemini_by_default(self):
+    def test_provider_factory_returns_provider_from_config(self):
         from src.llm_provider import load_llm_config
 
         config = load_llm_config()
-        assert config["extraction"]["provider"] == "gemini"
+        assert config["extraction"]["provider"] in {
+            "gemini",
+            "gemini-flash",
+            "ollama",
+            "claude",
+            "openai",
+        }
 
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS

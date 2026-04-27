@@ -1,7 +1,7 @@
 name: Claude Code Review
 
 on:
-  # Disabled 2026-04-26: workflow fails on every PR because ANTHROPIC_API_KEY
+  # Disabled 2026-04-26: workflow fails on every PR because CLAUDE_CODE_OAUTH_TOKEN
   # secret is not set. Re-enable by restoring the pull_request trigger once
   # the secret is configured in repo settings.
   workflow_dispatch:

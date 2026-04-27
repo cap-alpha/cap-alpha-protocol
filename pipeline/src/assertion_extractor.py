@@ -79,8 +79,7 @@ Rules — what TO extract:
 - If an article is published AFTER the NFL Draft and says "Player X was drafted #N by Team Y" — that is a RECAP FACT, not a prediction. REJECT it.
 - If an article is published AFTER a trade/signing was announced and says "Team Z signed Player Q" — REJECT it.
 - ACCEPT only statements that describe events that had NOT yet happened when the article was published.
-- Each extracted prediction that you INCLUDE in your output must have a "prediction_horizon_days" field: the estimated number of days from publication to when the event resolves. This value MUST be > 0.
-- If you cannot identify a future event because the event is already in the past relative to the publication date, REJECT the item and DO NOT include it in your output.
+- Each extracted prediction must have a "prediction_horizon_days" field: the estimated number of days from publication to when the event resolves. For retroactive/past statements, set prediction_horizon_days to -1 — include these in your output and the post-filter will drop them automatically. For genuine future predictions this value MUST be > 0.
 
 Examples to REJECT (retroactive recaps — outcome already occurred at publication date):
   "Player X was drafted #257 by the Broncos" (article published after draft day) → REJECT
@@ -95,7 +94,7 @@ Examples of good extractions:
   "Fernando Mendoza will be drafted #1 overall by the Las Vegas Raiders" (draft_pick, target_player: Fernando Mendoza) → stance: neutral, prediction_horizon_days: 14
   "Arvell Reese will be drafted #3 overall by the Arizona Cardinals" (draft_pick, target_player: Arvell Reese) → stance: neutral, prediction_horizon_days: 7
   "The Raiders will win the AFC West in 2026" (game_outcome, target_player: null) → stance: bullish, prediction_horizon_days: 180
-  "There will be at least 4 picks for the Jets in the first round of the 2026 draft" (draft_pick, target_player: null, target_franchise: NYJ) → stance: neutral, prediction_horizon_days: 30
+  "There will be at least 4 picks for the Jets in the first round of the 2026 draft" (draft_pick, target_player: null, target_team: NYJ) → stance: neutral, prediction_horizon_days: 30
   "Patrick Mahomes will throw 40+ touchdowns in 2026" (player_performance, target_player: Patrick Mahomes) → stance: bullish, prediction_horizon_days: 210
   "The Bears will make the playoffs in 2026" (game_outcome, target_player: null) → stance: bullish, prediction_horizon_days: 200
   "No quarterback other than Mendoza will go in Round 1" (draft_pick, target_player: null) → stance: neutral, prediction_horizon_days: 5

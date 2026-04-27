@@ -40,6 +40,7 @@ Return a JSON array of objects. Each object must have:
 - "target_player": string or null — player name if about a specific player
 - "target_team": string or null — team abbreviation (e.g. "KC", "CHI")
 - "confidence_note": string — how explicit/confident the prediction is (REQUIRED)
+- "prediction_horizon_days": integer — estimated days from publication date to when the event resolves; use -1 for retroactive/past statements (REQUIRED)
 
 For draft_pick category: season_year MUST be populated with the draft year (infer if not explicitly stated).
 
@@ -160,12 +161,17 @@ class GeminiProvider(LLMProvider):
                         type=types.Type.STRING,
                         description="How explicit/confident the prediction is",
                     ),
+                    "prediction_horizon_days": types.Schema(
+                        type=types.Type.INTEGER,
+                        description="Days from publication date to event resolution; use -1 for retroactive/past statements",
+                    ),
                 },
                 required=[
                     "extracted_claim",
                     "claim_category",
                     "stance",
                     "confidence_note",
+                    "prediction_horizon_days",
                 ],
             ),
         )

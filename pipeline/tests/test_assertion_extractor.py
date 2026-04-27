@@ -998,6 +998,7 @@ class TestAllowHistorical:
                 "season_year": past_year,
                 "stance": "bullish",
                 "target_player": None,
+                "prediction_horizon_days": 30,
             }
         ]
         return provider
@@ -1045,6 +1046,7 @@ class TestAllowHistorical:
                 "season_year": current_year,
                 "stance": "bullish",
                 "target_player": "Patrick Mahomes",
+                "prediction_horizon_days": 180,
             }
         ]
         result = extract_assertions(
@@ -1067,6 +1069,7 @@ class TestAllowHistorical:
                 "season_year": past_year,
                 "stance": "bullish",
                 "target_player": None,
+                "prediction_horizon_days": 30,
             }
         ]
 

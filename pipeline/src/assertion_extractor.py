@@ -428,8 +428,8 @@ def run_extraction(
     if db is None:
         db = DBManager()
 
+    config = load_llm_config()
     if provider is None and not dry_run:
-        config = load_llm_config()
         if provider_name:
             config.setdefault("extraction", {})["provider"] = provider_name
         provider = get_provider_with_fallback("extraction", config)
@@ -585,8 +585,10 @@ def run_extraction(
 
             processed_hashes.append(content_hash)
 
-            # Rate limiting — configurable per provider (reduced to 1s for Gemini Flash burst)
-            time.sleep(1)
+            # Rate limiting — delay read from llm_config.yaml extraction.rate_limit_seconds
+            rate_limit = config.get("extraction", {}).get("rate_limit_seconds", 1.0)
+            if rate_limit > 0:
+                time.sleep(rate_limit)
 
         # Batch ingest all predictions into the cryptographic ledger
         if all_predictions and not dry_run:

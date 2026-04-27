@@ -1,237 +1,163 @@
-import type { Metadata } from "next";
+import React from "react";
+import { Metadata } from "next";
 import Link from "next/link";
+import { ShieldCheck, ArrowLeft } from "lucide-react";
 
 export const metadata: Metadata = {
     title: "Privacy Policy | Pundit Ledger",
-    description: "Privacy Policy for the Pundit Ledger prediction tracking platform.",
+    description: "How Pundit Ledger collects, uses, and protects your information.",
 };
 
 export default function PrivacyPolicy() {
     return (
-        <div className="bg-black text-white min-h-[100dvh]">
-            <article className="max-w-3xl mx-auto px-6 py-20 space-y-10">
-                <header className="space-y-3 border-b border-zinc-800 pb-8">
-                    <h1 className="text-4xl font-black tracking-tight">Privacy Policy</h1>
-                    <p className="text-sm text-zinc-500">Effective: [DATE]</p>
-                </header>
+        <main className="min-h-[100dvh] bg-black text-white px-6 py-16">
+            <div className="max-w-3xl mx-auto">
+                {/* Back link */}
+                <Link
+                    href="/"
+                    className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
+                >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Pundit Ledger
+                </Link>
 
-                <section className="space-y-4 text-zinc-300 leading-relaxed">
-                    <p>
-                        This Privacy Policy explains how Cap Alpha Protocol LLC (&quot;we,&quot; &quot;us,&quot;
-                        or &quot;our&quot;), operating as Pundit Ledger, collects, uses, and protects
-                        your information when you use our platform (&quot;Service&quot;). We are committed to handling your data
-                        responsibly and transparently.
-                    </p>
-                </section>
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-2">
+                    <ShieldCheck className="w-7 h-7 text-emerald-400 shrink-0" />
+                    <h1 className="text-3xl font-extrabold tracking-tight">Privacy Policy</h1>
+                </div>
+                <p className="text-sm text-zinc-500 mb-12">Last updated: April 27, 2026</p>
 
-                {/* 1. Information We Collect */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">1. Information We Collect</h2>
+                {/* Body */}
+                <div className="space-y-10 text-zinc-300 leading-relaxed">
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">1. What We Collect</h2>
+                        <p>
+                            When you visit Pundit Ledger we may collect standard server log data
+                            (IP address, browser type, referring URL, pages visited). If you
+                            create an account via Clerk, we store the email address and display
+                            name you provide. We do not collect payment details directly — that is
+                            handled by Stripe.
+                        </p>
+                        <p>
+                            We do <strong>not</strong> sell your personal data to third parties.
+                        </p>
+                    </section>
 
-                    <h3 className="text-lg font-semibold text-zinc-200 mt-4">Account Information</h3>
-                    <p className="text-zinc-300 leading-relaxed">
-                        When you create an account, we collect your name and email address through
-                        Clerk, our authentication provider. We use this information to identify your
-                        account and communicate with you about the Service.
-                    </p>
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">2. How We Use Your Information</h2>
+                        <ul className="list-disc list-inside space-y-2 text-zinc-400">
+                            <li>To operate and improve the service</li>
+                            <li>To send transactional emails (account creation, password resets)</li>
+                            <li>To detect and prevent abuse</li>
+                            <li>
+                                To understand aggregate usage patterns (via privacy-respecting
+                                analytics — no cross-site tracking)
+                            </li>
+                        </ul>
+                    </section>
 
-                    <h3 className="text-lg font-semibold text-zinc-200 mt-4">Payment Information</h3>
-                    <p className="text-zinc-300 leading-relaxed">
-                        Paid subscriptions are processed through Stripe. We do not store credit card
-                        numbers, bank account details, or other sensitive payment credentials on our
-                        servers. Stripe handles payment data in accordance with PCI DSS standards. We
-                        retain only a transaction reference and subscription status for billing
-                        purposes.
-                    </p>
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">3. Cookies &amp; Local Storage</h2>
+                        <p>
+                            We use cookies set by Clerk for session authentication. We use browser
+                            local storage for preferences such as sport filters. We do not use
+                            advertising cookies or third-party tracking pixels.
+                        </p>
+                    </section>
 
-                    <h3 className="text-lg font-semibold text-zinc-200 mt-4">Usage Data</h3>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We collect API request logs, page views, and feature usage data to operate the
-                        Service, enforce rate limits, and meter usage for billing. This includes IP
-                        addresses, request timestamps, endpoints accessed, and response codes.
-                    </p>
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">4. Third-Party Services</h2>
+                        <p>We use the following third-party services:</p>
+                        <ul className="list-disc list-inside space-y-2 text-zinc-400">
+                            <li>
+                                <strong className="text-zinc-300">Clerk</strong> — authentication
+                                and user management
+                            </li>
+                            <li>
+                                <strong className="text-zinc-300">Stripe</strong> — payment
+                                processing (future Pro tier)
+                            </li>
+                            <li>
+                                <strong className="text-zinc-300">Vercel</strong> — hosting and
+                                edge network
+                            </li>
+                            <li>
+                                <strong className="text-zinc-300">Google BigQuery</strong> — data
+                                warehouse (server-side only; no user data stored there)
+                            </li>
+                        </ul>
+                        <p>Each service has its own privacy policy that governs data they handle.</p>
+                    </section>
 
-                    <h3 className="text-lg font-semibold text-zinc-200 mt-4">What We Do Not Collect</h3>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We do not collect your betting activity, gambling history, or financial
-                        information beyond what is necessary to process your subscription payment.
-                        Pundit Ledger tracks the accuracy of public sports media predictions &mdash;
-                        it does not monitor or record your personal wagering behavior.
-                    </p>
-                </section>
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">5. Data Retention</h2>
+                        <p>
+                            Account data is retained as long as your account is active. You may
+                            request deletion at any time by emailing{" "}
+                            <a
+                                href="mailto:support@cap-alpha.co"
+                                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                                support@cap-alpha.co
+                            </a>
+                            . Prediction data in the public ledger is retained indefinitely as part
+                            of the immutable record.
+                        </p>
+                    </section>
 
-                {/* 2. How We Use Your Information */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">2. How We Use Your Information</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We use the information we collect for the following purposes:
-                    </p>
-                    <ul className="list-disc list-inside space-y-2 text-zinc-300 pl-2">
-                        <li>
-                            <strong className="text-white">Service delivery</strong> &mdash;
-                            Authenticating your account, delivering content based on your subscription
-                            tier, and processing payments.
-                        </li>
-                        <li>
-                            <strong className="text-white">Usage metering</strong> &mdash;
-                            Tracking API calls and feature usage to enforce rate limits and calculate
-                            billing for usage-based tiers.
-                        </li>
-                        <li>
-                            <strong className="text-white">Product improvement</strong> &mdash;
-                            Analyzing aggregate usage patterns to improve the Service, fix bugs, and
-                            prioritize new features.
-                        </li>
-                        <li>
-                            <strong className="text-white">Communication</strong> &mdash;
-                            Sending transactional emails (billing confirmations, account changes) and,
-                            if you opt in, product updates.
-                        </li>
-                    </ul>
-                </section>
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">6. Your Rights</h2>
+                        <p>
+                            Depending on your jurisdiction, you may have rights to access, correct,
+                            or delete personal data we hold about you. To exercise these rights,
+                            contact us at{" "}
+                            <a
+                                href="mailto:support@cap-alpha.co"
+                                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                                support@cap-alpha.co
+                            </a>
+                            .
+                        </p>
+                    </section>
 
-                {/* 3. Third-Party Services */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">3. Third-Party Services</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We rely on the following third-party providers to operate the Service. Each
-                        processes data only as necessary to perform its function:
-                    </p>
-                    <ul className="list-disc list-inside space-y-2 text-zinc-300 pl-2">
-                        <li>
-                            <strong className="text-white">Clerk</strong> &mdash; Authentication and
-                            user management.
-                        </li>
-                        <li>
-                            <strong className="text-white">Stripe</strong> &mdash; Payment processing
-                            and subscription management.
-                        </li>
-                        <li>
-                            <strong className="text-white">Google Cloud Platform (BigQuery)</strong> &mdash;
-                            Data warehouse for prediction data and scoring pipelines.
-                        </li>
-                        <li>
-                            <strong className="text-white">Vercel</strong> &mdash; Application hosting
-                            and edge delivery.
-                        </li>
-                        <li>
-                            <strong className="text-white">Sentry</strong> &mdash; Error tracking and
-                            performance monitoring.
-                        </li>
-                    </ul>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We do not sell your personal information to third parties. We do not share
-                        your data with advertisers.
-                    </p>
-                </section>
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">7. Changes to This Policy</h2>
+                        <p>
+                            We may update this policy from time to time. Material changes will be
+                            announced via the site. Continued use of the service after the effective
+                            date constitutes acceptance of the revised policy.
+                        </p>
+                    </section>
 
-                {/* 4. Data Retention */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">4. Data Retention</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We retain your account information for as long as your account is active.
-                        Usage logs are retained for billing verification and abuse prevention. If you
-                        request account deletion, we will remove your personal data within 30 days,
-                        except where retention is required by law or necessary to resolve disputes.
-                    </p>
-                </section>
+                    <section className="space-y-3">
+                        <h2 className="text-xl font-bold text-white">8. Contact</h2>
+                        <p>
+                            Questions?{" "}
+                            <a
+                                href="mailto:support@cap-alpha.co"
+                                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                                support@cap-alpha.co
+                            </a>
+                        </p>
+                    </section>
+                </div>
 
-                {/* 5. Cookies */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">5. Cookies</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We use minimal, essential cookies for authentication and session management.
-                        We do not use advertising cookies, tracking pixels, or third-party analytics
-                        cookies. The cookies we set are strictly necessary for the Service to function.
-                    </p>
-                </section>
-
-                {/* 6. Your Rights */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">6. Your Rights</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        Depending on your jurisdiction, you may have the following rights regarding
-                        your personal data:
-                    </p>
-                    <ul className="list-disc list-inside space-y-2 text-zinc-300 pl-2">
-                        <li>
-                            <strong className="text-white">Access</strong> &mdash; Request a copy of
-                            the personal data we hold about you.
-                        </li>
-                        <li>
-                            <strong className="text-white">Deletion</strong> &mdash; Request that we
-                            delete your personal data, subject to legal retention requirements.
-                        </li>
-                        <li>
-                            <strong className="text-white">Export</strong> &mdash; Receive your data
-                            in a portable, machine-readable format.
-                        </li>
-                        <li>
-                            <strong className="text-white">Correction</strong> &mdash; Request
-                            correction of inaccurate personal data.
-                        </li>
-                        <li>
-                            <strong className="text-white">Opt out of sale</strong> &mdash; We do not
-                            sell personal data, but if you are a California resident under the CCPA,
-                            you have the right to confirm this.
-                        </li>
-                    </ul>
-                    <p className="text-zinc-300 leading-relaxed">
-                        To exercise any of these rights, contact us
-                        at{" "}
-                        <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
-                            support@cap-alpha.co
-                        </a>.
-                        We will respond within 30 days.
-                    </p>
-                </section>
-
-                {/* 7. Children's Privacy */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">7. Children&apos;s Privacy</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        The Service is not directed to children under 13. We do not knowingly collect
-                        personal information from children. If you believe a child has provided us
-                        with personal data, please contact us and we will delete it promptly.
-                    </p>
-                </section>
-
-                {/* 8. Changes to This Policy */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">8. Changes to This Policy</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        We may update this Privacy Policy from time to time. When we make material
-                        changes, we will notify you by email or through the Service. Your continued
-                        use of the Service after notification constitutes acceptance of the updated
-                        policy.
-                    </p>
-                </section>
-
-                {/* 9. Contact */}
-                <section className="space-y-3">
-                    <h2 className="text-xl font-bold text-white">9. Contact</h2>
-                    <p className="text-zinc-300 leading-relaxed">
-                        If you have questions about this Privacy Policy or how we handle your data,
-                        contact us at{" "}
-                        <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
-                            support@cap-alpha.co
-                        </a>.
-                    </p>
-                </section>
-
-                {/* Related policies */}
-                <footer className="border-t border-zinc-800 pt-8 text-sm text-zinc-500">
-                    <p>See also:</p>
-                    <ul className="mt-2 space-y-1">
-                        <li>
-                            <Link href="/legal/terms" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">Terms of Service</Link>
-                        </li>
-                        <li>
-                            <Link href="/legal/acceptable-use" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">Acceptable Use Policy</Link>
-                        </li>
-                    </ul>
-                </footer>
-            </article>
-        </div>
+                {/* Footer nav */}
+                <div className="mt-16 pt-8 border-t border-zinc-900 flex items-center gap-6 text-xs text-zinc-600">
+                    <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">
+                        Terms of Service
+                    </Link>
+                    <Link href="/methodology" className="hover:text-zinc-400 transition-colors">
+                        Methodology
+                    </Link>
+                    <Link href="/ledger" className="hover:text-zinc-400 transition-colors">
+                        Leaderboard
+                    </Link>
+                </div>
+            </div>
+        </main>
     );
 }

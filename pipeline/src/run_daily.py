@@ -107,6 +107,35 @@ def run_stage(
     return result
 
 
+class _StageFailed(Exception):
+    """Raised inside the Healer-wrapped callable when a stage exits non-zero."""
+
+    def __init__(self, returncode: int, error_message: str):
+        self.returncode = returncode
+        self.error_message = error_message
+        super().__init__(error_message[:200])
+
+
+def _run_stage_with_healing(
+    stage_name: str, cmd: str, healer, best_effort: bool
+) -> "StageResult":
+    """Run a stage through the Healer so transient errors auto-retry."""
+    final: dict = {}
+
+    def attempt():
+        result = run_stage(stage_name, cmd, best_effort=True)
+        final["result"] = result
+        if result.status == "error":
+            raise _StageFailed(result.returncode or 1, result.error_message or "")
+        return result
+
+    outcome = healer.run(stage_name, attempt)
+    if outcome.outcome in ("ok", "healed"):
+        return final["result"]
+    # Escalated — the last result is still in `final` from the last attempt
+    return final.get("result") or run_stage(stage_name, cmd, best_effort=best_effort)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Daily Pipeline Orchestrator")
     parser.add_argument(
@@ -114,10 +143,29 @@ def main():
         action="store_true",
         help="Continue on stage failure (old behavior). Default is fail-loud.",
     )
+    parser.add_argument(
+        "--self-heal",
+        action="store_true",
+        help="Wrap each stage in the Healer playbook framework "
+        "(retry transient errors, escalate novel ones).",
+    )
     args = parser.parse_args()
 
     best_effort = args.best_effort
+    self_heal = args.self_heal
     mode = "best-effort" if best_effort else "fail-loud"
+    if self_heal:
+        mode += "+self-heal"
+
+    healer = None
+    if self_heal:
+        from src.healing import Healer, register_default_playbooks
+
+        healer = Healer()
+        register_default_playbooks(healer)
+        logger.info(
+            "Self-healing enabled: %d playbooks registered", len(healer.playbooks)
+        )
     year = str(datetime.now().year)
     run_id = str(uuid.uuid4())[:8]
 
@@ -151,7 +199,12 @@ def main():
     failed = False
 
     for stage_name, cmd in stages:
-        stage_result = run_stage(stage_name, cmd, best_effort=best_effort)
+        if healer is not None:
+            stage_result = _run_stage_with_healing(
+                stage_name, cmd, healer, best_effort=best_effort
+            )
+        else:
+            stage_result = run_stage(stage_name, cmd, best_effort=best_effort)
         results.append(stage_result)
 
         if stage_result.status == "error":

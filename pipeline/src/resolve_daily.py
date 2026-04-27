@@ -95,7 +95,16 @@ def _extract_draft_claim(claim: str) -> dict:
         "ninth": 9,
         "tenth": 10,
     }
-    pick_match = re.search(r"(?:no\.?\s*|#)(\d+)\s*(?:overall\s*)?pick", claim_lower)
+    # Match: "#7 pick", "No. 7 pick", "No. 7 overall pick", "#7 overall",
+    # "drafted 7th overall", "drafted 39th overall", "pick #7", "drafted #7",
+    # plus the original "(N) overall pick" variants.
+    pick_match = re.search(
+        r"(?:no\.?\s*|#|pick\s*#?|drafted\s+#?)(\d+)(?:st|nd|rd|th)?\s*(?:overall|pick)",
+        claim_lower,
+    )
+    if not pick_match:
+        # Bare "#N overall" or "Nth overall" without a leading keyword.
+        pick_match = re.search(r"#?(\d+)(?:st|nd|rd|th)?\s+overall", claim_lower)
     if pick_match:
         result["pick_number"] = int(pick_match.group(1))
     else:

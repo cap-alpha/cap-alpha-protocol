@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Footer from "@/components/footer";
 import { Providers } from "@/components/providers";
 import OnboardingModal from "@/components/onboarding-modal";
 import { AuthInterstitial } from "@/components/auth-interstitial";
@@ -10,8 +9,22 @@ import { Navbar } from "@/components/navbar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-    title: "Cap Alpha Protocol",
-    description: "Advanced Roster Management System",
+    title: {
+        default: "Pundit Ledger — Hold Sports Pundits Accountable",
+        template: "%s | Pundit Ledger",
+    },
+    description:
+        "Every sports prediction tracked, scored, and cryptographically sealed. See which pundits are actually right.",
+    metadataBase: new URL("https://cap-alpha.co"),
+    openGraph: {
+        siteName: "Pundit Ledger",
+        type: "website",
+        locale: "en_US",
+    },
+    twitter: {
+        card: "summary_large_image",
+        site: "@punditled",
+    },
 };
 
 export default function RootLayout({
@@ -30,7 +43,6 @@ export default function RootLayout({
                         {children}
                     </main>
                 </Providers>
-                <Footer />
             </body>
         </html>
     );

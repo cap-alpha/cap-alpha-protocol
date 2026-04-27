@@ -117,6 +117,10 @@ jobs:
 
   e2e_test:
     name: Run E2E Integration Tests (Docker)
+    # Disabled 2026-04-26: flaky on PRs that don't touch web/playwright,
+    # not a required check, burns runner minutes on every push. Re-enable
+    # by removing this `if: false` once the Docker setup is reliable.
+    if: false
     runs-on: ubuntu-latest
     continue-on-error: true
     

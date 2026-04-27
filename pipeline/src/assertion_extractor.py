@@ -1009,14 +1009,6 @@ Examples:
             "so those items are re-extracted on the next run. Exits after reset."
         ),
     )
-    parser.add_argument(
-        "--allow-historical",
-        action="store_true",
-        help=(
-            "Bypass the temporal filter that drops past-season predictions. "
-            "Use for historical backfill (2020-2024 content) where outcomes are known."
-        ),
-    )
     args = parser.parse_args()
 
     # Resolve provider: CLI flag > EXTRACTION_LLM env var

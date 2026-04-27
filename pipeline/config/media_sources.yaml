@@ -629,38 +629,200 @@ sources:
         name: "Rich Eisen"
         match_authors: ["Rich Eisen"]
 
-  - id: chris_simms_unbuttoned
-    name: "Chris Simms Unbuttoned"
+  # ── Tier 2 YouTube Expansion (issue #262) ──────────────────────────────────
+  - id: first_take_espn
+    name: "First Take (ESPN)"
     sport: "NFL"
     type: youtube_transcript
-    # TODO: verify channel_id
-    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
-    enabled: false
+    # channel_id UCfqgnDBOHDMsu65LL2ZVi1Q verified 2026-04-27 — active First Take show
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCfqgnDBOHDMsu65LL2ZVi1Q"
+    enabled: true
+    pundits:
+      - id: stephen_a_smith
+        name: "Stephen A. Smith"
+        match_authors: ["Stephen A. Smith", "Stephen A"]
+      - id: molly_qerim
+        name: "Molly Qerim"
+        match_authors: ["Molly Qerim"]
+
+  - id: get_up_espn
+    name: "Get Up (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCIRIKQoZW1zkhsoIVBBpIKA verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIRIKQoZW1zkhsoIVBBpIKA"
+    enabled: true
+    pundits:
+      - id: mike_greenberg
+        name: "Mike Greenberg"
+        match_authors: ["Mike Greenberg", "Greeny"]
+      - id: dan_orlovsky
+        name: "Dan Orlovsky"
+        match_authors: ["Dan Orlovsky", "Orlovsky"]
+
+  - id: good_morning_football
+    name: "Good Morning Football (NFL Network)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCg45I1Os0VO6BBT4Tmpik_A verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCg45I1Os0VO6BBT4Tmpik_A"
+    enabled: true
+    default_pundit:
+      id: gmfb_staff
+      name: "Good Morning Football Staff"
+    pundits:
+      - id: peter_schrager
+        name: "Peter Schrager"
+        match_authors: ["Peter Schrager", "Schrager"]
+      - id: kyle_brandt
+        name: "Kyle Brandt"
+        match_authors: ["Kyle Brandt"]
+
+  - id: skip_bayless_show
+    name: "The Skip Bayless Show"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCyR0mCuTq14PIVadirooX6w verified 2026-04-27 — Skip's personal weekly podcast
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCyR0mCuTq14PIVadirooX6w"
+    enabled: true
+    pundits:
+      - id: skip_bayless
+        name: "Skip Bayless"
+        match_authors: ["Skip Bayless", "Bayless"]
+
+  - id: emmanuel_acho
+    name: "Emmanuel Acho"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UC3DoYiL7X_N1Ta1o4HE9Mlg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC3DoYiL7X_N1Ta1o4HE9Mlg"
+    enabled: true
+    pundits:
+      - id: emmanuel_acho
+        name: "Emmanuel Acho"
+        match_authors: ["Emmanuel Acho", "Acho"]
+
+  - id: speakeasy_acho
+    name: "Speakeasy with Emmanuel Acho"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCLXzq85ijg2LwJWFrz4pkmw verified 2026-04-27 (formerly The Facility on FS1)
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCLXzq85ijg2LwJWFrz4pkmw"
+    enabled: true
+    pundits:
+      - id: emmanuel_acho
+        name: "Emmanuel Acho"
+        match_authors: ["Emmanuel Acho", "Acho"]
+      - id: lesean_mccoy
+        name: "LeSean McCoy"
+        match_authors: ["LeSean McCoy", "McCoy"]
+
+  - id: i_am_athlete
+    name: "I Am Athlete (Brandon Marshall)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UC4qMMCxdNfU6cwpaXZOyUSg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC4qMMCxdNfU6cwpaXZOyUSg"
+    enabled: true
+    pundits:
+      - id: brandon_marshall
+        name: "Brandon Marshall"
+        match_authors: ["Brandon Marshall", "Marshall"]
+      - id: fred_taylor
+        name: "Fred Taylor"
+        match_authors: ["Fred Taylor"]
+      - id: channing_crowder
+        name: "Channing Crowder"
+        match_authors: ["Channing Crowder", "Crowder"]
+
+  - id: nbc_sports_yt
+    name: "NBC Sports (Chris Simms Unbuttoned)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCqZQlzSHbVJrwrn5XvzrzcA verified 2026-04-27
+    # Chris Simms Unbuttoned episodes are published to this NBC Sports channel
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCqZQlzSHbVJrwrn5XvzrzcA"
+    enabled: true
+    keyword_filter:
+      - "NFL"
+      - "football"
+      - "quarterback"
+      - "draft"
+      - "Simms"
+      - "trade"
+      - "roster"
+      - "Super Bowl"
     pundits:
       - id: chris_simms
         name: "Chris Simms"
         match_authors: ["Chris Simms"]
 
-  - id: good_morning_football
-    name: "Good Morning Football"
+  - id: ryan_clark_yt
+    name: "Ryan Clark"
     sport: "NFL"
     type: youtube_transcript
-    # TODO: verify channel_id
-    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
-    enabled: false
-    pundits: []
-
-  - id: skip_bayless_yt
-    name: "Skip Bayless"
-    sport: "NFL"
-    type: youtube_transcript
-    # TODO: verify channel_id — Skip Bayless personal YouTube channel
-    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
-    enabled: false
+    # channel_id UCueZJ1fm7OehTdL9IhLSoSg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCueZJ1fm7OehTdL9IhLSoSg"
+    enabled: true
     pundits:
-      - id: skip_bayless
-        name: "Skip Bayless"
-        match_authors: ["Skip Bayless"]
+      - id: ryan_clark
+        name: "Ryan Clark"
+        match_authors: ["Ryan Clark"]
+
+  - id: the_pivot_podcast
+    name: "The Pivot Podcast"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCUnxiP7q4RDDyeioZFZLnXA verified 2026-04-27 — Ryan Clark, Channing Crowder, Fred Taylor
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCUnxiP7q4RDDyeioZFZLnXA"
+    enabled: true
+    pundits:
+      - id: ryan_clark
+        name: "Ryan Clark"
+        match_authors: ["Ryan Clark"]
+      - id: channing_crowder
+        name: "Channing Crowder"
+        match_authors: ["Channing Crowder", "Crowder"]
+      - id: fred_taylor
+        name: "Fred Taylor"
+        match_authors: ["Fred Taylor"]
+
+  - id: cam_newton_4th_1
+    name: "4th & 1 with Cam Newton"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCmNMxZqiWk3ZX8SDhSgLHlQ verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCmNMxZqiWk3ZX8SDhSgLHlQ"
+    enabled: true
+    pundits:
+      - id: cam_newton
+        name: "Cam Newton"
+        match_authors: ["Cam Newton", "Newton"]
+
+  - id: nfl_official_yt
+    name: "NFL Official Channel"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCDVYQ4Zhbm3S2dlz7P1GBDg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCDVYQ4Zhbm3S2dlz7P1GBDg"
+    enabled: true
+    keyword_filter:
+      - "predictions"
+      - "bold picks"
+      - "preview"
+      - "picks"
+      - "Super Bowl"
+      - "playoffs"
+    default_pundit:
+      id: nfl_staff
+      name: "NFL Staff"
+    pundits:
+      - id: ian_rapoport
+        name: "Ian Rapoport"
+        match_authors: ["Ian Rapoport", "Rapoport"]
+      - id: tom_pelissero
+        name: "Tom Pelissero"
+        match_authors: ["Tom Pelissero"]
 
 # ── Historical Archive Sources (Wayback Machine backfill 2020–2024) ────────
 # These are NOT fetched by the daily RSS ingestor. Use historical_archive_ingestor.py.

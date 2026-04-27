@@ -232,6 +232,7 @@ class TestRunExtractionSport:
                     "target_player": "P. Mahomes",
                     "target_team": "KC",
                     "confidence_note": "strong",
+                    "prediction_horizon_days": 30,
                 }
             ]
         )
@@ -270,6 +271,7 @@ class TestRunExtractionSport:
                     "target_player": None,
                     "target_team": "KC",
                     "confidence_note": "strong",
+                    "prediction_horizon_days": 30,
                 }
             ]
         )

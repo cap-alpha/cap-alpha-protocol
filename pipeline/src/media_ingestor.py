@@ -482,6 +482,8 @@ def _fetch_transcript(video_id: str) -> str:
             text = " ".join(segment["text"] for segment in transcript_data)
         if text.strip():
             return text
+        else:
+            e1 = RuntimeError("yt-api returned empty transcript")
     except Exception as exc:
         e1 = exc
 

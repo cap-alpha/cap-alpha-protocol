@@ -293,19 +293,35 @@ def fetch_article(url: str, timestamp: str) -> tuple[Optional[str], str]:
 # ---------------------------------------------------------------------------
 
 
-def _content_hash(url: str) -> str:
-    return hashlib.sha256(url.encode()).hexdigest()
+def _content_hash(url: str, title: str = "") -> str:
+    """Deterministic dedup hash matching compute_content_hash in media_ingestor.
+    Uses url|title so it is consistent with cross-ingestor dedup.
+    If title is missing (archived articles), falls back to empty string.
+    See: pipeline/src/media_ingestor.py::compute_content_hash
+    """
+    payload = f"{url}|{title or ''}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def _load_existing_hashes(db, project_id: str) -> set:
-    """Load all content hashes already in raw_pundit_media from historical ingestion."""
+def _load_existing_hashes(db, project_id: str, source_urls: list[str]) -> set:
+    """Load content hashes for the given catalogue URLs to keep memory bounded.
+
+    Filters to only rows whose source_url appears in the current catalogue,
+    preventing a full-table scan as the archive grows.
+    """
+    if not source_urls:
+        return set()
     try:
         df = db.fetch_df(
             f"""
             SELECT content_hash
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
-            WHERE fetch_source_type IN ('wayback', 'direct', 'webcache', 'historical')
-        """
+            WHERE source_url IN UNNEST(@urls)
+              AND fetch_source_type IN ('wayback', 'direct', 'webcache', 'historical')
+            """,
+            query_parameters=[
+                {"name": "urls", "type": "ARRAY<STRING>", "value": source_urls}
+            ],
         )
         return set(df["content_hash"].tolist()) if not df.empty else set()
     except Exception as e:
@@ -359,7 +375,8 @@ def run_historical_ingestion(
         f"(batch_size={batch_size}, dry_run={dry_run})"
     )
 
-    existing_hashes = _load_existing_hashes(db, project_id)
+    catalogue_urls = [a["url"] for a in catalogue]
+    existing_hashes = _load_existing_hashes(db, project_id, catalogue_urls)
     logger.info(f"Loaded {len(existing_hashes)} existing archive hashes")
 
     summary = {
@@ -377,7 +394,8 @@ def run_historical_ingestion(
 
     for article in catalogue:
         url = article["url"]
-        ch = _content_hash(url)
+        article_title = article.get("title", "")
+        ch = _content_hash(url, article_title)
         summary["articles_attempted"] += 1
 
         if ch in existing_hashes:

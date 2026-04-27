@@ -479,6 +479,13 @@ def run_extraction(
 
         all_predictions = []
         processed_hashes = []
+        # In-memory guard: track hashes that yielded zero predictions this run.
+        # Prevents recent items from repeatedly burning LLM calls when the model
+        # consistently finds nothing. Within a single run, skip items we already
+        # attempted and got zero predictions from.
+        # TODO: replace with a persistent retry counter (e.g. extraction_attempts
+        # table with content_hash + attempts + last_attempted_at) to guard across runs.
+        seen_zero_pred_this_run: set[str] = set()
 
         for _, row in media_df.iterrows():
             content_hash = row["content_hash"]
@@ -489,6 +496,14 @@ def run_extraction(
                     f"DRY RUN: would extract from {content_hash[:16]}… "
                     f"({row.get('title', 'untitled')[:50]})"
                 )
+                continue
+
+            # Skip if this hash already yielded zero predictions earlier this run
+            if content_hash in seen_zero_pred_this_run:
+                logger.debug(
+                    f"Skipping {content_hash[:16]}… (already attempted with zero predictions this run)"
+                )
+                summary["skipped_no_predictions"] += 1
                 continue
 
             # Pre-filter: skip articles with no predictions
@@ -540,10 +555,13 @@ def run_extraction(
                 summary["extracted_zero_predictions"] += 1
                 # Do NOT mark as processed — zero-prediction items are re-queued
                 # on the next run so they get another extraction attempt.
-                # Log for observability without permanently burying the source.
+                # Track in-memory to prevent re-attempt within this run (starvation guard).
+                seen_zero_pred_this_run.add(content_hash)
+                title = row.get("title")
+                title_str = str(title) if pd.notna(title) else "untitled"
                 logger.info(
                     f"Zero predictions from {content_hash[:16]}… "
-                    f"({row.get('title', 'untitled')[:60]}) — not marking processed"
+                    f"({title_str[:60]}) — not marking processed"
                 )
                 continue
 

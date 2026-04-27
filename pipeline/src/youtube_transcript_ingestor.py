@@ -376,6 +376,8 @@ def fetch_single_transcript(video_id: str) -> TranscriptResult:
         text = _fetch_transcript_yt_api(video_id)
         if text.strip():
             return TranscriptResult(video_id=video_id, url=url, transcript_text=text)
+        else:
+            e1 = RuntimeError("yt-api returned empty transcript")
     except Exception as exc:
         e1 = exc
 

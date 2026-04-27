@@ -230,16 +230,28 @@ class TestFetchSingleTranscript:
         assert result.transcript_text is None
         assert result.error is not None
 
+    @patch("src.youtube_transcript_ingestor._fetch_transcript_ytdlp")
     @patch("src.youtube_transcript_ingestor._fetch_transcript_yt_api")
-    def test_non_disabled_error_no_ytdlp(self, mock_api):
-        """Non-'disabled' errors should NOT fall back to yt-dlp."""
+    def test_non_disabled_error_falls_back_to_ytdlp(self, mock_api, mock_ytdlp):
+        """Any yt-api failure (including non-'disabled' errors) should fall back to yt-dlp."""
         mock_api.side_effect = Exception("Network timeout")
-        with patch(
-            "src.youtube_transcript_ingestor._fetch_transcript_ytdlp"
-        ) as mock_ytdlp:
-            result = fetch_single_transcript("abc123")
-            mock_ytdlp.assert_not_called()
+        mock_ytdlp.return_value = "Fallback transcript."
+        result = fetch_single_transcript("abc123")
+        mock_ytdlp.assert_called_once()
+        assert result.transcript_text == "Fallback transcript."
+        assert result.used_ytdlp is True
+
+    @patch("src.youtube_transcript_ingestor._fetch_transcript_ytdlp")
+    @patch("src.youtube_transcript_ingestor._fetch_transcript_yt_api")
+    def test_both_fail_error_includes_both_causes(self, mock_api, mock_ytdlp):
+        """When both yt-api and yt-dlp fail, error message should include both causes."""
+        mock_api.side_effect = Exception("Network timeout")
+        mock_ytdlp.side_effect = Exception("yt-dlp connection refused")
+        result = fetch_single_transcript("abc123")
         assert result.transcript_text is None
+        assert result.error is not None
+        assert "yt-api" in result.error
+        assert "yt-dlp" in result.error
 
 
 class TestFetchTranscriptsParallel:

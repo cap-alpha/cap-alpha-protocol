@@ -420,6 +420,23 @@ class TestRunExtraction:
 
         assert summary["skipped_no_predictions"] == 1
 
+    @patch("src.assertion_extractor.mark_as_processed")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_zero_predictions_does_not_mark_processed(
+        self, mock_extract, mock_mark, mock_db, mock_provider
+    ):
+        """Zero-prediction results must NOT call mark_as_processed and must increment counter."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+        )
+
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        mock_mark.assert_not_called()
+        assert summary["extracted_zero_predictions"] == 1
+
     def test_dry_run_skips_llm(self, mock_db):
         mock_db.fetch_df.return_value = make_raw_media_df(2)
 

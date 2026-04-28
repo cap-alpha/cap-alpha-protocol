@@ -148,6 +148,39 @@ class TestExtractAssertions:
         assert len(result.predictions) == 0
         assert "API quota exceeded" in result.error
 
+    def test_result_has_duration_ms(self, mock_provider):
+        """ExtractionResult always includes a non-negative duration_ms."""
+        set_provider_predictions(mock_provider, [])
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some text",
+            provider=mock_provider,
+        )
+        assert result.duration_ms is not None
+        assert result.duration_ms >= 0
+
+    def test_result_duration_ms_on_error(self, mock_provider):
+        """duration_ms is still populated even when the provider raises."""
+        mock_provider.extract_predictions.side_effect = Exception("timeout")
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some text",
+            provider=mock_provider,
+        )
+        assert result.duration_ms is not None
+        assert result.duration_ms >= 0
+
+    def test_result_tokens_used_from_provider(self, mock_provider):
+        """tokens_used is read from provider._last_tokens_used if set."""
+        mock_provider._last_tokens_used = 256
+        set_provider_predictions(mock_provider, [])
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some text",
+            provider=mock_provider,
+        )
+        assert result.tokens_used == 256
+
     def test_valid_categories_are_complete(self):
         """All expected categories are defined."""
         expected = {
@@ -425,6 +458,47 @@ class TestMarkAsProcessed:
         assert "content_hash" in df.columns
         assert "processed_at" in df.columns
 
+    def test_writes_provenance_columns(self, mock_db):
+        """Provenance columns are written when supplied."""
+        mark_as_processed(
+            ["hash_1"],
+            mock_db,
+            extractor_model="qwen2.5:32b",
+            extractor_provider="ollama",
+            assertions_extracted=3,
+            extraction_duration_ms=4200,
+            prompt_version="v2",
+            tokens_used=512,
+        )
+        df = mock_db.append_dataframe_to_table.call_args[0][0]
+        assert df.loc[0, "extractor_model"] == "qwen2.5:32b"
+        assert df.loc[0, "extractor_provider"] == "ollama"
+        assert df.loc[0, "assertions_extracted"] == 3
+        assert df.loc[0, "extraction_duration_ms"] == 4200
+        assert df.loc[0, "prompt_version"] == "v2"
+        assert df.loc[0, "tokens_used"] == 512
+
+    def test_provenance_by_hash_overrides_scalar(self, mock_db):
+        """Per-hash provenance takes precedence over scalar defaults."""
+        provenance = {
+            "hash_1": {"extractor_model": "llama3.1:8b", "assertions_extracted": 1},
+            "hash_2": {"extractor_model": "qwen2.5:32b", "assertions_extracted": 5},
+        }
+        mark_as_processed(
+            ["hash_1", "hash_2"],
+            mock_db,
+            extractor_provider="ollama",
+            provenance_by_hash=provenance,
+        )
+        df = mock_db.append_dataframe_to_table.call_args[0][0]
+        row1 = df[df["content_hash"] == "hash_1"].iloc[0]
+        row2 = df[df["content_hash"] == "hash_2"].iloc[0]
+        assert row1["extractor_model"] == "llama3.1:8b"
+        assert row1["assertions_extracted"] == 1
+        assert row1["extractor_provider"] == "ollama"  # scalar fallback
+        assert row2["extractor_model"] == "qwen2.5:32b"
+        assert row2["assertions_extracted"] == 5
+
     def test_no_op_on_empty_list(self, mock_db):
         mark_as_processed([], mock_db)
         mock_db.append_dataframe_to_table.assert_not_called()
@@ -557,6 +631,44 @@ class TestRunExtraction:
         summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["total_processed"] == 0
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_provenance_written_to_processed_table(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """run_extraction writes provenance columns when marking articles processed."""
+        mock_provider.model = "qwen2.5:32b"
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Mahomes wins MVP",
+                    "claim_category": "player_performance",
+                    "season_year": 2026,
+                    "target_player": "Patrick Mahomes",
+                    "confidence_note": "strong",
+                }
+            ],
+            duration_ms=3500,
+            tokens_used=400,
+        )
+        mock_ingest.return_value = ["pred_hash_1"]
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        mock_db.append_dataframe_to_table.assert_called_once()
+        df = mock_db.append_dataframe_to_table.call_args[0][0]
+        assert "extractor_model" in df.columns
+        assert "extractor_provider" in df.columns
+        assert "assertions_extracted" in df.columns
+        assert "extraction_duration_ms" in df.columns
+        assert "prompt_version" in df.columns
+        assert "tokens_used" in df.columns
+        assert df.loc[0, "assertions_extracted"] == 1
+        assert df.loc[0, "extraction_duration_ms"] == 3500
+        assert df.loc[0, "tokens_used"] == 400
 
     @patch("src.assertion_extractor.get_unprocessed_media")
     def test_passes_include_unmatched_flag(self, mock_get, mock_db, mock_provider):

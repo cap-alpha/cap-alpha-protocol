@@ -6,9 +6,12 @@
 #   • If ambiguous / needs clarification → logs a notification
 # Also flags open PRs with unaddressed review comments > 6 hours old.
 #
-# TODO: Slack notification — set SLACK_WEBHOOK_URL env var and uncomment:
-# curl -s -X POST "$SLACK_WEBHOOK_URL" -H 'Content-type: application/json' \
-#   --data "{\"text\":\"🔔 Needs clarification: #$issue_number — $title\"}"
+# Load local secrets (git-ignored)
+PERSONAS_FILE="$(dirname "${BASH_SOURCE[0]}")/../.env.personas"
+if [ -f "$PERSONAS_FILE" ]; then
+    # shellcheck disable=SC1090
+    set -a; source "$PERSONAS_FILE"; set +a
+fi
 
 set -euo pipefail
 
@@ -41,6 +44,15 @@ notify() {
     echo "🔔 NEEDS YOUR INPUT: Issue #${issue_number} — ${title}"
     echo "   Question: ${question}"
     echo ""
+
+    # Slack notification
+    if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+        local payload
+        payload=$(printf '{"channel":"%s","text":"🔔 *Needs your input:* Issue #%s — %s\n>%s"}' \
+            "${SLACK_CHANNEL:-#pundit-ledger-nfl-dead-money-cap-alpha-protocol}" \
+            "$issue_number" "$title" "$question")
+        curl -s -X POST "$SLACK_WEBHOOK_URL" -H 'Content-type: application/json' --data "$payload" > /dev/null
+    fi
 }
 
 # Check if an issue is already claimed in .agent/current.md
@@ -294,6 +306,14 @@ PYEOF
         echo "🔔 NEEDS YOUR INPUT: PR #${number} — ${title}"
         echo "   Stale review comments older than 6h. URL: ${url}"
         echo ""
+
+        if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+            local payload
+            payload=$(printf '{"channel":"%s","text":"🔔 *Stale PR review:* #%s — %s\n>Unaddressed review comments \u003e6h old. <%s|View PR>"}' \
+                "${SLACK_CHANNEL:-#pundit-ledger-nfl-dead-money-cap-alpha-protocol}" \
+                "$number" "$title" "$url")
+            curl -s -X POST "$SLACK_WEBHOOK_URL" -H 'Content-type: application/json' --data "$payload" > /dev/null
+        fi
 
     done < <(echo "$prs" | python3 - "$six_hours_ago" <<'PYEOF2'
 import sys, json

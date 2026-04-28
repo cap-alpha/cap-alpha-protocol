@@ -559,6 +559,7 @@ class TestResolvePlayerPerformance:
         assert summary["checked"] == 0
 
 
+# ---------------------------------------------------------------------------
 # _extract_draft_claim
 # ---------------------------------------------------------------------------
 
@@ -1099,3 +1100,65 @@ class TestResolveTeamClaim:
             dry_run=True,
         )
         assert result is None
+
+    def test_word_ordinal_sixteenth_overall(self):
+        """'sixteenth overall' — new extended word ordinal."""
+        result = _extract_draft_claim(
+            "Kenyon Sadiq will go sixteenth overall in the 2026 NFL Draft"
+        )
+        assert result.get("pick_number") == 16
+
+    def test_word_ordinal_twentieth_overall(self):
+        """'twentieth overall' — new extended word ordinal at boundary."""
+        result = _extract_draft_claim(
+            "Player will be selected twentieth overall in the 2026 draft"
+        )
+        assert result.get("pick_number") == 20
+
+    def test_numeric_ordinal_suffix_th_overall(self):
+        """'16th overall' — numeric ordinal suffix pattern."""
+        result = _extract_draft_claim(
+            "Kenyon Sadiq will be picked 16th overall in the 2026 NFL Draft"
+        )
+        assert result.get("pick_number") == 16
+
+    def test_numeric_ordinal_suffix_st_overall(self):
+        """'21st overall' — st suffix."""
+        result = _extract_draft_claim("Player will go 21st overall in the 2026 draft")
+        assert result.get("pick_number") == 21
+
+    def test_numeric_ordinal_suffix_nd_overall(self):
+        """'2nd overall' — nd suffix."""
+        result = _extract_draft_claim("Player selected 2nd overall in 2026")
+        assert result.get("pick_number") == 2
+
+    def test_numeric_ordinal_suffix_rd_overall(self):
+        """'13th overall' — rd-adjacent th suffix."""
+        result = _extract_draft_claim(
+            "Ty Simpson will be picked by the Rams 13th overall in the 2026 draft"
+        )
+        assert result.get("pick_number") == 13
+
+    def test_numeric_ordinal_suffix_with_pick(self):
+        """'16th pick' — ordinal before 'pick' keyword."""
+        result = _extract_draft_claim("Player goes as the 16th pick in 2026")
+        assert result.get("pick_number") == 16
+
+    def test_at_no_dot_in_the(self):
+        """'at No. 20 in the' — 'at No.' pattern without 'pick' keyword."""
+        result = _extract_draft_claim(
+            "Makai Lemon will be selected by the Eagles at No. 20 in the 2026 draft"
+        )
+        assert result.get("pick_number") == 20
+
+    def test_at_no_dot_overall_by(self):
+        """'at No. 11 overall by' — 'No. N overall by' pattern."""
+        result = _extract_draft_claim(
+            "Caleb Downs was selected at No. 11 overall by the Dallas Cowboys"
+        )
+        assert result.get("pick_number") == 11
+
+    def test_no_dot_in_the(self):
+        """'No. 5 in the' — pattern without overall/pick."""
+        result = _extract_draft_claim("Player selected No. 5 in the 2026 draft")
+        assert result.get("pick_number") == 5

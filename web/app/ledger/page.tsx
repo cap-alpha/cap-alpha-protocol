@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import {
     Shield,
@@ -50,6 +50,8 @@ interface RecentPrediction {
     sport: string;
     prediction_hash_short: string;
     ingestion_timestamp: string;
+    // publication/original date from source (may be absent)
+    source_published_at?: string | null;
     resolution_status: string | null;
     brier_score: number | null;
     weighted_score: number | null;
@@ -156,38 +158,101 @@ function RankBadge({ rank }: { rank: number }) {
     );
 }
 
+/** Format a timestamp as "Mon D, YYYY" */
+function fmtDate(ts: string | null | undefined): string | null {
+    if (!ts) return null;
+    try {
+        return new Date(ts).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+        });
+    } catch {
+        return null;
+    }
+}
+
+/** Format a timestamp with time as a long string */
+function fmtDateTime(ts: string | null | undefined): string | null {
+    if (!ts) return null;
+    try {
+        return new Date(ts).toLocaleString("en-US", {
+            month: "long",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+        });
+    } catch {
+        return null;
+    }
+}
+
 // ---------------------------------------------------------------------------
-// Prediction detail modal
+// Dual-timestamp display: "received [date]" + optional "said ~[date]"
 // ---------------------------------------------------------------------------
 
-function PredictionDetailModal({
+function ClaimTimestamps({
+    ingestion_timestamp,
+    source_published_at,
+}: {
+    ingestion_timestamp: string | null | undefined;
+    source_published_at?: string | null;
+}) {
+    const received = fmtDate(ingestion_timestamp);
+    const said = fmtDate(source_published_at);
+    return (
+        <span className="text-[10px] font-mono text-zinc-600 flex flex-wrap gap-2">
+            {received && <span>received {received}</span>}
+            {said && said !== received && <span>said ~{said}</span>}
+        </span>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Slide-out drawer (details panel)
+// ---------------------------------------------------------------------------
+
+function PredictionDrawer({
     prediction,
+    allSources,
     onClose,
 }: {
     prediction: RecentPrediction;
+    /** All members of the group — used to show all source links side-by-side */
+    allSources: RecentPrediction[];
     onClose: () => void;
 }) {
-    const date = prediction.ingestion_timestamp
-        ? new Date(prediction.ingestion_timestamp).toLocaleString("en-US", {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-              hour: "numeric",
-              minute: "2-digit",
-          })
-        : null;
+    const receivedDate = fmtDateTime(prediction.ingestion_timestamp);
+    const saidDate = fmtDate(prediction.source_published_at);
+
+    // Close on Escape
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if (e.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", handler);
+        return () => window.removeEventListener("keydown", handler);
+    }, [onClose]);
 
     return (
-        <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
-            onClick={onClose}
-        >
+        <>
+            {/* Backdrop — semi-transparent, ledger remains visible */}
             <div
-                className="relative w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-950 shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
+                className="fixed inset-0 z-40 bg-black/50"
+                onClick={onClose}
+                aria-hidden="true"
+            />
+
+            {/* Drawer panel */}
+            <div
+                className="fixed top-0 right-0 bottom-0 z-50 w-full max-w-md flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl overflow-y-auto"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Prediction details"
             >
-                {/* Header */}
-                <div className="flex items-start justify-between p-5 border-b border-zinc-800">
+                {/* Drawer header */}
+                <div className="flex items-start justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-950 z-10">
                     <div className="flex items-center gap-2">
                         <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                         <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400">
@@ -197,14 +262,14 @@ function PredictionDetailModal({
                     <button
                         onClick={onClose}
                         className="text-zinc-600 hover:text-zinc-300 transition-colors"
-                        aria-label="Close"
+                        aria-label="Close details"
                     >
                         <X className="w-4 h-4" />
                     </button>
                 </div>
 
-                {/* Body */}
-                <div className="p-5 space-y-4">
+                {/* Drawer body */}
+                <div className="p-5 space-y-5 flex-1">
                     {/* Claim text */}
                     <div>
                         <p className="text-base font-semibold text-white leading-snug">
@@ -218,7 +283,7 @@ function PredictionDetailModal({
                             )}
                     </div>
 
-                    {/* Status */}
+                    {/* Status + Brier */}
                     <div className="flex items-center gap-3">
                         <StatusBadge status={prediction.resolution_status} />
                         {prediction.brier_score !== null && (
@@ -254,40 +319,186 @@ function PredictionDetailModal({
                                 <span className="text-zinc-300">{prediction.season_year}</span>
                             </div>
                         )}
-                        {prediction.target_team && (
-                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
-                                <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Team</div>
-                                <span className="text-zinc-300">{prediction.target_team}</span>
+
+                        {/* Dual timestamps */}
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 col-span-2">
+                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-1">Timestamps</div>
+                            <div className="space-y-1">
+                                {receivedDate && (
+                                    <div>
+                                        <span className="text-zinc-600">received </span>
+                                        <span className="text-zinc-300">{receivedDate}</span>
+                                    </div>
+                                )}
+                                {saidDate && (
+                                    <div>
+                                        <span className="text-zinc-600">said ~</span>
+                                        <span className="text-zinc-300">{saidDate}</span>
+                                    </div>
+                                )}
                             </div>
-                        )}
-                        {date && (
-                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 col-span-2">
-                                <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Ingested</div>
-                                <span className="text-zinc-300">{date}</span>
-                            </div>
-                        )}
+                        </div>
                     </div>
 
-                    {/* Hash + Source */}
-                    <div className="flex items-center justify-between pt-1">
+                    {/* All source links side-by-side */}
+                    {allSources.some((m) => m.source_url) && (
+                        <div>
+                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] font-mono mb-2">Sources</div>
+                            <div className="flex flex-wrap gap-2">
+                                {allSources
+                                    .filter((m) => m.source_url)
+                                    .map((m, i) => (
+                                        <a
+                                            key={m.prediction_hash_short}
+                                            href={m.source_url!}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-[10px] font-mono text-zinc-400 hover:text-emerald-400 hover:border-emerald-500/40 transition-colors"
+                                        >
+                                            Source {allSources.filter((x) => x.source_url).length > 1 ? i + 1 : ""}{" "}
+                                            <ExternalLink className="w-2.5 h-2.5" />
+                                        </a>
+                                    ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Hash */}
+                    <div className="pt-1">
                         <span className="text-[10px] font-mono text-zinc-700">
                             #{prediction.prediction_hash_short}
                         </span>
-                        {prediction.source_url && (
-                            <a
-                                href={prediction.source_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-emerald-400 transition-colors"
-                            >
-                                View source <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                        )}
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
+}
+
+// ---------------------------------------------------------------------------
+// Semantic similarity grouping (client-side cosine similarity on word vectors)
+// ---------------------------------------------------------------------------
+// We use a lightweight TF-IDF-style approach: build word frequency vectors for
+// each claim and compute cosine similarity. This is "semantic" in the sense
+// that word overlap is meaning-relevant, and far better than raw prefix matching.
+// True LLM embeddings would require a backend round-trip; this gives good
+// grouping with zero latency for the front-end.
+
+function tokenize(text: string): string[] {
+    return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter((t) => t.length > 2);
+}
+
+// Common stop words to ignore in similarity
+const STOP_WORDS = new Set([
+    "the", "and", "for", "are", "but", "not", "you", "all", "any", "can",
+    "had", "her", "was", "one", "our", "out", "day", "get", "has", "him",
+    "his", "how", "its", "may", "new", "now", "old", "see", "two", "way",
+    "who", "did", "with", "this", "that", "they", "will", "from", "been",
+    "have", "said", "each", "she", "which", "their", "would", "make", "like",
+    "into", "time", "has", "look", "more", "write", "than", "first", "over",
+    "also", "very", "when", "come", "here", "just", "know", "long", "your",
+    "around", "another", "came", "could", "much", "should", "these", "those",
+]);
+
+function buildVector(tokens: string[]): Map<string, number> {
+    const vec = new Map<string, number>();
+    for (const t of tokens) {
+        if (!STOP_WORDS.has(t)) {
+            vec.set(t, (vec.get(t) ?? 0) + 1);
+        }
+    }
+    return vec;
+}
+
+function cosineSimilarity(a: Map<string, number>, b: Map<string, number>): number {
+    if (a.size === 0 || b.size === 0) return 0;
+    let dot = 0;
+    let normA = 0;
+    let normB = 0;
+    for (const [term, count] of a) {
+        normA += count * count;
+        const bCount = b.get(term);
+        if (bCount !== undefined) dot += count * bCount;
+    }
+    for (const [, count] of b) normB += count * count;
+    if (normA === 0 || normB === 0) return 0;
+    return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+/** Threshold above which two claims are "semantically equivalent" */
+const SIMILARITY_THRESHOLD = 0.72;
+
+interface PredictionGroup {
+    key: string;
+    representative: RecentPrediction;
+    /** Same pundit, semantically equivalent, ingested at ~same time (same-source pickup) */
+    sameTimeSources: RecentPrediction[];
+    /** Same pundit, semantically equivalent, different timestamps (pundit said it again) */
+    repeatOccurrences: RecentPrediction[];
+}
+
+function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
+    // Pre-compute vectors
+    const vectors = predictions.map((p) =>
+        buildVector(tokenize(p.extracted_claim ?? ""))
+    );
+
+    const groups: PredictionGroup[] = [];
+    const assigned = new Set<string>();
+
+    for (let i = 0; i < predictions.length; i++) {
+        const pred = predictions[i];
+        if (assigned.has(pred.prediction_hash_short)) continue;
+
+        assigned.add(pred.prediction_hash_short);
+
+        const ingestMs = pred.ingestion_timestamp
+            ? new Date(pred.ingestion_timestamp).getTime()
+            : null;
+
+        const sameTimeSources: RecentPrediction[] = [];
+        const repeatOccurrences: RecentPrediction[] = [];
+
+        for (let j = i + 1; j < predictions.length; j++) {
+            const other = predictions[j];
+            if (assigned.has(other.prediction_hash_short)) continue;
+            if (other.pundit_id !== pred.pundit_id) continue;
+
+            const sim = cosineSimilarity(vectors[i], vectors[j]);
+            if (sim < SIMILARITY_THRESHOLD) continue;
+
+            // Determine same-time vs repeat
+            const otherIngestMs = other.ingestion_timestamp
+                ? new Date(other.ingestion_timestamp).getTime()
+                : null;
+
+            const SAME_TIME_WINDOW_MS = 48 * 60 * 60 * 1000; // 48h
+            const isSameTime =
+                ingestMs !== null &&
+                otherIngestMs !== null &&
+                Math.abs(ingestMs - otherIngestMs) <= SAME_TIME_WINDOW_MS;
+
+            if (isSameTime) {
+                sameTimeSources.push(other);
+            } else {
+                repeatOccurrences.push(other);
+            }
+            assigned.add(other.prediction_hash_short);
+        }
+
+        groups.push({
+            key: pred.prediction_hash_short,
+            representative: pred,
+            sameTimeSources,
+            repeatOccurrences,
+        });
+    }
+
+    return groups;
 }
 
 // ---------------------------------------------------------------------------
@@ -302,7 +513,18 @@ export default function LedgerPage() {
     const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">(
         "leaderboard"
     );
-    const [selectedPrediction, setSelectedPrediction] = useState<RecentPrediction | null>(null);
+    const [drawerPrediction, setDrawerPrediction] = useState<RecentPrediction | null>(null);
+    const [drawerSources, setDrawerSources] = useState<RecentPrediction[]>([]);
+
+    const openDrawer = (prediction: RecentPrediction, sources: RecentPrediction[]) => {
+        setDrawerPrediction(prediction);
+        setDrawerSources(sources);
+    };
+
+    const closeDrawer = () => {
+        setDrawerPrediction(null);
+        setDrawerSources([]);
+    };
 
     useEffect(() => {
         const sportParam =
@@ -346,11 +568,12 @@ export default function LedgerPage() {
 
     return (
         <div className="min-h-screen bg-black text-white">
-            {/* Prediction detail modal */}
-            {selectedPrediction && (
-                <PredictionDetailModal
-                    prediction={selectedPrediction}
-                    onClose={() => setSelectedPrediction(null)}
+            {/* Slide-out detail drawer */}
+            {drawerPrediction && (
+                <PredictionDrawer
+                    prediction={drawerPrediction}
+                    allSources={drawerSources}
+                    onClose={closeDrawer}
                 />
             )}
 
@@ -459,7 +682,7 @@ export default function LedgerPage() {
                 ) : (
                     <RecentTab
                         predictions={recent}
-                        onSelectPrediction={setSelectedPrediction}
+                        onOpenDrawer={openDrawer}
                     />
                 )}
             </div>
@@ -637,68 +860,15 @@ function CategoryBreakdown({ p }: { p: PunditStat }) {
 }
 
 // ---------------------------------------------------------------------------
-// Grouping logic for duplicate/similar predictions
-// ---------------------------------------------------------------------------
-
-function normalizeClaim(claim: string): string {
-    return claim
-        .toLowerCase()
-        .replace(/[^a-z0-9\s]/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 80); // compare on first 80 chars of normalized text
-}
-
-interface PredictionGroup {
-    key: string;
-    representative: RecentPrediction;
-    members: RecentPrediction[];
-}
-
-function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
-    const groups: PredictionGroup[] = [];
-    const assigned = new Set<string>();
-
-    for (const pred of predictions) {
-        if (assigned.has(pred.prediction_hash_short)) continue;
-
-        const normKey = normalizeClaim(pred.extracted_claim ?? "");
-        const members: RecentPrediction[] = [pred];
-        assigned.add(pred.prediction_hash_short);
-
-        // Find others that share the same pundit + similar claim
-        for (const other of predictions) {
-            if (assigned.has(other.prediction_hash_short)) continue;
-            if (other.pundit_id !== pred.pundit_id) continue;
-            const otherNorm = normalizeClaim(other.extracted_claim ?? "");
-            // Simple prefix similarity: share ≥70 chars of normalized text
-            const sharedLen = Math.min(normKey.length, otherNorm.length, 70);
-            if (sharedLen >= 30 && normKey.slice(0, sharedLen) === otherNorm.slice(0, sharedLen)) {
-                members.push(other);
-                assigned.add(other.prediction_hash_short);
-            }
-        }
-
-        groups.push({
-            key: pred.prediction_hash_short,
-            representative: pred,
-            members,
-        });
-    }
-
-    return groups;
-}
-
-// ---------------------------------------------------------------------------
 // Recent tab
 // ---------------------------------------------------------------------------
 
 function RecentTab({
     predictions,
-    onSelectPrediction,
+    onOpenDrawer,
 }: {
     predictions: RecentPrediction[];
-    onSelectPrediction: (p: RecentPrediction) => void;
+    onOpenDrawer: (p: RecentPrediction, sources: RecentPrediction[]) => void;
 }) {
     const resolved = predictions.filter(
         (p) =>
@@ -731,7 +901,7 @@ function RecentTab({
                             <PredictionGroupRow
                                 key={g.key}
                                 group={g}
-                                onSelectPrediction={onSelectPrediction}
+                                onOpenDrawer={onOpenDrawer}
                             />
                         ))}
                     </div>
@@ -748,7 +918,7 @@ function RecentTab({
                             <PredictionGroupRow
                                 key={g.key}
                                 group={g}
-                                onSelectPrediction={onSelectPrediction}
+                                onOpenDrawer={onOpenDrawer}
                             />
                         ))}
                     </div>
@@ -758,33 +928,31 @@ function RecentTab({
     );
 }
 
+// ---------------------------------------------------------------------------
+// Prediction group row — inline expand + "Details →" button for drawer
+// ---------------------------------------------------------------------------
+
 function PredictionGroupRow({
     group,
-    onSelectPrediction,
+    onOpenDrawer,
 }: {
     group: PredictionGroup;
-    onSelectPrediction: (p: RecentPrediction) => void;
+    onOpenDrawer: (p: RecentPrediction, sources: RecentPrediction[]) => void;
 }) {
     const [expanded, setExpanded] = useState(false);
-    const { representative: p, members } = group;
-    const hasVariants = members.length > 1;
+    const { representative: p, sameTimeSources, repeatOccurrences } = group;
 
-    const date = p.ingestion_timestamp
-        ? new Date(p.ingestion_timestamp).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-          })
-        : null;
+    // All members for source display in drawer
+    const allMembers = [p, ...sameTimeSources, ...repeatOccurrences];
+
+    const hasSameTimeSources = sameTimeSources.length > 0;
+    const hasRepeats = repeatOccurrences.length > 0;
+    const hasExpansion = hasSameTimeSources || hasRepeats;
 
     return (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
-            {/* Main row — clickable to open detail */}
-            <button
-                className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-zinc-800/30 transition-colors"
-                onClick={() => onSelectPrediction(p)}
-                aria-label="View prediction details"
-            >
+            {/* Main row */}
+            <div className="px-4 py-3 flex items-start gap-3">
                 <StatusBadge status={p.resolution_status} />
                 <div className="flex-1 min-w-0">
                     <p className="text-sm text-white leading-snug line-clamp-2">
@@ -794,7 +962,6 @@ function PredictionGroupRow({
                         <Link
                             href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
                             className="text-xs font-semibold text-zinc-300 hover:text-emerald-400 transition-colors"
-                            onClick={(e) => e.stopPropagation()}
                         >
                             {p.pundit_name}
                         </Link>
@@ -804,41 +971,48 @@ function PredictionGroupRow({
                                 {p.season_year}
                             </span>
                         )}
-                        {date && (
-                            <span className="text-[10px] font-mono text-zinc-600">{date}</span>
-                        )}
+                        <ClaimTimestamps
+                            ingestion_timestamp={p.ingestion_timestamp}
+                            source_published_at={p.source_published_at}
+                        />
                         {p.brier_score !== null && (
                             <span className="text-[10px] font-mono text-zinc-500">
                                 Brier: <BrierBadge score={p.brier_score} />
                             </span>
                         )}
-                        {p.source_url && (
-                            <a
-                                href={p.source_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                source <ExternalLink className="w-2.5 h-2.5" />
-                            </a>
-                        )}
+                        {/* Show all same-time source links inline (same statement, multiple pickups) */}
+                        {allMembers
+                            .filter((m) => m.source_url)
+                            .map((m) => (
+                                <a
+                                    key={m.prediction_hash_short}
+                                    href={m.source_url!}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
+                                >
+                                    source <ExternalLink className="w-2.5 h-2.5" />
+                                </a>
+                            ))}
                     </div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <span className="text-[10px] font-mono text-zinc-700 hidden sm:block">
-                        #{p.prediction_hash_short}
-                    </span>
-                    {hasVariants && (
+                    {/* Details button → opens drawer */}
+                    <button
+                        className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-emerald-400 transition-colors border border-zinc-800 hover:border-emerald-500/40 rounded px-2 py-0.5"
+                        onClick={() => onOpenDrawer(p, allMembers)}
+                        aria-label="Open details drawer"
+                    >
+                        Details <ArrowRight className="w-2.5 h-2.5" />
+                    </button>
+                    {/* Expand/collapse for repeat occurrences */}
+                    {hasRepeats && (
                         <button
                             className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setExpanded((v) => !v);
-                            }}
-                            aria-label={expanded ? "Collapse similar claims" : "Show similar claims"}
+                            onClick={() => setExpanded((v) => !v)}
+                            aria-label={expanded ? "Collapse repeat occurrences" : "Show repeat occurrences"}
                         >
-                            {members.length - 1} similar
+                            {repeatOccurrences.length} repeat{repeatOccurrences.length !== 1 ? "s" : ""}
                             {expanded ? (
                                 <ChevronUp className="w-2.5 h-2.5" />
                             ) : (
@@ -846,51 +1020,57 @@ function PredictionGroupRow({
                             )}
                         </button>
                     )}
+                    <span className="text-[10px] font-mono text-zinc-700 hidden sm:block">
+                        #{p.prediction_hash_short}
+                    </span>
                 </div>
-            </button>
+            </div>
 
-            {/* Expanded variants */}
-            {hasVariants && expanded && (
-                <div className="border-t border-zinc-800/60 divide-y divide-zinc-800/40 bg-zinc-900/20">
-                    {members.slice(1).map((variant) => (
-                        <button
-                            key={variant.prediction_hash_short}
-                            className="w-full text-left px-4 py-2.5 flex items-start gap-3 hover:bg-zinc-800/20 transition-colors"
-                            onClick={() => onSelectPrediction(variant)}
-                        >
-                            <StatusBadge status={variant.resolution_status} />
-                            <div className="flex-1 min-w-0">
-                                <p className="text-xs text-zinc-300 leading-snug line-clamp-2">
-                                    {variant.extracted_claim}
-                                </p>
-                                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                    {variant.ingestion_timestamp && (
-                                        <span className="text-[10px] font-mono text-zinc-600">
-                                            {new Date(variant.ingestion_timestamp).toLocaleDateString("en-US", {
-                                                month: "short",
-                                                day: "numeric",
-                                                year: "numeric",
-                                            })}
-                                        </span>
-                                    )}
-                                    {variant.source_url && (
-                                        <a
-                                            href={variant.source_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            source <ExternalLink className="w-2.5 h-2.5" />
-                                        </a>
-                                    )}
+            {/* Inline expanded summary (one-liner) */}
+            {expanded && (
+                <div className="border-t border-zinc-800/60 px-4 py-2.5 bg-zinc-900/20">
+                    <p className="text-[10px] font-mono text-zinc-500 mb-2 uppercase tracking-wide">
+                        {p.pundit_name} said this again on different occasions:
+                    </p>
+                    <div className="space-y-2">
+                        {repeatOccurrences.map((variant) => (
+                            <div
+                                key={variant.prediction_hash_short}
+                                className="flex items-start gap-3 rounded-lg border border-zinc-800/60 bg-zinc-900/30 px-3 py-2"
+                            >
+                                <StatusBadge status={variant.resolution_status} />
+                                <div className="flex-1 min-w-0">
+                                    {/* One-liner summary */}
+                                    <p className="text-xs text-zinc-300 leading-snug line-clamp-1">
+                                        {variant.extracted_claim}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                        <ClaimTimestamps
+                                            ingestion_timestamp={variant.ingestion_timestamp}
+                                            source_published_at={variant.source_published_at}
+                                        />
+                                        {variant.source_url && (
+                                            <a
+                                                href={variant.source_url}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
+                                            >
+                                                source <ExternalLink className="w-2.5 h-2.5" />
+                                            </a>
+                                        )}
+                                    </div>
                                 </div>
+                                <button
+                                    className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-600 hover:text-emerald-400 transition-colors shrink-0"
+                                    onClick={() => onOpenDrawer(variant, [variant])}
+                                    aria-label="Open details for this occurrence"
+                                >
+                                    Details <ArrowRight className="w-2.5 h-2.5" />
+                                </button>
                             </div>
-                            <span className="text-[10px] font-mono text-zinc-700 hidden sm:block shrink-0">
-                                #{variant.prediction_hash_short}
-                            </span>
-                        </button>
-                    ))}
+                        ))}
+                    </div>
                 </div>
             )}
         </div>

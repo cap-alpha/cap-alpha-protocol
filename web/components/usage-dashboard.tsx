@@ -2,33 +2,23 @@
 
 import React, { useState, useEffect } from "react";
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import {
-    Table,
-    TableBody,
-    TableCell,
-    TableHead,
-    TableHeader,
-    TableRow,
-} from "@/components/ui/table";
-import {
     BarChart,
     Bar,
     XAxis,
     YAxis,
     CartesianGrid,
     Tooltip,
-    Legend,
     ResponsiveContainer,
 } from "recharts";
-import { TrendingUp, Zap, AlertTriangle } from "lucide-react";
+import {
+    TrendingUp,
+    Zap,
+    AlertTriangle,
+    Activity,
+    ArrowRight,
+    Shield,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface DailyRequest {
     date: string;
@@ -62,25 +52,65 @@ interface UsageData {
 }
 
 function formatNumber(n: number): string {
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
-    if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";
+    if (n >= 1_000) return (n / 1_000).toFixed(1) + "K";
     return n.toString();
 }
 
-function getTierColor(tier: string): string {
-    const colors: Record<string, string> = {
-        free: "bg-gray-100 text-gray-800",
-        pro: "bg-blue-100 text-blue-800",
-        agent: "bg-purple-100 text-purple-800",
-        api_starter: "bg-emerald-100 text-emerald-800",
-        api_growth: "bg-amber-100 text-amber-800",
-        enterprise: "bg-red-100 text-red-800",
+function getTierBadge(tier: string, tierName: string) {
+    const styles: Record<string, string> = {
+        free: "bg-zinc-800 text-zinc-300 ring-zinc-700",
+        pro: "bg-blue-900/40 text-blue-300 ring-blue-500/40",
+        agent: "bg-purple-900/40 text-purple-300 ring-purple-500/40",
+        api_starter: "bg-emerald-900/40 text-emerald-300 ring-emerald-500/40",
+        api_growth: "bg-amber-900/40 text-amber-300 ring-amber-500/40",
+        enterprise: "bg-red-900/40 text-red-300 ring-red-500/40",
     };
-    return colors[tier] || colors.free;
+    const cls = styles[tier] ?? styles.free;
+    return (
+        <span
+            className={cn(
+                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold font-mono uppercase tracking-wider ring-1",
+                cls
+            )}
+        >
+            {tierName}
+        </span>
+    );
 }
 
-function getUpgradeUrl(): string {
-    return "/pricing";
+function RateLimitBar({
+    current,
+    limit,
+    label,
+}: {
+    current: number;
+    limit: number;
+    label: string;
+}) {
+    const pct = Math.min((current / limit) * 100, 100);
+    const barColor =
+        pct > 80 ? "bg-red-500" : pct > 50 ? "bg-amber-500" : "bg-emerald-500";
+
+    return (
+        <div>
+            <div className="flex justify-between mb-1.5">
+                <span className="text-xs font-mono text-zinc-400">{label}</span>
+                <span className="text-xs font-mono text-zinc-400 tabular-nums">
+                    {formatNumber(current)} / {formatNumber(limit)}
+                </span>
+            </div>
+            <div className="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
+                <div
+                    className={cn(
+                        "h-full rounded-full transition-all",
+                        barColor
+                    )}
+                    style={{ width: `${pct}%` }}
+                />
+            </div>
+        </div>
+    );
 }
 
 export function UsageDashboard() {
@@ -90,8 +120,8 @@ export function UsageDashboard() {
     useEffect(() => {
         fetch("/api/dashboard/usage")
             .then((res) => res.json())
-            .then((data: UsageData) => {
-                setData(data);
+            .then((d: UsageData) => {
+                setData(d);
                 setLoading(false);
             })
             .catch((err) => {
@@ -102,25 +132,18 @@ export function UsageDashboard() {
 
     if (loading) {
         return (
-            <div className="space-y-6">
-                <div className="h-32 bg-gray-200 animate-pulse rounded"></div>
-                <div className="h-64 bg-gray-200 animate-pulse rounded"></div>
+            <div className="flex items-center justify-center h-48 text-zinc-600">
+                <Activity className="w-4 h-4 animate-pulse mr-2" />
+                <span className="font-mono text-sm">Loading usage data…</span>
             </div>
         );
     }
 
     if (!data) {
         return (
-            <Card>
-                <CardHeader>
-                    <CardTitle>Usage Data Unavailable</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <p className="text-sm text-gray-600">
-                        Could not load usage metrics. Please try again later.
-                    </p>
-                </CardContent>
-            </Card>
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
+                Could not load usage metrics. Please try again later.
+            </div>
         );
     }
 
@@ -128,28 +151,25 @@ export function UsageDashboard() {
         (sum, day) => sum + day.count_2xx + day.count_4xx + day.count_5xx,
         0
     );
+    const total2xx = data.dailyRequests.reduce(
+        (sum, day) => sum + day.count_2xx,
+        0
+    );
     const successRate =
         totalRequests > 0
-            ? (
-                  (data.dailyRequests.reduce(
-                      (sum, day) => sum + day.count_2xx,
-                      0
-                  ) /
-                      totalRequests) *
-                  100
-              ).toFixed(1)
+            ? ((total2xx / totalRequests) * 100).toFixed(1)
             : "100";
 
     const rateLimitHitFrequency = data.dailyRequests.filter(
         (day) => day.count_4xx > 20 || day.count_5xx > 5
     ).length;
 
-    const shouldShowUpgradeBanner = rateLimitHitFrequency > 0;
+    const shouldShowUpgradeBanner =
+        rateLimitHitFrequency > 0 && data.currentTier === "free";
 
-    // Transform daily requests for chart (label each date)
     const chartData = data.dailyRequests.map((day) => ({
         ...day,
-        label: new Date(day.date).toLocaleDateString("en-US", {
+        label: new Date(day.date + "T00:00:00").toLocaleDateString("en-US", {
             month: "short",
             day: "numeric",
         }),
@@ -157,321 +177,286 @@ export function UsageDashboard() {
 
     return (
         <div className="space-y-6">
-            {/* Tier Card */}
-            <Card>
-                <CardHeader>
-                    <div className="flex justify-between items-start">
-                        <div>
-                            <CardTitle>Current Tier</CardTitle>
-                            <CardDescription>
-                                Your subscription and quota
-                            </CardDescription>
+            {/* ----------------------------------------------------------------
+                Tier + quota summary
+            ---------------------------------------------------------------- */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+                <div className="flex items-start justify-between gap-4 mb-6">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <Shield className="w-4 h-4 text-emerald-400" />
+                            <span className="text-xs font-mono uppercase tracking-widest text-emerald-400">
+                                Subscription
+                            </span>
                         </div>
-                        <Badge className={getTierColor(data.currentTier)}>
-                            {data.tierName}
-                        </Badge>
+                        <h2 className="text-xl font-black tracking-tight text-white">
+                            Your Plan
+                        </h2>
                     </div>
-                </CardHeader>
-                <CardContent>
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">
-                                Monthly Quota
-                            </p>
-                            <p className="text-2xl font-bold">
-                                {formatNumber(data.monthlyQuota)}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                                {totalRequests > 0
-                                    ? `${formatNumber(totalRequests)} used`
-                                    : "No requests yet"}
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">
-                                Success Rate
-                            </p>
-                            <p className="text-2xl font-bold">{successRate}%</p>
-                            <p className="text-xs text-gray-500">
-                                2xx responses
-                            </p>
-                        </div>
-                        <div>
-                            <p className="text-sm font-medium text-gray-600">
-                                Resets On
-                            </p>
-                            <p className="text-2xl font-bold">
-                                {data.renewalDate
-                                    ? new Date(
-                          data.renewalDate
-                      ).toLocaleDateString()
-                                    : "Next month"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                                Quota cycle
-                            </p>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
+                    {getTierBadge(data.currentTier, data.tierName)}
+                </div>
 
-            {/* Empty State */}
-            {data.emptyState && (
-                <Card className="border-blue-200 bg-blue-50">
-                    <CardHeader>
-                        <CardTitle className="text-blue-900 flex items-center gap-2">
-                            <Zap className="w-5 h-5" />
-                            No API requests yet
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-blue-800 mb-3">
-                            Get started by creating an API key and making your
-                            first request. Here's a quickstart snippet:
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+                    <div>
+                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-1">
+                            Monthly Quota
                         </p>
-                        <pre className="bg-white p-3 rounded border border-blue-200 text-xs overflow-x-auto">
-                            {`curl -H "Authorization: Bearer YOUR_API_KEY" \\
-  https://api.pundit-ledger.com/v1/pundits`}
-                        </pre>
-                    </CardContent>
-                </Card>
-            )}
+                        <p className="text-2xl font-black font-mono text-white tabular-nums">
+                            {formatNumber(data.monthlyQuota)}
+                        </p>
+                        <p className="text-xs text-zinc-600 font-mono mt-0.5">
+                            {totalRequests > 0
+                                ? `${formatNumber(totalRequests)} used (30d)`
+                                : "No requests yet"}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-1">
+                            Success Rate
+                        </p>
+                        <p className="text-2xl font-black font-mono text-emerald-400 tabular-nums">
+                            {successRate}%
+                        </p>
+                        <p className="text-xs text-zinc-600 font-mono mt-0.5">
+                            2xx responses
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-1">
+                            Resets On
+                        </p>
+                        <p className="text-2xl font-black font-mono text-white tabular-nums">
+                            {data.renewalDate
+                                ? new Date(data.renewalDate).toLocaleDateString(
+                                      "en-US",
+                                      { month: "short", day: "numeric" }
+                                  )
+                                : "Next month"}
+                        </p>
+                        <p className="text-xs text-zinc-600 font-mono mt-0.5">
+                            Quota cycle
+                        </p>
+                    </div>
+                </div>
+            </div>
 
-            {/* Upgrade Banner */}
+            {/* ----------------------------------------------------------------
+                Upgrade CTA (free tier users who hit rate limits)
+            ---------------------------------------------------------------- */}
             {shouldShowUpgradeBanner && (
-                <Card className="border-amber-200 bg-amber-50">
-                    <CardHeader>
-                        <CardTitle className="text-amber-900 flex items-center gap-2">
-                            <AlertTriangle className="w-5 h-5" />
-                            Rate limits approaching
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <p className="text-sm text-amber-800 mb-3">
-                            You've hit rate limits {rateLimitHitFrequency} times
-                            this month. Consider upgrading for higher quotas.
+                <div className="rounded-xl border border-amber-500/30 bg-amber-900/20 p-5 flex items-start gap-4">
+                    <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-amber-300">
+                            Rate limits hit {rateLimitHitFrequency}x this month
                         </p>
-                        <Button asChild>
-                            <a href={getUpgradeUrl()}>View Upgrade Options</a>
-                        </Button>
-                    </CardContent>
-                </Card>
+                        <p className="text-xs text-amber-400/80 mt-0.5">
+                            Upgrade to Pro for 10× higher quotas and priority
+                            throughput.
+                        </p>
+                    </div>
+                    <a
+                        href="/pricing"
+                        className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 transition-colors px-4 py-2 text-xs font-bold text-black uppercase tracking-wide"
+                    >
+                        Upgrade <ArrowRight className="w-3 h-3" />
+                    </a>
+                </div>
             )}
 
-            {/* Daily Requests Chart */}
+            {/* Free-tier upgrade nudge (no rate-limit hits yet) */}
+            {!shouldShowUpgradeBanner && data.currentTier === "free" && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 flex items-center justify-between gap-4">
+                    <div>
+                        <p className="text-sm font-semibold text-white">
+                            You&apos;re on the Free tier
+                        </p>
+                        <p className="text-xs text-zinc-500 mt-0.5">
+                            Upgrade to Pro for higher rate limits, more
+                            endpoints, and priority support.
+                        </p>
+                    </div>
+                    <a
+                        href="/pricing"
+                        className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 transition-colors px-4 py-2 text-xs font-bold text-white uppercase tracking-wide"
+                    >
+                        Upgrade to Pro <ArrowRight className="w-3 h-3" />
+                    </a>
+                </div>
+            )}
+
+            {/* ----------------------------------------------------------------
+                Empty state
+            ---------------------------------------------------------------- */}
+            {data.emptyState && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Zap className="w-4 h-4 text-emerald-400" />
+                        <span className="text-sm font-semibold text-white">
+                            No API requests yet
+                        </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 mb-4">
+                        Create an API key and make your first request to start
+                        seeing stats.
+                    </p>
+                    <pre className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 text-xs font-mono text-emerald-400 overflow-x-auto">
+                        {`curl -H "Authorization: Bearer YOUR_API_KEY" \\\n  https://api.pundit-ledger.com/v1/pundits`}
+                    </pre>
+                </div>
+            )}
+
+            {/* ----------------------------------------------------------------
+                Request history chart
+            ---------------------------------------------------------------- */}
             {!data.emptyState && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <CardTitle className="flex items-center gap-2">
-                                    <TrendingUp className="w-5 h-5" />
-                                    Request History
-                                </CardTitle>
-                                <CardDescription>
-                                    Last 30 days (stacked by response status)
-                                </CardDescription>
-                            </div>
-                            {totalRequests === 0 && (
-                                <span className="text-xs text-gray-500">
-                                    No data
-                                </span>
-                            )}
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+                    <div className="flex items-center gap-2 mb-1">
+                        <TrendingUp className="w-4 h-4 text-emerald-400" />
+                        <span className="text-xs font-mono uppercase tracking-widest text-emerald-400">
+                            Request History
+                        </span>
+                    </div>
+                    <h3 className="text-lg font-black tracking-tight text-white mb-1">
+                        Last 30 Days
+                    </h3>
+                    <p className="text-xs text-zinc-500 font-mono mb-5">
+                        Stacked by response status — 2xx / 4xx / 5xx
+                    </p>
+
+                    {totalRequests > 0 ? (
+                        <ResponsiveContainer width="100%" height={260}>
+                            <BarChart
+                                data={chartData}
+                                margin={{ top: 0, right: 0, left: -20, bottom: 0 }}
+                            >
+                                <CartesianGrid
+                                    strokeDasharray="3 3"
+                                    stroke="#27272a"
+                                    vertical={false}
+                                />
+                                <XAxis
+                                    dataKey="label"
+                                    tick={{ fontSize: 11, fill: "#71717a" }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    interval={chartData.length > 14 ? 2 : 0}
+                                />
+                                <YAxis
+                                    tick={{ fontSize: 11, fill: "#71717a" }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tickFormatter={formatNumber}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        background: "#18181b",
+                                        border: "1px solid #3f3f46",
+                                        borderRadius: 8,
+                                        fontSize: 12,
+                                    }}
+                                    labelStyle={{ color: "#a1a1aa" }}
+                                    itemStyle={{ color: "#e4e4e7" }}
+                                    formatter={(value: number) =>
+                                        formatNumber(value)
+                                    }
+                                />
+                                <Bar
+                                    dataKey="count_2xx"
+                                    name="2xx Success"
+                                    fill="#10b981"
+                                    stackId="a"
+                                    radius={[0, 0, 0, 0]}
+                                />
+                                <Bar
+                                    dataKey="count_4xx"
+                                    name="4xx Client Error"
+                                    fill="#f59e0b"
+                                    stackId="a"
+                                />
+                                <Bar
+                                    dataKey="count_5xx"
+                                    name="5xx Server Error"
+                                    fill="#ef4444"
+                                    stackId="a"
+                                    radius={[2, 2, 0, 0]}
+                                />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    ) : (
+                        <div className="h-40 flex items-center justify-center text-zinc-600 text-sm font-mono">
+                            No request data in the last 30 days
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        {totalRequests > 0 ? (
-                            <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={chartData}>
-                                    <CartesianGrid
-                                        strokeDasharray="3 3"
-                                        stroke="#f0f0f0"
-                                    />
-                                    <XAxis
-                                        dataKey="label"
-                                        tick={{ fontSize: 12 }}
-                                        interval={
-                                            chartData.length > 14 ? 2 : 0
-                                        }
-                                    />
-                                    <YAxis tick={{ fontSize: 12 }} />
-                                    <Tooltip
-                                        formatter={(value) =>
-                                            formatNumber(
-                                                value as number
-                                            )
-                                        }
-                                        labelFormatter={(label) =>
-                                            `${label}`
-                                        }
-                                    />
-                                    <Legend />
-                                    <Bar
-                                        dataKey="count_2xx"
-                                        name="2xx Success"
-                                        fill="#10b981"
-                                        stackId="a"
-                                    />
-                                    <Bar
-                                        dataKey="count_4xx"
-                                        name="4xx Client Error"
-                                        fill="#f59e0b"
-                                        stackId="a"
-                                    />
-                                    <Bar
-                                        dataKey="count_5xx"
-                                        name="5xx Server Error"
-                                        fill="#ef4444"
-                                        stackId="a"
-                                    />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="h-300 flex items-center justify-center text-gray-500">
-                                <p>No request data available</p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                    )}
+                </div>
             )}
 
-            {/* Rate Limit Status */}
-            <Card>
-                <CardHeader>
-                    <CardTitle>Current Rate Limit Status</CardTitle>
-                    <CardDescription>
-                        Real-time quota consumption
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    <div>
-                        <div className="flex justify-between mb-2">
-                            <span className="text-sm font-medium">
-                                Requests per minute
-                            </span>
-                            <span className="text-sm text-gray-600">
-                                {data.rateLimitStatus.minute_current} /{" "}
-                                {formatNumber(
-                                    data.rateLimitStatus.minute_limit
-                                )}
-                            </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                                className={`h-2 rounded-full ${
-                                    (data.rateLimitStatus.minute_current /
-                                        data.rateLimitStatus.minute_limit) *
-                                        100 >
-                                    80
-                                        ? "bg-red-500"
-                                        : (data.rateLimitStatus
-                            .minute_current /
-                                        data.rateLimitStatus
-                            .minute_limit) *
-                                        100 >
-                                    50
-                                        ? "bg-amber-500"
-                                        : "bg-green-500"
-                                }`}
-                                style={{
-                                    width: `${Math.min(
-                                        (data.rateLimitStatus
-                            .minute_current /
-                                            data.rateLimitStatus
-                            .minute_limit) *
-                                            100,
-                                        100
-                                    )}%`,
-                                }}
-                            ></div>
-                        </div>
-                    </div>
+            {/* ----------------------------------------------------------------
+                Rate limit status
+            ---------------------------------------------------------------- */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+                <div className="mb-1">
+                    <span className="text-xs font-mono uppercase tracking-widest text-emerald-400">
+                        Rate Limits
+                    </span>
+                </div>
+                <h3 className="text-lg font-black tracking-tight text-white mb-5">
+                    Current Usage
+                </h3>
+                <div className="space-y-5">
+                    <RateLimitBar
+                        current={data.rateLimitStatus.minute_current}
+                        limit={data.rateLimitStatus.minute_limit}
+                        label="Requests / minute"
+                    />
+                    <RateLimitBar
+                        current={data.rateLimitStatus.day_current}
+                        limit={data.rateLimitStatus.day_limit}
+                        label="Requests / day"
+                    />
+                </div>
+            </div>
 
-                    <div>
-                        <div className="flex justify-between mb-2">
-                            <span className="text-sm font-medium">
-                                Requests per day
-                            </span>
-                            <span className="text-sm text-gray-600">
-                                {data.rateLimitStatus.day_current} /{" "}
-                                {formatNumber(
-                                    data.rateLimitStatus.day_limit
-                                )}
-                            </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div
-                                className={`h-2 rounded-full ${
-                                    (data.rateLimitStatus.day_current /
-                                        data.rateLimitStatus.day_limit) *
-                                        100 >
-                                    80
-                                        ? "bg-red-500"
-                                        : (data.rateLimitStatus
-                            .day_current /
-                                        data.rateLimitStatus
-                            .day_limit) *
-                                        100 >
-                                    50
-                                        ? "bg-amber-500"
-                                        : "bg-green-500"
-                                }`}
-                                style={{
-                                    width: `${Math.min(
-                                        (data.rateLimitStatus
-                            .day_current /
-                                            data.rateLimitStatus
-                            .day_limit) *
-                                            100,
-                                        100
-                                    )}%`,
-                                }}
-                            ></div>
-                        </div>
-                    </div>
-                </CardContent>
-            </Card>
-
-            {/* Top Endpoints */}
+            {/* ----------------------------------------------------------------
+                Top endpoints
+            ---------------------------------------------------------------- */}
             {!data.emptyState && data.topEndpoints.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Top Endpoints</CardTitle>
-                        <CardDescription>
-                            Most-called endpoints in the last 30 days
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Endpoint</TableHead>
-                                    <TableHead className="text-right">
-                                        Requests
-                                    </TableHead>
-                                    <TableHead className="text-right">
-                                        %
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {data.topEndpoints.map((endpoint, idx) => (
-                                    <TableRow key={idx}>
-                                        <TableCell className="font-mono text-sm">
-                                            {endpoint.endpoint_path}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {formatNumber(endpoint.count)}
-                                        </TableCell>
-                                        <TableCell className="text-right text-gray-600">
-                                            {endpoint.pct}%
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+                    <div className="mb-1">
+                        <span className="text-xs font-mono uppercase tracking-widest text-emerald-400">
+                            Endpoints
+                        </span>
+                    </div>
+                    <h3 className="text-lg font-black tracking-tight text-white mb-5">
+                        Top 10 (Last 30 Days)
+                    </h3>
+
+                    {/* Column headers */}
+                    <div className="grid grid-cols-[1fr_80px_60px] gap-3 px-2 pb-2 text-[10px] font-mono uppercase tracking-widest text-zinc-600">
+                        <span>Endpoint</span>
+                        <span className="text-right">Requests</span>
+                        <span className="text-right">%</span>
+                    </div>
+
+                    <div className="space-y-1">
+                        {data.topEndpoints.map((ep, idx) => (
+                            <div
+                                key={idx}
+                                className="grid grid-cols-[1fr_80px_60px] gap-3 items-center rounded-lg px-2 py-2.5 bg-zinc-900/60 border border-zinc-800/60"
+                            >
+                                <span className="text-xs font-mono text-zinc-300 truncate">
+                                    {ep.endpoint_path}
+                                </span>
+                                <span className="text-xs font-mono text-white text-right tabular-nums">
+                                    {formatNumber(ep.count)}
+                                </span>
+                                <span className="text-xs font-mono text-zinc-500 text-right tabular-nums">
+                                    {ep.pct}%
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
             )}
         </div>
     );

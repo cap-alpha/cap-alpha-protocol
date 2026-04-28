@@ -12,6 +12,7 @@ Endpoints:
   GET /v1/draft/{year}/results              — Draft resolution scoreboard for a given year
   GET /v1/leaderboard                       — Ranked pundits by weighted score / accuracy
   GET /v1/integrity/verify                  — Hash chain integrity check (tamper detection)
+  GET /v1/me/usage                          — Caller's usage stats (tier, request counts, rate limits)
 
 All /v1/* routes require a valid X-API-Key header (except /v1/me which also requires it,
 but returns the key's own metadata).
@@ -53,6 +54,30 @@ router = APIRouter(
     tags=["pundit-ledger"],
     dependencies=[Depends(verify_api_key)],
 )
+
+# ---------------------------------------------------------------------------
+# /v1/me/usage tier + rate-limit config  (keep in sync with api_key_auth.py)
+# ---------------------------------------------------------------------------
+
+# Tier → rate limit config.  Keep in sync with web/lib/api-keys/tiers.ts.
+_RATE_LIMITS: Dict[str, Dict[str, int]] = {
+    "free": {"requests_per_minute": 100, "requests_per_day": 10_000},
+    "pro": {"requests_per_minute": 1_000, "requests_per_day": 100_000},
+    "agent": {"requests_per_minute": 10_000, "requests_per_day": 1_000_000},
+    "api_starter": {"requests_per_minute": 10_000, "requests_per_day": 1_000_000},
+    "api_growth": {"requests_per_minute": 100_000, "requests_per_day": 10_000_000},
+    "enterprise": {"requests_per_minute": 999_999, "requests_per_day": 999_999_999},
+}
+
+_MONTHLY_QUOTAS: Dict[str, Optional[int]] = {
+    "free": 10_000,
+    "pro": 100_000,
+    "agent": 1_000_000,
+    "api_starter": 1_000_000,
+    "api_growth": 10_000_000,
+    "enterprise": None,
+}
+
 
 LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
@@ -730,3 +755,73 @@ def integrity_check(
     except Exception as e:
         logger.error(f"Integrity check error: {e}")
         raise HTTPException(status_code=500, detail="Failed to run integrity check")
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/me/usage  — Caller's usage stats (Issue #148)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/me/usage", summary="Current user's API usage stats")
+def me_usage(
+    caller: Dict[str, Any] = Depends(verify_api_key),
+    db: DBManager = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Returns usage stats for the authenticated API key owner.
+
+    Reads from monetization.api_requests (populated by the metering middleware
+    from issue #145).  If the table is empty or missing, returns stubs with
+    zero counts so the dashboard always renders.
+    """
+    user_id: str = caller["user_id"]
+    tier: str = caller.get("tier") or "free"
+    rate_limits = _RATE_LIMITS.get(tier, _RATE_LIMITS["free"])
+    monthly_quota = _MONTHLY_QUOTAS.get(tier, _MONTHLY_QUOTAS["free"])
+
+    project_id = os.environ.get("GCP_PROJECT_ID", "cap-alpha-protocol")
+    requests_table = f"`{project_id}.monetization.api_requests`"
+
+    try:
+        sql = f"""
+            SELECT
+                COUNTIF(ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 MINUTE))
+                    AS requests_last_minute,
+                COUNTIF(ts >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY))
+                    AS requests_today,
+                COUNTIF(
+                    ts >= TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), MONTH)
+                )                                          AS requests_this_month,
+                COUNT(*)                                   AS predictions_accessed
+            FROM {requests_table}
+            WHERE user_id = @user_id
+        """
+        params = [ScalarQueryParameter("user_id", "STRING", user_id)]
+        job_config = QueryJobConfig(query_parameters=params)
+        job = db.client.query(sql, job_config=job_config)
+        rows = list(job.result())
+        row = rows[0] if rows else None
+
+        requests_last_minute = int(row.requests_last_minute) if row else 0
+        requests_today = int(row.requests_today) if row else 0
+        requests_this_month = int(row.requests_this_month) if row else 0
+        predictions_accessed = int(row.predictions_accessed) if row else 0
+
+    except Exception as exc:
+        # Table may not exist yet (metering pipeline from #145 not deployed)
+        logger.warning("me/usage: could not query api_requests: %s", exc)
+        requests_last_minute = 0
+        requests_today = 0
+        requests_this_month = 0
+        predictions_accessed = 0
+
+    return {
+        "tier": tier,
+        "tier_display": tier.replace("_", " ").title(),
+        "monthly_quota": monthly_quota,
+        "requests_last_minute": requests_last_minute,
+        "requests_today": requests_today,
+        "requests_this_month": requests_this_month,
+        "predictions_accessed": predictions_accessed,
+        "rate_limit": rate_limits,
+    }

@@ -64,16 +64,30 @@ export function Navbar() {
                         </Link>
                         {/* Auth-only links — shown only when signed in */}
                         {isSignedIn && (
-                            <Link
-                                href="/dashboard"
-                                className={`transition-colors hover:text-emerald-400 ${
-                                    pathname?.startsWith("/dashboard")
-                                        ? "text-emerald-500"
-                                        : "text-slate-400"
-                                }`}
-                            >
-                                DASHBOARD
-                            </Link>
+                            <>
+                                <Link
+                                    href="/dashboard"
+                                    className={`transition-colors hover:text-emerald-400 ${
+                                        pathname?.startsWith("/dashboard") &&
+                                        !pathname?.startsWith("/dashboard/usage")
+                                            ? "text-emerald-500"
+                                            : "text-slate-400"
+                                    }`}
+                                >
+                                    DASHBOARD
+                                </Link>
+                                <Link
+                                    href="/account"
+                                    className={`transition-colors hover:text-emerald-400 ${
+                                        pathname?.includes("/account") ||
+                                        pathname?.startsWith("/dashboard/usage")
+                                            ? "text-emerald-500"
+                                            : "text-slate-400"
+                                    }`}
+                                >
+                                    ACCOUNT
+                                </Link>
+                            </>
                         )}
                     </nav>
                 </div>

@@ -661,15 +661,26 @@ def get_provider(
         role: "extraction" or "filter" — selects config section
         config: Optional config dict. If None, loads from llm_config.yaml
         provider_override: Override provider name (e.g. "gemini-flash"). Also
-            honored from EXTRACTION_LLM env var (lower priority than explicit arg).
+            honored from env vars (lower priority than explicit arg).
+
+    Environment variable overrides (take precedence over llm_config.yaml):
+        LLM_EXTRACTION_PROVIDER — provider name: gemini, gemini-flash, claude, openai, ollama
+        LLM_EXTRACTION_MODEL    — model ID (e.g. gemini-2.5-flash, qwen2.5:32b)
+        EXTRACTION_LLM          — legacy alias for LLM_EXTRACTION_PROVIDER (still supported)
+
+    Cloud Run Job usage:
+        Set LLM_EXTRACTION_PROVIDER=gemini-flash (or =gemini) and GEMINI_API_KEY to use
+        Gemini Flash in production while local dev keeps Ollama via llm_config.yaml.
     """
     if config is None:
         config = load_llm_config()
 
     role_config = config.get(role, config.get("extraction", {}))
 
-    # Resolution order: explicit arg > EXTRACTION_LLM env var > yaml config
-    env_provider = os.environ.get("EXTRACTION_LLM")
+    # Resolution order: explicit arg > LLM_EXTRACTION_PROVIDER > EXTRACTION_LLM (legacy) > yaml
+    env_provider = os.environ.get("LLM_EXTRACTION_PROVIDER") or os.environ.get(
+        "EXTRACTION_LLM"
+    )
     provider_name = (
         provider_override or env_provider or role_config.get("provider", "ollama")
     )
@@ -678,7 +689,9 @@ def get_provider(
     if provider_name == "gemini-flash":
         model = "gemini-2.5-flash"
     else:
-        model = role_config.get("model", "gemini-2.5-flash")
+        # LLM_EXTRACTION_MODEL overrides yaml config when set
+        env_model = os.environ.get("LLM_EXTRACTION_MODEL")
+        model = env_model or role_config.get("model", "gemini-2.5-flash")
 
     provider_cls = PROVIDERS.get(provider_name)
     if not provider_cls:

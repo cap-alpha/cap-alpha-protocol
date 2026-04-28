@@ -1,10 +1,17 @@
-# Dockerfile.pipeline — Cloud Run Job image for daily ingest + resolve
+# Dockerfile.pipeline — Cloud Run Job image for daily ingest + extract + resolve
 #
-# This image intentionally EXCLUDES assertion_extractor (which requires
-# local Ollama / qwen2.5:32b). Extraction stays on the local M4 Pro
-# (triggered by launchd or manually). This job handles:
-#   1. media_ingestor  — fetch RSS/YouTube content → BigQuery bronze layer
-#   2. resolve_daily   — score pending predictions against actual outcomes
+# Full 3-stage pipeline:
+#   1. media_ingestor       — fetch RSS/YouTube content → BigQuery bronze layer
+#   2. assertion_extractor  — LLM extraction via Gemini Flash → prediction_ledger
+#   3. resolve_daily        — score pending predictions against actual outcomes
+#
+# Extraction uses Gemini Flash (not Ollama). Set these env vars on the Cloud Run Job:
+#   LLM_EXTRACTION_PROVIDER=gemini
+#   LLM_EXTRACTION_MODEL=gemini-2.5-flash
+#   GEMINI_API_KEY=<your-key>
+#
+# Cost: ~$0.02/day at 500 articles × 500 tokens ≈ $0.60/month.
+# Local dev still uses Ollama via llm_config.yaml (provider: ollama).
 #
 # Build:
 #   gcloud builds submit \
@@ -17,6 +24,9 @@
 #   docker run --rm \
 #     -e GCP_PROJECT_ID=cap-alpha-protocol \
 #     -e SPORTS_DATA_IO_API_KEY=... \
+#     -e GEMINI_API_KEY=... \
+#     -e LLM_EXTRACTION_PROVIDER=gemini \
+#     -e LLM_EXTRACTION_MODEL=gemini-2.5-flash \
 #     -v ~/.config/gcloud:/root/.config/gcloud \
 #     pipeline:latest
 
@@ -44,6 +54,7 @@ ENV GCP_PROJECT_ID=cap-alpha-protocol
 
 # Cloud Run Jobs run to completion and exit.
 # Step 1: ingest fresh media into bronze_layer
-# Step 2: resolve pending predictions against actual outcomes
+# Step 2: extract predictions via Gemini Flash (LLM_EXTRACTION_PROVIDER=gemini required)
+# Step 3: resolve pending predictions against actual outcomes
 WORKDIR /app/pipeline
-CMD ["sh", "-c", "python -m src.media_ingestor && python -m src.resolve_daily"]
+CMD ["sh", "-c", "python -m src.media_ingestor && python -m src.assertion_extractor --limit 500 && python -m src.resolve_daily"]

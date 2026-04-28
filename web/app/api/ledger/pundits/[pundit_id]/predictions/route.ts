@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 export async function GET(
     req: Request,

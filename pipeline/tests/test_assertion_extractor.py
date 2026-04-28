@@ -13,8 +13,12 @@ import pytest
 from google.api_core.exceptions import NotFound
 from src.assertion_extractor import (
     VALID_CATEGORIES,
+    _ABBREV_DENYLIST,
+    _CONFIDENT_WORDS,
+    _HEDGE_ONLY_WORDS,
     ExtractionResult,
     _deduplicate_claims,
+    _heuristic_quality_gate,
     extract_assertions,
     get_unprocessed_media,
     mark_as_processed,
@@ -1355,3 +1359,151 @@ class TestConcurrency:
         summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["total_processed"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Heuristic quality gate tests
+# ---------------------------------------------------------------------------
+
+
+class TestHeuristicQualityGate:
+    """Tests for _heuristic_quality_gate — post-LLM hedge filter."""
+
+    def _pred(self, claim: str) -> dict:
+        return {
+            "extracted_claim": claim,
+            "claim_category": "player_performance",
+            "season_year": 2026,
+            "stance": "bullish",
+        }
+
+    def test_pure_hedge_no_anchor_dropped(self):
+        """Claim with only hedge words and no anchor is filtered."""
+        preds = [self._pred("He might be a good fit for the team")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 1
+        assert kept == []
+
+    def test_hedge_with_number_kept(self):
+        """Hedge word present but claim has a number — keep it."""
+        preds = [self._pred("He might throw 4000 yards this season")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 0
+        assert len(kept) == 1
+
+    def test_hedge_with_proper_noun_kept(self):
+        """Hedge word present but claim has a proper noun (player name) — keep."""
+        preds = [self._pred("Mahomes might win the MVP award")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 0
+        assert len(kept) == 1
+
+    def test_confident_language_survives_hedge(self):
+        """Confident 'will' alongside 'might' — gate passes."""
+        preds = [self._pred("He might struggle but will start week 1")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 0
+        assert len(kept) == 1
+
+    def test_punctuation_stripped_from_hedge_words(self):
+        """Hedge word with trailing punctuation ('might,') is still detected."""
+        preds = [self._pred("He might, if healthy, see more targets")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        # 'might' detected despite comma, no anchor → filtered
+        assert filtered == 1
+
+    def test_dollar_amount_as_anchor(self):
+        """Dollar amount rescues a hedge claim from being filtered."""
+        preds = [self._pred("He could sign for $20M per year")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 0
+        assert len(kept) == 1
+
+    def test_team_abbreviation_as_anchor(self):
+        """Team abbreviation (KC, NYG) not in denylist rescues claim."""
+        preds = [self._pred("He might reunite with KC this offseason")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 0
+        assert len(kept) == 1
+
+    def test_generic_acronym_not_anchor(self):
+        """Generic acronyms (QB, TD, NFL) in denylist do NOT rescue the claim."""
+        preds = [self._pred("A QB might win the TD race this year")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        # QB and TD are in denylist, NFL is too — no rescue
+        assert filtered == 1
+
+    def test_no_hedge_always_passes(self):
+        """Claims with no hedge words pass regardless."""
+        preds = [self._pred("The Eagles will win the Super Bowl")]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 0
+        assert len(kept) == 1
+
+    def test_multiple_predictions_mixed(self):
+        """Mixed batch: some filtered, some kept."""
+        preds = [
+            self._pred("He might be a good fit"),  # filtered — hedge, no anchor
+            self._pred(
+                "Lamar Jackson will throw 40 TDs"
+            ),  # kept — proper noun + number
+            self._pred(
+                "it could be worse"
+            ),  # filtered — hedge, no anchor (lowercase start)
+        ]
+        kept, filtered = _heuristic_quality_gate(preds)
+        assert filtered == 2
+        assert len(kept) == 1
+        assert kept[0]["extracted_claim"] == "Lamar Jackson will throw 40 TDs"
+
+    def test_extraction_result_filtered_low_quality_field(self):
+        """ExtractionResult.filtered_low_quality defaults to 0."""
+        result = ExtractionResult(content_hash="abc", predictions=[])
+        assert result.filtered_low_quality == 0
+
+    def test_extraction_result_tracks_filtered_count(self):
+        """extract_assertions propagates filtered_low_quality from the gate."""
+        provider = MagicMock()
+        provider.extract_predictions.return_value = [
+            {
+                "extracted_claim": "He might be okay",
+                "claim_category": "player_performance",
+                "season_year": 2026,
+                "stance": "neutral",
+                "prediction_horizon_days": 90,
+            }
+        ]
+        result = extract_assertions(
+            content_hash="test123",
+            text="Some article text",
+            provider=provider,
+        )
+        # The hedge-only claim should be filtered
+        assert result.filtered_low_quality == 1
+        assert result.predictions == []
+
+    def test_confident_words_set_not_duplicated(self):
+        """_CONFIDENT_WORDS should contain won't and curly apostrophe variant, not duplicates."""
+        straight = "won't"
+        curly = "won\u2019t"
+        assert straight in _CONFIDENT_WORDS
+        assert curly in _CONFIDENT_WORDS
+        # No plain string duplicates (sets deduplicate, but verify both variants present)
+        assert len([w for w in _CONFIDENT_WORDS if "won" in w]) == 2
+
+    def test_abbrev_denylist_contains_expected_entries(self):
+        """Verify the denylist has key football acronyms."""
+        for acronym in ("NFL", "QB", "TD", "RB", "WR", "TE"):
+            assert acronym in _ABBREV_DENYLIST
+
+    def test_run_extraction_summary_has_filtered_low_quality(self, mock_db=None):
+        """run_extraction summary dict always contains filtered_low_quality key."""
+        from unittest.mock import MagicMock, patch
+
+        db = MagicMock()
+        db.fetch_df.return_value = pd.DataFrame()
+        provider = MagicMock()
+        provider.model = "test"
+        summary = run_extraction(limit=5, db=db, provider=provider)
+        assert "filtered_low_quality" in summary
+        assert "prompt_version" in summary

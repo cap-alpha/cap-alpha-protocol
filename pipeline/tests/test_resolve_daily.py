@@ -144,13 +144,13 @@ class TestExtractPlayerStatClaim:
         result = _extract_player_stat_claim(
             "Patrick Mahomes throws 5000+ passing yards in 2026"
         )
-        assert result.get("stat_column") == "PassingYards"
+        assert result.get("stat_column") == "passing_yards"
         assert result.get("threshold") == 5000
         assert result.get("operator") == ">="
 
     def test_passing_tds(self):
         result = _extract_player_stat_claim("Josh Allen throws 40+ passing TDs in 2026")
-        assert result.get("stat_column") in ("PassingTouchdowns", "PassingTDs")
+        assert result.get("stat_column") in ("passing_tds", "passing_touchdowns")
         # stat_column should be one of the mapped aliases
         assert result.get("threshold") == 40
 
@@ -158,14 +158,14 @@ class TestExtractPlayerStatClaim:
         result = _extract_player_stat_claim(
             "CeeDee Lamb records 1500 receiving yards in 2026"
         )
-        assert result.get("stat_column") == "ReceivingYards"
+        assert result.get("stat_column") == "receiving_yards"
         assert result.get("threshold") == 1500
 
     def test_rushing_yards(self):
         result = _extract_player_stat_claim(
             "Derrick Henry rushes for 1200+ yards in 2026"
         )
-        assert result.get("stat_column") == "RushingYards"
+        assert result.get("stat_column") == "rushing_yards"
         assert result.get("threshold") == 1200
 
     def test_fewer_than_operator(self):
@@ -372,16 +372,15 @@ _MAHOMES_STATS_2024 = pd.DataFrame(
         {
             "Name": "Patrick Mahomes",
             "Season": 2024,
-            "PassingYards": 5100,
-            "PassingTouchdowns": 41,
-            "Interceptions": 11,
-            "RushingYards": 360,
-            "RushingTouchdowns": 4,
-            "ReceivingYards": None,
-            "ReceivingTouchdowns": None,
-            "Receptions": None,
-            "Sacks": None,
-            "Tackles": None,
+            "passing_yards": 5100,
+            "passing_tds": 41,
+            "interceptions": 11,
+            "rushing_yards": 360,
+            "rushing_tds": 4,
+            "receiving_yards": None,
+            "receiving_tds": None,
+            "receptions": None,
+            "sacks": None,
         }
     ]
 )
@@ -391,16 +390,15 @@ _MAHOMES_LOW_STATS_2024 = pd.DataFrame(
         {
             "Name": "Patrick Mahomes",
             "Season": 2024,
-            "PassingYards": 4200,
-            "PassingTouchdowns": 35,
-            "Interceptions": 10,
-            "RushingYards": 290,
-            "RushingTouchdowns": 3,
-            "ReceivingYards": None,
-            "ReceivingTouchdowns": None,
-            "Receptions": None,
-            "Sacks": None,
-            "Tackles": None,
+            "passing_yards": 4200,
+            "passing_tds": 35,
+            "interceptions": 10,
+            "rushing_yards": 290,
+            "rushing_tds": 3,
+            "receiving_yards": None,
+            "receiving_tds": None,
+            "receptions": None,
+            "sacks": None,
         }
     ]
 )

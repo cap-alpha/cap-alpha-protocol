@@ -82,15 +82,15 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python -c "
+          python - <<'PY'
           from src.db_manager import DBManager
           db = DBManager()
           total = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_ledger')
-          pending = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_ledger WHERE resolution_status = \"PENDING\"')
-          correct = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_resolutions WHERE resolution_status = \"CORRECT\"')
-          incorrect = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_resolutions WHERE resolution_status = \"INCORRECT\"')
-          print(f'Pipeline complete: {total.iloc[0][\"n\"]} total | {pending.iloc[0][\"n\"]} pending | {correct.iloc[0][\"n\"]} correct | {incorrect.iloc[0][\"n\"]} incorrect')
-          "
+          pending = db.fetch_df("SELECT COUNT(*) as n FROM gold_layer.prediction_ledger WHERE resolution_status = 'PENDING'")
+          correct = db.fetch_df("SELECT COUNT(*) as n FROM gold_layer.prediction_resolutions WHERE resolution_status = 'CORRECT'")
+          incorrect = db.fetch_df("SELECT COUNT(*) as n FROM gold_layer.prediction_resolutions WHERE resolution_status = 'INCORRECT'")
+          print(f'Pipeline complete: {total.iloc[0]["n"]} total | {pending.iloc[0]["n"]} pending | {correct.iloc[0]["n"]} correct | {incorrect.iloc[0]["n"]} incorrect')
+          PY
 
       - name: Cleanup
         if: always()

@@ -55,6 +55,16 @@ router = APIRouter(
     dependencies=[Depends(verify_api_key)],
 )
 
+
+def get_db() -> DBManager:
+    """FastAPI dependency — yields a DBManager, closes on teardown."""
+    db = DBManager()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # /v1/me/usage tier + rate-limit config  (keep in sync with api_key_auth.py)
 # ---------------------------------------------------------------------------
@@ -83,15 +93,6 @@ LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
 QUALITY_TABLE = "gold_layer.assertion_quality"
 # CALIBRATION_TABLE imported from src.calibration
-
-
-def get_db() -> DBManager:
-    """FastAPI dependency — yields a DBManager, closes on teardown."""
-    db = DBManager()
-    try:
-        yield db
-    finally:
-        db.close()
 
 
 def _full(table: str) -> str:
@@ -792,7 +793,7 @@ def me_usage(
                 COUNTIF(
                     ts >= TIMESTAMP_TRUNC(CURRENT_TIMESTAMP(), MONTH)
                 )                                          AS requests_this_month,
-                COUNT(*)                                   AS predictions_accessed
+                COUNT(*)                                   AS requests_total
             FROM {requests_table}
             WHERE user_id = @user_id
         """
@@ -805,7 +806,7 @@ def me_usage(
         requests_last_minute = int(row.requests_last_minute) if row else 0
         requests_today = int(row.requests_today) if row else 0
         requests_this_month = int(row.requests_this_month) if row else 0
-        predictions_accessed = int(row.predictions_accessed) if row else 0
+        requests_total = int(row.requests_total) if row else 0
 
     except Exception as exc:
         # Table may not exist yet (metering pipeline from #145 not deployed)
@@ -813,7 +814,7 @@ def me_usage(
         requests_last_minute = 0
         requests_today = 0
         requests_this_month = 0
-        predictions_accessed = 0
+        requests_total = 0
 
     return {
         "tier": tier,
@@ -822,6 +823,6 @@ def me_usage(
         "requests_last_minute": requests_last_minute,
         "requests_today": requests_today,
         "requests_this_month": requests_this_month,
-        "predictions_accessed": predictions_accessed,
+        "requests_total": requests_total,
         "rate_limit": rate_limits,
     }

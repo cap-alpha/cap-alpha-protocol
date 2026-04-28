@@ -115,6 +115,21 @@ def _extract_draft_claim(claim: str) -> dict:
     if not pick_match:
         # Bare "#N overall" or "Nth overall" without a leading keyword.
         pick_match = re.search(r"#?(\d+)(?:st|nd|rd|th)?\s+overall", claim_lower)
+    if not pick_match:
+        # "with the Nth pick in/of/by" or "at pick N" or "with pick No. N"
+        pick_match = re.search(
+            r"(?:with\s+(?:the\s+)?|at\s+)(?:pick\s+(?:no\.?\s*)?)?(\d+)(?:st|nd|rd|th)?\s+pick\b",
+            claim_lower,
+        )
+    if not pick_match:
+        # "with pick No. N" or "by pick No. N" (no trailing keyword)
+        pick_match = re.search(r"(?:with|by|at)\s+pick\s+no\.?\s*(\d+)", claim_lower)
+    if not pick_match:
+        # "at No. N" or "by No. N" — standalone pick number reference
+        pick_match = re.search(r"(?:at|by)\s+no\.?\s*(\d+)\b", claim_lower)
+    if not pick_match:
+        # "drafted #N by" — bare #N followed by "by" team (no overall/pick after)
+        pick_match = re.search(r"drafted\s+#(\d+)\s+by\b", claim_lower)
     if pick_match:
         result["pick_number"] = int(pick_match.group(1))
     else:
@@ -139,16 +154,22 @@ def _extract_draft_claim(claim: str) -> dict:
         if no_match:
             result["pick_number"] = int(no_match.group(1))
 
-    # Extract "top-N pick"
+    # Extract "top-N pick" or "within the first N picks"
     top_match = re.search(r"top[- ](\d+)\s*pick", claim_lower)
     if top_match:
         result["top_n"] = int(top_match.group(1))
+    if "top_n" not in result:
+        within_match = re.search(
+            r"within\s+the\s+(?:first\s+)?(?:top\s+)?(\d+)\s+picks?", claim_lower
+        )
+        if within_match:
+            result["top_n"] = int(within_match.group(1))
 
     # Extract "Round 1" or "first round"
     round_match = re.search(r"round\s*(\d+)", claim_lower)
     if round_match:
         result["round_number"] = int(round_match.group(1))
-    elif "first round" in claim_lower:
+    elif "first round" in claim_lower or "first-round" in claim_lower:
         result["round_number"] = 1
 
     # Extract draft year
@@ -269,14 +290,24 @@ def _filter_nfl_only(pending: pd.DataFrame) -> pd.DataFrame:
     return pending[pending["sport"].isna() | (pending["sport"] == "NFL")]
 
 
-def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
+def resolve_draft_picks(
+    db: DBManager,
+    dry_run: bool = False,
+    pending_override: "Optional[pd.DataFrame]" = None,
+) -> dict:
     """
     Resolve draft_pick predictions against actual draft results.
+
+    pending_override: if supplied, use this DataFrame instead of fetching
+    PENDING predictions — used by the re-resolve-voids pass.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport=None, db=db)
-    pending = _filter_nfl_only(pending)
+    if pending_override is not None:
+        pending = pending_override
+    else:
+        pending = get_pending_predictions(sport=None, db=db)
+        pending = _filter_nfl_only(pending)
     draft_preds = pending[pending["claim_category"] == "draft_pick"]
 
     if draft_preds.empty:
@@ -1339,9 +1370,43 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
     return summary
 
 
+def _get_void_predictions_by_note(
+    note: str, db: DBManager, sport: Optional[str] = "NFL"
+) -> "pd.DataFrame":
+    """
+    Fetch predictions that were previously VOID'd with a specific outcome_notes value.
+    Used by the re-resolve pass to retry previously unresolvable predictions.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    sport_filter = f"AND COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
+    query = f"""
+        SELECT
+            l.prediction_hash,
+            l.pundit_id,
+            l.pundit_name,
+            l.extracted_claim,
+            l.claim_category,
+            l.season_year,
+            l.target_player_id,
+            l.target_player_name,
+            l.target_team,
+            COALESCE(l.sport, 'NFL') AS sport,
+            l.ingestion_timestamp
+        FROM `{project_id}.gold_layer.prediction_ledger` l
+        JOIN `{project_id}.gold_layer.prediction_resolutions` r
+            ON l.prediction_hash = r.prediction_hash
+        WHERE r.resolution_status = 'VOID'
+          AND r.outcome_notes = '{note}'
+          {sport_filter}
+        ORDER BY l.ingestion_timestamp ASC
+    """
+    return db.fetch_df(query)
+
+
 def resolve_all(
     category: Optional[str] = None,
     dry_run: bool = False,
+    re_resolve_voids: bool = False,
     db: Optional[DBManager] = None,
 ) -> dict:
     """Run all resolution passes. Returns combined summary."""
@@ -1353,6 +1418,18 @@ def resolve_all(
         summaries = {}
 
         if not category or category == "draft_pick":
+            if re_resolve_voids:
+                # Re-attempt draft predictions previously VOID'd as unparseable
+                void_drafts = _get_void_predictions_by_note(
+                    "unparseable_draft_claim", db=db
+                )
+                logger.info(
+                    f"Re-resolve-voids: {len(void_drafts)} unparseable_draft_claim entries"
+                )
+                if not void_drafts.empty:
+                    summaries["draft_pick_voids"] = resolve_draft_picks(
+                        db, dry_run=dry_run, pending_override=void_drafts
+                    )
             summaries["draft_pick"] = resolve_draft_picks(db, dry_run=dry_run)
 
         if not category or category == "game_outcome":
@@ -1404,9 +1481,18 @@ if __name__ == "__main__":
         help="Resolve only a specific category",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--re-resolve-voids",
+        action="store_true",
+        help="Also re-attempt predictions previously VOID'd as unparseable",
+    )
     args = parser.parse_args()
 
-    result = resolve_all(category=args.category, dry_run=args.dry_run)
+    result = resolve_all(
+        category=args.category,
+        dry_run=args.dry_run,
+        re_resolve_voids=args.re_resolve_voids,
+    )
     import json
 
     print(json.dumps(result, indent=2))

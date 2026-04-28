@@ -7,7 +7,7 @@ NFL outcomes to automatically score pundit accuracy.
 Handles five categories:
   1. draft_pick — resolved against bronze_sportsdataio_players draft data
   2. game_outcome — resolved against bronze_sportsdataio_scores
-  3. player_performance — resolved against bronze_sportsdataio_player_season_stats
+  3. player_performance — resolved against bronze_nflverse_player_stats (free, no API key)
   4. award_prediction — resolved against pipeline/config/nfl_awards_<season>.yaml
   5. fa_signing — resolved against bronze_sportsdataio_players current team data
 
@@ -763,32 +763,33 @@ def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
 # Player performance resolver
 # ---------------------------------------------------------------------------
 
-# Mapping from common stat phrases → column names in bronze_sportsdataio_player_season_stats
+# Mapping from common stat phrases → column names in bronze_nflverse_player_stats
+# (nflverse uses snake_case columns, not the PascalCase of the old SportsData.io source)
 _STAT_ALIASES: dict[str, str] = {
-    "passing yards": "PassingYards",
-    "passing yard": "PassingYards",
-    "pass yards": "PassingYards",
-    "passing touchdowns": "PassingTouchdowns",
-    "passing tds": "PassingTouchdowns",
-    "passing td": "PassingTouchdowns",
-    "tds": "PassingTouchdowns",  # default to passing (resolved by position context)
-    "interceptions": "Interceptions",
-    "rushing yards": "RushingYards",
-    "rushing yard": "RushingYards",
-    "rush yards": "RushingYards",
-    "rushes for": "RushingYards",
-    "rush for": "RushingYards",
-    "rushing touchdowns": "RushingTouchdowns",
-    "rushing tds": "RushingTouchdowns",
-    "receiving yards": "ReceivingYards",
-    "receiving yard": "ReceivingYards",
-    "rec yards": "ReceivingYards",
-    "receiving touchdowns": "ReceivingTouchdowns",
-    "receiving tds": "ReceivingTouchdowns",
-    "receptions": "Receptions",
-    "catches": "Receptions",
-    "sacks": "Sacks",
-    "tackles": "Tackles",
+    "passing yards": "passing_yards",
+    "passing yard": "passing_yards",
+    "pass yards": "passing_yards",
+    "passing touchdowns": "passing_tds",
+    "passing tds": "passing_tds",
+    "passing td": "passing_tds",
+    "tds": "passing_tds",  # default to passing (resolved by position context)
+    "interceptions": "interceptions",
+    "rushing yards": "rushing_yards",
+    "rushing yard": "rushing_yards",
+    "rush yards": "rushing_yards",
+    "rushes for": "rushing_yards",
+    "rush for": "rushing_yards",
+    "rushing touchdowns": "rushing_tds",
+    "rushing tds": "rushing_tds",
+    "receiving yards": "receiving_yards",
+    "receiving yard": "receiving_yards",
+    "rec yards": "receiving_yards",
+    "receiving touchdowns": "receiving_tds",
+    "receiving tds": "receiving_tds",
+    "receptions": "receptions",
+    "catches": "receptions",
+    "sacks": "sacks",
+    "tackles": "sacks",  # nflverse seasonal data does not have tackles; map to sacks as fallback
 }
 
 
@@ -850,23 +851,33 @@ def _extract_player_stat_claim(claim: str) -> dict:
 
 def _load_player_season_stats(db: DBManager, season_year: int) -> pd.DataFrame:
     """
-    Load player season stats from bronze_sportsdataio_player_season_stats.
-    Returns empty DataFrame if table doesn't exist.
+    Load player season stats from bronze_nflverse_player_stats (free, no API key).
+    Joins with bronze_nflverse_players to resolve player_id → display_name.
+    Returns empty DataFrame if table doesn't exist or has no data for the season.
     """
     project_id = os.environ["GCP_PROJECT_ID"]
     query = f"""
         SELECT
-            Name, Season,
-            PassingYards, PassingTouchdowns, Interceptions,
-            RushingYards, RushingTouchdowns,
-            ReceivingYards, ReceivingTouchdowns, Receptions,
-            Sacks, Tackles
-        FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_player_season_stats`
-        WHERE Season = {season_year}
+            p.display_name AS Name,
+            s.season AS Season,
+            s.passing_yards AS passing_yards,
+            s.passing_tds AS passing_tds,
+            s.interceptions AS interceptions,
+            s.rushing_yards AS rushing_yards,
+            s.rushing_tds AS rushing_tds,
+            s.receiving_yards AS receiving_yards,
+            s.receiving_tds AS receiving_tds,
+            s.receptions AS receptions,
+            s.sacks AS sacks
+        FROM `{project_id}.nfl_dead_money.bronze_nflverse_player_stats` s
+        JOIN `{project_id}.nfl_dead_money.bronze_nflverse_players` p
+          ON s.player_id = p.gsis_id
+        WHERE s.season = {season_year}
+          AND s.season_type = 'REG'
     """
     try:
         return db.fetch_df(query)
-    except (NotFound, Exception) as e:
+    except Exception as e:
         logger.warning(f"Player season stats not available (season {season_year}): {e}")
         return pd.DataFrame()
 
@@ -874,7 +885,7 @@ def _load_player_season_stats(db: DBManager, season_year: int) -> pd.DataFrame:
 def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
     """
     Resolve player_performance predictions against actual season stats.
-    Data source: bronze_sportsdataio_player_season_stats.
+    Data source: bronze_nflverse_player_stats (free, no API key required).
     Only resolves predictions for completed seasons.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
@@ -989,7 +1000,7 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
             resolve_binary(
                 prediction_hash=phash,
                 correct=correct,
-                outcome_source="sportsdataio_player_stats",
+                outcome_source="nflverse_player_stats",
                 outcome_notes=outcome_notes,
                 db=db,
             )

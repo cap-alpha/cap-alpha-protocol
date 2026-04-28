@@ -64,10 +64,13 @@ sources:
         match_authors: ["Matt Bowen"]
 
   - id: theringer_nfl
-    name: "The Ringer NFL"
+    name: "The Ringer NFL Show"
     sport: "NFL"
     type: rss
-    url: "https://www.theringer.com/rss/nfl/index.xml"
+    # Updated 2026-04-27: theringer.com/rss/nfl/index.xml returned 404 (article RSS
+    # discontinued). Replaced with Megaphone podcast feed for The Ringer NFL Show,
+    # which publishes daily NFL analysis episodes.
+    url: "https://feeds.megaphone.fm/the-ringer-nfl-show"
     enabled: true
     pundits:
       - id: bill_simmons
@@ -76,6 +79,9 @@ sources:
       - id: kevin_clark
         name: "Kevin Clark"
         match_authors: ["Kevin Clark"]
+      - id: sheil_kapadia
+        name: "Sheil Kapadia"
+        match_authors: ["Sheil Kapadia"]
 
   - id: theathletic_nfl
     name: "The Athletic NFL"
@@ -116,8 +122,12 @@ sources:
     sport: "NFL"
     type: rss
     scrape_full_text: true
+    # Disabled 2026-04-27: nfl.com/rss/rsslanding now returns text/html (React SPA),
+    # not XML. NFL.com has no public RSS endpoint as of this date. Re-enable if NFL
+    # restores an RSS feed. Consider replacing with Yahoo Sports NFL or CBS Sports NFL
+    # for Ian Rapoport / Tom Pelissero coverage.
     url: "https://www.nfl.com/rss/rsslanding?searchString=home"
-    enabled: true
+    enabled: false
     pundits:
       - id: ian_rapoport
         name: "Ian Rapoport"

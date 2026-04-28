@@ -240,6 +240,17 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
         logger.warning("No draft data available for resolution.")
         return summary
 
+    # SportsDataIO stores the top ~22 first-round picks as 0-indexed
+    # (CollegeDraftRound=0, CollegeDraftPick=0 = #1 overall pick).
+    # Normalize to 1-indexed so all downstream comparisons are consistent.
+    zero_indexed_mask = (draft_data["draft_round"] == 0) & (
+        draft_data["draft_pick"] >= 0
+    )
+    draft_data.loc[zero_indexed_mask, "draft_round"] = 1
+    draft_data.loc[zero_indexed_mask, "draft_pick"] = (
+        draft_data.loc[zero_indexed_mask, "draft_pick"] + 1
+    )
+
     logger.info(
         f"Resolving {len(draft_preds)} draft_pick predictions "
         f"against {len(draft_data)} player draft records"
@@ -325,8 +336,8 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
         actual_team = actual.get("draft_team")
         actual_name = actual.get("Name")
 
-        # Skip if pick data is missing or invalid (pick 0 = not yet assigned)
-        if not pd.notna(actual_pick) or int(actual_pick) == 0:
+        # Skip if pick data is missing (0-indexed picks already normalized to 1+ above)
+        if not pd.notna(actual_pick):
             logger.info(
                 f"  SKIP {phash[:12]}… — player found but pick not yet assigned: {actual_name}"
             )

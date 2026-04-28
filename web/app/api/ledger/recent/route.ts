@@ -1,21 +1,30 @@
 import { NextResponse } from "next/server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+const API_URL =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
+    const parsed = parseInt(searchParams.get("limit") ?? "");
+    const limit = Number.isFinite(parsed) ? Math.min(parsed, 100) : 20;
 
     try {
-        const res = await fetch(`${API_URL}/v1/predictions/recent?limit=${limit}`, {
-            headers: {
-                "Accept": "application/json",
-            },
-        });
+        const res = await fetch(
+            `${API_URL}/v1/predictions/recent?limit=${limit}`,
+            {
+                headers: {
+                    Accept: "application/json",
+                },
+            }
+        );
 
         if (!res.ok) {
-            console.error(`[Ledger Recent API] Backend returned ${res.status}`, await res.text());
-            return NextResponse.json({ predictions: [] });
+            console.error(
+                `[Ledger Recent API] Backend returned ${res.status}`,
+                await res.text()
+            );
+            return NextResponse.json({ predictions: [] }, { status: 502 });
         }
 
         const data = await res.json();
@@ -26,6 +35,6 @@ export async function GET(req: Request) {
             error: errorMsg,
             backendUrl: API_URL,
         });
-        return NextResponse.json({ predictions: [] });
+        return NextResponse.json({ predictions: [] }, { status: 502 });
     }
 }

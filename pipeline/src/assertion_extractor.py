@@ -166,6 +166,8 @@ class ExtractionResult:
     predictions: list[dict]
     error: Optional[str] = None
     raw_response: Optional[str] = None
+    duration_ms: Optional[int] = None
+    tokens_used: Optional[int] = None
 
 
 def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
@@ -236,8 +238,13 @@ def extract_assertions(
         text=text[:4000],
     )
 
+    t0 = time.monotonic()
     try:
         predictions = provider.extract_predictions(prompt)
+        duration_ms = int((time.monotonic() - t0) * 1000)
+        # Read token count if provider exposes it (OllamaProvider sets _last_tokens_used)
+        tokens_used: Optional[int] = getattr(provider, "_last_tokens_used", None)
+
         # Filter empty claims, then deduplicate near-identical ones
         valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
         # Hard temporal filter: reject predictions about past seasons/drafts.
@@ -283,12 +290,16 @@ def extract_assertions(
         return ExtractionResult(
             content_hash=content_hash,
             predictions=deduped,
+            duration_ms=duration_ms,
+            tokens_used=tokens_used,
         )
     except Exception as e:
+        duration_ms = int((time.monotonic() - t0) * 1000)
         return ExtractionResult(
             content_hash=content_hash,
             predictions=[],
             error=str(e),
+            duration_ms=duration_ms,
         )
 
 
@@ -361,17 +372,51 @@ def get_unprocessed_media(
         return db.fetch_df(query)
 
 
-def mark_as_processed(content_hashes: list[str], db: DBManager) -> None:
-    """Records which content_hashes have been processed to avoid re-extraction."""
+def mark_as_processed(
+    content_hashes: list[str],
+    db: DBManager,
+    extractor_model: Optional[str] = None,
+    extractor_provider: Optional[str] = None,
+    assertions_extracted: Optional[int] = None,
+    extraction_duration_ms: Optional[int] = None,
+    prompt_version: Optional[str] = None,
+    tokens_used: Optional[int] = None,
+    provenance_by_hash: Optional[dict] = None,
+) -> None:
+    """Records which content_hashes have been processed to avoid re-extraction.
+
+    Provenance columns (extractor_model, extractor_provider, etc.) can be supplied
+    either as scalars applied uniformly to all hashes, or as a per-hash dict via
+    ``provenance_by_hash`` keyed on content_hash.  Per-hash values take precedence.
+
+    ``provenance_by_hash`` entries are dicts with keys matching the optional kwargs above
+    (minus the ``content_hashes`` / ``db`` params).
+    """
     if not content_hashes:
         return
     now = datetime.now(timezone.utc)
-    df = pd.DataFrame(
-        {
-            "content_hash": content_hashes,
-            "processed_at": [now] * len(content_hashes),
-        }
-    )
+    rows = []
+    for h in content_hashes:
+        prov = (provenance_by_hash or {}).get(h, {})
+        rows.append(
+            {
+                "content_hash": h,
+                "processed_at": now,
+                "extractor_model": prov.get("extractor_model", extractor_model),
+                "extractor_provider": prov.get(
+                    "extractor_provider", extractor_provider
+                ),
+                "assertions_extracted": prov.get(
+                    "assertions_extracted", assertions_extracted
+                ),
+                "extraction_duration_ms": prov.get(
+                    "extraction_duration_ms", extraction_duration_ms
+                ),
+                "prompt_version": prov.get("prompt_version", prompt_version),
+                "tokens_used": prov.get("tokens_used", tokens_used),
+            }
+        )
+    df = pd.DataFrame(rows)
     db.append_dataframe_to_table(df, PROCESSED_TABLE)
 
 
@@ -759,7 +804,13 @@ def run_extraction(
 
             if processed_hashes:
                 try:
-                    mark_as_processed(processed_hashes, db=db)
+                    mark_as_processed(
+                        processed_hashes,
+                        db=db,
+                        extractor_model="gemini-2.5-flash",
+                        extractor_provider="gemini",
+                        prompt_version=PROMPT_VERSION,
+                    )
                 except Exception as e:
                     logger.warning(
                         f"Failed to mark processed (will re-extract next run): {e}"
@@ -778,6 +829,9 @@ def run_extraction(
         # ---------------------------------------------------------------
         all_predictions = []
         processed_hashes = []
+        # Per-article provenance metadata: content_hash → dict of provenance fields.
+        # Written to processed_media_hashes alongside the processed_at timestamp.
+        provenance_by_hash: dict[str, dict] = {}
         # In-memory guard: track hashes that yielded zero predictions this run.
         # Prevents recent items from repeatedly burning LLM calls when the model
         # consistently finds nothing. Within a single run, skip items we already
@@ -818,6 +872,14 @@ def run_extraction(
                         )
                         summary["filtered_out"] += 1
                         processed_hashes.append(content_hash)
+                        provenance_by_hash[content_hash] = {
+                            "extractor_model": None,
+                            "extractor_provider": None,
+                            "assertions_extracted": 0,
+                            "extraction_duration_ms": None,
+                            "prompt_version": None,
+                            "tokens_used": None,
+                        }
                         continue
 
                 to_extract.append(row)
@@ -849,12 +911,21 @@ def run_extraction(
             def _handle_result(row, result) -> None:
                 """Apply extraction result to summary/lists (called from both paths)."""
                 content_hash = row["content_hash"]
+                llm_model = getattr(provider, "model", None) if provider else None
                 if result.error:
                     logger.warning(
                         f"Extraction error for {content_hash[:16]}…: {result.error}"
                     )
                     summary["errors"] += 1
                     processed_hashes.append(content_hash)
+                    provenance_by_hash[content_hash] = {
+                        "extractor_model": str(llm_model) if llm_model else None,
+                        "extractor_provider": provider_type if provider else None,
+                        "assertions_extracted": 0,
+                        "extraction_duration_ms": result.duration_ms,
+                        "prompt_version": PROMPT_VERSION,
+                        "tokens_used": result.tokens_used,
+                    }
                 elif not result.predictions:
                     summary["skipped_no_predictions"] += 1
                     summary["extracted_zero_predictions"] += 1
@@ -867,7 +938,6 @@ def run_extraction(
                     )
                 else:
                     summary["predictions_extracted"] += len(result.predictions)
-                    llm_model = getattr(provider, "model", None) if provider else None
                     all_predictions.extend(
                         _row_to_pundit_predictions(
                             row,
@@ -879,6 +949,14 @@ def run_extraction(
                         )
                     )
                     processed_hashes.append(content_hash)
+                    provenance_by_hash[content_hash] = {
+                        "extractor_model": str(llm_model) if llm_model else None,
+                        "extractor_provider": provider_type if provider else None,
+                        "assertions_extracted": len(result.predictions),
+                        "extraction_duration_ms": result.duration_ms,
+                        "prompt_version": PROMPT_VERSION,
+                        "tokens_used": result.tokens_used,
+                    }
 
             rate_limit = config.get("extraction", {}).get("rate_limit_seconds", 1.0)
 
@@ -939,10 +1017,14 @@ def run_extraction(
                 logger.error(f"Failed to ingest predictions to ledger: {e}")
                 summary["errors"] += 1
 
-        # Mark processed
+        # Mark processed — include per-article provenance metadata
         if processed_hashes and not dry_run:
             try:
-                mark_as_processed(processed_hashes, db=db)
+                mark_as_processed(
+                    processed_hashes,
+                    db=db,
+                    provenance_by_hash=provenance_by_hash,
+                )
             except Exception as e:
                 logger.warning(
                     f"Failed to mark processed (will re-extract next run): {e}"

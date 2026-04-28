@@ -569,7 +569,15 @@ class OllamaProvider(LLMProvider):
         super().__init__(model)
         self.base_url = os.environ.get("OLLAMA_BASE_URL", base_url)
 
-    def _generate(self, prompt: str, format_json: bool = False) -> str:
+    def _generate(self, prompt: str, format_json: bool = False) -> tuple[str, int]:
+        """
+        Send a generation request to Ollama.
+
+        Returns:
+            (response_text, total_tokens) where total_tokens is the sum of
+            prompt_eval_count + eval_count from the Ollama response.
+            Returns 0 for total_tokens if the counts are unavailable.
+        """
         import requests
 
         payload = {
@@ -588,18 +596,24 @@ class OllamaProvider(LLMProvider):
                 timeout=120,
             )
             resp.raise_for_status()
-            return resp.json()["response"]
+            data = resp.json()
+            text = data["response"]
+            total_tokens = (data.get("prompt_eval_count") or 0) + (
+                data.get("eval_count") or 0
+            )
+            return text, total_tokens
         except Exception as e:
             logger.error(f"Ollama request failed: {e}")
             raise
 
     def extract_predictions(self, prompt: str) -> list[dict]:
         full_prompt = f"{prompt}\n\n{PREDICTION_SCHEMA_DESCRIPTION}\n\nRespond with ONLY a JSON array:"
-        text = self._generate(full_prompt, format_json=True)
+        text, tokens = self._generate(full_prompt, format_json=True)
+        self._last_tokens_used = tokens
         return self._parse_json_response(text)
 
     def classify(self, prompt: str) -> str:
-        text = self._generate(prompt)
+        text, _ = self._generate(prompt)
         return text.strip().lower()
 
 

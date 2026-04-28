@@ -45,6 +45,11 @@ except TypeError:
     _YT_API_V1 = False
 
 from src.db_manager import DBManager
+from src.youtube_client import (
+    _api_key_available,
+    build_video_text,
+    fetch_youtube_videos,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
@@ -834,10 +839,130 @@ def ingest_from_urls(
     return items
 
 
+def fetch_youtube_data_api(source: dict, defaults: dict) -> list[MediaItem]:
+    """
+    Fetch recent videos from a YouTube channel via YouTube Data API v3.
+
+    Uses video title + description as article text for extraction.
+    YouTube descriptions commonly contain explicit predictions.
+
+    Requires YOUTUBE_API_KEY environment variable. If not set, logs a warning
+    and returns an empty list (graceful degradation — does not fail the run).
+
+    Source config expects a `channel_id` field (in addition to `url`).
+    Falls back to extracting channel_id from `url` if `channel_id` is absent.
+    """
+    source_id = source["id"]
+    pundits = source.get("pundits", [])
+    sport = source.get("sport", "NFL")
+    max_items = defaults.get("max_items_per_feed", 50)
+
+    if not _api_key_available():
+        logger.warning(
+            f"[{source_id}] YOUTUBE_API_KEY not set — YouTube sources disabled. "
+            "Get a key at: Google Cloud Console → APIs & Services → "
+            "Enable 'YouTube Data API v3' → Credentials → Create API key. "
+            "GCP project: cap-alpha-protocol"
+        )
+        return []
+
+    # Resolve channel_id from config field or extract from URL
+    channel_id = source.get("channel_id")
+    if not channel_id:
+        url = source.get("url", "")
+        import re as _re
+
+        m = _re.search(r"channel_id=([A-Za-z0-9_-]+)", url)
+        channel_id = m.group(1) if m else None
+
+    if not channel_id:
+        logger.error(
+            f"[{source_id}] No channel_id found — cannot use YouTube Data API. "
+            "Add channel_id to media_sources.yaml entry."
+        )
+        return []
+
+    # Default pundit for single-host channels
+    default_pundit = pundits[0] if pundits else {}
+    author = default_pundit.get("name")
+    pundit_id = default_pundit.get("id")
+    pundit_name = default_pundit.get("name")
+
+    logger.info(
+        f"Fetching YouTube Data API: {source['name']} (channel_id={channel_id})"
+    )
+
+    videos = fetch_youtube_videos(
+        channel_id=channel_id,
+        max_results=min(max_items, 50),  # API max is 50 per search.list call
+        timeout=defaults.get("fetch_timeout_seconds", 30),
+    )
+
+    if not videos:
+        logger.warning(f"[{source_id}] YouTube Data API returned 0 videos")
+        return []
+
+    items = []
+    now = datetime.now(timezone.utc)
+
+    for video in videos:
+        title = video["title"]
+        url = video["url"]
+        video_id = video["video_id"]
+
+        if not url:
+            continue
+
+        # Skip Shorts
+        if _is_youtube_short(url):
+            logger.debug(f"[{source_id}] Skipping Short: {title}")
+            continue
+
+        # Build text from title + description
+        text = build_video_text(video)
+        if not text.strip():
+            logger.debug(f"[{source_id}] No text for video {video_id} ({title})")
+            continue
+
+        # Parse published date
+        published = None
+        raw_published = video.get("published_at", "")
+        if raw_published:
+            try:
+                published = datetime.fromisoformat(raw_published.replace("Z", "+00:00"))
+            except ValueError:
+                pass
+
+        content_hash = compute_content_hash(url, title)
+
+        items.append(
+            MediaItem(
+                content_hash=content_hash,
+                source_id=source_id,
+                title=title,
+                raw_text=text,
+                source_url=url,
+                author=author,
+                matched_pundit_id=pundit_id,
+                matched_pundit_name=pundit_name,
+                published_at=published,
+                ingested_at=now,
+                content_type="video",
+                fetch_source_type="youtube_data_api",
+                sport=sport,
+                raw_metadata=json.dumps({"video_id": video_id}) if video_id else None,
+            )
+        )
+
+    logger.info(f"[{source_id}] YouTube Data API returned {len(items)} items")
+    return items
+
+
 FETCHERS = {
     "rss": fetch_rss,
     "youtube_rss": fetch_rss,  # YouTube Atom feeds work with feedparser
     "youtube_transcript": fetch_youtube_transcripts,
+    "youtube_data_api": fetch_youtube_data_api,  # Official API — replaces IP-blocked scraping
 }
 
 

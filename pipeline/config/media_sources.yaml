@@ -995,8 +995,9 @@ sources:
     name: "The Athletic NBA"
     sport: "NBA"
     type: rss
+    # Disabled: paywall redirect returns malformed XML / empty feed. (#389)
     url: "https://theathletic.com/rss/feed/nba/"
-    enabled: true
+    enabled: false
     default_pundit:
       id: athletic_nba_staff
       name: "The Athletic NBA Staff"
@@ -1016,8 +1017,10 @@ sources:
     sport: "NBA"
     type: rss
     pundit: "Shams Charania"
+    # Disabled: author-level feed returns 404 — The Athletic does not expose
+    # per-author RSS endpoints publicly. (#389)
     url: "https://theathletic.com/author/shams-charania/feed/"
-    enabled: true
+    enabled: false
     pundits:
       - id: shams_charania
         name: "Shams Charania"
@@ -1028,8 +1031,10 @@ sources:
     sport: "NBA"
     type: rss
     scrape_full_text: true
+    # Disabled: BR has retired all RSS endpoints — /nba.rss, /articles/feed?tag=nba,
+    # and /articles/feed?tag_id=* all return 404. (#389)
     url: "https://bleacherreport.com/nba.rss"
-    enabled: true
+    enabled: false
     default_pundit:
       id: br_nba_staff
       name: "Bleacher Report NBA Staff"
@@ -1046,8 +1051,10 @@ sources:
     sport: "NBA"
     type: rss
     scrape_full_text: true
+    # Disabled: /feed/ and all tested variants (/feed, /nba/feed/) return 404 after
+    # redirect to www.hoopshype.com. Site appears to have dropped RSS support. (#389)
     url: "https://hoopshype.com/feed/"
-    enabled: true
+    enabled: false
     default_pundit:
       id: hoopshype_staff
       name: "HoopsHype Staff"

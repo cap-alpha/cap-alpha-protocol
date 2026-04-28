@@ -368,8 +368,8 @@ export function UsageDashboard() {
                                     }}
                                     labelStyle={{ color: "#a1a1aa" }}
                                     itemStyle={{ color: "#e4e4e7" }}
-                                    formatter={(value: number) =>
-                                        formatNumber(value)
+                                    formatter={(value) =>
+                                        formatNumber(Number(value))
                                     }
                                 />
                                 <Bar

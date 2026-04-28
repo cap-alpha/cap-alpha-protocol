@@ -123,6 +123,7 @@ Pundit ──publishes──► raw_pundit_media (Bronze)
 |------|------|
 | `pipeline/api/main.py` | FastAPI app mount + health check |
 | `pipeline/api/pundit_router.py` | `/v1/pundits/`, `/v1/predictions/`, `/v1/leaderboard`, `/v1/integrity/verify` |
+| `docs/API.md` | Public REST API reference (Markdown) |
 
 ### Frontend
 | Path | Does |
@@ -130,8 +131,11 @@ Pundit ──publishes──► raw_pundit_media (Bronze)
 | `web/app/ledger/[pundit_id]/` | Pundit detail: prediction history + credit score |
 | `web/app/draft/[year]/` | Draft prediction tracker |
 | `web/app/dashboard/` | User dashboard (role-based) |
+| `web/app/docs/page.tsx` | Public API docs page (`/docs` route) |
 | `web/app/api/` | Next.js API routes (proxy to FastAPI or direct BQ) |
 | `web/app/actions/` | Server Actions for mutations |
+| `web/lib/api-keys/tiers.ts` | API key tier definitions |
+| `web/lib/api-keys/schema.sql` | API key schema |
 
 ---
 
@@ -166,12 +170,25 @@ Pundit ──publishes──► raw_pundit_media (Bronze)
 | Daily pipeline flow | `pipeline/src/run_daily.py` |
 | ML features or model retraining | `pipeline/src/feature_factory.py`, `pipeline/src/train_model.py` |
 | API endpoint (pundits, scores) | `pipeline/api/pundit_router.py` |
+| Public API documentation | `docs/API.md`, `web/app/docs/page.tsx` |
 | Frontend page or UI component | `web/app/<route>/` |
 | Auth / user tier gating | `web/app/api/webhooks/clerk/`, Clerk middleware |
 | Billing / subscriptions | `web/app/api/webhooks/stripe/`, `pipeline/src/` monetization files |
+| API key tiers / schema | `web/lib/api-keys/tiers.ts`, `web/lib/api-keys/schema.sql` |
 | Data quality check | `pipeline/src/bq_data_quality.py`, `pipeline/tests/test_data_quality.py` |
 | Tests | `pipeline/tests/` — run via `make test` |
 | Config / env vars | `pipeline/config/settings.yaml`, `.env` (never committed) |
+
+---
+
+## Key URLs
+
+| Service | URL |
+|---|---|
+| Production API | `https://pundit-ledger-api-wvhvx2muna-uc.a.run.app` |
+| Interactive API schema | `https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/docs` |
+| Frontend (Vercel) | `https://cap-alpha.co` |
+| API docs page | `https://cap-alpha.co/docs` |
 
 ---
 

@@ -909,6 +909,59 @@ class TestResolveDraftPicks:
         assert summary["voided"] == 1
         mock_void.assert_called_once()
 
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily.resolve_binary")
+    def test_zero_indexed_picks_normalized(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """SportsDataIO 0-indexed picks (round=0, pick=0 = #1 overall) are normalized to 1-indexed."""
+        # Simulate SportsDataIO raw data: #1 overall stored as round=0, pick=0
+        zero_indexed_data = pd.DataFrame(
+            [
+                {
+                    "Name": "Fernando Mendoza",
+                    "name_lower": "fernando mendoza",
+                    "draft_year": 2025,
+                    "draft_round": 0,  # SportsDataIO 0-indexed
+                    "draft_pick": 0,  # SportsDataIO 0-indexed — means pick #1
+                    "draft_team": "CLE",
+                    "current_team": "CLE",
+                    "undrafted": False,
+                },
+                {
+                    "Name": "Arvell Reese",
+                    "name_lower": "arvell reese",
+                    "draft_year": 2025,
+                    "draft_round": 0,  # SportsDataIO 0-indexed
+                    "draft_pick": 2,  # SportsDataIO 0-indexed — means pick #3
+                    "draft_team": "NYG",
+                    "current_team": "NYG",
+                    "undrafted": False,
+                },
+            ]
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Fernando Mendoza is the No. 1 overall pick in 2025",
+                    "season_year": 2025,
+                    "target_player_id": "Fernando Mendoza",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = zero_indexed_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        # Should resolve (not skip) because pick 0 is normalized to 1
+        assert summary["resolved"] == 1
+        assert summary["skipped"] == 0
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is True
+
     @patch("src.resolve_daily.get_pending_predictions")
     def test_empty_predictions(self, mock_pending, mock_db):
         """Return 0 checked when there are no draft_pick predictions."""

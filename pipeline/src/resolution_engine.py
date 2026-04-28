@@ -96,6 +96,8 @@ def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) 
         project_id = os.environ.get("GCP_PROJECT_ID")
         now = datetime.now(timezone.utc).isoformat()
 
+        # Numeric/boolean literals are safe to inline because they come from Python
+        # dataclass fields (floats and bools), not from external/data-derived strings.
         brier = f"{result.brier_score}" if result.brier_score is not None else "NULL"
         binary = (
             "TRUE"
@@ -108,40 +110,57 @@ def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) 
             f"{result.weighted_score}" if result.weighted_score is not None else "NULL"
         )
 
-        def _q(s: Optional[str]) -> str:
-            if s is None:
-                return "NULL"
-            return "'" + s.replace("'", "\\'") + "'"
-
+        # All string values from external/data-derived sources go through @params.
         merge_sql = f"""
             MERGE `{project_id}.{RESOLUTIONS_TABLE}` T
-            USING (SELECT '{result.prediction_hash}' AS prediction_hash) S
+            USING (SELECT @prediction_hash AS prediction_hash) S
             ON T.prediction_hash = S.prediction_hash
             WHEN MATCHED THEN UPDATE SET
-                resolution_status     = '{result.resolution_status}',
-                resolved_at           = '{now}',
-                resolver              = '{result.resolver}',
+                resolution_status     = @resolution_status,
+                resolved_at           = @resolved_at,
+                resolver              = @resolver,
                 brier_score           = {brier},
                 binary_correct        = {binary},
                 timeliness_weight     = {result.timeliness_weight},
                 weighted_score        = {weighted},
-                outcome_source        = {_q(result.outcome_source)},
-                outcome_reference_id  = {_q(result.outcome_reference_id)},
-                outcome_notes         = {_q(result.outcome_notes)},
-                updated_at            = '{now}'
+                outcome_source        = @outcome_source,
+                outcome_reference_id  = @outcome_reference_id,
+                outcome_notes         = @outcome_notes,
+                updated_at            = @updated_at
             WHEN NOT MATCHED THEN INSERT (
                 prediction_hash, resolution_status, resolved_at, resolver,
                 brier_score, binary_correct, timeliness_weight, weighted_score,
                 outcome_source, outcome_reference_id, outcome_notes,
                 created_at, updated_at
             ) VALUES (
-                '{result.prediction_hash}', '{result.resolution_status}', '{now}', '{result.resolver}',
+                @prediction_hash, @resolution_status, @resolved_at, @resolver,
                 {brier}, {binary}, {result.timeliness_weight}, {weighted},
-                {_q(result.outcome_source)}, {_q(result.outcome_reference_id)}, {_q(result.outcome_notes)},
-                '{now}', '{now}'
+                @outcome_source, @outcome_reference_id, @outcome_notes,
+                @created_at, @created_at
             )
         """
-        db.execute(merge_sql)
+        query_parameters = [
+            bigquery.ScalarQueryParameter(
+                "prediction_hash", "STRING", result.prediction_hash
+            ),
+            bigquery.ScalarQueryParameter(
+                "resolution_status", "STRING", result.resolution_status
+            ),
+            bigquery.ScalarQueryParameter("resolved_at", "STRING", now),
+            bigquery.ScalarQueryParameter("resolver", "STRING", result.resolver),
+            bigquery.ScalarQueryParameter(
+                "outcome_source", "STRING", result.outcome_source
+            ),
+            bigquery.ScalarQueryParameter(
+                "outcome_reference_id", "STRING", result.outcome_reference_id
+            ),
+            bigquery.ScalarQueryParameter(
+                "outcome_notes", "STRING", result.outcome_notes
+            ),
+            bigquery.ScalarQueryParameter("updated_at", "STRING", now),
+            bigquery.ScalarQueryParameter("created_at", "STRING", now),
+        ]
+        db.execute(merge_sql, query_parameters=query_parameters)
         logger.info(
             f"Recorded resolution for {result.prediction_hash[:16]}…: "
             f"{result.resolution_status} (resolver={result.resolver})"
@@ -276,7 +295,7 @@ def get_pending_predictions(
 
     try:
         project_id = os.environ.get("GCP_PROJECT_ID")
-        sport_filter = f"AND COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
+        sport_filter = "AND COALESCE(l.sport, 'NFL') = @sport" if sport else ""
         query = f"""
             SELECT
                 l.prediction_hash,
@@ -296,7 +315,10 @@ def get_pending_predictions(
               {sport_filter}
             ORDER BY l.ingestion_timestamp ASC
         """
-        return db.fetch_df(query)
+        query_parameters = (
+            [bigquery.ScalarQueryParameter("sport", "STRING", sport)] if sport else []
+        )
+        return db.fetch_df(query, query_parameters=query_parameters)
     finally:
         if close_db:
             db.close()
@@ -322,7 +344,7 @@ def get_pundit_accuracy_summary(
         project_id = os.environ.get("GCP_PROJECT_ID")
         where_clauses = []
         if sport:
-            where_clauses.append(f"COALESCE(l.sport, 'NFL') = '{sport}'")
+            where_clauses.append("COALESCE(l.sport, 'NFL') = @sport")
         where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
         quality_join = ""
@@ -332,7 +354,6 @@ def get_pundit_accuracy_summary(
                 f"ON l.prediction_hash = q.prediction_hash "
                 f"AND q.quality_score >= {float(min_quality)}"
             )
-
         query = f"""
             SELECT
                 l.pundit_id,
@@ -355,7 +376,10 @@ def get_pundit_accuracy_summary(
             GROUP BY l.pundit_id, l.pundit_name, sport
             ORDER BY avg_weighted_score DESC NULLS LAST
         """
-        return db.fetch_df(query)
+        query_parameters = (
+            [bigquery.ScalarQueryParameter("sport", "STRING", sport)] if sport else []
+        )
+        return db.fetch_df(query, query_parameters=query_parameters)
     finally:
         if close_db:
             db.close()

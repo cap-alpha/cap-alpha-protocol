@@ -478,27 +478,33 @@ class TestResolutionEngineSportFilter:
     def test_get_pending_with_nfl_filter(self):
         db = self._make_mock_db()
         get_pending_predictions(sport="NFL", db=db)
-        query = db.fetch_df.call_args[0][0]
-        assert "NFL" in query
+        # Sport value is now passed as a query_parameter to prevent SQL injection.
+        call_kwargs = db.fetch_df.call_args[1]
+        param_values = {p.name: p.value for p in call_kwargs["query_parameters"]}
+        assert param_values["sport"] == "NFL"
 
     def test_get_pending_with_mlb_filter(self):
         db = self._make_mock_db()
         get_pending_predictions(sport="MLB", db=db)
-        query = db.fetch_df.call_args[0][0]
-        assert "MLB" in query
+        # Sport value is now passed as a query_parameter to prevent SQL injection.
+        call_kwargs = db.fetch_df.call_args[1]
+        param_values = {p.name: p.value for p in call_kwargs["query_parameters"]}
+        assert param_values["sport"] == "MLB"
 
     def test_get_accuracy_summary_no_sport_filter(self):
         db = self._make_mock_db()
         get_pundit_accuracy_summary(db=db)
-        query = db.fetch_df.call_args[0][0]
-        # No WHERE clause when sport not specified
-        assert "MLB" not in query and "NBA" not in query
+        # No query_parameters when sport is not specified.
+        call_kwargs = db.fetch_df.call_args[1]
+        assert not call_kwargs.get("query_parameters")
 
     def test_get_accuracy_summary_with_nfl_filter(self):
         db = self._make_mock_db()
         get_pundit_accuracy_summary(sport="NFL", db=db)
-        query = db.fetch_df.call_args[0][0]
-        assert "NFL" in query
+        # Sport value is now passed as a query_parameter to prevent SQL injection.
+        call_kwargs = db.fetch_df.call_args[1]
+        param_values = {p.name: p.value for p in call_kwargs["query_parameters"]}
+        assert param_values["sport"] == "NFL"
 
     def test_get_accuracy_summary_returns_sport_column(self):
         """Verifies sport is in the SELECT clause of the summary query."""

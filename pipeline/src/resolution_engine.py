@@ -302,12 +302,16 @@ def get_pending_predictions(
 
 
 def get_pundit_accuracy_summary(
-    sport: Optional[str] = None, db: Optional[DBManager] = None
+    sport: Optional[str] = None,
+    db: Optional[DBManager] = None,
+    min_quality: Optional[float] = None,
 ) -> pd.DataFrame:
     """
     Returns per-pundit accuracy metrics from resolved predictions.
     Used by the Scorecard API to power leaderboard and pundit profiles.
     Pass sport='NFL' to filter to a specific sport; omit for cross-sport summary.
+    Pass min_quality=0.7 to restrict to high-quality predictions only (requires
+    gold_layer.assertion_quality to be populated).
     """
     close_db = db is None
     if db is None:
@@ -315,7 +319,19 @@ def get_pundit_accuracy_summary(
 
     try:
         project_id = os.environ.get("GCP_PROJECT_ID")
-        sport_filter = f"WHERE COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
+        where_clauses = []
+        if sport:
+            where_clauses.append(f"COALESCE(l.sport, 'NFL') = '{sport}'")
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+        quality_join = ""
+        if min_quality is not None:
+            quality_join = (
+                f"INNER JOIN `{project_id}.gold_layer.assertion_quality` q "
+                f"ON l.prediction_hash = q.prediction_hash "
+                f"AND q.quality_score >= {float(min_quality)}"
+            )
+
         query = f"""
             SELECT
                 l.pundit_id,
@@ -333,7 +349,8 @@ def get_pundit_accuracy_summary(
             FROM `{project_id}.{LEDGER_TABLE}` l
             LEFT JOIN `{project_id}.{RESOLUTIONS_TABLE}` r
                 ON l.prediction_hash = r.prediction_hash
-            {sport_filter}
+            {quality_join}
+            {where_sql}
             GROUP BY l.pundit_id, l.pundit_name, sport
             ORDER BY avg_weighted_score DESC NULLS LAST
         """

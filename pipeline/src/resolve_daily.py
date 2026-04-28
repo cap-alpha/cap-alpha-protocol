@@ -90,6 +90,16 @@ def _extract_draft_claim(claim: str) -> dict:
         "eighth": 8,
         "ninth": 9,
         "tenth": 10,
+        "eleventh": 11,
+        "twelfth": 12,
+        "thirteenth": 13,
+        "fourteenth": 14,
+        "fifteenth": 15,
+        "sixteenth": 16,
+        "seventeenth": 17,
+        "eighteenth": 18,
+        "nineteenth": 19,
+        "twentieth": 20,
     }
     pick_match = re.search(r"(?:no\.?\s*|#)(\d+)\s*(?:overall\s*)?pick", claim_lower)
     if pick_match:
@@ -99,6 +109,22 @@ def _extract_draft_claim(claim: str) -> dict:
             if f"{word} overall" in claim_lower or f"{word} pick" in claim_lower:
                 result["pick_number"] = num
                 break
+
+    # Pattern 2: ordinal suffix — "16th overall", "3rd overall pick"
+    if "pick_number" not in result:
+        ordinal_match = re.search(
+            r"(\d+)(?:st|nd|rd|th)\s+(?:overall|pick)", claim_lower
+        )
+        if ordinal_match:
+            result["pick_number"] = int(ordinal_match.group(1))
+
+    # Pattern 3: "at No. N" / "No. N overall" / "No. N in the" / "No. N by"
+    if "pick_number" not in result:
+        no_match = re.search(
+            r"(?:at\s+)?no\.?\s*(\d+)\s*(?:overall|in\s+the|by\s+)", claim_lower
+        )
+        if no_match:
+            result["pick_number"] = int(no_match.group(1))
 
     # Extract "top-N pick"
     top_match = re.search(r"top[- ](\d+)\s*pick", claim_lower)

@@ -56,43 +56,80 @@ VALID_CATEGORIES = {
     "contract",
 }
 
-EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the content below.
+# Bump this when the extraction prompt changes so v1 vs v2 can be compared in BQ
+PROMPT_VERSION = "v2"
+
+# Hedge words that, when present without a specific anchor (name/number/team),
+# indicate a vague claim that should be dropped post-extraction.
+_HEDGE_ONLY_WORDS = frozenset(
+    ["might", "could", "may", "possible", "perhaps", "potentially", "maybe"]
+)
+
+# Confident language words — at least one must appear for a claim to pass
+_CONFIDENT_WORDS = frozenset(
+    [
+        "will",
+        "is going to",
+        "predicts",
+        "expects",
+        "expect",
+        "predicted",
+        "going to",
+        "shall",
+        "won't",
+        "won't",  # curly apostrophe variant
+        "will not",
+    ]
+)
+
+EXTRACTION_PROMPT = """You are a {sport} prediction extraction system (prompt version: v2).
+
+STRICT QUALITY GATE — only extract a claim if ALL FOUR conditions are met:
+
+  1. FALSIFIABLE: The claim can be proven TRUE or FALSE after the event.
+  2. SPECIFIC: The claim includes at least one concrete anchor — a player name, team name,
+     pick number, stat threshold (e.g. "4,500 yards"), contract value, or win total.
+  3. CONFIDENT LANGUAGE: The pundit uses assertive language — "will", "is going to",
+     "predicts", "expects", "I have X going to Y". NOT "might", "could", "may",
+     "possible", "perhaps", "wouldn't surprise me", "I could see".
+  4. FUTURE AT TIME OF WRITING: The event had not yet occurred as of PUBLISHED date below.
 
 PUBLISHED: {published_date}
 
-Rules — what TO extract:
-- Concrete, falsifiable claims about FUTURE outcomes with a clear stance
-- Must have: a SUBJECT (player/team) + a TESTABLE OUTCOME + a TIMEFRAME (season, game, date)
-- Examples of good extractions:
-  "Patrick Mahomes will win MVP in 2025" → stance: bullish
-  "The Browns will miss the playoffs in 2025" → stance: bearish
-  "Travis Kelce will retire after the 2025 season" → stance: neutral
+━━━ EXTRACT THESE (meet all 4 conditions) ━━━
+  "Travis Hunter will be the #1 overall pick"         → specific pick, confident "will"
+  "Lamar Jackson will throw for 4,500 yards this season" → player + stat threshold
+  "The Eagles will win the Super Bowl"                → team + specific outcome
+  "He'll sign a 4-year, $120M extension before the draft" → specific contract terms
+  "I have the Chiefs going 13-4 in the regular season"   → team + win total, assertive
+
+━━━ DO NOT EXTRACT THESE (fail at least one condition) ━━━
+  "Tyreek Hill might reunite with the Kansas City Chiefs" → hedge word "might" (fails #3)
+  "Taylor may have an opportunity to carve out a role"   → "may" + no specific outcome (fails #2 & #3)
+  "The Jets defense will utilize four-down fronts"       → scheme description, not falsifiable (fails #1)
+  "He might be a good fit"                               → vague + hedge (fails #2 & #3)
+  "The defense could struggle"                           → no specific metric (fails #2 & #3)
+  "Sources say talks are ongoing"                        → not a prediction (fails #1 & #3)
+  "He has the talent to start"                           → not a prediction (fails #1 & #3)
+  "The Chiefs will be competitive"                       → too vague, obvious consensus (fails #2)
+  "wouldn't surprise me if he wins MVP"                  → hedge framing (fails #3)
+  "I could see him going top 5"                          → hedge "could see" (fails #3)
+
+ADDITIONAL rules — also skip:
+- TAUTOLOGIES: "they will bring in players", "the deal will eventually be released"
+- ADMINISTRATIVE details: payment structures, meeting schedules, procedural items
+- HISTORICAL FACTS: outcome already known at publish date → skip entirely
 
 Stance rules:
-- bullish: prediction is positive/optimistic about the subject (win award, make playoffs, exceed stats target)
-- bearish: prediction is negative/pessimistic about the subject (miss playoffs, underperform, get cut, lose)
-- neutral: no clear directional bias (retirement, trade, purely factual future event)
+- bullish: positive/optimistic about the subject (win award, make playoffs, exceed stat)
+- bearish: negative/pessimistic (miss playoffs, underperform, get cut, lose)
+- neutral: no directional bias (retirement, trade, factual future event)
 
 Special handling for DRAFT PICKS:
-- For draft_pick claims, ALWAYS extract the draft year (e.g., 2025, 2026 draft)
-- Place the draft year in the season_year field
-- Examples:
-  "Will be picked in the 2025 draft" → season_year: 2025
-  "2026 first round pick" → season_year: 2026
-  "will go top 10 in the next draft" → season_year: [current year + 1]
+- Always extract the draft year into season_year (e.g., 2025 draft → season_year: 2025)
+- "will go top 10 in the next draft" → season_year: current_year + 1
 
-Rules — what NOT to extract:
-- HEDGED statements: "wouldn't surprise me if", "I could see", "most likely", "might", "probably"
-- VAGUE qualitative claims: "will be good", "will make plays", "will be a factor", "well worth it"
-- TAUTOLOGIES: "the deal will eventually be released", "they will bring in players"
-- SCHEME/STYLE descriptions: "will run a 4-3 defense", "will use more zone coverage"
-- HISTORICAL FACTS or ALREADY-RESOLVED events: if the outcome is already known at the article's publish date, do NOT extract it
-- CONSENSUS RESTATING: "the Chiefs will be competitive" (everyone knows this)
-- OPINIONS without testable outcomes: "he's the best QB in the league"
-- ADMINISTRATIVE details: payment structures, meeting schedules, procedural items
-- Claims about events from PAST SEASONS that are already concluded
-
-If the article contains no concrete, falsifiable predictions with clear stances, return an empty list.
+If the article contains NO claims that satisfy all four conditions, return an empty list [].
 
 SOURCE: {source_name}
 AUTHOR: {author}
@@ -107,36 +144,7 @@ class ExtractionResult:
     predictions: list[dict]
     error: Optional[str] = None
     raw_response: Optional[str] = None
-
-
-def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
-    """
-    Remove near-duplicate claims from a single article's extraction.
-    Uses SequenceMatcher to detect semantic overlap. Keeps the longest
-    (most specific) claim from each cluster.
-    """
-    if len(predictions) <= 1:
-        return predictions
-
-    kept = []
-    for pred in predictions:
-        claim = pred.get("extracted_claim", "").lower()
-        is_dup = False
-        for i, existing in enumerate(kept):
-            existing_claim = existing.get("extracted_claim", "").lower()
-            ratio = SequenceMatcher(None, claim, existing_claim).ratio()
-            if ratio >= threshold:
-                if len(claim) > len(existing_claim):
-                    kept[i] = pred
-                is_dup = True
-                break
-        if not is_dup:
-            kept.append(pred)
-
-    removed = len(predictions) - len(kept)
-    if removed > 0:
-        logger.info(f"Dedup: removed {removed} near-duplicate claims")
-    return kept
+    filtered_low_quality: int = 0
 
 
 def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
@@ -172,6 +180,51 @@ def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> lis
     return kept
 
 
+def _heuristic_quality_gate(predictions: list[dict]) -> tuple[list[dict], int]:
+    """
+    Post-LLM heuristic filter: drop claims that contain ONLY hedge words
+    (might/could/may/possible/perhaps) with no specific anchor (player name,
+    team, number, dollar amount).
+
+    Returns (kept_predictions, filtered_count).
+    """
+    import re
+
+    # Regex for a "specific anchor": a capitalised multi-char proper-noun token
+    # (min 3 chars to exclude pronouns like "He", "It"), a number, or a dollar
+    # amount — any of these rescue a claim from being pure hedging.
+    _ANCHOR_RE = re.compile(
+        r"(?:"
+        r"\$\d+"  # dollar amounts like $120M
+        r"|\d+"  # any number (yards, picks, wins, etc.)
+        r"|[A-Z][a-z]{2,}"  # proper noun ≥ 3 chars (excludes He/It/I/A)
+        r")"
+    )
+
+    kept = []
+    filtered = 0
+    for pred in predictions:
+        claim = pred.get("extracted_claim", "")
+        claim_lower = claim.lower()
+        words = set(claim_lower.split())
+
+        has_hedge = bool(words & _HEDGE_ONLY_WORDS)
+        has_confident = any(cw in claim_lower for cw in _CONFIDENT_WORDS)
+        has_anchor = bool(_ANCHOR_RE.search(claim))
+
+        # Drop if: has hedge word AND no confident language AND no specific anchor
+        if has_hedge and not has_confident and not has_anchor:
+            logger.info(
+                f"Heuristic quality gate: filtered hedge-only claim: {claim[:80]!r}"
+            )
+            filtered += 1
+            continue
+
+        kept.append(pred)
+
+    return kept, filtered
+
+
 def extract_assertions(
     content_hash: str,
     text: str,
@@ -205,11 +258,11 @@ def extract_assertions(
 
     try:
         predictions = provider.extract_predictions(prompt)
-        # Filter empty claims, then deduplicate near-identical ones
+        # Filter empty claims
         valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
         # Hard temporal filter: reject predictions about past seasons/drafts
         current_year = datetime.now().year
-        filtered = []
+        temporally_filtered = []
         for p in valid:
             sy = p.get("season_year")
             if (
@@ -222,11 +275,19 @@ def extract_assertions(
                     f"{p.get('extracted_claim', '')[:60]}"
                 )
                 continue
-            filtered.append(p)
-        deduped = _deduplicate_claims(filtered)
+            temporally_filtered.append(p)
+        # Post-LLM heuristic quality gate: drop hedge-only vague claims
+        quality_passed, quality_filtered = _heuristic_quality_gate(temporally_filtered)
+        if quality_filtered:
+            logger.info(
+                f"Heuristic gate: dropped {quality_filtered} low-quality claim(s) "
+                f"from {content_hash[:16]}…"
+            )
+        deduped = _deduplicate_claims(quality_passed)
         return ExtractionResult(
             content_hash=content_hash,
             predictions=deduped,
+            filtered_low_quality=quality_filtered,
         )
     except Exception as e:
         return ExtractionResult(
@@ -405,6 +466,8 @@ def run_extraction(
         "errors": 0,
         "skipped_no_predictions": 0,
         "filtered_out": 0,
+        "filtered_low_quality": 0,
+        "prompt_version": PROMPT_VERSION,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
 
@@ -485,6 +548,8 @@ def run_extraction(
                 summary["errors"] += 1
                 processed_hashes.append(content_hash)
                 continue
+
+            summary["filtered_low_quality"] += result.filtered_low_quality
 
             if not result.predictions:
                 summary["skipped_no_predictions"] += 1

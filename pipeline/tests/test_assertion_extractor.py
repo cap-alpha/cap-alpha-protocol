@@ -12,9 +12,11 @@ import pandas as pd
 import pytest
 from google.api_core.exceptions import NotFound
 from src.assertion_extractor import (
+    PROMPT_VERSION,
     VALID_CATEGORIES,
     ExtractionResult,
     _deduplicate_claims,
+    _heuristic_quality_gate,
     extract_assertions,
     get_unprocessed_media,
     mark_as_processed,
@@ -225,6 +227,127 @@ class TestExtractAssertions:
         result = _deduplicate_claims(predictions)
         assert len(result) == 1
         assert "Patrick Mahomes" in result[0]["extracted_claim"]
+
+    def test_extraction_result_has_filtered_low_quality_field(self, mock_provider):
+        """ExtractionResult exposes filtered_low_quality count."""
+        set_provider_predictions(mock_provider, [])
+        result = extract_assertions(
+            content_hash="abc123", text="Some text", provider=mock_provider
+        )
+        assert hasattr(result, "filtered_low_quality")
+        assert result.filtered_low_quality == 0
+
+    def test_hedge_only_claim_is_filtered(self, mock_provider):
+        """Claims with only hedge words and no specific anchor are dropped."""
+        predictions = [
+            {
+                "extracted_claim": "He might be a good fit",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Lamar Jackson will win MVP in 2026",
+                "claim_category": "player_performance",
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+        result = extract_assertions(
+            content_hash="abc123", text="Some text", provider=mock_provider
+        )
+        assert len(result.predictions) == 1
+        assert "Lamar Jackson" in result.predictions[0]["extracted_claim"]
+        assert result.filtered_low_quality == 1
+
+
+# ---------------------------------------------------------------------------
+# _heuristic_quality_gate
+# ---------------------------------------------------------------------------
+
+
+class TestHeuristicQualityGate:
+    def test_keeps_specific_claims(self):
+        """Claims with a player name or number pass the gate."""
+        predictions = [
+            {
+                "extracted_claim": "Lamar Jackson will win MVP in 2026",
+                "claim_category": "player_performance",
+            }
+        ]
+        kept, filtered = _heuristic_quality_gate(predictions)
+        assert len(kept) == 1
+        assert filtered == 0
+
+    def test_drops_hedge_only_no_anchor(self):
+        """'might be a good fit' — hedge + no anchor — is dropped."""
+        predictions = [
+            {
+                "extracted_claim": "might be a good fit",
+                "claim_category": "player_performance",
+            }
+        ]
+        kept, filtered = _heuristic_quality_gate(predictions)
+        assert len(kept) == 0
+        assert filtered == 1
+
+    def test_keeps_hedge_with_number(self):
+        """Even with a hedge, a claim with a number (stat) passes."""
+        predictions = [
+            {
+                "extracted_claim": "could rush for 1000 yards",
+                "claim_category": "player_performance",
+            }
+        ]
+        kept, filtered = _heuristic_quality_gate(predictions)
+        assert len(kept) == 1
+        assert filtered == 0
+
+    def test_keeps_hedge_with_proper_noun(self):
+        """Hedge + proper noun (team/player name) passes the gate."""
+        predictions = [
+            {
+                "extracted_claim": "might sign with Dallas",
+                "claim_category": "trade",
+            }
+        ]
+        kept, filtered = _heuristic_quality_gate(predictions)
+        assert len(kept) == 1
+        assert filtered == 0
+
+    def test_keeps_confident_language(self):
+        """'will' language without hedges always passes."""
+        predictions = [
+            {
+                "extracted_claim": "The Eagles will win the Super Bowl",
+                "claim_category": "game_outcome",
+            }
+        ]
+        kept, filtered = _heuristic_quality_gate(predictions)
+        assert len(kept) == 1
+        assert filtered == 0
+
+    def test_empty_input(self):
+        kept, filtered = _heuristic_quality_gate([])
+        assert kept == []
+        assert filtered == 0
+
+    def test_multiple_claims_mixed(self):
+        predictions = [
+            {
+                "extracted_claim": "might be a factor",
+                "claim_category": "player_performance",
+            },
+            {
+                "extracted_claim": "Travis Hunter will be the #1 pick",
+                "claim_category": "draft_pick",
+            },
+            {
+                "extracted_claim": "perhaps there could be a role",
+                "claim_category": "player_performance",
+            },
+        ]
+        kept, filtered = _heuristic_quality_gate(predictions)
+        assert len(kept) == 1
+        assert filtered == 2
+        assert "Travis Hunter" in kept[0]["extracted_claim"]
 
 
 # ---------------------------------------------------------------------------
@@ -869,3 +992,45 @@ class TestConstants:
             "contract",
         }
         assert VALID_CATEGORIES == expected
+
+    def test_prompt_version_is_v2(self):
+        """Extraction prompt must be at least v2 (strict quality gate)."""
+        assert PROMPT_VERSION == "v2"
+
+
+class TestRunExtractionSummaryKeys:
+    def test_summary_includes_filtered_low_quality(self, mock_db, mock_provider):
+        """run_extraction summary must include filtered_low_quality counter."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        assert "filtered_low_quality" in summary
+        assert summary["filtered_low_quality"] == 0
+
+    def test_summary_includes_prompt_version(self, mock_db, mock_provider):
+        """run_extraction summary must include prompt_version."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        assert "prompt_version" in summary
+        assert summary["prompt_version"] == "v2"
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_filtered_low_quality_accumulates(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """filtered_low_quality from ExtractionResult is summed into summary."""
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+        mock_extract.side_effect = [
+            ExtractionResult(
+                content_hash="hash_0",
+                predictions=[],
+                filtered_low_quality=3,
+            ),
+            ExtractionResult(
+                content_hash="hash_1",
+                predictions=[],
+                filtered_low_quality=2,
+            ),
+        ]
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        assert summary["filtered_low_quality"] == 5

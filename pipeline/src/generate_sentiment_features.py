@@ -7,6 +7,7 @@ import urllib.error
 import urllib.request
 
 import pandas as pd
+from google.cloud import bigquery
 from tqdm import tqdm
 
 # Add pipeline root to path
@@ -90,8 +91,16 @@ def main():
             logger.warning(f"Wikipedia hover failed for {player}: {e}")
 
         # 1. Fetch Recent News/Media Baseline
-        media_query = f"SELECT raw_text FROM bronze_layer.raw_media_sentiment WHERE player_name = '{player}' ORDER BY ingested_at DESC LIMIT 1"
-        media_df = db.fetch_df(media_query)
+        media_query = (
+            "SELECT raw_text FROM bronze_layer.raw_media_sentiment"
+            " WHERE player_name = @player_name ORDER BY ingested_at DESC LIMIT 1"
+        )
+        media_df = db.fetch_df(
+            media_query,
+            query_parameters=[
+                bigquery.ScalarQueryParameter("player_name", "STRING", player)
+            ],
+        )
         media_text = (
             media_df["raw_text"].iloc[0]
             if not media_df.empty
@@ -99,8 +108,17 @@ def main():
         )
 
         # 2. Fetch Aggregated Injury History
-        injury_query = f"SELECT report_primary_injury, practice_status, report_status FROM bronze_layer.nflverse_injuries WHERE full_name = '{player}' AND report_primary_injury IS NOT NULL LIMIT 50"
-        injury_df = db.fetch_df(injury_query)
+        injury_query = (
+            "SELECT report_primary_injury, practice_status, report_status"
+            " FROM bronze_layer.nflverse_injuries"
+            " WHERE full_name = @player_name AND report_primary_injury IS NOT NULL LIMIT 50"
+        )
+        injury_df = db.fetch_df(
+            injury_query,
+            query_parameters=[
+                bigquery.ScalarQueryParameter("player_name", "STRING", player)
+            ],
+        )
         injury_text = "No severe injuries reported."
         if not injury_df.empty:
             injury_logs = injury_df.to_dict("records")

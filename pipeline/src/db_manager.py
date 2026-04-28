@@ -125,17 +125,28 @@ class DBManager:
 
         return query, (bind_params if bind_params else None)
 
-    def execute(self, query: str, params: Optional[Dict[str, Any]] = None):
-        """Executes a SQL query on BigQuery."""
+    def execute(
+        self,
+        query: str,
+        params: Optional[Dict[str, Any]] = None,
+        query_parameters: Optional[list] = None,
+    ):
+        """Executes a SQL query on BigQuery.
+
+        Args:
+            query: SQL query string. Use @param_name placeholders for safe parameterization.
+            params: Dict of DataFrames (uploaded as temp tables).
+            query_parameters: List of bigquery.ScalarQueryParameter / ArrayQueryParameter
+                              for safe @param substitution. Use this for any external or
+                              data-derived values to prevent SQL injection.
+        """
         try:
             processed_query, bind_params = self._handle_dataframe_params(query, params)
 
-            # BigQuery parameterization is slightly different (uses @param) but we just use format for simplicity here if bind_params passed non-DF constants.
-            # Warning: BigQuery python SDK expects parameters via QueryJobConfig, if complex params are passed we'd setup a JobConfig here.
-            # For this pipeline, usually params are purely DataFrames {"df": df} which we intercepted above!
-
             dataset_ref = bigquery.DatasetReference(self.project_id, self.dataset_id)
             job_config = bigquery.QueryJobConfig(default_dataset=dataset_ref)
+            if query_parameters:
+                job_config.query_parameters = query_parameters
             job = self.client.query(processed_query, job_config=job_config)
             job.result()  # Wait for query to complete to catch errors and prevent premature temp table deletion
             return BQResultProxy(job)
@@ -144,13 +155,26 @@ class DBManager:
             raise
 
     def fetch_df(
-        self, query: str, params: Optional[Dict[str, Any]] = None
+        self,
+        query: str,
+        params: Optional[Dict[str, Any]] = None,
+        query_parameters: Optional[list] = None,
     ) -> pd.DataFrame:
-        """Executes a query and returns a Pandas DataFrame."""
+        """Executes a query and returns a Pandas DataFrame.
+
+        Args:
+            query: SQL query string. Use @param_name placeholders for safe parameterization.
+            params: Dict of DataFrames (uploaded as temp tables).
+            query_parameters: List of bigquery.ScalarQueryParameter / ArrayQueryParameter
+                              for safe @param substitution. Use this for any external or
+                              data-derived values to prevent SQL injection.
+        """
         try:
             processed_query, bind_params = self._handle_dataframe_params(query, params)
             dataset_ref = bigquery.DatasetReference(self.project_id, self.dataset_id)
             job_config = bigquery.QueryJobConfig(default_dataset=dataset_ref)
+            if query_parameters:
+                job_config.query_parameters = query_parameters
             job = self.client.query(processed_query, job_config=job_config)
             return job.to_dataframe()
         except Exception as e:

@@ -146,8 +146,10 @@ class TestRecordResolution:
             resolver="manual",
         )
         record_resolution(result, db=mock_db)
-        call_sql = mock_db.execute.call_args[0][0]
-        assert FAKE_HASH in call_sql
+        # Values are now passed as query_parameters (not inlined in SQL) to prevent SQL injection.
+        call_kwargs = mock_db.execute.call_args[1]
+        param_values = {p.name: p.value for p in call_kwargs["query_parameters"]}
+        assert param_values["prediction_hash"] == FAKE_HASH
 
     def test_void_uses_null_scores(self, mock_db):
         result = ResolutionResult(
@@ -157,8 +159,10 @@ class TestRecordResolution:
             outcome_notes="Player never played",
         )
         record_resolution(result, db=mock_db)
-        call_sql = mock_db.execute.call_args[0][0]
-        assert "VOID" in call_sql
+        # Values are now passed as query_parameters (not inlined in SQL) to prevent SQL injection.
+        call_kwargs = mock_db.execute.call_args[1]
+        param_values = {p.name: p.value for p in call_kwargs["query_parameters"]}
+        assert param_values["resolution_status"] == "VOID"
 
 
 # ---------------------------------------------------------------------------

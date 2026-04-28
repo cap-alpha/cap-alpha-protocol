@@ -1,20 +1,19 @@
 import { revalidatePath } from 'next/cache';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
     try {
-        const body = await request.json();
+        const token = request.headers.get("x-revalidate-token");
 
-        // Very basic webhook auth to prevent public clearing
-        if (body.token !== process.env.MOTHERDUCK_TOKEN && body.token !== "local-dev-bypass") {
-            return NextResponse.json({ message: 'Invalid token' }, { status: 401 });
+        if (!token || token !== process.env.REVALIDATE_SECRET) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
         // Revalidate the entire dashboard and player routes since data refreshed
         revalidatePath('/dashboard');
         revalidatePath('/', 'layout');
 
-        console.log(`[Cache Revalidation] Triggered forcefully. Next.js will fetch new MotherDuck data.`);
+        console.log(`[Cache Revalidation] Triggered. Next.js will fetch fresh data.`);
         return NextResponse.json({ revalidated: true, now: Date.now() });
     } catch (err) {
         return NextResponse.json({ message: 'Error revalidating' }, { status: 500 });

@@ -34,9 +34,10 @@ app = FastAPI(
 
 from fastapi.middleware.cors import CORSMiddleware
 
+origins = os.getenv("ALLOWED_ORIGINS", "https://cap-alpha.co").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_methods=["GET"],
     allow_headers=["*"],
 )

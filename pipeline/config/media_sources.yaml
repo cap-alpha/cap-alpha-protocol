@@ -964,6 +964,107 @@ sources:
         name: "PFF NFL Staff"
         match_authors: ["PFF", "Pro Football Focus"]
 
+# ── NBA RSS Feeds ────────────────────────────────────────────────────────────
+  - id: espn_nba
+    name: "ESPN NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.espn.com/espn/rss/nba/news"
+    enabled: true
+    default_pundit:
+      id: espn_nba_staff
+      name: "ESPN NBA Staff"
+    pundits:
+      - id: adrian_wojnarowski
+        name: "Adrian Wojnarowski"
+        # Woj primarily breaks news via Twitter/X (@wojespn); no personal RSS feed exists.
+        # Matched here when his byline appears in ESPN NBA RSS articles.
+        match_authors: ["Adrian Wojnarowski", "Wojnarowski", "Woj"]
+      - id: tim_bontemps
+        name: "Tim Bontemps"
+        match_authors: ["Tim Bontemps"]
+      - id: brian_windhorst
+        name: "Brian Windhorst"
+        match_authors: ["Brian Windhorst"]
+      - id: zach_lowe
+        name: "Zach Lowe"
+        match_authors: ["Zach Lowe"]
+
+  - id: theathletic_nba
+    name: "The Athletic NBA"
+    sport: "NBA"
+    type: rss
+    url: "https://theathletic.com/rss/feed/nba/"
+    enabled: true
+    default_pundit:
+      id: athletic_nba_staff
+      name: "The Athletic NBA Staff"
+    pundits:
+      - id: shams_charania
+        name: "Shams Charania"
+        match_authors: ["Shams Charania", "Shams"]
+      - id: sam_amick
+        name: "Sam Amick"
+        match_authors: ["Sam Amick"]
+      - id: tony_jones
+        name: "Tony Jones"
+        match_authors: ["Tony Jones"]
+
+  - id: theathletic_shams
+    name: "Shams Charania — The Athletic"
+    sport: "NBA"
+    type: rss
+    pundit: "Shams Charania"
+    url: "https://theathletic.com/author/shams-charania/feed/"
+    enabled: true
+    pundits:
+      - id: shams_charania
+        name: "Shams Charania"
+        match_authors: ["Shams Charania", "Shams"]
+
+  - id: bleacher_report_nba
+    name: "Bleacher Report NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://bleacherreport.com/nba.rss"
+    enabled: true
+    default_pundit:
+      id: br_nba_staff
+      name: "Bleacher Report NBA Staff"
+    pundits:
+      - id: jake_fischer
+        name: "Jake Fischer"
+        match_authors: ["Jake Fischer"]
+      - id: jonathan_wasserman
+        name: "Jonathan Wasserman"
+        match_authors: ["Jonathan Wasserman"]
+
+  - id: hoopshype
+    name: "HoopsHype"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://hoopshype.com/feed/"
+    enabled: true
+    default_pundit:
+      id: hoopshype_staff
+      name: "HoopsHype Staff"
+    pundits:
+      - id: michael_scotto
+        name: "Michael Scotto"
+        match_authors: ["Michael Scotto"]
+
+  # NBA.com does not publish a public RSS feed for editorial news content.
+  # Official box scores and schedules are available via the NBA Stats API
+  # (https://stats.nba.com) but require direct API calls, not RSS ingestion.
+  # Add an nba_official source if/when a supported RSS feed URL is confirmed.
+
+  # Adrian Wojnarowski (ESPN): no dedicated personal RSS feed. News breaks via
+  # Twitter/X (@wojespn). Byline matching against espn_nba feed (above) captures
+  # his ESPN-published articles.
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

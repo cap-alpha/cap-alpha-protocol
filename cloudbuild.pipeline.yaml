@@ -1,0 +1,14 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-f'
+      - 'Dockerfile.pipeline'
+      - '-t'
+      - 'us-central1-docker.pkg.dev/cap-alpha-protocol/pundit-ledger/pipeline:latest'
+      - '.'
+images:
+  - 'us-central1-docker.pkg.dev/cap-alpha-protocol/pundit-ledger/pipeline:latest'
+options:
+  machineType: 'E2_HIGHCPU_8'
+timeout: '1200s'

@@ -119,7 +119,12 @@ export function UsageDashboard() {
 
     useEffect(() => {
         fetch("/api/dashboard/usage")
-            .then((res) => res.json())
+            .then((res) => {
+                if (!res.ok) {
+                    throw new Error(`Usage API returned ${res.status}`);
+                }
+                return res.json();
+            })
             .then((d: UsageData) => {
                 setData(d);
                 setLoading(false);
@@ -160,12 +165,17 @@ export function UsageDashboard() {
             ? ((total2xx / totalRequests) * 100).toFixed(1)
             : "100";
 
-    const rateLimitHitFrequency = data.dailyRequests.filter(
-        (day) => day.count_4xx > 20 || day.count_5xx > 5
-    ).length;
+    // Use actual rate-limit usage from the rate limit status rather than
+    // inferring from 4xx counts (which include 401/404, not just 429s).
+    const dayLimitPct =
+        data.rateLimitStatus.day_limit > 0
+            ? (data.rateLimitStatus.day_current /
+                  data.rateLimitStatus.day_limit) *
+              100
+            : 0;
+    const nearDayLimit = dayLimitPct >= 80;
 
-    const shouldShowUpgradeBanner =
-        rateLimitHitFrequency > 0 && data.currentTier === "free";
+    const shouldShowUpgradeBanner = nearDayLimit && data.currentTier === "free";
 
     const chartData = data.dailyRequests.map((day) => ({
         ...day,
@@ -248,7 +258,8 @@ export function UsageDashboard() {
                     <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-amber-300">
-                            Rate limits hit {rateLimitHitFrequency}x this month
+                            Approaching your daily rate limit (
+                            {Math.round(dayLimitPct)}% used)
                         </p>
                         <p className="text-xs text-amber-400/80 mt-0.5">
                             Upgrade to Pro for 10× higher quotas and priority

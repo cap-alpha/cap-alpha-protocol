@@ -7,7 +7,7 @@
  * - monthlyQuota: request limit for the month
  * - renewalDate: when the quota resets
  * - dailyRequests: 30-day breakdown [{ date, count_2xx, count_4xx, count_5xx }]
- * - topEndpoints: most-called endpoints [{ endpoint, count, pct }]
+ * - topEndpoints: most-called endpoints [{ endpoint_path, count, pct }]
  * - rateLimitStatus: current minute/day usage
  *
  * All data is queried from monetization.api_requests (30-day TTL).
@@ -16,7 +16,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { BigQuery } from "@google-cloud/bigquery";
-import { getUserTier } from "@/lib/api-keys/tiers";
+import { getUserTier, type Tier } from "@/lib/api-keys/tiers";
 
 const PROJECT_ID = process.env.GCP_PROJECT_ID || "cap-alpha-protocol";
 const DATASET = "monetization";
@@ -68,13 +68,22 @@ interface UsageResponse {
     emptyState: boolean;
 }
 
-const TIER_CONFIG = {
-    free: { name: "Free", monthlyQuota: 10000 },
-    pro: { name: "Pro", monthlyQuota: 100000 },
-    agent: { name: "Agent", monthlyQuota: 1000000 },
-    api_starter: { name: "API Starter", monthlyQuota: 1000000 },
-    api_growth: { name: "API Growth", monthlyQuota: 10000000 },
-    enterprise: { name: "Enterprise", monthlyQuota: null },
+// Keyed by canonical Tier type from tiers.ts — keeps them in sync.
+const TIER_CONFIG: Record<Tier, { name: string; monthlyQuota: number | null }> =
+    {
+        free: { name: "Free", monthlyQuota: 10000 },
+        pro: { name: "Pro", monthlyQuota: 100000 },
+        api_starter: { name: "API Starter", monthlyQuota: 1000000 },
+        enterprise: { name: "Enterprise", monthlyQuota: null },
+    };
+
+// Extended rate-limit table (includes tiers not yet in the Tier union)
+const RATE_LIMITS: Record<string, { minute: number; day: number }> = {
+    free: { minute: 100, day: 10000 },
+    pro: { minute: 1000, day: 100000 },
+    api_starter: { minute: 10000, day: 1000000 },
+    api_growth: { minute: 100000, day: 10000000 },
+    enterprise: { minute: 999999, day: 999999999 },
 };
 
 export async function GET(req: Request) {
@@ -84,8 +93,8 @@ export async function GET(req: Request) {
     }
 
     try {
-        const tier = (await getUserTier(userId)) as keyof typeof TIER_CONFIG;
-        const tierConfig = TIER_CONFIG[tier] || TIER_CONFIG.free;
+        const tier = await getUserTier(userId);
+        const tierConfig = TIER_CONFIG[tier] ?? TIER_CONFIG.free;
         const bq = getBigQuery();
 
         // Fetch 30-day daily breakdown (2xx/4xx/5xx counts)
@@ -112,14 +121,22 @@ export async function GET(req: Request) {
             timeoutMs: 10000,
         });
 
+        // BigQuery COUNTIF results may come back as Int wrappers; coerce to number.
         const dailyRequests: DailyRequest[] = (
             dailyRows as Array<{
                 date: string;
-                count_2xx: number;
-                count_4xx: number;
-                count_5xx: number;
+                count_2xx: unknown;
+                count_4xx: unknown;
+                count_5xx: unknown;
             }>
-        ).sort((a, b) => a.date.localeCompare(b.date));
+        )
+            .map((row) => ({
+                date: row.date,
+                count_2xx: Number(row.count_2xx),
+                count_4xx: Number(row.count_4xx),
+                count_5xx: Number(row.count_5xx),
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date));
 
         // Fetch top 10 endpoints (last 30 days)
         const endpointsQuery = `
@@ -176,23 +193,15 @@ export async function GET(req: Request) {
             timeoutMs: 10000,
         });
 
-        const limitRow =
-            (limitRows as Array<{
-                minute_current: number;
-                day_current: number;
-            }>)[0] || { minute_current: 0, day_current: 0 };
-
-        // Map tiers to rate limits (from #144)
-        const rateLimits: Record<string, { minute: number; day: number }> = {
-            free: { minute: 100, day: 10000 },
-            pro: { minute: 1000, day: 100000 },
-            agent: { minute: 10000, day: 1000000 },
-            api_starter: { minute: 10000, day: 1000000 },
-            api_growth: { minute: 100000, day: 10000000 },
-            enterprise: { minute: 999999, day: 999999999 },
+        // BigQuery COUNTIF may return Int wrappers; coerce to number.
+        const rawLimitRow =
+            (limitRows as Array<Record<string, unknown>>)[0] ?? {};
+        const limitRow = {
+            minute_current: Number(rawLimitRow.minute_current ?? 0),
+            day_current: Number(rawLimitRow.day_current ?? 0),
         };
 
-        const limits = rateLimits[tier] || rateLimits.free;
+        const limits = RATE_LIMITS[tier] ?? RATE_LIMITS.free;
 
         // Check if user has zero requests (empty state)
         const totalRequests =
@@ -218,9 +227,10 @@ export async function GET(req: Request) {
             emptyState: totalRequests === 0,
         };
 
+        // private + no-store: auth-gated user data must not be shared/CDN-cached
         return NextResponse.json(response, {
             headers: {
-                "Cache-Control": "public, max-age=300, stale-while-revalidate=600",
+                "Cache-Control": "private, no-store",
             },
         });
     } catch (err) {

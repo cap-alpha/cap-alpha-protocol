@@ -5,9 +5,11 @@
  * subscription state in sync across:
  *   - Postgres users table (stripe_* columns)
  *   - Clerk publicMetadata.tier (for fast tier reads by the rate limiter)
- *   - BigQuery monetization.stripe_events (immutable audit log)
+ *   - BigQuery monetization.stripe_events (best-effort audit log)
  *
- * Idempotent: events already logged to BQ are silently skipped.
+ * Idempotency: Postgres updates are safe to replay (UPDATE WHERE clerkId).
+ * BigQuery audit inserts are best-effort; duplicate deliveries may produce
+ * duplicate rows (event_id uniqueness is not enforced at insert time).
  *
  * Required env vars:
  *   STRIPE_WEBHOOK_SECRET — from Stripe Dashboard → Webhooks → endpoint secret
@@ -17,7 +19,6 @@
 import { clerkClient } from "@clerk/nextjs/server";
 import { BigQuery } from "@google-cloud/bigquery";
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
 import type Stripe from "stripe";
 
 import { db } from "@/db";
@@ -28,7 +29,7 @@ import type { Tier } from "@/lib/api-keys/tiers";
 const PROJECT_ID = process.env.GCP_PROJECT_ID || "cap-alpha-protocol";
 
 // ---------------------------------------------------------------------------
-// BigQuery audit log (fire-and-forget)
+// BigQuery audit log (best-effort, errors are swallowed)
 // ---------------------------------------------------------------------------
 
 async function logStripeEvent(
@@ -64,7 +65,9 @@ async function logStripeEvent(
                         ? (event.data.object as any).customer
                         : null,
                 livemode: event.livemode,
-                payload: JSON.stringify(event.data.object),
+                // Pass the object directly so BQ receives the correct JSON type
+                // (the schema column is JSON, not STRING).
+                payload: event.data.object,
                 processed_at: new Date().toISOString(),
             },
         ]);
@@ -102,6 +105,15 @@ async function getClerkUserIdByStripeCustomer(
 async function handleCheckoutCompleted(
     session: Stripe.Checkout.Session
 ): Promise<string | null> {
+    // Only handle subscription checkouts — payment-mode sessions do not create
+    // recurring subscriptions and should not modify tier state.
+    if (session.mode !== "subscription") {
+        console.log(
+            `[Stripe Webhook] checkout.session.completed: skipping non-subscription session (mode=${session.mode})`
+        );
+        return null;
+    }
+
     // client_reference_id is set to the Clerk user ID during checkout
     const clerkUserId = session.client_reference_id;
     if (!clerkUserId) {
@@ -114,15 +126,17 @@ async function handleCheckoutCompleted(
     const subscriptionId =
         typeof session.subscription === "string" ? session.subscription : null;
 
-    // Fetch the subscription to get price details
-    let priceId: string | null = null;
-    let currentPeriodEnd: Date | null = null;
-
-    if (subscriptionId) {
-        const sub = await stripe.subscriptions.retrieve(subscriptionId);
-        priceId = sub.items.data[0]?.price?.id ?? null;
-        currentPeriodEnd = new Date(sub.current_period_end * 1000);
+    if (!subscriptionId) {
+        console.warn(
+            `[Stripe Webhook] checkout.session.completed: session.subscription is null for ${clerkUserId}`
+        );
+        return null;
     }
+
+    // Fetch the subscription to get price details
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    const priceId = sub.items.data[0]?.price?.id ?? null;
+    const currentPeriodEnd = new Date(sub.current_period_end * 1000);
 
     await db
         .update(users)
@@ -259,7 +273,10 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const body = await req.text();
-    const sig = headers().get("stripe-signature");
+    // Read signature from the Request object directly — avoids a Next.js
+    // dynamic function import (`headers()`) and makes the handler easier to
+    // unit-test without a Next.js request context.
+    const sig = req.headers.get("stripe-signature");
 
     if (!sig) {
         return new Response("Missing stripe-signature header", { status: 400 });
@@ -317,8 +334,9 @@ export async function POST(req: Request): Promise<Response> {
         return new Response("Internal error processing webhook", { status: 500 });
     }
 
-    // Fire-and-forget audit log (non-blocking)
-    logStripeEvent(event, clerkUserId).catch(() => {});
+    // Await audit log so it is not dropped when the serverless response returns.
+    // logStripeEvent swallows its own errors, so this won't fail the response.
+    await logStripeEvent(event, clerkUserId);
 
     return new Response(null, { status: 200 });
 }

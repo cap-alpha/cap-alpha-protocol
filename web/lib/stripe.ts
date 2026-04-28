@@ -22,7 +22,7 @@ export function getStripe(): Stripe {
                 "[Stripe] STRIPE_SECRET_KEY is not set. Configure it in your environment."
             );
         }
-        _stripe = new Stripe(key, { apiVersion: "2024-12-18.acacia" });
+        _stripe = new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
     }
     return _stripe;
 }

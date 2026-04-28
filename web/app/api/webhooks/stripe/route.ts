@@ -136,7 +136,7 @@ async function handleCheckoutCompleted(
     // Fetch the subscription to get price details
     const sub = await stripe.subscriptions.retrieve(subscriptionId);
     const priceId = sub.items.data[0]?.price?.id ?? null;
-    const currentPeriodEnd = new Date(sub.current_period_end * 1000);
+    const currentPeriodEnd = new Date((sub.items.data[0]?.current_period_end ?? 0) * 1000);
 
     await db
         .update(users)
@@ -171,7 +171,7 @@ async function handleSubscriptionUpdated(
     }
 
     const priceId = sub.items.data[0]?.price?.id ?? null;
-    const currentPeriodEnd = new Date(sub.current_period_end * 1000);
+    const currentPeriodEnd = new Date((sub.items.data[0]?.current_period_end ?? 0) * 1000);
     const status = sub.status;
 
     await db

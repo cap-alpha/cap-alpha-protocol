@@ -127,16 +127,317 @@ sources:
         match_authors: ["Tom Pelissero"]
 
   - id: si_nfl
-    name: "Sports Illustrated NFL"
+    name: "Sports Illustrated NFL / MMQB"
     sport: "NFL"
     type: rss
     scrape_full_text: true
+    # Disabled: SI's legacy RSS endpoint dead since Arena Group / Authentic Brands
+    # licensing collapse Jan 2024. No replacement feed published. Re-enable if restored.
     url: "https://www.si.com/rss/si_nfl.rss"
-    enabled: true
+    enabled: false  # Disabled: 404 as of 2026-04-26
     pundits:
       - id: albert_breer
         name: "Albert Breer"
         match_authors: ["Albert Breer"]
+      - id: conor_orr
+        name: "Conor Orr"
+        match_authors: ["Conor Orr"]
+
+  - id: cbssports_nfl
+    name: "CBS Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.cbssports.com/rss/headlines/nfl/"
+    enabled: true
+    default_pundit:
+      id: cbs_nfl_staff
+      name: "CBS Sports NFL Staff"
+    pundits:
+      - id: jonathan_jones_cbs
+        name: "Jonathan Jones"
+        match_authors: ["Jonathan Jones"]
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco"]
+      - id: jason_la_canfora
+        name: "Jason La Canfora"
+        match_authors: ["Jason La Canfora"]
+      - id: will_brinson
+        name: "Will Brinson"
+        match_authors: ["Will Brinson"]
+      - id: chris_trapasso
+        name: "Chris Trapasso"
+        match_authors: ["Chris Trapasso"]
+
+  - id: yahoo_nfl
+    name: "Yahoo Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://sports.yahoo.com/nfl/rss/"
+    enabled: true
+    default_pundit:
+      id: yahoo_nfl_staff
+      name: "Yahoo Sports NFL Staff"
+    pundits:
+      - id: charles_robinson_yahoo
+        name: "Charles Robinson"
+        match_authors: ["Charles Robinson"]
+      - id: charles_mcdonald
+        name: "Charles McDonald"
+        match_authors: ["Charles McDonald"]
+      - id: frank_schwab
+        name: "Frank Schwab"
+        match_authors: ["Frank Schwab"]
+
+  - id: usatoday_draftwire
+    name: "USA Today / Draft Wire"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://draftwire.usatoday.com/feed/"
+    enabled: true
+    default_pundit:
+      id: draftwire_staff
+      name: "Draft Wire Staff"
+    pundits:
+      - id: luke_easterling
+        name: "Luke Easterling"
+        match_authors: ["Luke Easterling"]
+
+  - id: foxsports_nfl
+    name: "Fox Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    # URL unverified — Fox Sports may not have a public RSS feed
+    url: "https://www.foxsports.com/rss?tag=nfl"
+    enabled: false
+    default_pundit:
+      id: fox_nfl_staff
+      name: "Fox Sports NFL Staff"
+    pundits:
+      - id: jay_glazer
+        name: "Jay Glazer"
+        match_authors: ["Jay Glazer"]
+
+  - id: bleacherreport_nfl
+    name: "Bleacher Report NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    # URL unverified — BR may have retired their RSS feeds
+    url: "https://bleacherreport.com/articles/feed?tag_id=16"
+    enabled: false
+    default_pundit:
+      id: br_nfl_staff
+      name: "Bleacher Report NFL Staff"
+    pundits: []
+
+  - id: sportingnews_nfl
+    name: "Sporting News NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    # URL unverified — Sporting News RSS availability unclear
+    url: "https://www.sportingnews.com/us/nfl/rss"
+    enabled: false
+    default_pundit:
+      id: sportingnews_nfl_staff
+      name: "Sporting News NFL Staff"
+    pundits:
+      - id: vinnie_iyer
+        name: "Vinnie Iyer"
+        match_authors: ["Vinnie Iyer"]
+
+  # ── NFL RSS Expansion (deadline burst 2026-04-26) ───────────────────────────
+  - id: profootballnetwork
+    name: "Pro Football Network"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.profootballnetwork.com/feed/"
+    enabled: true
+    default_pundit:
+      id: pfn_staff
+      name: "Pro Football Network Staff"
+    pundits:
+      - id: tony_pauline
+        name: "Tony Pauline"
+        match_authors: ["Tony Pauline"]
+      - id: mark_schofield
+        name: "Mark Schofield"
+        match_authors: ["Mark Schofield"]
+
+  - id: overthecap_news
+    name: "Over the Cap"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://overthecap.com/feed"
+    enabled: true
+    default_pundit:
+      id: otc_staff
+      name: "Over the Cap Staff"
+    pundits:
+      - id: jason_fitzgerald
+        name: "Jason Fitzgerald"
+        match_authors: ["Jason Fitzgerald"]
+
+  - id: nfl_trade_rumors
+    name: "NFL Trade Rumors"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://nfltraderumors.co/feed/"
+    enabled: true
+    default_pundit:
+      id: nfltr_staff
+      name: "NFL Trade Rumors Staff"
+    pundits: []
+
+  - id: profootballrumors
+    name: "Pro Football Rumors"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.profootballrumors.com/feed"
+    enabled: true
+    default_pundit:
+      id: pfr_staff
+      name: "Pro Football Rumors Staff"
+    pundits: []
+
+  - id: sbnation_nfl
+    name: "SB Nation NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: false
+    url: "https://www.sbnation.com/rss/nfl"
+    enabled: true
+    default_pundit:
+      id: sbn_nfl_staff
+      name: "SB Nation NFL Staff"
+    pundits: []
+
+  - id: sharp_football
+    name: "Sharp Football Analysis"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.sharpfootballanalysis.com/feed/"
+    enabled: true
+    default_pundit:
+      id: sharp_staff
+      name: "Sharp Football Staff"
+    pundits:
+      - id: warren_sharp
+        name: "Warren Sharp"
+        match_authors: ["Warren Sharp"]
+
+  - id: the_33rd_team
+    name: "The 33rd Team"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.the33rdteam.com/feed/"
+    enabled: true
+    default_pundit:
+      id: t33t_staff
+      name: "The 33rd Team Staff"
+    pundits:
+      - id: jeff_saturday
+        name: "Jeff Saturday"
+        match_authors: ["Jeff Saturday"]
+      - id: mike_tannenbaum
+        name: "Mike Tannenbaum"
+        match_authors: ["Mike Tannenbaum"]
+
+  - id: rotoballer_nfl
+    name: "RotoBaller NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: false
+    url: "https://www.rotoballer.com/feed"
+    enabled: true
+    default_pundit:
+      id: rotoballer_staff
+      name: "RotoBaller Staff"
+    pundits: []
+
+  - id: four_for_four
+    name: "4for4 Fantasy Football"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: false
+    url: "https://www.4for4.com/nfl/feed"
+    enabled: true
+    default_pundit:
+      id: 4for4_staff
+      name: "4for4 Staff"
+    pundits: []
+
+  - id: nfl_mocks
+    name: "NFLMocks.com"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.nflmocks.com/feed/"
+    enabled: true
+    default_pundit:
+      id: nflmocks_staff
+      name: "NFLMocks Staff"
+    pundits: []
+
+  - id: draftsite_nfl
+    name: "DraftSite NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://draftsite.com/nfl/feed/"
+    enabled: true
+    default_pundit:
+      id: draftsite_staff
+      name: "DraftSite Staff"
+    pundits: []
+
+  - id: rotoworld_nfl
+    name: "RotoWorld NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: false
+    url: "https://www.rotoworld.com/football/nfl/rss/news"
+    enabled: true
+    default_pundit:
+      id: rotoworld_staff
+      name: "RotoWorld NFL Staff"
+    pundits: []
+
+  - id: cbs_sports_general
+    name: "CBS Sports General Headlines"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: false
+    url: "https://www.cbssports.com/rss/headlines/"
+    enabled: true
+    keyword_filter:
+      - "NFL"
+      - "football"
+      - "quarterback"
+      - "draft"
+      - "free agent"
+      - "trade"
+      - "roster"
+      - "coach"
+      - "playoff"
+      - "Super Bowl"
+      - "AFC"
+      - "NFC"
+    default_pundit:
+      id: cbs_general_staff
+      name: "CBS Sports Staff"
+    pundits: []
 
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
   - id: pat_mcafee_show
@@ -175,6 +476,98 @@ sources:
       - id: stephen_a_smith
         name: "Stephen A. Smith"
         match_authors: ["Stephen A. Smith", "Stephen A"]
+
+  # ── Tier 2 YouTube Expansion (issue #262) ─────────────────────────────────
+  - id: bussin_with_the_boys
+    name: "Bussin' With The Boys"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEJeEfpnO_2J3DVovs-0Pkw"
+    enabled: true
+    pundits:
+      - id: taylor_lewan
+        name: "Taylor Lewan"
+        match_authors: ["Taylor Lewan", "Lewan"]
+      - id: will_compton
+        name: "Will Compton"
+        match_authors: ["Will Compton", "Compton"]
+
+  - id: brett_kollmann
+    name: "Brett Kollmann"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCHGx4e5K0-_n3RMcWHiTb4A"
+    enabled: true
+    pundits:
+      - id: brett_kollmann
+        name: "Brett Kollmann"
+        match_authors: ["Brett Kollmann", "Kollmann"]
+
+  - id: warren_sharp
+    name: "Warren Sharp / Sharp Football"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCcaGl7bsLaVBnDlK-TGFKqA"
+    enabled: true
+    pundits:
+      - id: warren_sharp
+        name: "Warren Sharp"
+        match_authors: ["Warren Sharp", "Sharp Football"]
+
+  - id: locked_on_nfl
+    name: "Locked On NFL"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCFkI6HvC2a-Y33IfiBqLKhg"
+    enabled: true
+    default_pundit:
+      id: locked_on_nfl_staff
+      name: "Locked On NFL Staff"
+    pundits: []
+
+  - id: the_ringer_nfl_yt
+    name: "The Ringer NFL Show (YouTube)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCMqF6BdstA43vNQzs2BMR0w"
+    enabled: true
+    default_pundit:
+      id: ringer_nfl_staff
+      name: "The Ringer NFL"
+    pundits: []
+
+  - id: pff_nfl
+    name: "PFF (Pro Football Focus)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCijBMkVMuT1hl4vAAGjxJPA"
+    enabled: true
+    default_pundit:
+      id: pff_staff
+      name: "PFF Staff"
+    pundits: []
+
+  - id: move_the_sticks
+    name: "Move The Sticks (Daniel Jeremiah)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCaWLWkqRKcVgkz3jocJUjHg"
+    enabled: true
+    pundits:
+      - id: daniel_jeremiah
+        name: "Daniel Jeremiah"
+        match_authors: ["Daniel Jeremiah", "Jeremiah"]
+
+  - id: athletic_football_yt
+    name: "The Athletic Football Show (YouTube)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEShWcVeWL3jL0lNfM4kO8Q"
+    enabled: true
+    default_pundit:
+      id: athletic_nfl_staff
+      name: "The Athletic NFL Staff"
+    pundits: []
 
   # ── Tier 1 YouTube Expansion (issue #129) ──────────────────────────────────
   - id: the_herd
@@ -235,6 +628,331 @@ sources:
       - id: rich_eisen
         name: "Rich Eisen"
         match_authors: ["Rich Eisen"]
+
+  # ── Tier 2 YouTube Expansion (issue #262) ──────────────────────────────────
+  - id: first_take_espn
+    name: "First Take (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCfqgnDBOHDMsu65LL2ZVi1Q verified 2026-04-27 — active First Take show
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCfqgnDBOHDMsu65LL2ZVi1Q"
+    enabled: true
+    pundits:
+      - id: stephen_a_smith
+        name: "Stephen A. Smith"
+        match_authors: ["Stephen A. Smith", "Stephen A"]
+      - id: molly_qerim
+        name: "Molly Qerim"
+        match_authors: ["Molly Qerim"]
+
+  - id: get_up_espn
+    name: "Get Up (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCIRIKQoZW1zkhsoIVBBpIKA verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIRIKQoZW1zkhsoIVBBpIKA"
+    enabled: true
+    pundits:
+      - id: mike_greenberg
+        name: "Mike Greenberg"
+        match_authors: ["Mike Greenberg", "Greeny"]
+      - id: dan_orlovsky
+        name: "Dan Orlovsky"
+        match_authors: ["Dan Orlovsky", "Orlovsky"]
+
+  - id: good_morning_football
+    name: "Good Morning Football (NFL Network)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCg45I1Os0VO6BBT4Tmpik_A verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCg45I1Os0VO6BBT4Tmpik_A"
+    enabled: true
+    default_pundit:
+      id: gmfb_staff
+      name: "Good Morning Football Staff"
+    pundits:
+      - id: peter_schrager
+        name: "Peter Schrager"
+        match_authors: ["Peter Schrager", "Schrager"]
+      - id: kyle_brandt
+        name: "Kyle Brandt"
+        match_authors: ["Kyle Brandt"]
+
+  - id: skip_bayless_show
+    name: "The Skip Bayless Show"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCyR0mCuTq14PIVadirooX6w verified 2026-04-27 — Skip's personal weekly podcast
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCyR0mCuTq14PIVadirooX6w"
+    enabled: true
+    pundits:
+      - id: skip_bayless
+        name: "Skip Bayless"
+        match_authors: ["Skip Bayless", "Bayless"]
+
+  - id: emmanuel_acho
+    name: "Emmanuel Acho"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UC3DoYiL7X_N1Ta1o4HE9Mlg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC3DoYiL7X_N1Ta1o4HE9Mlg"
+    enabled: true
+    pundits:
+      - id: emmanuel_acho
+        name: "Emmanuel Acho"
+        match_authors: ["Emmanuel Acho", "Acho"]
+
+  - id: speakeasy_acho
+    name: "Speakeasy with Emmanuel Acho"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCLXzq85ijg2LwJWFrz4pkmw verified 2026-04-27 (formerly The Facility on FS1)
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCLXzq85ijg2LwJWFrz4pkmw"
+    enabled: true
+    pundits:
+      - id: emmanuel_acho
+        name: "Emmanuel Acho"
+        match_authors: ["Emmanuel Acho", "Acho"]
+      - id: lesean_mccoy
+        name: "LeSean McCoy"
+        match_authors: ["LeSean McCoy", "McCoy"]
+
+  - id: i_am_athlete
+    name: "I Am Athlete (Brandon Marshall)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UC4qMMCxdNfU6cwpaXZOyUSg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC4qMMCxdNfU6cwpaXZOyUSg"
+    enabled: true
+    pundits:
+      - id: brandon_marshall
+        name: "Brandon Marshall"
+        match_authors: ["Brandon Marshall", "Marshall"]
+      - id: fred_taylor
+        name: "Fred Taylor"
+        match_authors: ["Fred Taylor"]
+      - id: channing_crowder
+        name: "Channing Crowder"
+        match_authors: ["Channing Crowder", "Crowder"]
+
+  - id: nbc_sports_yt
+    name: "NBC Sports (Chris Simms Unbuttoned)"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCqZQlzSHbVJrwrn5XvzrzcA verified 2026-04-27
+    # Chris Simms Unbuttoned episodes are published to this NBC Sports channel
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCqZQlzSHbVJrwrn5XvzrzcA"
+    enabled: true
+    keyword_filter:
+      - "NFL"
+      - "football"
+      - "quarterback"
+      - "draft"
+      - "Simms"
+      - "trade"
+      - "roster"
+      - "Super Bowl"
+    pundits:
+      - id: chris_simms
+        name: "Chris Simms"
+        match_authors: ["Chris Simms"]
+
+  - id: ryan_clark_yt
+    name: "Ryan Clark"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCueZJ1fm7OehTdL9IhLSoSg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCueZJ1fm7OehTdL9IhLSoSg"
+    enabled: true
+    pundits:
+      - id: ryan_clark
+        name: "Ryan Clark"
+        match_authors: ["Ryan Clark"]
+
+  - id: the_pivot_podcast
+    name: "The Pivot Podcast"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCUnxiP7q4RDDyeioZFZLnXA verified 2026-04-27 — Ryan Clark, Channing Crowder, Fred Taylor
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCUnxiP7q4RDDyeioZFZLnXA"
+    enabled: true
+    pundits:
+      - id: ryan_clark
+        name: "Ryan Clark"
+        match_authors: ["Ryan Clark"]
+      - id: channing_crowder
+        name: "Channing Crowder"
+        match_authors: ["Channing Crowder", "Crowder"]
+      - id: fred_taylor
+        name: "Fred Taylor"
+        match_authors: ["Fred Taylor"]
+
+  - id: cam_newton_4th_1
+    name: "4th & 1 with Cam Newton"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCmNMxZqiWk3ZX8SDhSgLHlQ verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCmNMxZqiWk3ZX8SDhSgLHlQ"
+    enabled: true
+    pundits:
+      - id: cam_newton
+        name: "Cam Newton"
+        match_authors: ["Cam Newton", "Newton"]
+
+  - id: nfl_official_yt
+    name: "NFL Official Channel"
+    sport: "NFL"
+    type: youtube_transcript
+    # channel_id UCDVYQ4Zhbm3S2dlz7P1GBDg verified 2026-04-27
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCDVYQ4Zhbm3S2dlz7P1GBDg"
+    enabled: true
+    keyword_filter:
+      - "predictions"
+      - "bold picks"
+      - "preview"
+      - "picks"
+      - "Super Bowl"
+      - "playoffs"
+    default_pundit:
+      id: nfl_staff
+      name: "NFL Staff"
+    pundits:
+      - id: ian_rapoport
+        name: "Ian Rapoport"
+        match_authors: ["Ian Rapoport", "Rapoport"]
+      - id: tom_pelissero
+        name: "Tom Pelissero"
+        match_authors: ["Tom Pelissero"]
+
+# ── Historical Archive Sources (Wayback Machine backfill 2020–2024) ────────
+# These are NOT fetched by the daily RSS ingestor. Use historical_archive_ingestor.py.
+# They're listed here for discovery / source_id consistency.
+  - id: bleacher_report_archive
+    name: "Bleacher Report NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""  # No live RSS — fetched via Wayback Machine by historical_archive_ingestor.py
+    enabled: false  # Disabled from daily run; used by historical_archive_ingestor only
+    default_pundit:
+      id: br_nfl_staff
+      name: "Bleacher Report NFL Staff"
+    pundits:
+      - id: br_nfl_staff
+        name: "Bleacher Report NFL Staff"
+        match_authors: ["Bleacher Report", "B/R"]
+
+  - id: cbs_nfl_archive
+    name: "CBS Sports NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: cbs_nfl_staff
+      name: "CBS Sports NFL Staff"
+    pundits:
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco", "Prisco"]
+      - id: cbs_nfl_staff
+        name: "CBS Sports NFL Staff"
+        match_authors: ["CBS Sports"]
+
+  - id: espn_nfl_archive
+    name: "ESPN NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: espn_nfl_staff
+      name: "ESPN NFL Staff"
+    pundits:
+      - id: adam_schefter
+        name: "Adam Schefter"
+        match_authors: ["Adam Schefter", "Schefter"]
+      - id: espn_nfl_staff
+        name: "ESPN NFL Staff"
+        match_authors: ["ESPN"]
+
+  - id: theringer_nfl_archive
+    name: "The Ringer NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: ringer_nfl_staff
+      name: "The Ringer NFL Staff"
+    pundits:
+      - id: kevin_clark
+        name: "Kevin Clark"
+        match_authors: ["Kevin Clark"]
+      - id: bill_simmons
+        name: "Bill Simmons"
+        match_authors: ["Bill Simmons"]
+      - id: ringer_nfl_staff
+        name: "The Ringer NFL Staff"
+        match_authors: ["The Ringer"]
+
+  - id: si_nfl_archive
+    name: "Sports Illustrated NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: si_nfl_staff
+      name: "SI NFL Staff"
+    pundits:
+      - id: albert_breer
+        name: "Albert Breer"
+        match_authors: ["Albert Breer"]
+      - id: si_nfl_staff
+        name: "SI NFL Staff"
+        match_authors: ["Sports Illustrated"]
+
+  - id: pft_nbc_archive
+    name: "ProFootballTalk Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: mike_florio
+      name: "Mike Florio"
+    pundits:
+      - id: mike_florio
+        name: "Mike Florio"
+        match_authors: ["Mike Florio", "Florio"]
+
+  - id: yahoo_nfl_archive
+    name: "Yahoo Sports NFL Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: yahoo_nfl_staff
+      name: "Yahoo Sports NFL Staff"
+    pundits:
+      - id: yahoo_nfl_staff
+        name: "Yahoo Sports NFL Staff"
+        match_authors: ["Yahoo Sports"]
+
+  - id: pff_archive
+    name: "Pro Football Focus Archive (Wayback)"
+    sport: "NFL"
+    type: rss
+    url: ""
+    enabled: false
+    default_pundit:
+      id: pff_nfl_staff
+      name: "PFF NFL Staff"
+    pundits:
+      - id: pff_nfl_staff
+        name: "PFF NFL Staff"
+        match_authors: ["PFF", "Pro Football Focus"]
 
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:

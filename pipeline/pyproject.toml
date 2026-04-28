@@ -70,3 +70,6 @@ exclude_lines = [
     "@abstractmethod",
 ]
 precision = 2
+# Baseline set at 25% — many src modules are scrapers/BQ clients with no unit tests.
+# Raise this incrementally as coverage improves.
+fail_under = 25

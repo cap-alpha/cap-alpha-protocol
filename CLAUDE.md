@@ -6,7 +6,7 @@
 >
 > - **Never edit files in the main checkout.** A PreToolUse hook (`.claude/hooks/require-worktree.sh`) blocks Edit/Write/MultiEdit when CWD is the main repo. If you see that error, switch to a worktree.
 > - **Use `EnterWorktree` first**, or run `git worktree add .claude/worktrees/<name> -b <branch>` and `cd` into it before any edit.
-> - **Land PRs with `gh pr merge <n> --squash --auto`** (queue), never with direct merge.
+> - **Land PRs with `gh pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits).
 > - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 >
 > Established 2026-04-07 after multi-agent coordination failures.
@@ -74,7 +74,7 @@ cat .agent/current.md
 # 4. Do your work, commit, push, open the PR
 
 # 5. Queue the PR for landing — never direct merge
-gh pr merge <pr-number> --squash --auto
+gh pr merge <pr-number> --rebase --auto
 
 # 6. After the PR lands on main, release locks
 .agent/claim.sh release issue:129 claude-sonnet-<session>
@@ -155,3 +155,20 @@ make test-e2e
 - **Recognize when you're spinning wheels.** 2-3 attempts at the same fix without convergence = stop. Summarize and hand back.
 - Diagnose before retrying. Try a *different* approach.
 - Stay on target. No speculative refactoring or gold-plating.
+
+## Model selection — auto-applied, no slash command required
+
+Every Agent/subagent dispatch on this project must pick a model by classifying the task. Do not default by reflex.
+
+| Task class | Model | Examples |
+|---|---|---|
+| **Planning** (architectural, strategic, optimization) | `claude-opus-4-7` | system design, sprint scoping, cost/CI optimization, prompt redesign, validity-logic decisions |
+| **Coding + major follow-ups** | `claude-sonnet-4-6` | feature implementation, multi-file edits, real bug fixes, recurring monitors needing reasoning, substantive code review |
+| **Triage + minor fixes** | `claude-haiku-4-5-20251001` | counts, log tails, PR-list scans, status reports, single-file typo/lint fixes, label changes |
+
+Rules:
+- **Cap concurrent Opus at 1** (parent counts). For fan-out, use Sonnet × N or Haiku × N.
+- **Anchor Haiku prompts** with "answer ONLY from tool output" — it hallucinates without grounding.
+- **When in doubt between two tiers**, pick the cheaper one and upgrade only if output is visibly inadequate.
+
+**Why:** On 2026-04-26 ~$1,895 burned in 2h with Opus = 79% of spend, mostly routine progress checks Sonnet/Haiku could have done at 5–20× lower cost. The user wants Opus reserved for planning where plan quality compounds, Sonnet for coding, Haiku for cheap status work.

@@ -4,24 +4,28 @@ Daily Prediction Resolution Engine (Issue #169, #191)
 Matches PENDING predictions from gold_layer.prediction_ledger against actual
 NFL outcomes to automatically score pundit accuracy.
 
-Handles three categories:
+Handles five categories:
   1. draft_pick — resolved against bronze_sportsdataio_players draft data
   2. game_outcome — resolved against bronze_sportsdataio_scores
   3. player_performance — resolved against bronze_sportsdataio_player_season_stats
+  4. award_prediction — resolved against pipeline/config/nfl_awards_<season>.yaml
+  5. fa_signing — resolved against bronze_sportsdataio_players current team data
 
 Usage (inside Docker):
-    python -m src.resolve_daily                         # resolve all pending
-    python -m src.resolve_daily --category draft_pick   # single category
-    python -m src.resolve_daily --dry-run               # preview without writing
+    python -m src.resolve_daily                           # resolve all pending
+    python -m src.resolve_daily --category award_prediction  # single category
+    python -m src.resolve_daily --dry-run                 # preview without writing
 """
 
 import argparse
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import yaml
 from google.api_core.exceptions import NotFound
 from src.db_manager import DBManager
 from src.resolution_engine import (
@@ -91,7 +95,16 @@ def _extract_draft_claim(claim: str) -> dict:
         "ninth": 9,
         "tenth": 10,
     }
-    pick_match = re.search(r"(?:no\.?\s*|#)(\d+)\s*(?:overall\s*)?pick", claim_lower)
+    # Match: "#7 pick", "No. 7 pick", "No. 7 overall pick", "#7 overall",
+    # "drafted 7th overall", "drafted 39th overall", "pick #7", "drafted #7",
+    # plus the original "(N) overall pick" variants.
+    pick_match = re.search(
+        r"(?:no\.?\s*|#|pick\s*#?|drafted\s+#?)(\d+)(?:st|nd|rd|th)?\s*(?:overall|pick)",
+        claim_lower,
+    )
+    if not pick_match:
+        # Bare "#N overall" or "Nth overall" without a leading keyword.
+        pick_match = re.search(r"#?(\d+)(?:st|nd|rd|th)?\s+overall", claim_lower)
     if pick_match:
         result["pick_number"] = int(pick_match.group(1))
     else:
@@ -959,6 +972,300 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Award prediction resolver
+# ---------------------------------------------------------------------------
+
+# Maps claim text keywords → award config key in nfl_awards_<season>.yaml
+_AWARD_KEYWORDS: dict[str, list[str]] = {
+    "mvp": ["mvp", "most valuable player"],
+    "opoy": ["opoy", "offensive player of the year"],
+    "dpoy": ["dpoy", "defensive player of the year"],
+    "offensive_rookie": [
+        "offensive rookie of the year",
+        "oroty",
+        "offensive roy",
+    ],
+    "defensive_rookie": [
+        "defensive rookie of the year",
+        "droty",
+        "defensive roy",
+    ],
+    "coach_of_the_year": ["coach of the year", "coty"],
+    "comeback_player": ["comeback player of the year", "cpoy"],
+    "walter_payton_man_of_the_year": ["walter payton", "man of the year"],
+    "super_bowl_mvp": ["super bowl mvp"],
+}
+
+
+def _load_awards_config(season: int) -> dict[str, Optional[str]]:
+    """Load NFL award winners from config/nfl_awards_<season>.yaml."""
+    config_path = Path(__file__).parent.parent / "config" / f"nfl_awards_{season}.yaml"
+    if not config_path.exists():
+        logger.debug(f"Awards config not found: {config_path}")
+        return {}
+    with open(config_path) as fh:
+        data = yaml.safe_load(fh) or {}
+    return data.get("awards", {})
+
+
+def _parse_award_type(claim: str) -> Optional[str]:
+    """Return the award config key if the claim names a known award, else None."""
+    claim_lower = claim.lower()
+    for award_key, keywords in _AWARD_KEYWORDS.items():
+        if any(kw in claim_lower for kw in keywords):
+            return award_key
+    return None
+
+
+def resolve_award_predictions(
+    db: DBManager, season: Optional[int] = None, dry_run: bool = False
+) -> dict:
+    """
+    Resolve award_prediction claims against the award config file for the season.
+
+    Marks CORRECT if the predicted player matches the actual winner, INCORRECT
+    if a different player won, or SKIPPED if the config has no data yet (null).
+    """
+    summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+
+    pending = get_pending_predictions(sport="NFL", db=db)
+    award_preds = pending[pending["claim_category"] == "award_prediction"]
+
+    if award_preds.empty:
+        logger.info("No pending award_prediction predictions to resolve.")
+        return summary
+
+    # Cache awards by season to avoid repeated file reads
+    awards_cache: dict[int, dict] = {}
+
+    for _, pred in award_preds.iterrows():
+        summary["checked"] += 1
+        claim = pred["extracted_claim"]
+        phash = pred["prediction_hash"]
+        season_year = pred.get("season_year")
+
+        if pd.isna(season_year):
+            logger.info(f"  SKIP {phash[:12]}… — no season_year on award claim")
+            summary["skipped"] += 1
+            continue
+
+        season_year = int(season_year)
+
+        # NFL awards announced in February of season_year+1
+        now = pd.Timestamp.now()
+        awards_announced = now.year > season_year + 1 or (
+            now.year == season_year + 1 and now.month >= 2
+        )
+        if not awards_announced:
+            logger.info(
+                f"  SKIP {phash[:12]}… — {season_year} season awards not yet announced"
+            )
+            summary["skipped"] += 1
+            continue
+
+        if season_year not in awards_cache:
+            awards_cache[season_year] = _load_awards_config(season_year)
+        awards = awards_cache[season_year]
+
+        if not awards:
+            logger.info(
+                f"  SKIP {phash[:12]}… — no awards config for {season_year} season"
+            )
+            summary["skipped"] += 1
+            continue
+
+        award_key = _parse_award_type(claim)
+        if award_key is None:
+            logger.info(f"  VOID {phash[:12]}… — unrecognised award type: {claim[:60]}")
+            if not dry_run:
+                void_prediction(phash, "unrecognised_award_type", db=db)
+            summary["voided"] += 1
+            continue
+
+        actual_winner = awards.get(award_key)
+        if actual_winner is None:
+            logger.info(
+                f"  SKIP {phash[:12]}… — {award_key} winner not in config for {season_year}"
+            )
+            summary["skipped"] += 1
+            continue
+
+        # Extract the predicted player name
+        predicted_player = pred.get("target_player_name") or pred.get(
+            "target_player_id"
+        )
+        if not predicted_player or pd.isna(predicted_player):
+            logger.info(
+                f"  VOID {phash[:12]}… — no predicted player name: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "no_predicted_player", db=db)
+            summary["voided"] += 1
+            continue
+
+        # Fuzzy name match: both sides lowercased, check if predicted is in actual or vice versa
+        pred_lower = _normalize_name(str(predicted_player))
+        actual_lower = _normalize_name(actual_winner)
+        correct = (
+            pred_lower
+            and actual_lower
+            and (pred_lower in actual_lower or actual_lower in pred_lower)
+        )
+
+        notes = f"{award_key} winner: {actual_winner}"
+        logger.info(
+            f"  {'CORRECT' if correct else 'INCORRECT'} {phash[:12]}… — "
+            f"predicted '{predicted_player}', actual '{actual_winner}' ({award_key})"
+        )
+        if not dry_run:
+            resolve_binary(
+                phash,
+                bool(correct),
+                outcome_source="nfl_awards_config",
+                outcome_notes=notes,
+                db=db,
+            )
+        summary["resolved"] += 1
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# FA signing resolver
+# ---------------------------------------------------------------------------
+
+
+def _load_current_rosters(db: DBManager) -> pd.DataFrame:
+    """Load current player team assignments from bronze_sportsdataio_players."""
+    project_id = os.environ.get("GCP_PROJECT_ID", "cap-alpha-protocol")
+    try:
+        df = db.fetch_df(
+            f"""
+            SELECT
+                Name,
+                LOWER(Name) AS name_lower,
+                Team AS current_team
+            FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
+            WHERE Team IS NOT NULL AND Team != ''
+            """
+        )
+        return df
+    except NotFound:
+        logger.warning("bronze_sportsdataio_players table not found")
+        return pd.DataFrame()
+
+
+def _parse_fa_team(claim: str) -> Optional[str]:
+    """
+    Extract the destination team from an FA signing claim.
+    e.g. "Davante Adams will sign with the Cowboys" → "Cowboys"
+    """
+    # Pattern: "sign with [the] <Team>" or "join [the] <Team>" or "land with <Team>"
+    patterns = [
+        r"(?:sign(?:s|ed)? with|join(?:s|ed)?|land(?:s|ed)? (?:with )?|go(?:es|ing)? to) (?:the )?([A-Z][a-zA-Z\s]+?)(?:\.|,|$|\s(?:on|for|in|at)\b)",
+        r"(?:sign(?:s|ed)? a deal with|ink(?:s|ed)? (?:a deal )?with) (?:the )?([A-Z][a-zA-Z\s]+?)(?:\.|,|$)",
+    ]
+    for pat in patterns:
+        m = re.search(pat, claim)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
+    """
+    Resolve fa_signing predictions against current SportsDataIO roster data.
+
+    Marks CORRECT if the player's current team matches the predicted team,
+    INCORRECT if they're on a different team, VOID if player not found in data.
+    """
+    summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+
+    pending = get_pending_predictions(sport="NFL", db=db)
+    fa_preds = pending[pending["claim_category"] == "fa_signing"]
+
+    if fa_preds.empty:
+        logger.info("No pending fa_signing predictions to resolve.")
+        return summary
+
+    rosters = _load_current_rosters(db)
+    if rosters.empty:
+        logger.warning("No roster data available; skipping fa_signing resolution.")
+        for _ in fa_preds.iterrows():
+            summary["checked"] += 1
+            summary["skipped"] += 1
+        return summary
+
+    for _, pred in fa_preds.iterrows():
+        summary["checked"] += 1
+        claim = pred["extracted_claim"]
+        phash = pred["prediction_hash"]
+
+        player_name = pred.get("target_player_name") or pred.get("target_player_id")
+        if not player_name or pd.isna(player_name):
+            logger.info(
+                f"  VOID {phash[:12]}… — no player name in fa_signing: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "no_player_name", db=db)
+            summary["voided"] += 1
+            continue
+
+        predicted_team_raw = _parse_fa_team(claim)
+        if not predicted_team_raw:
+            logger.info(
+                f"  VOID {phash[:12]}… — can't parse destination team: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "unparseable_fa_team", db=db)
+            summary["voided"] += 1
+            continue
+
+        predicted_abbr = _normalize_team(predicted_team_raw)
+        if not predicted_abbr:
+            logger.info(
+                f"  VOID {phash[:12]}… — unknown team '{predicted_team_raw}': {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, f"unknown_team:{predicted_team_raw}", db=db)
+            summary["voided"] += 1
+            continue
+
+        norm_player = _normalize_name(str(player_name))
+        player_rows = rosters[
+            rosters["name_lower"].str.contains(norm_player, na=False, regex=False)
+        ]
+
+        if player_rows.empty:
+            logger.info(
+                f"  SKIP {phash[:12]}… — '{player_name}' not found in SportsDataIO"
+            )
+            summary["skipped"] += 1
+            continue
+
+        actual_team = player_rows.iloc[0]["current_team"]
+        actual_abbr = _normalize_team(str(actual_team)) or actual_team
+
+        correct = predicted_abbr == actual_abbr
+        notes = f"predicted {predicted_abbr}, actual {actual_abbr}"
+        logger.info(
+            f"  {'CORRECT' if correct else 'INCORRECT'} {phash[:12]}… — "
+            f"'{player_name}': {notes}"
+        )
+        if not dry_run:
+            resolve_binary(
+                phash,
+                bool(correct),
+                outcome_source="sportsdataio_rosters",
+                outcome_notes=notes,
+                db=db,
+            )
+        summary["resolved"] += 1
+
+    return summary
+
+
 def resolve_all(
     category: Optional[str] = None,
     dry_run: bool = False,
@@ -983,6 +1290,14 @@ def resolve_all(
                 db, dry_run=dry_run
             )
 
+        if not category or category == "award_prediction":
+            summaries["award_prediction"] = resolve_award_predictions(
+                db, dry_run=dry_run
+            )
+
+        if not category or category == "fa_signing":
+            summaries["fa_signing"] = resolve_fa_signings(db, dry_run=dry_run)
+
         # Combined summary
         total = {
             "checked": sum(s["checked"] for s in summaries.values()),
@@ -1006,7 +1321,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Daily Prediction Resolver")
     parser.add_argument(
         "--category",
-        choices=["draft_pick", "game_outcome", "player_performance"],
+        choices=[
+            "draft_pick",
+            "game_outcome",
+            "player_performance",
+            "award_prediction",
+            "fa_signing",
+        ],
         help="Resolve only a specific category",
     )
     parser.add_argument("--dry-run", action="store_true")

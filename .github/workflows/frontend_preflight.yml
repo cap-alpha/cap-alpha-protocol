@@ -37,4 +37,9 @@ jobs:
         working-directory: ./web
         env:
           NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Stripe SDK initialises at module load time in billing API routes.
+          # A non-empty placeholder is required so `next build` can import those
+          # modules without throwing "Neither apiKey nor config.authenticator
+          # provided". The real key is only needed at request time, not build time.
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || 'sk_test_placeholder_for_ci_build' }}
         run: npm run build

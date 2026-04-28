@@ -13,7 +13,6 @@ Usage:
 import argparse
 import json
 import logging
-import re
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
@@ -62,9 +61,7 @@ def fetch_article_text(url: str) -> dict:
     if not author:
         for script in full_soup.find_all("script", type="application/ld+json"):
             try:
-                import json as _json
-
-                ld = _json.loads(script.string or "")
+                ld = json.loads(script.string or "")
                 if isinstance(ld, list):
                     ld = ld[0]
                 if isinstance(ld.get("author"), dict):

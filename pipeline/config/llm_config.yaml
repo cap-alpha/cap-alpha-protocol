@@ -13,7 +13,8 @@
 
 extraction:
   provider: ollama              # gemini | claude | openai | ollama
-  model: qwen2.5:32b            # provider-specific model ID
+  model: llama3.1:8b            # provider-specific model ID
+  rate_limit_seconds: 0.0       # inter-request delay; gemini=1.0, ollama=0.0, claude=0.5
   # ollama models: qwen2.5:32b (recommended, 20GB, excellent structured output),
   #   llama3.1:8b (fast/cheap), llama3.1:70b (needs 48GB+ free RAM)
   # claude models: claude-sonnet-4-20250514, claude-haiku-4-5-20251001

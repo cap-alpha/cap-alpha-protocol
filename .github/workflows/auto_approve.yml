@@ -16,7 +16,6 @@ jobs:
     permissions:
       pull-requests: write
       checks: read
-      administration: read
     steps:
       - name: Approve PR if all required checks pass
         env:
@@ -58,24 +57,20 @@ jobs:
             exit 0
           fi
 
-          # Dynamically fetch required checks from branch protection — no hardcoded names.
-          # If the API call fails or returns nothing, skip approval rather than approve blindly.
-          REQUIRED_CHECKS=()
-          while IFS= read -r check; do
-            [[ -n "$check" ]] && REQUIRED_CHECKS+=("$check")
-          done < <(gh api "repos/$REPO/branches/main/protection" \
-            --jq '.required_status_checks.checks[].context' 2>/dev/null)
+          # Required check names that must pass before auto-approval.
+          # This list may include multiple check runs from the same workflow.
+          # "test (3.10)"                    — CI Pipeline
+          # "Run Data Quality Tests (3.10)"  — Data Quality Tests
+          # "Lint Code"                      — Data Quality Tests (lint job)
+          # "preflight-build"                — Frontend Preflight Check
+          REQUIRED_CHECKS=("test (3.10)" "Run Data Quality Tests (3.10)" "Lint Code" "preflight-build")
 
-          if [ "${#REQUIRED_CHECKS[@]}" -eq 0 ]; then
-            echo "Could not fetch required checks from branch protection API — skipping approval"
-            exit 0
-          fi
-          echo "Required checks (from branch protection): ${REQUIRED_CHECKS[*]}"
+          echo "Required checks: ${REQUIRED_CHECKS[*]}"
 
           ALL_PASS=true
           for check in "${REQUIRED_CHECKS[@]}"; do
             STATUS=$(gh api "repos/$REPO/commits/$HEAD_SHA/check-runs" \
-              --jq "[.check_runs[] | select(.name == \"$check\")] | sort_by(.completed_at) | last | .conclusion" \
+              --jq "[.check_runs[] | select(.name == \"$check\" and .status == \"completed\")] | sort_by(.completed_at) | last | .conclusion" \
               2>/dev/null)
             echo "  [$check]: $STATUS"
             if [ "$STATUS" != "success" ]; then
@@ -96,11 +91,12 @@ jobs:
             exit 0
           fi
 
-          # Gate: only approve once Copilot has completed a review
+          # Gate: only approve once Copilot has completed a review.
+          # The bot login includes the "[bot]" suffix.
           COPILOT_REVIEWED=$(gh pr view "$PR" --repo "$REPO" --json reviews \
-            --jq '[.reviews[] | select(.author.login == "copilot-pull-request-reviewer")] | length' 2>/dev/null)
+            --jq '[.reviews[] | select(.author.login == "copilot-pull-request-reviewer[bot]")] | length' 2>/dev/null)
           if [ "${COPILOT_REVIEWED:-0}" -eq "0" ]; then
-            echo "PR #$PR has not yet been reviewed by copilot-pull-request-reviewer — skipping"
+            echo "PR #$PR has not yet been reviewed by copilot-pull-request-reviewer[bot] — skipping"
             exit 0
           fi
           echo "Copilot review found for PR #$PR"
@@ -115,4 +111,5 @@ jobs:
 
           echo "All gates passed — approving PR #$PR"
           gh pr review "$PR" --repo "$REPO" --approve \
-            --body "Copilot has reviewed, no changes requested, all required CI checks pass — auto-approving for merge queue."
+            --body "Copilot has reviewed, no changes requested, all required CI checks pass — auto-approving for merge queue." \
+            || echo "Warning: auto-approval failed (repo may require manual approval) — PR is ready to merge once approved."

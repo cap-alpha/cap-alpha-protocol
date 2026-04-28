@@ -82,7 +82,10 @@ export default function LandingPage() {
                             <h3 className="font-semibold text-white">We score the results</h3>
                             <p className="text-sm text-zinc-400 leading-relaxed">
                                 Predictions are resolved against official outcomes. The Pundit Credit
-                                Score weights accuracy, magnitude of misses, and prediction volume.
+                                Score weights accuracy, magnitude of misses, and prediction volume.{" "}
+                                <Link href="/methodology" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+                                    Read the methodology &rarr;
+                                </Link>
                             </p>
                         </div>
                         <div className="space-y-3">
@@ -197,6 +200,7 @@ export default function LandingPage() {
                         <Link href="/methodology" className="hover:text-zinc-400 transition-colors">Methodology</Link>
                         <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms</Link>
                         <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
+                        <Link href="/legal/acceptable-use" className="hover:text-zinc-400 transition-colors">Acceptable Use</Link>
                     </div>
                     <span>© {new Date().getFullYear()} Pundit Ledger. All predictions verified.</span>
                 </div>

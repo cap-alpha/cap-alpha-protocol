@@ -105,6 +105,7 @@ class TestExtractAssertionsWithMock:
             "pundit_name": "Adam Schefter",
             "claim_category": "player_performance",
             "season_year": 2027,
+            "prediction_horizon_days": 30,
         }
         provider = _make_provider([pred])
         result = extract_assertions(
@@ -145,6 +146,7 @@ class TestExtractAssertionsWithMock:
         pred = {
             "extracted_claim": "Bears take Caleb #1",
             "season_year": current_year,
+            "prediction_horizon_days": 30,
         }
         provider = _make_provider([pred])
         result = extract_assertions(
@@ -159,12 +161,18 @@ class TestExtractAssertionsWithMock:
             {
                 "extracted_claim": "Mahomes will throw for 4000 yards this season",
                 "season_year": 2027,
+                "prediction_horizon_days": 30,
             },
             {
                 "extracted_claim": "Mahomes will throw 4000 yards in 2026-27",
                 "season_year": 2027,
+                "prediction_horizon_days": 30,
             },  # near-dup
-            {"extracted_claim": "Chiefs will win the AFC West", "season_year": 2027},
+            {
+                "extracted_claim": "Chiefs will win the AFC West",
+                "season_year": 2027,
+                "prediction_horizon_days": 30,
+            },
         ]
         provider = _make_provider(preds)
         result = extract_assertions(

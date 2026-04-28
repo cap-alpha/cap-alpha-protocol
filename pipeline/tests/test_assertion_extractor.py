@@ -84,6 +84,7 @@ class TestExtractAssertions:
                 "target_player": "Patrick Mahomes",
                 "target_team": "KC",
                 "confidence_note": "strong assertion",
+                "prediction_horizon_days": 210,
             }
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -121,6 +122,7 @@ class TestExtractAssertions:
                 "extracted_claim": "Josh Allen wins Super Bowl",
                 "claim_category": "game_outcome",
                 "confidence_note": "strong",
+                "prediction_horizon_days": 180,
             }
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -155,15 +157,22 @@ class TestExtractAssertions:
             "draft_pick",
             "injury",
             "contract",
+            "award_prediction",
+            "fa_signing",
         }
         assert VALID_CATEGORIES == expected
 
     def test_skips_predictions_without_claim(self, mock_provider):
         predictions = [
-            {"extracted_claim": "", "claim_category": "trade"},
+            {
+                "extracted_claim": "",
+                "claim_category": "trade",
+                "prediction_horizon_days": 30,
+            },
             {
                 "extracted_claim": "Valid claim here",
                 "claim_category": "trade",
+                "prediction_horizon_days": 30,
             },
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -225,6 +234,104 @@ class TestExtractAssertions:
         result = _deduplicate_claims(predictions)
         assert len(result) == 1
         assert "Patrick Mahomes" in result[0]["extracted_claim"]
+
+    def test_temporal_filter_rejects_negative_horizon(self, mock_provider):
+        """Items with prediction_horizon_days <= 0 (retroactive) are filtered out."""
+        predictions = [
+            {
+                "extracted_claim": "Red Murdock was drafted #257 by the Denver Broncos",
+                "claim_category": "draft_pick",
+                "prediction_horizon_days": -1,
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Post-draft recap article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_rejects_zero_horizon(self, mock_provider):
+        """Items with prediction_horizon_days == 0 are also filtered out."""
+        predictions = [
+            {
+                "extracted_claim": "Kaytron Allen was selected by Washington",
+                "claim_category": "draft_pick",
+                "prediction_horizon_days": 0,
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Post-draft recap",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_rejects_missing_horizon(self, mock_provider):
+        """Items missing prediction_horizon_days entirely are rejected."""
+        predictions = [
+            {
+                "extracted_claim": "Some player will do something",
+                "claim_category": "player_performance",
+                # prediction_horizon_days intentionally omitted
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_rejects_non_numeric_horizon(self, mock_provider):
+        """Items with a non-numeric prediction_horizon_days are rejected."""
+        predictions = [
+            {
+                "extracted_claim": "Someone will win something",
+                "claim_category": "game_outcome",
+                "prediction_horizon_days": "soon",
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 0
+
+    def test_temporal_filter_retains_positive_horizon(self, mock_provider):
+        """Items with a positive prediction_horizon_days are kept."""
+        predictions = [
+            {
+                "extracted_claim": "Fernando Mendoza will be drafted #1 overall",
+                "claim_category": "draft_pick",
+                "prediction_horizon_days": 14,
+            },
+        ]
+        set_provider_predictions(mock_provider, predictions)
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Pre-draft mock article",
+            provider=mock_provider,
+        )
+
+        assert len(result.predictions) == 1
+        assert result.predictions[0]["extracted_claim"] == (
+            "Fernando Mendoza will be drafted #1 overall"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -417,6 +524,23 @@ class TestRunExtraction:
         summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["skipped_no_predictions"] == 1
+
+    @patch("src.assertion_extractor.mark_as_processed")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_zero_predictions_does_not_mark_processed(
+        self, mock_extract, mock_mark, mock_db, mock_provider
+    ):
+        """Zero-prediction results must NOT call mark_as_processed and must increment counter."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+        )
+
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        mock_mark.assert_not_called()
+        assert summary["extracted_zero_predictions"] == 1
 
     def test_dry_run_skips_llm(self, mock_db):
         mock_db.fetch_df.return_value = make_raw_media_df(2)
@@ -680,16 +804,29 @@ class TestPreFilterIntegration:
 
 
 class TestLLMProvider:
-    def test_provider_factory_returns_ollama_by_default(self):
+    def test_provider_factory_returns_provider_from_config(self):
         from src.llm_provider import load_llm_config
 
         config = load_llm_config()
-        assert config["extraction"]["provider"] == "ollama"
+        assert config["extraction"]["provider"] in {
+            "gemini",
+            "gemini-flash",
+            "ollama",
+            "claude",
+            "openai",
+        }
 
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS
 
-        assert set(PROVIDERS.keys()) == {"gemini", "claude", "openai", "ollama"}
+        # gemini-flash is an alias for GeminiProvider (burst mode for historical backfill)
+        assert set(PROVIDERS.keys()) == {
+            "gemini",
+            "gemini-flash",
+            "claude",
+            "openai",
+            "ollama",
+        }
 
     def test_json_parse_strips_markdown_fences(self):
         from src.llm_provider import LLMProvider
@@ -867,5 +1004,242 @@ class TestConstants:
             "draft_pick",
             "injury",
             "contract",
+            "award_prediction",
+            "fa_signing",
         }
         assert VALID_CATEGORIES == expected
+
+
+# ---------------------------------------------------------------------------
+# allow_historical flag (Issue #262 / PR #319)
+# ---------------------------------------------------------------------------
+
+
+class TestAllowHistorical:
+    """Tests for the allow_historical temporal-filter bypass added in #262."""
+
+    def _make_provider_with_past_prediction(self, past_year: int):
+        provider = MagicMock()
+        provider.model = "mock"
+        provider.extract_predictions.return_value = [
+            {
+                "extracted_claim": f"The Chiefs will win the Super Bowl in {past_year}",
+                "claim_category": "game_outcome",
+                "season_year": past_year,
+                "stance": "bullish",
+                "target_player": None,
+                "prediction_horizon_days": 30,
+            }
+        ]
+        return provider
+
+    def test_past_season_filtered_by_default(self):
+        """Default: temporal filter should drop past-season predictions."""
+        past_year = 2022
+        provider = self._make_provider_with_past_prediction(past_year)
+        result = extract_assertions(
+            content_hash="hash_hist_1",
+            text="The Chiefs won the Super Bowl in 2022.",
+            provider=provider,
+            allow_historical=False,
+        )
+        assert result.predictions == [], (
+            f"Expected past-season ({past_year}) prediction to be filtered out"
+        )
+
+    def test_past_season_passes_with_allow_historical(self):
+        """allow_historical=True should bypass the temporal filter."""
+        past_year = 2022
+        provider = self._make_provider_with_past_prediction(past_year)
+        result = extract_assertions(
+            content_hash="hash_hist_2",
+            text="The Chiefs will win the Super Bowl in 2022.",
+            provider=provider,
+            allow_historical=True,
+        )
+        assert len(result.predictions) == 1, (
+            "Expected past-season prediction to pass when allow_historical=True"
+        )
+        assert result.predictions[0]["season_year"] == past_year
+
+    def test_current_year_always_passes(self):
+        """Current-year predictions should pass regardless of allow_historical."""
+        import datetime as dt
+
+        current_year = dt.datetime.now().year
+        provider = MagicMock()
+        provider.model = "mock"
+        provider.extract_predictions.return_value = [
+            {
+                "extracted_claim": f"Mahomes will throw 40 TDs in {current_year}",
+                "claim_category": "player_performance",
+                "season_year": current_year,
+                "stance": "bullish",
+                "target_player": "Patrick Mahomes",
+                "prediction_horizon_days": 180,
+            }
+        ]
+        result = extract_assertions(
+            content_hash="hash_current",
+            text=f"Mahomes will throw 40 TDs in {current_year}.",
+            provider=provider,
+            allow_historical=False,
+        )
+        assert len(result.predictions) == 1
+
+    def test_run_extraction_passes_allow_historical(self, mock_db, mock_provider):
+        """run_extraction should thread allow_historical through to extract_assertions."""
+        past_year = 2023
+        import datetime as dt
+
+        mock_provider.extract_predictions.return_value = [
+            {
+                "extracted_claim": f"The Eagles will win in {past_year}",
+                "claim_category": "game_outcome",
+                "season_year": past_year,
+                "stance": "bullish",
+                "target_player": None,
+                "prediction_horizon_days": 30,
+            }
+        ]
+
+        media_df = make_raw_media_df(1)
+        mock_db.fetch_df.return_value = media_df
+
+        with patch("src.assertion_extractor.ingest_batch") as mock_ingest:
+            mock_ingest.return_value = ["some_hash"]
+            result = run_extraction(
+                limit=10,
+                dry_run=False,
+                db=mock_db,
+                provider=mock_provider,
+                allow_historical=True,
+            )
+
+        # With allow_historical=True, the past prediction should be kept
+        assert result["predictions_extracted"] >= 1, (
+            "Expected predictions to be extracted with allow_historical=True"
+        )
+
+
+# ---------------------------------------------------------------------------
+# Concurrency flag (Issue #240)
+# ---------------------------------------------------------------------------
+
+
+class TestConcurrency:
+    """Tests for --concurrency N flag on the serial (non-gemini-flash) path."""
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_1_is_sequential_default(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """concurrency=1 (default) produces the same results as the original serial path."""
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Mahomes wins MVP in 2026",
+                    "claim_category": "player_performance",
+                    "stance": "bullish",
+                    "confidence_note": "strong",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["pred_hash_1", "pred_hash_2", "pred_hash_3"]
+
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, concurrency=1
+        )
+
+        assert summary["total_processed"] == 3
+        assert summary["predictions_extracted"] == 3
+        assert mock_extract.call_count == 3
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_gt1_processes_all_articles(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """concurrency=3 still processes all articles and collects predictions."""
+        mock_db.fetch_df.return_value = make_raw_media_df(4)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[
+                {
+                    "extracted_claim": "Bears win NFC North",
+                    "claim_category": "game_outcome",
+                    "stance": "bullish",
+                    "confidence_note": "explicit",
+                }
+            ],
+        )
+        mock_ingest.return_value = ["p1", "p2", "p3", "p4"]
+
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, concurrency=3
+        )
+
+        assert summary["total_processed"] == 4
+        assert summary["predictions_extracted"] == 4
+        assert mock_extract.call_count == 4
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_gt1_handles_per_article_errors(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """With concurrency > 1, a per-article error doesn't abort the whole batch."""
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        # First call errors; subsequent calls succeed
+        mock_extract.side_effect = [
+            ExtractionResult(
+                content_hash="hash_0",
+                predictions=[],
+                error="LLM timeout",
+            ),
+            ExtractionResult(
+                content_hash="hash_1",
+                predictions=[
+                    {
+                        "extracted_claim": "Allen wins MVP",
+                        "claim_category": "award_prediction",
+                        "stance": "bullish",
+                        "confidence_note": "strong",
+                    }
+                ],
+            ),
+            ExtractionResult(
+                content_hash="hash_2",
+                predictions=[],
+                error="Connection refused",
+            ),
+        ]
+        mock_ingest.return_value = ["ph1"]
+
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, concurrency=2
+        )
+
+        assert summary["total_processed"] == 3
+        assert summary["errors"] == 2
+        assert summary["predictions_extracted"] == 1
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_concurrency_default_is_1(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """run_extraction default concurrency=1 — no ThreadPoolExecutor for serial providers."""
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+        mock_ingest.return_value = []
+
+        # Should run without error at default concurrency
+        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["total_processed"] == 2

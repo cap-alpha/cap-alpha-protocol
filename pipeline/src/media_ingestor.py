@@ -103,6 +103,43 @@ def load_media_config(config_path: Optional[Path] = None) -> dict:
         return yaml.safe_load(f)
 
 
+def load_config_from_bq(
+    db: DBManager, fallback_yaml_path: Optional[Path] = None
+) -> dict:
+    """Load source/pundit config from BigQuery registry, falling back to YAML.
+
+    Tries to read from nfl_dead_money.source_registry and pundit_registry via
+    RegistryManager.  If the registry is empty or unavailable, silently falls
+    back to the static YAML config so the ingestor never stops working.
+
+    Args:
+        db: Active DBManager instance.
+        fallback_yaml_path: Path to media_sources.yaml; uses default if None.
+
+    Returns:
+        Config dict in the same shape as load_media_config() (YAML format).
+    """
+    from src.registry_manager import RegistryManager  # local import to avoid circular
+
+    try:
+        rm = RegistryManager(db)
+        config = rm.get_source_config()
+        if config.get("sources"):
+            logger.info(f"Loaded {len(config['sources'])} source(s) from BQ registry")
+            # Merge YAML defaults section (BQ registry doesn't store global defaults)
+            try:
+                yaml_config = load_media_config(fallback_yaml_path)
+                config.setdefault("defaults", yaml_config.get("defaults", {}))
+            except Exception:
+                config.setdefault("defaults", {})
+            return config
+        logger.info("BQ registry is empty — falling back to YAML config")
+    except Exception as e:
+        logger.warning(f"BQ registry unavailable ({e}) — falling back to YAML config")
+
+    return load_media_config(fallback_yaml_path)
+
+
 # ---------------------------------------------------------------------------
 # Content hashing & dedup
 # ---------------------------------------------------------------------------
@@ -327,6 +364,19 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
 
 TRANSCRIPT_CHUNK_SIZE = 3500
 
+# Prediction-dense title filter — skip YouTube videos that are clearly not
+# prediction content (game recaps, highlight compilations, interviews, etc.)
+_PREDICTION_TITLE_RE = re.compile(
+    r"""
+    predict|bold|will\s|won['']?t|preview|grade|rank|MVP|
+    playoff|over[.\-/]under|win\s+total|lock\s+of|pick\s|picks\s|
+    bold\s+call|super\s+bowl|nfl\s+draft|free\s+agent|hot\s+take|
+    week\s+\d+|game\s+day|breakdown|who\s+wins|should\s+the|
+    bet|prop|sleeper|bust|breakout|fantasy
+    """,
+    re.IGNORECASE | re.VERBOSE,
+)
+
 
 def _chunk_transcript(text: str, max_chars: int = TRANSCRIPT_CHUNK_SIZE) -> list[str]:
     """Split transcript text into chunks of ~max_chars, splitting at sentence boundaries."""
@@ -375,29 +425,106 @@ def _is_youtube_short(url: str) -> bool:
     return "/shorts/" in url
 
 
+def _fetch_transcript_ytdlp(video_id: str) -> str:
+    """Fallback: use yt-dlp to download auto-generated subtitles as VTT, return plain text."""
+    import subprocess
+    import tempfile
+    from pathlib import Path as _Path
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out_template = str(_Path(tmpdir) / "%(id)s.%(ext)s")
+        subprocess.run(
+            [
+                "yt-dlp",
+                "--write-auto-sub",
+                "--sub-lang",
+                "en",
+                "--skip-download",
+                "--convert-subs",
+                "vtt",
+                "-o",
+                out_template,
+                url,
+            ],
+            check=True,
+            capture_output=True,
+            timeout=60,
+        )
+        vtt_files = list(_Path(tmpdir).glob("*.vtt"))
+        if not vtt_files:
+            raise FileNotFoundError(f"yt-dlp produced no VTT for {video_id}")
+        vtt_text = vtt_files[0].read_text(encoding="utf-8", errors="ignore")
+    lines = []
+    for line in vtt_text.splitlines():
+        line = line.strip()
+        if not line or line.startswith("WEBVTT") or line.startswith("NOTE"):
+            continue
+        if re.match(r"^\d{2}:\d{2}:\d{2}", line) or re.match(
+            r"^<\d{2}:\d{2}:\d{2}", line
+        ):
+            continue
+        cleaned = re.sub(r"<[^>]+>", "", line).strip()
+        if cleaned:
+            lines.append(cleaned)
+    return " ".join(lines)
+
+
 def _fetch_transcript(video_id: str) -> str:
-    """Fetch transcript text, compatible with both old and new API versions."""
-    if _YT_API_V1:
-        result = _yt_client.fetch(video_id)
-        return " ".join(snippet.text for snippet in result)
-    else:
-        transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
-        return " ".join(segment["text"] for segment in transcript_data)
+    """Fetch transcript text, trying youtube-transcript-api then yt-dlp fallback."""
+    e1 = None
+    try:
+        if _YT_API_V1 and _yt_client is not None:
+            result = _yt_client.fetch(video_id)
+            text = " ".join(snippet.text for snippet in result)
+        else:
+            transcript_data = YouTubeTranscriptApi.get_transcript(video_id)
+            text = " ".join(segment["text"] for segment in transcript_data)
+        if text.strip():
+            return text
+        else:
+            e1 = RuntimeError("yt-api returned empty transcript")
+    except Exception as exc:
+        e1 = exc
+
+    # Fallback: yt-dlp (handles blocked/disabled captions and API changes)
+    try:
+        text = _fetch_transcript_ytdlp(video_id)
+        if text.strip():
+            return text
+    except Exception as e2:
+        raise RuntimeError(
+            f"Transcript unavailable via yt-api ({e1}) and yt-dlp ({e2})"
+        ) from e2
+
+    raise RuntimeError(f"Empty transcript for {video_id} (yt-api error: {e1})")
+
+
+_MAX_YOUTUBE_DURATION_SECONDS = 90 * 60  # 90 minutes
+_MIN_YOUTUBE_PUBLISH_YEAR = 2020
 
 
 def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
     """
     Fetches recent videos from a YouTube channel via RSS, then downloads
     auto-generated transcripts for each video.
+
+    Applies optional filters from source config:
+      - title_filter: false (default, opt-in) — set true to only fetch prediction-dense titles
+      - max_duration_seconds: skip videos longer than N seconds (default 5400 = 90 min)
+      - min_publish_year: skip videos published before this year (default 2020)
     """
     url = source["url"]
     source_id = source["id"]
     pundits = source.get("pundits", [])
     sport = source.get("sport", "NFL")
     max_items = defaults.get("max_items_per_feed", 50)
+    apply_title_filter = source.get("title_filter", False)
+    max_duration = source.get("max_duration_seconds", _MAX_YOUTUBE_DURATION_SECONDS)
+    min_year = source.get("min_publish_year", _MIN_YOUTUBE_PUBLISH_YEAR)
 
     # Default pundit for YouTube channels (usually single-pundit channels)
-    default_pundit = pundits[0] if pundits else {}
+    default_pundit = pundits[0] if pundits else source.get("default_pundit", {})
     author = default_pundit.get("name")
     pundit_id = default_pundit.get("id")
     pundit_name = default_pundit.get("name")
@@ -416,8 +543,13 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
 
     items = []
     now = datetime.now(timezone.utc)
+    skipped_title = 0
+    skipped_date = 0
 
-    for entry in feed.entries[:max_items]:
+    for entry in feed.entries[: max_items * 3]:  # over-fetch to allow for filtering
+        if len(items) >= max_items:
+            break
+
         title = entry.get("title", "")
         link = entry.get("link", "")
         if not link:
@@ -427,6 +559,12 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
         # and don't contain full-length pundit commentary worth extracting.
         if _is_youtube_short(link):
             logger.debug(f"[{source_id}] Skipping Short: {title}")
+            continue
+
+        # Title filter: skip videos that are clearly not prediction content
+        if apply_title_filter and not _PREDICTION_TITLE_RE.search(title):
+            skipped_title += 1
+            logger.debug(f"[{source_id}] Title filter skipped: {title}")
             continue
 
         video_id = _extract_video_id(link)
@@ -441,6 +579,14 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
                 published = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
             except Exception:
                 pass
+
+        # Date filter: skip pre-2020 content (resolver coverage limit)
+        if published is not None and published.year < min_year:
+            skipped_date += 1
+            logger.debug(
+                f"[{source_id}] Date filter skipped ({published.year}): {title}"
+            )
+            continue
 
         # Download transcript
         try:
@@ -482,6 +628,14 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
                 )
             )
 
+    if skipped_title:
+        logger.info(
+            f"[{source_id}] Title filter skipped {skipped_title} non-prediction videos"
+        )
+    if skipped_date:
+        logger.info(
+            f"[{source_id}] Date filter skipped {skipped_date} pre-{min_year} videos"
+        )
     if not items and feed.entries:
         logger.warning(
             f"[{source_id}] Feed had {len(feed.entries)} entries "
@@ -802,20 +956,33 @@ def run_daily_ingestion(
     source_filter: Optional[str] = None,
     dry_run: bool = False,
     db: Optional[DBManager] = None,
+    use_bq_registry: bool = False,
 ) -> list[SourceResult]:
     """
     Main daily entry point. Iterates all enabled sources, fetches content,
     deduplicates, and writes to BigQuery.
 
+    Args:
+        config_path: Path to media_sources.yaml. Ignored when use_bq_registry=True.
+        source_filter: If set, only process the source with this ID.
+        dry_run: Preview without writing to BQ.
+        db: Existing DBManager to reuse; creates one if None.
+        use_bq_registry: When True, load source/pundit config from BQ registry
+            (nfl_dead_money.source_registry + pundit_registry) with automatic
+            YAML fallback. When False (default), load from YAML only.
+
     Returns a manifest of SourceResults for observability.
     """
-    config = load_media_config(config_path)
-    defaults = config.get("defaults", {})
-    sources = config.get("sources", [])
-
     close_db = db is None
     if db is None:
         db = DBManager()
+
+    if use_bq_registry:
+        config = load_config_from_bq(db, fallback_yaml_path=config_path)
+    else:
+        config = load_media_config(config_path)
+    defaults = config.get("defaults", {})
+    sources = config.get("sources", [])
 
     results = []
     try:
@@ -873,6 +1040,11 @@ if __name__ == "__main__":
     parser.add_argument(
         "--config", help="Path to media_sources.yaml (default: pipeline/config/)"
     )
+    parser.add_argument(
+        "--use-bq-registry",
+        action="store_true",
+        help="Load source/pundit config from BQ registry (falls back to YAML)",
+    )
     args = parser.parse_args()
 
     config_path = Path(args.config) if args.config else None
@@ -880,6 +1052,7 @@ if __name__ == "__main__":
         config_path=config_path,
         source_filter=args.source,
         dry_run=args.dry_run,
+        use_bq_registry=args.use_bq_registry,
     )
 
     # Print summary table

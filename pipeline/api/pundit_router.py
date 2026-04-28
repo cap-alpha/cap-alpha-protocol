@@ -34,6 +34,7 @@ from api.api_key_auth import verify_api_key
 from src.cryptographic_ledger import verify_chain_integrity
 from src.db_manager import DBManager
 from src.resolution_engine import get_pundit_accuracy_summary
+from src.scoring import get_pundit_stats
 
 logger = logging.getLogger(__name__)
 
@@ -116,8 +117,12 @@ def me(
         "status": key_info.get("status"),
         "scopes": key_info.get("scopes") or [],
         "rate_limit_per_minute": rate_limit,
-        "created_at": str(key_info.get("created_at")) if key_info.get("created_at") else None,
-        "last_used_at": str(key_info.get("last_used_at")) if key_info.get("last_used_at") else None,
+        "created_at": str(key_info.get("created_at"))
+        if key_info.get("created_at")
+        else None,
+        "last_used_at": str(key_info.get("last_used_at"))
+        if key_info.get("last_used_at")
+        else None,
         "key_last_four": key_info.get("key_last_four"),
     }
 
@@ -146,6 +151,21 @@ def leaderboard(
         df = get_pundit_accuracy_summary(db=db, min_quality=min_quality)
         if df.empty:
             return {"leaderboard": [], "total": 0}
+
+        # Enrich with composite_score from claim_scores table (best-effort)
+        try:
+            stats_df = get_pundit_stats(db=db)
+            if not stats_df.empty:
+                composite_map = stats_df.set_index("pundit_id")[
+                    "composite_score"
+                ].to_dict()
+                df["composite_score"] = df["pundit_id"].map(composite_map)
+        except Exception as stats_err:
+            logger.warning(f"Could not load composite scores: {stats_err}")
+
+        # Re-sort by composite_score if present, else keep weighted-score order
+        if "composite_score" in df.columns and df["composite_score"].notna().any():
+            df = df.sort_values("composite_score", ascending=False, na_position="last")
 
         top = df.head(limit)
         return {

@@ -31,6 +31,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryParameter
 
 from api.api_key_auth import verify_api_key
+from src.calibration import CALIBRATION_TABLE
 from src.cryptographic_ledger import verify_chain_integrity
 from src.db_manager import DBManager
 from src.resolution_engine import get_pundit_accuracy_summary
@@ -56,6 +57,7 @@ router = APIRouter(
 LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
 QUALITY_TABLE = "gold_layer.assertion_quality"
+# CALIBRATION_TABLE imported from src.calibration
 
 
 def get_db() -> DBManager:
@@ -199,6 +201,24 @@ def list_pundits(
     """
     try:
         df = get_pundit_accuracy_summary(db=db, min_quality=min_quality)
+
+        # Left-join calibration metrics (brier_score, overconfidence_score)
+        try:
+            project_id = os.environ.get("GCP_PROJECT_ID")
+            cal_query = f"""
+                SELECT
+                    pundit_id,
+                    brier_score,
+                    overconfidence_score,
+                    n_predictions AS calibration_n
+                FROM `{project_id}.{CALIBRATION_TABLE}`
+            """
+            cal_df = db.client.query(cal_query).to_dataframe()
+            if not cal_df.empty and not df.empty:
+                df = df.merge(cal_df, on="pundit_id", how="left")
+        except Exception as cal_err:
+            logger.warning("Calibration join failed in list_pundits: %s", cal_err)
+
         return {
             "pundits": df.where(df.notna(), None).to_dict(orient="records"),
             "total": len(df),
@@ -256,7 +276,41 @@ def pundit_detail(
             orient="records"
         )
 
-        return {"pundit": summary, "accuracy_by_category": breakdown}
+        # Fetch calibration metrics (brier_score, overconfidence_score, reliability_bins)
+        calibration: Dict[str, Any] = {}
+        try:
+            cal_query = f"""
+                SELECT
+                    brier_score,
+                    overconfidence_score,
+                    reliability_bins,
+                    n_predictions AS calibration_n,
+                    computed_at AS calibration_computed_at
+                FROM {_full(CALIBRATION_TABLE)}
+                WHERE pundit_id = @pundit_id
+                LIMIT 1
+            """
+            cal_df = _parameterized_query(
+                db, cal_query, [ScalarQueryParameter("pundit_id", "STRING", pundit_id)]
+            )
+            if not cal_df.empty:
+                row = cal_df.iloc[0]
+                import json as _json
+                calibration = {
+                    "brier_score": row["brier_score"] if row["brier_score"] is not None else None,
+                    "overconfidence_score": row["overconfidence_score"] if row["overconfidence_score"] is not None else None,
+                    "reliability_bins": _json.loads(row["reliability_bins"]) if row.get("reliability_bins") else [],
+                    "n_predictions": int(row["calibration_n"]) if row.get("calibration_n") is not None else None,
+                    "computed_at": str(row["calibration_computed_at"]) if row.get("calibration_computed_at") is not None else None,
+                }
+        except Exception as cal_err:
+            logger.warning("Calibration fetch failed for %s: %s", pundit_id, cal_err)
+            # Calibration is best-effort — don't fail the whole endpoint
+
+        return {
+            "pundit": {**summary, **calibration},
+            "accuracy_by_category": breakdown,
+        }
     except HTTPException:
         raise
     except Exception as e:

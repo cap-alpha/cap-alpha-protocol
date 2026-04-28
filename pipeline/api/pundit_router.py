@@ -15,6 +15,11 @@ Endpoints:
 
 All /v1/* routes require a valid X-API-Key header (except /v1/me which also requires it,
 but returns the key's own metadata).
+
+Quality filtering:
+  Most list/search endpoints accept ?min_quality=0.7 to restrict results to
+  predictions scored >= that threshold in gold_layer.assertion_quality.
+  Tier shortcuts: HIGH=0.7, MEDIUM=0.4, LOW=0.0 (default: no filter).
 """
 
 import logging
@@ -49,6 +54,7 @@ router = APIRouter(
 
 LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
+QUALITY_TABLE = "gold_layer.assertion_quality"
 
 
 def get_db() -> DBManager:
@@ -63,6 +69,17 @@ def get_db() -> DBManager:
 def _full(table: str) -> str:
     project_id = os.environ.get("GCP_PROJECT_ID")
     return f"`{project_id}.{table}`"
+
+
+def _quality_join(min_quality: Optional[float]) -> str:
+    """Return a JOIN clause + WHERE fragment for quality filtering, or empty strings."""
+    if min_quality is None:
+        return ""
+    return (
+        f"INNER JOIN {_full(QUALITY_TABLE)} q "
+        f"ON l.prediction_hash = q.prediction_hash "
+        f"AND q.quality_score >= {float(min_quality)}"
+    )
 
 
 def _parameterized_query(db: DBManager, sql: str, params: List[ScalarQueryParameter]):
@@ -113,14 +130,20 @@ def me(
 @router.get("/leaderboard", summary="Ranked pundits by accuracy")
 def leaderboard(
     limit: int = Query(default=25, ge=1, le=100),
+    min_quality: Optional[float] = Query(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Filter predictions by minimum quality score (0.0–1.0). Use 0.7 for HIGH quality only.",
+    ),
     db: DBManager = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Returns pundits ranked by weighted accuracy score (accuracy × timeliness).
-    5-minute cache TTL.
+    Accepts ?min_quality=0.7 to restrict to high-quality predictions only.
     """
     try:
-        df = get_pundit_accuracy_summary(db=db)
+        df = get_pundit_accuracy_summary(db=db, min_quality=min_quality)
         if df.empty:
             return {"leaderboard": [], "total": 0}
 
@@ -128,6 +151,7 @@ def leaderboard(
         return {
             "leaderboard": top.where(top.notna(), None).to_dict(orient="records"),
             "total": len(df),
+            "min_quality_filter": min_quality,
         }
     except Exception as e:
         logger.error(f"Leaderboard error: {e}")
@@ -141,16 +165,24 @@ def leaderboard(
 
 @router.get("/pundits/", summary="List all tracked pundits")
 def list_pundits(
+    min_quality: Optional[float] = Query(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Filter predictions by minimum quality score (0.0–1.0).",
+    ),
     db: DBManager = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Returns all pundits with aggregate accuracy stats.
+    Accepts ?min_quality=0.7 to compute stats using only high-quality predictions.
     """
     try:
-        df = get_pundit_accuracy_summary(db=db)
+        df = get_pundit_accuracy_summary(db=db, min_quality=min_quality)
         return {
             "pundits": df.where(df.notna(), None).to_dict(orient="records"),
             "total": len(df),
+            "min_quality_filter": min_quality,
         }
     except Exception as e:
         logger.error(f"List pundits error: {e}")
@@ -361,6 +393,12 @@ def search_predictions(
     pundit_name: Optional[str] = Query(
         default=None, description="pundit_name substring match"
     ),
+    min_quality: Optional[float] = Query(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Minimum quality score filter (0.0–1.0). Use 0.7 for HIGH quality only.",
+    ),
     limit: int = Query(default=50, ge=1, le=200),
     page: int = Query(default=1, ge=1),
     db: DBManager = Depends(get_db),
@@ -368,6 +406,7 @@ def search_predictions(
     """
     Filterable prediction search with parameterized BigQuery queries.
     Joins prediction_ledger LEFT JOIN prediction_resolutions.
+    Optionally restrict to ?min_quality=0.7 for high-quality predictions only.
     """
     try:
         offset = (page - 1) * limit
@@ -391,11 +430,12 @@ def search_predictions(
             params.append(ScalarQueryParameter("player", "STRING", player))
         if pundit_name:
             where_clauses.append(
-                "LOWER(l.pundit_name) LIKE " "CONCAT('%', LOWER(@pundit_name), '%')"
+                "LOWER(l.pundit_name) LIKE CONCAT('%', LOWER(@pundit_name), '%')"
             )
             params.append(ScalarQueryParameter("pundit_name", "STRING", pundit_name))
 
         where_sql = " AND ".join(where_clauses)
+        quality_join = _quality_join(min_quality)
 
         query = f"""
             SELECT
@@ -420,6 +460,7 @@ def search_predictions(
             FROM {_full(LEDGER_TABLE)} l
             LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
                 ON l.prediction_hash = r.prediction_hash
+            {quality_join}
             WHERE {where_sql}
             ORDER BY l.ingestion_timestamp DESC
             LIMIT @lim OFFSET @off
@@ -431,6 +472,7 @@ def search_predictions(
             FROM {_full(LEDGER_TABLE)} l
             LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
                 ON l.prediction_hash = r.prediction_hash
+            {quality_join}
             WHERE {where_sql}
         """
         count_df = _parameterized_query(db, count_query, params)
@@ -442,6 +484,7 @@ def search_predictions(
             "limit": limit,
             "total": total,
             "pages": max(1, math.ceil(total / limit)),
+            "min_quality_filter": min_quality,
         }
     except Exception as e:
         logger.error(f"Search predictions error: {e}")

@@ -2,15 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2026-04-22.dahlia",
-});
+function getStripeClient() {
+    const key = process.env.STRIPE_SECRET_KEY;
+    if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
+    return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
+}
 
 export async function POST(req: NextRequest) {
     const { userId } = auth();
     if (!userId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+
+    const stripe = getStripeClient();
 
     const user = await clerkClient.users.getUser(userId);
     const customerId = user.publicMetadata?.stripe_customer_id as string | undefined;

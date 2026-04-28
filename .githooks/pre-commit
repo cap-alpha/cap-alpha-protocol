@@ -57,4 +57,28 @@ else
     echo "Proceeding without tests — CI will catch failures."
 fi
 
+echo "=== Pre-commit: CODEBASE.md staleness check ==="
+
+# Warn (don't block) if structural files changed but CODEBASE.md wasn't touched.
+STRUCTURAL_PATTERNS="pipeline/src/ pipeline/api/ pipeline/config/ web/app/ dbt/ .githooks/pre-commit Makefile"
+CHANGED=$(git diff --cached --name-only)
+
+structural_changed=0
+for pattern in $STRUCTURAL_PATTERNS; do
+    if echo "$CHANGED" | grep -q "^$pattern"; then
+        structural_changed=1
+        break
+    fi
+done
+
+codebase_md_changed=$(echo "$CHANGED" | grep -c "^CODEBASE\.md" || true)
+
+if [ "$structural_changed" -eq 1 ] && [ "$codebase_md_changed" -eq 0 ]; then
+    echo ""
+    echo "⚠  Structural files changed but CODEBASE.md was not updated."
+    echo "   If you added/moved/renamed a module, API route, BQ table, or entry point,"
+    echo "   update CODEBASE.md before merging. Skip only if the change is internal."
+    echo ""
+fi
+
 echo "Pre-commit checks passed."

@@ -9,9 +9,36 @@ import Stripe from "stripe";
 
 import type { Tier } from "./api-keys/tiers";
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-    apiVersion: "2024-12-18.acacia",
-});
+// Lazily-initialized Stripe client so that environments without billing
+// configured (e.g., local dev without STRIPE_SECRET_KEY) do not fail at
+// module import time before the webhook handler can return a controlled error.
+let _stripe: Stripe | null = null;
+
+export function getStripe(): Stripe {
+    if (!_stripe) {
+        const key = process.env.STRIPE_SECRET_KEY;
+        if (!key) {
+            throw new Error(
+                "[Stripe] STRIPE_SECRET_KEY is not set. Configure it in your environment."
+            );
+        }
+        _stripe = new Stripe(key, { apiVersion: "2024-12-18.acacia" });
+    }
+    return _stripe;
+}
+
+/** Convenience re-export for call sites that already validate env at startup. */
+export const stripe = {
+    subscriptions: {
+        retrieve: (...args: Parameters<Stripe["subscriptions"]["retrieve"]>) =>
+            getStripe().subscriptions.retrieve(...args),
+    },
+    webhooks: {
+        constructEvent: (
+            ...args: Parameters<Stripe["webhooks"]["constructEvent"]>
+        ) => getStripe().webhooks.constructEvent(...args),
+    },
+} as unknown as Stripe;
 
 // Map Stripe price IDs → internal tier names.
 // Each env var holds the price ID from the Stripe Dashboard.
@@ -32,5 +59,13 @@ function buildPriceMap(): Record<string, Tier> {
 export function tierFromPriceId(priceId: string | null | undefined): Tier {
     if (!priceId) return "free";
     const map = buildPriceMap();
-    return map[priceId] ?? "pro"; // unknown paid price → default to pro
+    const tier = map[priceId];
+    if (tier) return tier;
+    // Unknown price ID — default to least-privileged tier and log so the
+    // mapping can be fixed via env vars (never silently grant paid access).
+    console.warn(
+        `[Stripe] Unknown priceId "${priceId}" — defaulting to "free". ` +
+            "Add the price ID to STRIPE_PRICE_PRO / STRIPE_PRICE_API_STARTER / STRIPE_PRICE_ENTERPRISE."
+    );
+    return "free";
 }

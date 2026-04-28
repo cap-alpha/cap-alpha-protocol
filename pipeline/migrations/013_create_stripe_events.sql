@@ -7,7 +7,7 @@
 -- Partitioned by processed_at date for cost-efficient time-range scans.
 -- Clustered by event_type for per-type queries.
 
-CREATE TABLE IF NOT EXISTS `cap-alpha-protocol.monetization.stripe_events` (
+CREATE TABLE IF NOT EXISTS `{project_id}.monetization.stripe_events` (
     event_id          STRING    NOT NULL,   -- Stripe event ID (evt_xxx) — globally unique
     event_type        STRING    NOT NULL,   -- e.g. checkout.session.completed
     user_id           STRING,              -- Clerk user ID, null if not yet resolved

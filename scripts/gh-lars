@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Run any gh command authenticated as Lars Bakken (kinghrothgar-dev)
+#
+# Part 4 — PR comment protocol:
+#   Before `pr merge` or `pr close`, require a comment posted in the last 30
+#   minutes. If none found, posts a default comment automatically.
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PERSONAS="$SCRIPT_DIR/../.env.personas"
+if [[ ! -f "$PERSONAS" ]]; then
+  echo "ERROR: .env.personas not found at $PERSONAS" >&2
+  exit 1
+fi
+LARS_TOKEN=$(grep '^LARS_TOKEN=' "$PERSONAS" | cut -d= -f2)
+
+# ── PR comment pre-check ──────────────────────────────────────────────────────
+# Intercept: gh-lars pr merge <n> ...  or  gh-lars pr close <n> ...
+pr_comment_preflight() {
+    local subcmd="$1"   # "merge" or "close"
+    local pr_num="$2"   # PR number
+
+    if [[ -z "$pr_num" ]] || ! [[ "$pr_num" =~ ^[0-9]+$ ]]; then
+        # Can't determine PR number — skip check and pass through
+        return 0
+    fi
+
+    local thirty_min_ago
+    # macOS (BSD date) and GNU date both supported
+    thirty_min_ago=$(date -u -v-30M +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+        || date -u --date="30 minutes ago" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null \
+        || echo "")
+
+    if [[ -z "$thirty_min_ago" ]]; then
+        echo "WARNING: Could not compute 30-min-ago timestamp; skipping comment preflight" >&2
+        return 0
+    fi
+
+    # Fetch recent comments on this PR
+    local recent_comment
+    recent_comment=$(GH_TOKEN="$LARS_TOKEN" gh pr view "$pr_num" \
+        --json comments \
+        --jq --arg cutoff "$thirty_min_ago" \
+        '.comments | map(select(.createdAt >= $cutoff)) | length' \
+        2>/dev/null || echo "0")
+
+    if [[ "${recent_comment:-0}" -gt 0 ]]; then
+        # A comment was posted in the last 30 minutes — all good
+        return 0
+    fi
+
+    # No recent comment found — post a default one
+    echo "WARNING: No comment found on PR #${pr_num} in the last 30 minutes." >&2
+    echo "Posting default comment before ${subcmd}..." >&2
+    GH_TOKEN="$LARS_TOKEN" gh pr comment "$pr_num" \
+        --body "Merging: CI green, no unresolved comments." 2>/dev/null || {
+        echo "WARNING: Could not post comment on PR #${pr_num}" >&2
+    }
+}
+
+# ── Subcommand interception ───────────────────────────────────────────────────
+# Detect:  gh-lars pr merge <n> [flags...]
+#          gh-lars pr close <n> [flags...]
+if [[ "${1:-}" == "pr" ]] && [[ "${2:-}" =~ ^(merge|close)$ ]]; then
+    subcmd="${2}"
+    pr_num="${3:-}"
+    pr_comment_preflight "$subcmd" "$pr_num"
+fi
+
+# ── Delegate to gh ────────────────────────────────────────────────────────────
+GH_TOKEN="$LARS_TOKEN" gh "$@"

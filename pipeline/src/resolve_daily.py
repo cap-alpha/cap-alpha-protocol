@@ -222,13 +222,35 @@ def _resolve_team_claim(claim, parsed, year_draft_data, phash, db, dry_run):
     return None  # Couldn't parse team claim pattern
 
 
+def _filter_nfl_only(pending: pd.DataFrame) -> pd.DataFrame:
+    """
+    Log and drop any non-NFL predictions from a pending DataFrame.
+
+    When new sport resolvers are added (e.g. NBA), remove the corresponding
+    sport from this filter so those predictions are handled instead of skipped.
+    """
+    if "sport" not in pending.columns:
+        return pending
+
+    non_nfl = pending[pending["sport"].notna() & (pending["sport"] != "NFL")]
+    for _, pred in non_nfl.iterrows():
+        sport = pred["sport"]
+        pred_id = pred["prediction_hash"][:12]
+        logger.info(
+            f"Skipping {sport} prediction {pred_id}… "
+            f"— {sport} resolver not yet implemented"
+        )
+    return pending[pending["sport"].isna() | (pending["sport"] == "NFL")]
+
+
 def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
     """
     Resolve draft_pick predictions against actual draft results.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport="NFL", db=db)
+    pending = get_pending_predictions(sport=None, db=db)
+    pending = _filter_nfl_only(pending)
     draft_preds = pending[pending["claim_category"] == "draft_pick"]
 
     if draft_preds.empty:
@@ -576,7 +598,8 @@ def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport="NFL", db=db)
+    pending = get_pending_predictions(sport=None, db=db)
+    pending = _filter_nfl_only(pending)
     game_preds = pending[pending["claim_category"] == "game_outcome"]
 
     if game_preds.empty:
@@ -856,7 +879,8 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport="NFL", db=db)
+    pending = get_pending_predictions(sport=None, db=db)
+    pending = _filter_nfl_only(pending)
     perf_preds = pending[pending["claim_category"] == "player_performance"]
 
     if perf_preds.empty:
@@ -1040,7 +1064,8 @@ def resolve_award_predictions(
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport="NFL", db=db)
+    pending = get_pending_predictions(sport=None, db=db)
+    pending = _filter_nfl_only(pending)
     award_preds = pending[pending["claim_category"] == "award_prediction"]
 
     if award_preds.empty:

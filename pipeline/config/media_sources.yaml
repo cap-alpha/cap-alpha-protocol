@@ -450,11 +450,16 @@ sources:
     pundits: []
 
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
+  # Migrated from youtube-transcript-api (IP-blocked scraping) to YouTube Data API v3
+  # (#382). Requires YOUTUBE_API_KEY env var. If not set, sources are gracefully skipped.
+  # Get a key: Google Cloud Console → APIs & Services → YouTube Data API v3 → Credentials
+  # (GCP project: cap-alpha-protocol)
   - id: pat_mcafee_show
     name: "The Pat McAfee Show"
     sport: "NFL"
-    type: youtube_transcript
-    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
+    type: youtube_data_api
+    channel_id: "UCa5oCHMV7ImHb6FxJGqz9cQ"
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCa5oCHMV7ImHb6FxJGqz9cQ"
     enabled: true
     pundits:
       - id: pat_mcafee
@@ -464,9 +469,10 @@ sources:
   - id: undisputed
     name: "Undisputed"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # Disabled: channel_id UCuF2PqOvMBKBVi9JvtC3GqA returns 404 — channel no longer
     # exists. Skip Bayless left FS1/Undisputed in 2023. (#171)
+    channel_id: "UCuF2PqOvMBKBVi9JvtC3GqA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCuF2PqOvMBKBVi9JvtC3GqA"
     enabled: false
     pundits:
@@ -477,9 +483,10 @@ sources:
   - id: first_take
     name: "First Take"
     sport: "NFL"
-    type: youtube_rss
-    # Disabled: UCEjOSbbaOfgnfRODEEMYlCw is an NBA game highlights channel, not the
-    # First Take debate/opinion show. Re-enable with correct channel ID. (#128)
+    type: youtube_data_api
+    # Disabled: correct channel ID for the debate show not yet confirmed. (#128)
+    # UCEjOSbbaOfgnfRODEEMYlCw is an NBA game highlights channel.
+    channel_id: "UCEjOSbbaOfgnfRODEEMYlCw"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
     enabled: false  # Disabled: channel is NBA game highlights, not NFL prediction content (#128)
     pundits:
@@ -491,7 +498,8 @@ sources:
   - id: bussin_with_the_boys
     name: "Bussin' With The Boys"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCEJeEfpnO_2J3DVovs-0Pkw"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEJeEfpnO_2J3DVovs-0Pkw"
     enabled: true
     pundits:
@@ -505,7 +513,8 @@ sources:
   - id: brett_kollmann
     name: "Brett Kollmann"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCHGx4e5K0-_n3RMcWHiTb4A"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCHGx4e5K0-_n3RMcWHiTb4A"
     enabled: true
     pundits:
@@ -516,7 +525,8 @@ sources:
   - id: warren_sharp
     name: "Warren Sharp / Sharp Football"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCcaGl7bsLaVBnDlK-TGFKqA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCcaGl7bsLaVBnDlK-TGFKqA"
     enabled: true
     pundits:
@@ -527,7 +537,8 @@ sources:
   - id: locked_on_nfl
     name: "Locked On NFL"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCFkI6HvC2a-Y33IfiBqLKhg"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCFkI6HvC2a-Y33IfiBqLKhg"
     enabled: true
     default_pundit:
@@ -538,7 +549,8 @@ sources:
   - id: the_ringer_nfl_yt
     name: "The Ringer NFL Show (YouTube)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCMqF6BdstA43vNQzs2BMR0w"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCMqF6BdstA43vNQzs2BMR0w"
     enabled: true
     default_pundit:
@@ -549,7 +561,8 @@ sources:
   - id: pff_nfl
     name: "PFF (Pro Football Focus)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCijBMkVMuT1hl4vAAGjxJPA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCijBMkVMuT1hl4vAAGjxJPA"
     enabled: true
     default_pundit:
@@ -560,7 +573,8 @@ sources:
   - id: move_the_sticks
     name: "Move The Sticks (Daniel Jeremiah)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCaWLWkqRKcVgkz3jocJUjHg"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCaWLWkqRKcVgkz3jocJUjHg"
     enabled: true
     pundits:
@@ -571,7 +585,8 @@ sources:
   - id: athletic_football_yt
     name: "The Athletic Football Show (YouTube)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCEShWcVeWL3jL0lNfM4kO8Q"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEShWcVeWL3jL0lNfM4kO8Q"
     enabled: true
     default_pundit:
@@ -583,10 +598,11 @@ sources:
   - id: the_herd
     name: "The Herd with Colin Cowherd"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # Disabled: UCFDidMd82mpDkKijLUqHp7A is the correct channel but only posts
-    # YouTube Shorts (clips <60s, no transcripts). Full episodes are on Fox Sports'
-    # channel. Re-enable with a full-episode channel ID once confirmed. (#171)
+    # YouTube Shorts (clips <60s). Full episodes are on Fox Sports' channel.
+    # Re-enable with a full-episode channel ID once confirmed. (#171)
+    channel_id: "UCFDidMd82mpDkKijLUqHp7A"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCFDidMd82mpDkKijLUqHp7A"
     enabled: false
     pundits:
@@ -597,8 +613,9 @@ sources:
   - id: club_shay_shay
     name: "Club Shay Shay"
     sport: "NFL"
-    type: youtube_transcript
-    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCQoxJOkwaCgyzQtiuAIDcuw"
+    type: youtube_data_api
+    channel_id: "UCYv8LPLXBSGXoEYSJwKhflQ"
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCYv8LPLXBSGXoEYSJwKhflQ"
     enabled: true
     pundits:
       - id: shannon_sharpe
@@ -608,8 +625,9 @@ sources:
   - id: whats_wright
     name: "What's Wright? with Nick Wright"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # TODO: verify channel_id — could not confirm via web search
+    channel_id: "UNKNOWN"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
     enabled: false
     pundits:
@@ -620,7 +638,8 @@ sources:
   - id: dan_patrick_show
     name: "The Dan Patrick Show"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCORy0Yqzd8bVj2Gb4xyq6HA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCORy0Yqzd8bVj2Gb4xyq6HA"
     enabled: true
     pundits:
@@ -631,7 +650,8 @@ sources:
   - id: rich_eisen_show
     name: "The Rich Eisen Show"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCqMtxjKnR7ySbEZSs2N-v0Q"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCqMtxjKnR7ySbEZSs2N-v0Q"
     enabled: true
     pundits:
@@ -643,8 +663,9 @@ sources:
   - id: first_take_espn
     name: "First Take (ESPN)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCfqgnDBOHDMsu65LL2ZVi1Q verified 2026-04-27 — active First Take show
+    channel_id: "UCfqgnDBOHDMsu65LL2ZVi1Q"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCfqgnDBOHDMsu65LL2ZVi1Q"
     enabled: true
     pundits:
@@ -658,8 +679,9 @@ sources:
   - id: get_up_espn
     name: "Get Up (ESPN)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCIRIKQoZW1zkhsoIVBBpIKA verified 2026-04-27
+    channel_id: "UCIRIKQoZW1zkhsoIVBBpIKA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIRIKQoZW1zkhsoIVBBpIKA"
     enabled: true
     pundits:
@@ -673,8 +695,9 @@ sources:
   - id: good_morning_football
     name: "Good Morning Football (NFL Network)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCg45I1Os0VO6BBT4Tmpik_A verified 2026-04-27
+    channel_id: "UCg45I1Os0VO6BBT4Tmpik_A"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCg45I1Os0VO6BBT4Tmpik_A"
     enabled: true
     default_pundit:
@@ -691,8 +714,9 @@ sources:
   - id: skip_bayless_show
     name: "The Skip Bayless Show"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCyR0mCuTq14PIVadirooX6w verified 2026-04-27 — Skip's personal weekly podcast
+    channel_id: "UCyR0mCuTq14PIVadirooX6w"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCyR0mCuTq14PIVadirooX6w"
     enabled: true
     pundits:
@@ -703,8 +727,9 @@ sources:
   - id: emmanuel_acho
     name: "Emmanuel Acho"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UC3DoYiL7X_N1Ta1o4HE9Mlg verified 2026-04-27
+    channel_id: "UC3DoYiL7X_N1Ta1o4HE9Mlg"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC3DoYiL7X_N1Ta1o4HE9Mlg"
     enabled: true
     pundits:
@@ -715,8 +740,9 @@ sources:
   - id: speakeasy_acho
     name: "Speakeasy with Emmanuel Acho"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCLXzq85ijg2LwJWFrz4pkmw verified 2026-04-27 (formerly The Facility on FS1)
+    channel_id: "UCLXzq85ijg2LwJWFrz4pkmw"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCLXzq85ijg2LwJWFrz4pkmw"
     enabled: true
     pundits:
@@ -730,8 +756,9 @@ sources:
   - id: i_am_athlete
     name: "I Am Athlete (Brandon Marshall)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UC4qMMCxdNfU6cwpaXZOyUSg verified 2026-04-27
+    channel_id: "UC4qMMCxdNfU6cwpaXZOyUSg"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC4qMMCxdNfU6cwpaXZOyUSg"
     enabled: true
     pundits:
@@ -748,9 +775,10 @@ sources:
   - id: nbc_sports_yt
     name: "NBC Sports (Chris Simms Unbuttoned)"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCqZQlzSHbVJrwrn5XvzrzcA verified 2026-04-27
     # Chris Simms Unbuttoned episodes are published to this NBC Sports channel
+    channel_id: "UCqZQlzSHbVJrwrn5XvzrzcA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCqZQlzSHbVJrwrn5XvzrzcA"
     enabled: true
     keyword_filter:
@@ -770,8 +798,9 @@ sources:
   - id: ryan_clark_yt
     name: "Ryan Clark"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCueZJ1fm7OehTdL9IhLSoSg verified 2026-04-27
+    channel_id: "UCueZJ1fm7OehTdL9IhLSoSg"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCueZJ1fm7OehTdL9IhLSoSg"
     enabled: true
     pundits:
@@ -782,8 +811,9 @@ sources:
   - id: the_pivot_podcast
     name: "The Pivot Podcast"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCUnxiP7q4RDDyeioZFZLnXA verified 2026-04-27 — Ryan Clark, Channing Crowder, Fred Taylor
+    channel_id: "UCUnxiP7q4RDDyeioZFZLnXA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCUnxiP7q4RDDyeioZFZLnXA"
     enabled: true
     pundits:
@@ -800,8 +830,9 @@ sources:
   - id: cam_newton_4th_1
     name: "4th & 1 with Cam Newton"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCmNMxZqiWk3ZX8SDhSgLHlQ verified 2026-04-27
+    channel_id: "UCmNMxZqiWk3ZX8SDhSgLHlQ"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCmNMxZqiWk3ZX8SDhSgLHlQ"
     enabled: true
     pundits:
@@ -812,8 +843,9 @@ sources:
   - id: nfl_official_yt
     name: "NFL Official Channel"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
     # channel_id UCDVYQ4Zhbm3S2dlz7P1GBDg verified 2026-04-27
+    channel_id: "UCDVYQ4Zhbm3S2dlz7P1GBDg"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCDVYQ4Zhbm3S2dlz7P1GBDg"
     enabled: true
     keyword_filter:

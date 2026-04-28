@@ -5,8 +5,16 @@ const API_URL =
     "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 export async function GET(req: Request) {
+    const { searchParams } = new URL(req.url);
+    const sport = searchParams.get("sport");
+
+    const backendUrl = new URL(`${API_URL}/v1/pundits/`);
+    if (sport && sport !== "ALL") {
+        backendUrl.searchParams.set("sport", sport);
+    }
+
     try {
-        const res = await fetch(`${API_URL}/v1/pundits/`, {
+        const res = await fetch(backendUrl.toString(), {
             headers: {
                 Accept: "application/json",
             },

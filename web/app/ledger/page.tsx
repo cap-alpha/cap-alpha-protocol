@@ -4,12 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
     Shield,
-    Trophy,
     CheckCircle2,
     XCircle,
     Clock,
     ArrowRight,
     Activity,
+    ExternalLink,
+    X,
+    ChevronDown,
+    ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,6 +53,8 @@ interface RecentPrediction {
     resolution_status: string | null;
     brier_score: number | null;
     weighted_score: number | null;
+    source_url?: string | null;
+    raw_assertion_text?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -152,6 +157,140 @@ function RankBadge({ rank }: { rank: number }) {
 }
 
 // ---------------------------------------------------------------------------
+// Prediction detail modal
+// ---------------------------------------------------------------------------
+
+function PredictionDetailModal({
+    prediction,
+    onClose,
+}: {
+    prediction: RecentPrediction;
+    onClose: () => void;
+}) {
+    const date = prediction.ingestion_timestamp
+        ? new Date(prediction.ingestion_timestamp).toLocaleString("en-US", {
+              month: "long",
+              day: "numeric",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+          })
+        : null;
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+            onClick={onClose}
+        >
+            <div
+                className="relative w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-950 shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {/* Header */}
+                <div className="flex items-start justify-between p-5 border-b border-zinc-800">
+                    <div className="flex items-center gap-2">
+                        <Shield className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400">
+                            Sealed Prediction
+                        </span>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                        aria-label="Close"
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* Body */}
+                <div className="p-5 space-y-4">
+                    {/* Claim text */}
+                    <div>
+                        <p className="text-base font-semibold text-white leading-snug">
+                            {prediction.extracted_claim}
+                        </p>
+                        {prediction.raw_assertion_text &&
+                            prediction.raw_assertion_text !== prediction.extracted_claim && (
+                                <p className="mt-2 text-xs text-zinc-500 italic leading-snug">
+                                    Original: &ldquo;{prediction.raw_assertion_text}&rdquo;
+                                </p>
+                            )}
+                    </div>
+
+                    {/* Status */}
+                    <div className="flex items-center gap-3">
+                        <StatusBadge status={prediction.resolution_status} />
+                        {prediction.brier_score !== null && (
+                            <span className="text-xs font-mono text-zinc-500">
+                                Brier: <BrierBadge score={prediction.brier_score} />
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Metadata grid */}
+                    <div className="grid grid-cols-2 gap-3 text-xs font-mono">
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Pundit</div>
+                            <Link
+                                href={`/ledger/${encodeURIComponent(prediction.pundit_id)}`}
+                                className="text-zinc-200 hover:text-emerald-400 transition-colors font-semibold"
+                                onClick={onClose}
+                            >
+                                {prediction.pundit_name}
+                            </Link>
+                        </div>
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Category</div>
+                            <CategoryPill category={prediction.claim_category} />
+                        </div>
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Sport</div>
+                            <span className="text-zinc-300">{prediction.sport || "—"}</span>
+                        </div>
+                        {prediction.season_year && (
+                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                                <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Season</div>
+                                <span className="text-zinc-300">{prediction.season_year}</span>
+                            </div>
+                        )}
+                        {prediction.target_team && (
+                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
+                                <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Team</div>
+                                <span className="text-zinc-300">{prediction.target_team}</span>
+                            </div>
+                        )}
+                        {date && (
+                            <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 col-span-2">
+                                <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Ingested</div>
+                                <span className="text-zinc-300">{date}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Hash + Source */}
+                    <div className="flex items-center justify-between pt-1">
+                        <span className="text-[10px] font-mono text-zinc-700">
+                            #{prediction.prediction_hash_short}
+                        </span>
+                        {prediction.source_url && (
+                            <a
+                                href={prediction.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-emerald-400 transition-colors"
+                            >
+                                View source <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -163,6 +302,7 @@ export default function LedgerPage() {
     const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">(
         "leaderboard"
     );
+    const [selectedPrediction, setSelectedPrediction] = useState<RecentPrediction | null>(null);
 
     useEffect(() => {
         const sportParam =
@@ -206,6 +346,14 @@ export default function LedgerPage() {
 
     return (
         <div className="min-h-screen bg-black text-white">
+            {/* Prediction detail modal */}
+            {selectedPrediction && (
+                <PredictionDetailModal
+                    prediction={selectedPrediction}
+                    onClose={() => setSelectedPrediction(null)}
+                />
+            )}
+
             {/* Header */}
             <div className="border-b border-zinc-900 bg-zinc-950/50">
                 <div className="max-w-6xl mx-auto px-4 py-8">
@@ -249,8 +397,11 @@ export default function LedgerPage() {
                         </div>
                     </div>
 
-                    {/* Sport filter */}
+                    {/* Sport filter — applies to both tabs */}
                     <div className="flex items-center gap-2 mt-6">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1">
+                            Sport:
+                        </span>
                         {SPORTS.map((s) => (
                             <button
                                 key={s}
@@ -265,6 +416,11 @@ export default function LedgerPage() {
                                 {s}
                             </button>
                         ))}
+                        {sportFilter !== "ALL" && (
+                            <span className="text-[10px] font-mono text-zinc-600 ml-1">
+                                — filtering leaderboard &amp; recent predictions
+                            </span>
+                        )}
                     </div>
                 </div>
             </div>
@@ -301,7 +457,10 @@ export default function LedgerPage() {
                 ) : activeTab === "leaderboard" ? (
                     <LeaderboardTab pundits={sorted} />
                 ) : (
-                    <RecentTab predictions={recent} />
+                    <RecentTab
+                        predictions={recent}
+                        onSelectPrediction={setSelectedPrediction}
+                    />
                 )}
             </div>
         </div>
@@ -350,9 +509,18 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                         <RankBadge rank={idx + 1} />
 
                         <div className="min-w-0">
-                            <div className="font-semibold text-white truncate text-sm">
-                                {p.pundit_name}
-                            </div>
+                            {p.pundit_id && p.pundit_id !== "None" ? (
+                                <Link
+                                    href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                                    className="font-semibold text-white truncate text-sm hover:text-emerald-400 transition-colors block"
+                                >
+                                    {p.pundit_name}
+                                </Link>
+                            ) : (
+                                <div className="font-semibold text-white truncate text-sm">
+                                    {p.pundit_name}
+                                </div>
+                            )}
                             <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                 <CategoryBreakdown p={p} />
                             </div>
@@ -388,9 +556,18 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                     <div className="flex md:hidden items-center gap-3">
                         <RankBadge rank={idx + 1} />
                         <div className="flex-1 min-w-0">
-                            <div className="font-semibold text-white text-sm truncate">
-                                {p.pundit_name}
-                            </div>
+                            {p.pundit_id && p.pundit_id !== "None" ? (
+                                <Link
+                                    href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                                    className="font-semibold text-white text-sm truncate block hover:text-emerald-400 transition-colors"
+                                >
+                                    {p.pundit_name}
+                                </Link>
+                            ) : (
+                                <div className="font-semibold text-white text-sm truncate">
+                                    {p.pundit_name}
+                                </div>
+                            )}
                             <AccuracyBar rate={p.accuracy_rate} />
                         </div>
                         <div className="text-right shrink-0">
@@ -460,10 +637,69 @@ function CategoryBreakdown({ p }: { p: PunditStat }) {
 }
 
 // ---------------------------------------------------------------------------
+// Grouping logic for duplicate/similar predictions
+// ---------------------------------------------------------------------------
+
+function normalizeClaim(claim: string): string {
+    return claim
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 80); // compare on first 80 chars of normalized text
+}
+
+interface PredictionGroup {
+    key: string;
+    representative: RecentPrediction;
+    members: RecentPrediction[];
+}
+
+function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
+    const groups: PredictionGroup[] = [];
+    const assigned = new Set<string>();
+
+    for (const pred of predictions) {
+        if (assigned.has(pred.prediction_hash_short)) continue;
+
+        const normKey = normalizeClaim(pred.extracted_claim ?? "");
+        const members: RecentPrediction[] = [pred];
+        assigned.add(pred.prediction_hash_short);
+
+        // Find others that share the same pundit + similar claim
+        for (const other of predictions) {
+            if (assigned.has(other.prediction_hash_short)) continue;
+            if (other.pundit_id !== pred.pundit_id) continue;
+            const otherNorm = normalizeClaim(other.extracted_claim ?? "");
+            // Simple prefix similarity: share ≥70 chars of normalized text
+            const sharedLen = Math.min(normKey.length, otherNorm.length, 70);
+            if (sharedLen >= 30 && normKey.slice(0, sharedLen) === otherNorm.slice(0, sharedLen)) {
+                members.push(other);
+                assigned.add(other.prediction_hash_short);
+            }
+        }
+
+        groups.push({
+            key: pred.prediction_hash_short,
+            representative: pred,
+            members,
+        });
+    }
+
+    return groups;
+}
+
+// ---------------------------------------------------------------------------
 // Recent tab
 // ---------------------------------------------------------------------------
 
-function RecentTab({ predictions }: { predictions: RecentPrediction[] }) {
+function RecentTab({
+    predictions,
+    onSelectPrediction,
+}: {
+    predictions: RecentPrediction[];
+    onSelectPrediction: (p: RecentPrediction) => void;
+}) {
     const resolved = predictions.filter(
         (p) =>
             p.resolution_status === "CORRECT" || p.resolution_status === "INCORRECT"
@@ -480,29 +716,40 @@ function RecentTab({ predictions }: { predictions: RecentPrediction[] }) {
         );
     }
 
+    const resolvedGroups = groupPredictions(resolved);
+    const pendingGroups = groupPredictions(pending);
+
     return (
         <div className="space-y-6">
-            {resolved.length > 0 && (
+            {resolvedGroups.length > 0 && (
                 <div>
                     <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
                         Recently Resolved
                     </h3>
                     <div className="space-y-2">
-                        {resolved.map((p) => (
-                            <PredictionRow key={p.prediction_hash_short} p={p} />
+                        {resolvedGroups.map((g) => (
+                            <PredictionGroupRow
+                                key={g.key}
+                                group={g}
+                                onSelectPrediction={onSelectPrediction}
+                            />
                         ))}
                     </div>
                 </div>
             )}
 
-            {pending.length > 0 && (
+            {pendingGroups.length > 0 && (
                 <div>
                     <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
                         Awaiting Resolution
                     </h3>
                     <div className="space-y-2">
-                        {pending.slice(0, 10).map((p) => (
-                            <PredictionRow key={p.prediction_hash_short} p={p} />
+                        {pendingGroups.slice(0, 10).map((g) => (
+                            <PredictionGroupRow
+                                key={g.key}
+                                group={g}
+                                onSelectPrediction={onSelectPrediction}
+                            />
                         ))}
                     </div>
                 </div>
@@ -511,7 +758,17 @@ function RecentTab({ predictions }: { predictions: RecentPrediction[] }) {
     );
 }
 
-function PredictionRow({ p }: { p: RecentPrediction }) {
+function PredictionGroupRow({
+    group,
+    onSelectPrediction,
+}: {
+    group: PredictionGroup;
+    onSelectPrediction: (p: RecentPrediction) => void;
+}) {
+    const [expanded, setExpanded] = useState(false);
+    const { representative: p, members } = group;
+    const hasVariants = members.length > 1;
+
     const date = p.ingestion_timestamp
         ? new Date(p.ingestion_timestamp).toLocaleDateString("en-US", {
               month: "short",
@@ -521,35 +778,121 @@ function PredictionRow({ p }: { p: RecentPrediction }) {
         : null;
 
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 flex items-start gap-3">
-            <StatusBadge status={p.resolution_status} />
-            <div className="flex-1 min-w-0">
-                <p className="text-sm text-white leading-snug line-clamp-2">
-                    {p.extracted_claim}
-                </p>
-                <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                    <span className="text-xs font-semibold text-zinc-300">
-                        {p.pundit_name}
+        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
+            {/* Main row — clickable to open detail */}
+            <button
+                className="w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-zinc-800/30 transition-colors"
+                onClick={() => onSelectPrediction(p)}
+                aria-label="View prediction details"
+            >
+                <StatusBadge status={p.resolution_status} />
+                <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white leading-snug line-clamp-2">
+                        {p.extracted_claim}
+                    </p>
+                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                        <Link
+                            href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                            className="text-xs font-semibold text-zinc-300 hover:text-emerald-400 transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {p.pundit_name}
+                        </Link>
+                        <CategoryPill category={p.claim_category} />
+                        {p.season_year && (
+                            <span className="text-[10px] font-mono text-zinc-600">
+                                {p.season_year}
+                            </span>
+                        )}
+                        {date && (
+                            <span className="text-[10px] font-mono text-zinc-600">{date}</span>
+                        )}
+                        {p.brier_score !== null && (
+                            <span className="text-[10px] font-mono text-zinc-500">
+                                Brier: <BrierBadge score={p.brier_score} />
+                            </span>
+                        )}
+                        {p.source_url && (
+                            <a
+                                href={p.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                source <ExternalLink className="w-2.5 h-2.5" />
+                            </a>
+                        )}
+                    </div>
+                </div>
+                <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span className="text-[10px] font-mono text-zinc-700 hidden sm:block">
+                        #{p.prediction_hash_short}
                     </span>
-                    <CategoryPill category={p.claim_category} />
-                    {p.season_year && (
-                        <span className="text-[10px] font-mono text-zinc-600">
-                            {p.season_year}
-                        </span>
-                    )}
-                    {date && (
-                        <span className="text-[10px] font-mono text-zinc-600">{date}</span>
-                    )}
-                    {p.brier_score !== null && (
-                        <span className="text-[10px] font-mono text-zinc-500">
-                            Brier: <BrierBadge score={p.brier_score} />
-                        </span>
+                    {hasVariants && (
+                        <button
+                            className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setExpanded((v) => !v);
+                            }}
+                            aria-label={expanded ? "Collapse similar claims" : "Show similar claims"}
+                        >
+                            {members.length - 1} similar
+                            {expanded ? (
+                                <ChevronUp className="w-2.5 h-2.5" />
+                            ) : (
+                                <ChevronDown className="w-2.5 h-2.5" />
+                            )}
+                        </button>
                     )}
                 </div>
-            </div>
-            <span className="text-[10px] font-mono text-zinc-700 shrink-0 hidden sm:block">
-                #{p.prediction_hash_short}
-            </span>
+            </button>
+
+            {/* Expanded variants */}
+            {hasVariants && expanded && (
+                <div className="border-t border-zinc-800/60 divide-y divide-zinc-800/40 bg-zinc-900/20">
+                    {members.slice(1).map((variant) => (
+                        <button
+                            key={variant.prediction_hash_short}
+                            className="w-full text-left px-4 py-2.5 flex items-start gap-3 hover:bg-zinc-800/20 transition-colors"
+                            onClick={() => onSelectPrediction(variant)}
+                        >
+                            <StatusBadge status={variant.resolution_status} />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs text-zinc-300 leading-snug line-clamp-2">
+                                    {variant.extracted_claim}
+                                </p>
+                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                    {variant.ingestion_timestamp && (
+                                        <span className="text-[10px] font-mono text-zinc-600">
+                                            {new Date(variant.ingestion_timestamp).toLocaleDateString("en-US", {
+                                                month: "short",
+                                                day: "numeric",
+                                                year: "numeric",
+                                            })}
+                                        </span>
+                                    )}
+                                    {variant.source_url && (
+                                        <a
+                                            href={variant.source_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            source <ExternalLink className="w-2.5 h-2.5" />
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                            <span className="text-[10px] font-mono text-zinc-700 hidden sm:block shrink-0">
+                                #{variant.prediction_hash_short}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+            )}
         </div>
     );
 }

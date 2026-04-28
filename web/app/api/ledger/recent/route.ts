@@ -8,16 +8,20 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const parsed = parseInt(searchParams.get("limit") ?? "");
     const limit = Number.isFinite(parsed) ? Math.min(parsed, 100) : 20;
+    const sport = searchParams.get("sport");
+
+    const backendUrl = new URL(`${API_URL}/v1/predictions/recent`);
+    backendUrl.searchParams.set("limit", String(limit));
+    if (sport && sport !== "ALL") {
+        backendUrl.searchParams.set("sport", sport);
+    }
 
     try {
-        const res = await fetch(
-            `${API_URL}/v1/predictions/recent?limit=${limit}`,
-            {
-                headers: {
-                    Accept: "application/json",
-                },
-            }
-        );
+        const res = await fetch(backendUrl.toString(), {
+            headers: {
+                Accept: "application/json",
+            },
+        });
 
         if (!res.ok) {
             console.error(

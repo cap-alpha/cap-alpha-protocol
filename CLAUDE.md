@@ -14,6 +14,12 @@
 
 ---
 
+## Codebase map — read before any task
+
+**[`CODEBASE.md`](CODEBASE.md)** — domain model, key files by concern, BigQuery layout, and a "task → where to look" table. Read it after this file and before opening any source file.
+
+---
+
 ## Project overview
 NFL contract analytics pipeline + **Pundit Prediction Ledger** (the product). Medallion architecture (bronze/silver/gold) on BigQuery. XGBoost risk model. FastAPI backend. Next.js dashboard.
 

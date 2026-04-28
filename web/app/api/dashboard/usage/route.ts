@@ -74,6 +74,7 @@ const TIER_CONFIG: Record<Tier, { name: string; monthlyQuota: number | null }> =
         free: { name: "Free", monthlyQuota: 10000 },
         pro: { name: "Pro", monthlyQuota: 100000 },
         api_starter: { name: "API Starter", monthlyQuota: 1000000 },
+        api_growth: { name: "API Growth", monthlyQuota: 10000000 },
         enterprise: { name: "Enterprise", monthlyQuota: null },
     };
 

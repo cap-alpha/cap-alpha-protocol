@@ -159,6 +159,58 @@ TEXT:
 # Used to track which prompt version produced each prediction.
 PROMPT_VERSION = hashlib.sha256(EXTRACTION_PROMPT.encode("utf-8")).hexdigest()[:8]
 
+# ---------------------------------------------------------------------------
+# Heuristic quality gate constants
+# ---------------------------------------------------------------------------
+
+# Hedge words that, when present without a specific anchor (name/number/team),
+# indicate a vague claim that should be dropped post-extraction.
+_HEDGE_ONLY_WORDS = frozenset(
+    ["might", "could", "may", "possible", "perhaps", "potentially", "maybe"]
+)
+
+# Confident language words — at least one must appear for a claim to pass the
+# heuristic gate when hedge words are also present.
+_CONFIDENT_WORDS = frozenset(
+    [
+        "will",
+        "is going to",
+        "predicts",
+        "expects",
+        "expect",
+        "predicted",
+        "going to",
+        "shall",
+        "won't",
+        "won\u2019t",  # curly apostrophe variant
+        "will not",
+    ]
+)
+
+# Team abbreviations and positional acronyms that should NOT be treated as
+# anchors (too generic to rescue a hedge-only claim).
+_ABBREV_DENYLIST = frozenset(
+    {
+        "NFL",
+        "NBA",
+        "MLB",
+        "NHL",
+        "MVP",
+        "OT",
+        "TD",
+        "QB",
+        "RB",
+        "WR",
+        "TE",
+        "CB",
+        "LB",
+        "DT",
+        "DE",
+        "OL",
+        "DL",
+    }
+)
+
 
 @dataclass
 class ExtractionResult:
@@ -168,6 +220,7 @@ class ExtractionResult:
     raw_response: Optional[str] = None
     duration_ms: Optional[int] = None
     tokens_used: Optional[int] = None
+    filtered_low_quality: int = 0
 
 
 def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
@@ -199,6 +252,58 @@ def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> lis
     if removed > 0:
         logger.info(f"Dedup: removed {removed} near-duplicate claims")
     return kept
+
+
+def _heuristic_quality_gate(predictions: list[dict]) -> tuple[list[dict], int]:
+    """
+    Post-LLM heuristic filter: drop claims that contain ONLY hedge words
+    (might/could/may/possible/perhaps) with no specific anchor (player name,
+    team abbreviation, number, or dollar amount).
+
+    Returns (kept_predictions, filtered_count).
+    """
+    import re
+
+    # Regex for a "specific anchor": proper-noun (≥3 chars), dollar amount, number,
+    # or ALL-CAPS 2-4 letter token that is not a generic football acronym.
+    _ANCHOR_RE = re.compile(
+        r"(?:"
+        r"\$\d+"  # dollar amounts like $120M
+        r"|\d+"  # any number (yards, picks, wins, etc.)
+        r"|[A-Z][a-z]{2,}"  # proper noun ≥ 3 chars (excludes He/It/I/A)
+        r")"
+    )
+
+    kept = []
+    filtered = 0
+    for pred in predictions:
+        claim = pred.get("extracted_claim", "")
+        claim_lower = claim.lower()
+        # Use regex word-boundary split to handle punctuation (e.g. "might,", "could.")
+        words = set(re.findall(r"[a-z']+", claim_lower))
+
+        has_hedge = bool(words & _HEDGE_ONLY_WORDS)
+        has_confident = any(cw in claim_lower for cw in _CONFIDENT_WORDS)
+
+        # Check for proper-noun / number anchor
+        has_standard_anchor = bool(_ANCHOR_RE.search(claim))
+        # Also accept all-caps 2-4 letter tokens that are team abbreviations
+        # (not in the generic denylist: TD, QB, RB, etc.)
+        abbrev_tokens = re.findall(r"\b[A-Z]{2,4}\b", claim)
+        has_abbrev_anchor = any(t for t in abbrev_tokens if t not in _ABBREV_DENYLIST)
+        has_anchor = has_standard_anchor or has_abbrev_anchor
+
+        # Drop if: has hedge word AND no confident language AND no specific anchor
+        if has_hedge and not has_confident and not has_anchor:
+            logger.info(
+                f"Heuristic quality gate: filtered hedge-only claim: {claim[:80]!r}"
+            )
+            filtered += 1
+            continue
+
+        kept.append(pred)
+
+    return kept, filtered
 
 
 def extract_assertions(
@@ -286,12 +391,20 @@ def extract_assertions(
                     )
                     continue
             filtered.append(p)
-        deduped = _deduplicate_claims(filtered)
+        # Post-LLM heuristic quality gate: drop hedge-only vague claims
+        quality_passed, quality_filtered = _heuristic_quality_gate(filtered)
+        if quality_filtered:
+            logger.info(
+                f"Heuristic gate: dropped {quality_filtered} low-quality claim(s) "
+                f"from {content_hash[:16]}…"
+            )
+        deduped = _deduplicate_claims(quality_passed)
         return ExtractionResult(
             content_hash=content_hash,
             predictions=deduped,
             duration_ms=duration_ms,
             tokens_used=tokens_used,
+            filtered_low_quality=quality_filtered,
         )
     except Exception as e:
         duration_ms = int((time.monotonic() - t0) * 1000)
@@ -603,6 +716,7 @@ async def _run_extraction_async(
                 "errors": 0,
                 "skipped_no_predictions": 0,
                 "filtered_out": 0,
+                "filtered_low_quality": 0,
             },
         )
 
@@ -617,6 +731,7 @@ async def _run_extraction_async(
         "errors": 0,
         "skipped_no_predictions": 0,
         "filtered_out": 0,
+        "filtered_low_quality": 0,
     }
 
     for (_, row), (raw_preds, err) in zip(rows, results):
@@ -636,7 +751,9 @@ async def _run_extraction_async(
             processed_hashes.append(content_hash)
             continue
 
-        processed_preds = _post_process_predictions(raw_preds, allow_historical)
+        temporally_filtered = _post_process_predictions(raw_preds, allow_historical)
+        processed_preds, quality_filtered = _heuristic_quality_gate(temporally_filtered)
+        partial_summary["filtered_low_quality"] += quality_filtered
 
         if not processed_preds:
             partial_summary["skipped_no_predictions"] += 1
@@ -747,6 +864,8 @@ def run_extraction(
         "skipped_no_predictions": 0,
         "extracted_zero_predictions": 0,  # items that parsed OK but LLM found nothing
         "filtered_out": 0,
+        "filtered_low_quality": 0,
+        "prompt_version": PROMPT_VERSION,
         "provider": (
             "gemini-2.5-flash (async)"
             if use_async_gemini
@@ -927,6 +1046,7 @@ def run_extraction(
                         "tokens_used": result.tokens_used,
                     }
                 elif not result.predictions:
+                    summary["filtered_low_quality"] += result.filtered_low_quality
                     summary["skipped_no_predictions"] += 1
                     summary["extracted_zero_predictions"] += 1
                     seen_zero_pred_this_run.add(content_hash)
@@ -937,6 +1057,7 @@ def run_extraction(
                         f"({title_str[:60]}) — not marking processed"
                     )
                 else:
+                    summary["filtered_low_quality"] += result.filtered_low_quality
                     summary["predictions_extracted"] += len(result.predictions)
                     all_predictions.extend(
                         _row_to_pundit_predictions(

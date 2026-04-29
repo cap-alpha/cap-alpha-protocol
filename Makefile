@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry prune-worktrees agent-identity
+.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry prune-worktrees agent-identity setup-triage-agent uninstall-triage-agent
 
 PYTHON ?= python3
 VENV := .venv
@@ -111,3 +111,13 @@ resolve-draft:
 
 web-logs:
 	$(DOCKER) logs -f web
+
+# -----------------------------------------------------------------------------
+# AUTONOMOUS TRIAGE AGENT
+# -----------------------------------------------------------------------------
+
+setup-triage-agent:
+	bash scripts/setup-triage-agent.sh
+
+uninstall-triage-agent:
+	bash scripts/uninstall-triage-agent.sh

@@ -110,6 +110,55 @@ pipeline/config/media_sources.yaml
 web/app/layout.tsx
 ```
 
+## Autonomous Triage Agent
+
+An hourly launchd cron (`com.capalpha.triage-agent`) runs `scripts/triage-agent.sh` to autonomously pick up work while you're away from the keyboard.
+
+### What it does
+
+Each hour it:
+1. Reads `.claude/current_gate.txt` to know the active gate level.
+2. Lists open `[Gate N / WO-NNN]` issues where N <= current gate, claims unclaimed ones, spawns a **Sonnet** subagent per issue in a fresh worktree to implement + PR + merge.
+3. Lists open PRs and for each:
+   - Unresolved Copilot threads → Sonnet subagent with `copilot-fix.md`
+   - Failing lint CI → Haiku subagent with `lint-fix.md`
+   - Failing test/build CI → Sonnet subagent with `ci-investigate.md`
+4. Escalates ambiguous issues to Slack rather than attempting autonomous work.
+
+### Setup
+
+```bash
+make setup-triage-agent   # idempotent, validates deps, installs plist, runs dry-run
+```
+
+Prerequisites: `/opt/homebrew/bin/claude` installed, `.env.personas` with `LARS_TOKEN` and `SLACK_WEBHOOK_URL`.
+
+### Disable / remove
+
+```bash
+make uninstall-triage-agent
+```
+
+### Logs
+
+```
+~/Library/Logs/com.capalpha.triage-agent.log
+```
+
+### Dry-run
+
+```bash
+bash scripts/triage-agent.sh --dry-run
+```
+
+### Concurrency and quota
+
+- Max **4 parallel** subagents per hourly run. The script uses bash background jobs and waits when the cap is reached.
+- Reads the last 5 hours of `.claude/usage_log.jsonl`. If recent output token spend exceeds 80% of the Claude Max throttle window (~40M tokens in 5h), the run is skipped and a Slack alert is sent.
+- Token spend is logged per invocation by `scripts/dispatch-claude.sh` as `{"ts","model","label","input_tokens","output_tokens","exit_code"}` deltas — never re-summed from scratch.
+
+---
+
 ## Conventions
 - BigQuery only. No DuckDB/MotherDuck references.
 - Medallion layers: bronze (raw) → silver (cleaned) → gold (features/aggregates)

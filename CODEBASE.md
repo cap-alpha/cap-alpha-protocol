@@ -188,3 +188,5 @@ python -m src.resolve_daily       # resolution only
 ```
 
 Scheduling: `pipeline/dags/nfl_daily_nlp_pipeline.py` (Airflow, 12pm UTC daily).
+
+**Autonomous triage cron:** `scripts/triage-agent.sh` runs hourly via `launchd` (`com.capalpha.triage-agent`). It picks up gated issues, fixes PR Copilot threads, auto-fixes lint, and investigates CI failures — all without human interaction. Set up with `make setup-triage-agent`. Logs: `~/Library/Logs/com.capalpha.triage-agent.log`.

@@ -12,8 +12,15 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# Resolve main repo root — works from worktrees too (git-common-dir points to main .git).
-MAIN_REPO="$(cd "$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)/.." && pwd)"
+# Resolve main repo root — works from both main checkout and worktrees.
+# --git-common-dir returns relative path from main checkout, absolute from worktrees.
+# Normalise by cd-ing from SCRIPT_DIR so relative paths are anchored correctly.
+_GIT_COMMON="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir 2>/dev/null || true)"
+# If absolute (worktree case), use directly; if relative, resolve from SCRIPT_DIR.
+case "$_GIT_COMMON" in
+    /*) MAIN_REPO="$(cd "$_GIT_COMMON/.." && pwd)" ;;
+    *)  MAIN_REPO="$(cd "$SCRIPT_DIR/$_GIT_COMMON/.." && pwd)" ;;
+esac
 TOKEN_SCRIPT="${SCRIPT_DIR}/gh-app-token.sh"
 PERSONAS_FILE="${MAIN_REPO}/.env.personas"
 

@@ -17,9 +17,10 @@ MAIN_REPO="$(cd "$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)/.." && pwd)"
 TOKEN_SCRIPT="${SCRIPT_DIR}/gh-app-token.sh"
 PERSONAS_FILE="${MAIN_REPO}/.env.personas"
 
-# Source .env.personas to pick up GH_INSTALLATION_ID (and Slack creds) if not
-# already set — lets agents call gh-lars without pre-sourcing the file themselves.
-if [[ -z "${GH_INSTALLATION_ID:-}" && -f "$PERSONAS_FILE" ]]; then
+# Source .env.personas to pick up required GitHub App settings (and Slack creds)
+# when either GH_APP_ID or GH_INSTALLATION_ID is not already set — lets agents
+# call gh-lars without pre-sourcing the file themselves.
+if [[ -f "$PERSONAS_FILE" ]] && [[ -z "${GH_APP_ID:-}" || -z "${GH_INSTALLATION_ID:-}" ]]; then
     set -a; source "$PERSONAS_FILE"; set +a
 fi
 

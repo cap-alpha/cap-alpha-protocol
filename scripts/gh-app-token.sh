@@ -86,17 +86,22 @@ sig_b64=$(printf '%s' "$signing_input" | openssl dgst -sha256 -sign "$PEM_PATH" 
 jwt="${signing_input}.${sig_b64}"
 
 response_file=$(mktemp)
-http_status=$(curl -sS -X POST \
-    -H "Authorization: Bearer $jwt" \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
+curl_config_file=$(mktemp)
+chmod 600 "$curl_config_file"
+cat >"$curl_config_file" <<EOF
+url = "https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens"
+header = "Authorization: Bearer $jwt"
+header = "Accept: application/vnd.github+json"
+header = "X-GitHub-Api-Version: 2022-11-28"
+EOF
+http_status=$(curl -sS --config "$curl_config_file" -X POST \
     -o "$response_file" \
-    -w '%{http_code}' \
-    "https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens") || {
-    rm -f "$response_file"
+    -w '%{http_code}') || {
+    rm -f "$response_file" "$curl_config_file"
     echo "gh-app-token: curl failed when exchanging JWT for installation token (App ID $APP_ID, install $INSTALLATION_ID)" >&2
     exit 1
 }
+rm -f "$curl_config_file"
 
 response=$(cat "$response_file")
 if [[ ! "$http_status" =~ ^2 ]]; then

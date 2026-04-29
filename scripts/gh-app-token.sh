@@ -59,14 +59,29 @@ signing_input="${header_b64}.${payload_b64}"
 sig_b64=$(printf '%s' "$signing_input" | openssl dgst -sha256 -sign "$PEM_PATH" -binary | b64url)
 jwt="${signing_input}.${sig_b64}"
 
-response=$(curl -sf -X POST \
+response_file=$(mktemp)
+http_status=$(curl -sS -X POST \
     -H "Authorization: Bearer $jwt" \
     -H "Accept: application/vnd.github+json" \
     -H "X-GitHub-Api-Version: 2022-11-28" \
+    -o "$response_file" \
+    -w '%{http_code}' \
     "https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens") || {
+    rm -f "$response_file"
     echo "gh-app-token: failed to exchange JWT for installation token (App ID $APP_ID, install $INSTALLATION_ID)" >&2
     exit 1
 }
+
+response=$(cat "$response_file")
+if [[ ! "$http_status" =~ ^2 ]]; then
+    echo "gh-app-token: failed to exchange JWT for installation token (App ID $APP_ID, install $INSTALLATION_ID, HTTP $http_status)" >&2
+    if [[ -n "$response" ]]; then
+        printf '%s\n' "$response" >&2
+    fi
+    rm -f "$response_file"
+    exit 1
+fi
+rm -f "$response_file"
 
 python3 - "$response" "$CACHE_FILE" <<'PYEOF'
 import json, os, sys, tempfile

@@ -14,7 +14,7 @@ set -euo pipefail
 
 APP_ID="${GH_APP_ID:-3545386}"
 INSTALLATION_ID="${GH_INSTALLATION_ID:-128138694}"
-PEM_PATH="${GH_APP_PEM:-/Users/andrewsmith/portfolio/.ghconfig/triage-app.pem}"
+PEM_PATH="${GH_APP_PEM:-${HOME}/.ghconfig/triage-app.pem}"
 CACHE_DIR="${HOME}/.cache/nfl-dead-money"
 CACHE_FILE="${CACHE_DIR}/gh-app-token.json"
 

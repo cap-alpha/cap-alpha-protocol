@@ -7,7 +7,7 @@
 > - **Never edit files in the main checkout.** A PreToolUse hook (`.claude/hooks/require-worktree.sh`) blocks Edit/Write/MultiEdit when CWD is the main repo. If you see that error, switch to a worktree.
 > - **Use `EnterWorktree` first**, or run `git worktree add .claude/worktrees/<name> -b <branch>` and `cd` into it before any edit.
 > - **Land PRs with `gh pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits). Squash and merge-commit are disabled at the repo level; `main` requires linear history.
-> - **All `gh` issue/PR/comment operations MUST use `scripts/gh-lars`** instead of bare `gh`. Lars Bakken (`kinghrothgar-dev`) is the default GitHub identity. Token stored in `.env.personas` (git-ignored).
+> - **All `gh` issue/PR/comment operations MUST use `scripts/gh-lars`** instead of bare `gh`. Identity is the **`nfl-dead-money-triage` GitHub App** (App ID 3545386, installed on `cap-alpha` org). Tokens are minted automatically by `scripts/gh-app-token.sh` — no PAT needed. The PEM is read from the path configured by `scripts/gh-app-token.sh` on the dev machine (never committed).
 > - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 >
 > Established 2026-04-07 after multi-agent coordination failures.

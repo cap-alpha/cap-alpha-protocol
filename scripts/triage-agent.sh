@@ -317,17 +317,17 @@ triage_issues() {
             notify "$number" "$title" "$BLOCK_REASON" "$BLOCK_QUESTION"
         fi
 
-    done < <(python3 - <<PYEOF
+    done < <(python3 -c '
 import sys, json
-data = json.loads("""$(echo "$issues" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)))")""")
+raw = open(sys.argv[1]).read()
+data = json.loads(raw)
 for issue in data:
     number = issue.get("number","")
-    title  = (issue.get("title","") or "").replace("\t"," ")
+    title  = (issue.get("title","") or "").replace("\t"," ").replace("\n"," ")
     body   = (issue.get("body","") or "").replace("\t"," ").replace("\n"," ")[:2000]
     labels = ", ".join(l["name"] for l in (issue.get("labels") or []))
     print(f"{number}\t{title}\t{labels}\t{body}")
-PYEOF
-    )
+' <(echo "$issues"))
 }
 
 # ── PR triage ─────────────────────────────────────────────────────────────────
@@ -414,7 +414,7 @@ triage_prs() {
     prs=$("$GH_LARS" pr list \
         --state open \
         --limit 30 \
-        --json number,title,headRefName,statusCheckRollup,reviewThreads \
+        --json number,title,headRefName,statusCheckRollup,reviews \
         2>/dev/null) || {
         log "WARNING: Could not fetch PRs (gh rate-limited or auth failure). Skipping PR triage."
         return 0
@@ -449,19 +449,20 @@ triage_prs() {
                 ;;
         esac
 
-    done < <(python3 - <<PYEOF
+    done < <(python3 -c '
 import sys, json
 
-data = json.loads("""$(echo "$prs" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)))")""")
+data = json.loads(open(sys.argv[1]).read())
 
 for pr in data:
     number = pr.get("number","")
 
-    # Copilot threads
-    threads = pr.get("reviewThreads") or []
-    unresolved = [t for t in threads if not t.get("isResolved", True)]
-    if unresolved:
-        thread_json = json.dumps(unresolved).replace('"', '\\"')
+    # Copilot reviews with open comments (reviewThreads not available in all gh versions;
+    # use reviews with state CHANGES_REQUESTED as a proxy for pending fixups)
+    reviews = pr.get("reviews") or []
+    has_changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
+    if has_changes_requested:
+        thread_json = json.dumps(reviews)
         print(f"COPILOT\t{number}\t{thread_json}")
         continue  # prioritize copilot fix; lint/CI can wait
 
@@ -482,8 +483,7 @@ for pr in data:
         print(f"LINT\t{number}\t")
     elif ci_failing_name:
         print(f"CI\t{number}\t{ci_failing_name}")
-PYEOF
-    )
+' <(echo "$prs"))
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────

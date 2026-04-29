@@ -14,7 +14,12 @@
 
 set -euo pipefail
 
-APP_ID="${GH_APP_ID:-3545386}"
+if [[ -z "${GH_APP_ID:-}" ]]; then
+    echo "gh-app-token: GH_APP_ID must be set (numeric GitHub App ID)." >&2
+    echo "  Set it in .env.personas or export GH_APP_ID." >&2
+    exit 1
+fi
+APP_ID="$GH_APP_ID"
 
 if ! [[ "$APP_ID" =~ ^[0-9]+$ ]]; then
     echo "gh-app-token: GH_APP_ID must be numeric, got: $APP_ID" >&2
@@ -22,8 +27,8 @@ if ! [[ "$APP_ID" =~ ^[0-9]+$ ]]; then
 fi
 
 if [[ -z "${GH_INSTALLATION_ID:-}" ]]; then
-    echo "gh-app-token: GH_INSTALLATION_ID must be set (numeric installation ID for the target org)." >&2
-    echo "  Find it with: GH_TOKEN=<jwt> gh api /app/installations" >&2
+    echo "gh-app-token: GH_INSTALLATION_ID must be set (numeric installation ID)." >&2
+    echo "  Set it in .env.personas or export GH_INSTALLATION_ID." >&2
     exit 1
 fi
 INSTALLATION_ID="${GH_INSTALLATION_ID}"

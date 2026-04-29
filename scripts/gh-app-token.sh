@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # gh-app-token.sh — Mint or reuse a GitHub App installation token.
 #
-# Required env vars:
+# Required env vars (no defaults — set in .env.personas):
 #   GH_APP_ID           — numeric GitHub App ID
-#   GH_INSTALLATION_ID  — installation ID for the target org (find via: gh api /app/installations)
-#   GH_APP_PEM          — path to the App's RSA private key (default: ~/.ghconfig/triage-app.pem)
+#   GH_INSTALLATION_ID  — numeric installation ID (find via: gh api /app/installations)
+#
+# Optional env var:
+#   GH_APP_PEM          — path to RSA private key (default: ~/.ghconfig/triage-app.pem)
 #
 # Installation tokens last 1 hour and are cached at $CACHE_FILE; we refresh
 # when <5 min remain.
@@ -29,6 +31,10 @@ fi
 if [[ -z "${GH_INSTALLATION_ID:-}" ]]; then
     echo "gh-app-token: GH_INSTALLATION_ID must be set (numeric installation ID)." >&2
     echo "  Set it in .env.personas or export GH_INSTALLATION_ID." >&2
+    exit 1
+fi
+if ! [[ "$GH_INSTALLATION_ID" =~ ^[0-9]+$ ]]; then
+    echo "gh-app-token: GH_INSTALLATION_ID must be numeric, got: $GH_INSTALLATION_ID" >&2
     exit 1
 fi
 INSTALLATION_ID="${GH_INSTALLATION_ID}"

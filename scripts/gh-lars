@@ -12,11 +12,27 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve main repo root — works from worktrees too (git-common-dir points to main .git).
+MAIN_REPO="$(cd "$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir)/.." && pwd)"
 TOKEN_SCRIPT="${SCRIPT_DIR}/gh-app-token.sh"
+PERSONAS_FILE="${MAIN_REPO}/.env.personas"
+
+# Source .env.personas to pick up GH_INSTALLATION_ID (and Slack creds) if not
+# already set — lets agents call gh-lars without pre-sourcing the file themselves.
+if [[ -z "${GH_INSTALLATION_ID:-}" && -f "$PERSONAS_FILE" ]]; then
+    set -a; source "$PERSONAS_FILE"; set +a
+fi
 
 if [[ ! -x "$TOKEN_SCRIPT" ]]; then
     echo "gh-lars: token script not found or not executable: $TOKEN_SCRIPT" >&2
     exit 1
 fi
 
-GH_TOKEN="$("$TOKEN_SCRIPT")" exec gh "$@"
+# Explicitly capture + check token — bash set -e doesn't fire on $() failures.
+GH_TOKEN="$("$TOKEN_SCRIPT")"
+if [[ -z "$GH_TOKEN" ]]; then
+    echo "gh-lars: gh-app-token.sh returned empty token" >&2
+    exit 1
+fi
+export GH_TOKEN
+exec gh "$@"

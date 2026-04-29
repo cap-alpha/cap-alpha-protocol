@@ -1,20 +1,33 @@
 #!/usr/bin/env bash
 # gh-app-token.sh — Mint or reuse a GitHub App installation token.
 #
-# Auth identity: the `nfl-dead-money-triage` GitHub App, owned by `ucalegon206`,
-# installed on the `cap-alpha` org (with access scoped to `cap-alpha-protocol`).
+# Required env vars:
+#   GH_APP_ID           — numeric GitHub App ID
+#   GH_INSTALLATION_ID  — installation ID for the target org (find via: gh api /app/installations)
+#   GH_APP_PEM          — path to the App's RSA private key (default: ~/.ghconfig/triage-app.pem)
+#
 # Installation tokens last 1 hour and are cached at $CACHE_FILE; we refresh
 # when <5 min remain.
 #
-# Output: the installation token on stdout (single line, no trailing newline-only output).
-# Errors: write to stderr with non-zero exit.
-#
-# Override defaults via env: GH_APP_ID, GH_INSTALLATION_ID, GH_APP_PEM.
+# Output: the installation token on stdout (single line, no trailing newline).
+# Errors: written to stderr with non-zero exit.
 
 set -euo pipefail
 
 APP_ID="${GH_APP_ID:-3545386}"
-INSTALLATION_ID="${GH_INSTALLATION_ID:-128138694}"
+
+if ! [[ "$APP_ID" =~ ^[0-9]+$ ]]; then
+    echo "gh-app-token: GH_APP_ID must be numeric, got: $APP_ID" >&2
+    exit 1
+fi
+
+if [[ -z "${GH_INSTALLATION_ID:-}" ]]; then
+    echo "gh-app-token: GH_INSTALLATION_ID must be set (numeric installation ID for the target org)." >&2
+    echo "  Find it with: GH_TOKEN=<jwt> gh api /app/installations" >&2
+    exit 1
+fi
+INSTALLATION_ID="${GH_INSTALLATION_ID}"
+
 PEM_PATH="${GH_APP_PEM:-${HOME}/.ghconfig/triage-app.pem}"
 CACHE_DIR="${HOME}/.cache/nfl-dead-money"
 CACHE_FILE="${CACHE_DIR}/gh-app-token.json"
@@ -55,7 +68,8 @@ b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
 header_b64=$(printf '{"typ":"JWT","alg":"RS256"}' | b64url)
 iat=$(date -u +%s)
 exp=$(( iat + 540 ))   # 9 min — GitHub caps at 10
-payload_b64=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' "$iat" "$exp" "$APP_ID" | b64url)
+# iss must be a numeric claim per GitHub App JWT spec — no quotes around APP_ID.
+payload_b64=$(printf '{"iat":%d,"exp":%d,"iss":%d}' "$iat" "$exp" "$APP_ID" | b64url)
 signing_input="${header_b64}.${payload_b64}"
 sig_b64=$(printf '%s' "$signing_input" | openssl dgst -sha256 -sign "$PEM_PATH" -binary | b64url)
 jwt="${signing_input}.${sig_b64}"
@@ -69,7 +83,7 @@ http_status=$(curl -sS -X POST \
     -w '%{http_code}' \
     "https://api.github.com/app/installations/${INSTALLATION_ID}/access_tokens") || {
     rm -f "$response_file"
-    echo "gh-app-token: failed to exchange JWT for installation token (App ID $APP_ID, install $INSTALLATION_ID)" >&2
+    echo "gh-app-token: curl failed when exchanging JWT for installation token (App ID $APP_ID, install $INSTALLATION_ID)" >&2
     exit 1
 }
 

@@ -2,8 +2,9 @@
 # gh-app-token.sh — Mint or reuse a GitHub App installation token.
 #
 # Auth identity: the `nfl-dead-money-triage` GitHub App, owned by `ucalegon206`,
-# installed on `cap-alpha/cap-alpha-protocol`. Installation tokens last 1 hour
-# and are cached at $CACHE_FILE; we refresh when <5 min remain.
+# installed on the `cap-alpha` org (with access scoped to `cap-alpha-protocol`).
+# Installation tokens last 1 hour and are cached at $CACHE_FILE; we refresh
+# when <5 min remain.
 #
 # Output: the installation token on stdout (single line, no trailing newline-only output).
 # Errors: write to stderr with non-zero exit.

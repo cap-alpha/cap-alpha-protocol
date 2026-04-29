@@ -51,14 +51,18 @@ fi
 
 mkdir -p "$CACHE_DIR"
 
-# Try cache first.
+# Try cache first — only reuse if app_id + installation_id still match.
 if [[ -f "$CACHE_FILE" ]]; then
-    cached_token=$(python3 - "$CACHE_FILE" <<'PYEOF' 2>/dev/null || true
+    cached_token=$(python3 - "$CACHE_FILE" "$APP_ID" "$INSTALLATION_ID" <<'PYEOF' 2>/dev/null || true
 import json, sys
 from datetime import datetime, timezone
-cache_file = sys.argv[1]
+cache_file, expected_app_id, expected_install_id = sys.argv[1], sys.argv[2], sys.argv[3]
 try:
     d = json.load(open(cache_file))
+    if str(d.get("app_id")) != expected_app_id:
+        sys.exit(0)
+    if str(d.get("installation_id")) != expected_install_id:
+        sys.exit(0)
     exp = datetime.fromisoformat(d["expires_at"].replace("Z", "+00:00"))
     if (exp - datetime.now(timezone.utc)).total_seconds() > 300:
         print(d["token"])
@@ -114,9 +118,9 @@ if [[ ! "$http_status" =~ ^2 ]]; then
 fi
 rm -f "$response_file"
 
-python3 - "$response" "$CACHE_FILE" <<'PYEOF'
+python3 - "$response" "$CACHE_FILE" "$APP_ID" "$INSTALLATION_ID" <<'PYEOF'
 import json, os, sys, tempfile
-response_str, cache_file = sys.argv[1], sys.argv[2]
+response_str, cache_file, app_id, installation_id = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 d = json.loads(response_str)
 cache_dir = os.path.dirname(cache_file) or "."
 os.makedirs(cache_dir, exist_ok=True)
@@ -124,7 +128,12 @@ fd, temp_cache_file = tempfile.mkstemp(dir=cache_dir)
 try:
     os.fchmod(fd, 0o600)
     with os.fdopen(fd, "w") as f:
-        json.dump({"token": d["token"], "expires_at": d["expires_at"]}, f)
+        json.dump({
+            "token": d["token"],
+            "expires_at": d["expires_at"],
+            "app_id": app_id,
+            "installation_id": installation_id,
+        }, f)
     os.replace(temp_cache_file, cache_file)
 except Exception:
     try:

@@ -69,11 +69,22 @@ response=$(curl -sf -X POST \
 }
 
 python3 - "$response" "$CACHE_FILE" <<'PYEOF'
-import json, os, sys
+import json, os, sys, tempfile
 response_str, cache_file = sys.argv[1], sys.argv[2]
 d = json.loads(response_str)
-with open(cache_file, "w") as f:
-    json.dump({"token": d["token"], "expires_at": d["expires_at"]}, f)
-os.chmod(cache_file, 0o600)
+cache_dir = os.path.dirname(cache_file) or "."
+os.makedirs(cache_dir, exist_ok=True)
+fd, temp_cache_file = tempfile.mkstemp(dir=cache_dir)
+try:
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w") as f:
+        json.dump({"token": d["token"], "expires_at": d["expires_at"]}, f)
+    os.replace(temp_cache_file, cache_file)
+except Exception:
+    try:
+        os.unlink(temp_cache_file)
+    except FileNotFoundError:
+        pass
+    raise
 sys.stdout.write(d["token"])
 PYEOF

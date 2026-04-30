@@ -32,11 +32,19 @@ const Footer = () => {
                         The data and predictions provided by the Cap Alpha Protocol are probabilistic simulations and should not be
                         construed as financial, legal, or professional sports management advice.
                     </p>
+                    <p className="text-slate-500 text-xs text-center max-w-2xl leading-relaxed">
+                        Some links on this site are affiliate links. Cap Alpha may earn a commission when you sign up through
+                        these links, at no additional cost to you.{' '}
+                        <Link href="/legal/disclosure" className="underline hover:text-emerald-500 transition-colors">
+                            Affiliate Disclosure
+                        </Link>
+                    </p>
                     <div className="flex flex-wrap items-center justify-center gap-4 text-slate-500 text-xs">
                         <Link href="/legal/terms" className="hover:text-slate-300 transition-colors">Terms</Link>
                         <Link href="/legal/privacy" className="hover:text-slate-300 transition-colors">Privacy</Link>
                         <Link href="/legal/acceptable-use" className="hover:text-slate-300 transition-colors">Acceptable Use</Link>
                         <Link href="/legal/responsible-gambling" className="hover:text-amber-400 transition-colors text-amber-600">Responsible Gambling</Link>
+                        <Link href="/legal/disclosure" className="hover:text-slate-300 transition-colors">Affiliate Disclosure</Link>
                     </div>
                     <div className="flex items-center space-x-2 text-slate-500 text-xs">
                         <span>&copy; {new Date().getFullYear()} Andrew Smith</span>

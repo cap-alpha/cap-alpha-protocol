@@ -3,6 +3,7 @@ import json
 import os
 
 import google.generativeai as genai
+
 from src.db_manager import DBManager
 
 # Setup Gemini API key

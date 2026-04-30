@@ -1,4 +1,5 @@
 import pandas as pd
+
 from src.spotrac_scraper_v2 import SpotracParser
 
 

@@ -18,6 +18,7 @@ from difflib import SequenceMatcher
 from typing import Optional
 
 import pandas as pd
+
 from src.db_manager import DBManager
 from src.resolution_engine import void_prediction
 

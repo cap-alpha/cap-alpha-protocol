@@ -37,6 +37,7 @@ from typing import Optional
 
 import pandas as pd
 from google.api_core.exceptions import NotFound
+
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
 from src.llm_provider import (

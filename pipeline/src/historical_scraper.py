@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+
 from src.compensation_model import (
     CompensationDataModel,
     Player,

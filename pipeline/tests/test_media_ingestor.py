@@ -12,6 +12,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
+
 from src.media_ingestor import (
     MediaItem,
     SourceResult,

@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pandas as pd
 import pytest
+
 from src.cryptographic_ledger import (
     HASH_SEED,
     PunditPrediction,

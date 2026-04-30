@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+
 from src.config import DATA_PROCESSED_DIR, VIZ_DIR
 
 logging.basicConfig(

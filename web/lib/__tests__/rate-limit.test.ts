@@ -31,8 +31,10 @@ vi.mock("@upstash/redis", () => ({
 
 import {
     checkRateLimit,
+    checkIpRateLimit,
     buildRateLimitHeaders,
     TIER_RATE_LIMITS,
+    ANONYMOUS_RATE_LIMIT,
 } from "../rate-limit";
 
 // ── Tier limit constants ──────────────────────────────────────────────────────
@@ -244,5 +246,109 @@ describe("buildRateLimitHeaders", () => {
         for (const val of Object.values(headers)) {
             expect(typeof val).toBe("string");
         }
+    });
+});
+
+// ── ANONYMOUS_RATE_LIMIT constant ─────────────────────────────────────────────
+
+describe("ANONYMOUS_RATE_LIMIT", () => {
+    it("is a positive number", () => {
+        expect(ANONYMOUS_RATE_LIMIT).toBeGreaterThan(0);
+    });
+
+    it("equals 100 req/min (matches free tier per-IP scraping protection)", () => {
+        expect(ANONYMOUS_RATE_LIMIT).toBe(100);
+    });
+
+    it("matches free tier limit (anonymous = unauthenticated free)", () => {
+        expect(ANONYMOUS_RATE_LIMIT).toBe(TIER_RATE_LIMITS.free);
+    });
+});
+
+// ── checkIpRateLimit — fail-open (no Upstash) ────────────────────────────────
+// These run before the "with Upstash" block to avoid premature singleton setup.
+
+describe("checkIpRateLimit — fail-open when UPSTASH env vars are absent", () => {
+    it("returns success=true", async () => {
+        const result = await checkIpRateLimit("1.2.3.4");
+        expect(result.success).toBe(true);
+    });
+
+    it("reports limit equal to ANONYMOUS_RATE_LIMIT", async () => {
+        const result = await checkIpRateLimit("1.2.3.4");
+        expect(result.limit).toBe(ANONYMOUS_RATE_LIMIT);
+        expect(result.remaining).toBe(ANONYMOUS_RATE_LIMIT);
+    });
+
+    it("returns a reset timestamp ~60 s in the future", async () => {
+        const before = Math.floor(Date.now() / 1000);
+        const result = await checkIpRateLimit("1.2.3.4");
+        expect(result.reset).toBeGreaterThanOrEqual(before + 59);
+        expect(result.reset).toBeLessThanOrEqual(before + 61);
+    });
+
+    it("does not set retryAfter when allowing", async () => {
+        const result = await checkIpRateLimit("1.2.3.4");
+        expect(result.retryAfter).toBeUndefined();
+    });
+
+    it("handles comma-separated forwarded IPs by taking the first", async () => {
+        // Should not throw even with multi-IP strings
+        const result = await checkIpRateLimit("10.0.0.1, 10.0.0.2");
+        expect(result.success).toBe(true);
+    });
+
+    it("handles IPv6 addresses with brackets", async () => {
+        const result = await checkIpRateLimit("[::1]");
+        expect(result.success).toBe(true);
+    });
+});
+
+// ── checkIpRateLimit — with Upstash ──────────────────────────────────────────
+
+describe("checkIpRateLimit — with Upstash", () => {
+    const originalUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const originalToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    beforeAll(() => {
+        process.env.UPSTASH_REDIS_REST_URL = "https://test.upstash.io";
+        process.env.UPSTASH_REDIS_REST_TOKEN = "test-token";
+        mockLimit.mockReset();
+    });
+
+    afterAll(() => {
+        process.env.UPSTASH_REDIS_REST_URL = originalUrl;
+        process.env.UPSTASH_REDIS_REST_TOKEN = originalToken;
+    });
+
+    it("returns success=true when under the limit", async () => {
+        const resetMs = (Math.floor(Date.now() / 1000) + 60) * 1000;
+        mockLimit.mockResolvedValueOnce({
+            success: true,
+            limit: 100,
+            remaining: 80,
+            reset: resetMs,
+        });
+
+        const result = await checkIpRateLimit("5.6.7.8");
+        expect(result.success).toBe(true);
+        expect(result.remaining).toBe(80);
+        expect(result.retryAfter).toBeUndefined();
+    });
+
+    it("returns success=false with retryAfter when the limit is exceeded", async () => {
+        const resetMs = (Math.floor(Date.now() / 1000) + 45) * 1000;
+        mockLimit.mockResolvedValueOnce({
+            success: false,
+            limit: 100,
+            remaining: 0,
+            reset: resetMs,
+        });
+
+        const result = await checkIpRateLimit("5.6.7.8");
+        expect(result.success).toBe(false);
+        expect(result.remaining).toBe(0);
+        expect(result.retryAfter).toBeGreaterThan(0);
+        expect(result.retryAfter).toBeLessThanOrEqual(45);
     });
 });

@@ -18,6 +18,7 @@ Usage (inside Docker):
 """
 
 import argparse
+import hashlib
 import json
 import logging
 import os
@@ -107,6 +108,8 @@ VALID_CATEGORIES = {
     "draft_pick",
     "injury",
     "contract",
+    "award_prediction",  # Named NFL awards: MVP, OPOY, DPOY, ROY, etc.
+    "fa_signing",  # Free agency: player signs with a specific team
 }
 
 EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the content below.
@@ -144,6 +147,8 @@ AUTHOR: {author}
 TITLE: {title}
 TEXT:
 {text}"""
+
+PROMPT_VERSION = hashlib.sha256(EXTRACTION_PROMPT.encode("utf-8")).hexdigest()[:8]
 
 
 @dataclass
@@ -226,12 +231,18 @@ def extract_assertions(
     sport: str = "NFL",
     published_date: str = "",
     provider: Optional[LLMProvider] = None,
+    allow_historical: bool = False,
     # Legacy parameter — ignored if provider is set
     client=None,
 ) -> ExtractionResult:
     """
     Sends media text to the configured LLM for structured prediction extraction.
     Returns an ExtractionResult with parsed predictions.
+
+    Args:
+        allow_historical: If True, skip the temporal filter that rejects claims
+            about past seasons. Use for historical backfill runs where articles
+            are from prior years.
     """
     if provider is None:
         # Legacy fallback: create a Gemini provider for backward compatibility
@@ -252,13 +263,16 @@ def extract_assertions(
         predictions = provider.extract_predictions(prompt)
         # Filter empty claims, then deduplicate near-identical ones
         valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
-        # Hard temporal filter: reject predictions about past seasons/drafts
+        # Hard temporal filter: reject predictions about past seasons/drafts.
+        # Bypassed with allow_historical=True for backfill ingestion of
+        # already-completed seasons where outcomes ARE known.
         current_year = datetime.now().year
         filtered = []
         for p in valid:
             sy = p.get("season_year")
             if (
-                sy is not None
+                not allow_historical
+                and sy is not None
                 and isinstance(sy, (int, float))
                 and int(sy) < current_year
             ):
@@ -527,6 +541,14 @@ def run_extraction(
         all_predictions = []
         processed_hashes = []
 
+        # Compute provider provenance once for all predictions in this run
+        provider_type = (
+            type(provider).__name__.replace("Provider", "").lower()
+            if provider
+            else None
+        )
+        llm_model = getattr(provider, "model", None) if provider else None
+
         for _, row in media_df.iterrows():
             content_hash = row["content_hash"]
             source_id = str(row.get("source_id", ""))
@@ -637,6 +659,9 @@ def run_extraction(
                         target_team=pred.get("target_team"),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
+                        prompt_version=PROMPT_VERSION,
+                        llm_provider=provider_type,
+                        llm_model=str(llm_model) if llm_model else None,
                     )
                 )
 

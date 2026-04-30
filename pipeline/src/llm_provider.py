@@ -319,6 +319,7 @@ class OllamaProvider(LLMProvider):
 
 PROVIDERS = {
     "gemini": GeminiProvider,
+    "gemini-flash": GeminiProvider,  # alias for burst-mode historical backfill
     "claude": ClaudeProvider,
     "openai": OpenAIProvider,
     "ollama": OllamaProvider,

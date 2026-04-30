@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
 from src.db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO)

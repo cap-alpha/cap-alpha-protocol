@@ -18,6 +18,7 @@ from typing import Optional
 
 import pandas as pd
 from google.cloud import bigquery
+
 from src.db_manager import DBManager
 
 logger = logging.getLogger(__name__)

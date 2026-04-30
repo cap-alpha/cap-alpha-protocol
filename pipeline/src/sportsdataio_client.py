@@ -5,6 +5,7 @@ from typing import Any, Dict, List
 import pandas as pd
 import requests
 from google.cloud import bigquery
+
 from src.db_manager import DBManager
 
 logging.basicConfig(level=logging.INFO)

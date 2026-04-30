@@ -6,6 +6,7 @@ Unit tests — no network access required.
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from src.media_ingestor import (
     MediaItem,
     _chunk_transcript,

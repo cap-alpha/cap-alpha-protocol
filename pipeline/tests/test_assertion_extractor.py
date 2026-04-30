@@ -11,6 +11,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 from google.api_core.exceptions import NotFound
+
 from src.assertion_extractor import (
     DEFAULT_PRIORITY_TIER,
     VALID_CATEGORIES,

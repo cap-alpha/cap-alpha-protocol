@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
+
 from src.feature_store import FeatureStore, _bq_int, _bq_str
 
 # ---------------------------------------------------------------------------

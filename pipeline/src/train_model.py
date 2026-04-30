@@ -3,6 +3,7 @@ import logging
 import numpy as np
 import pandas as pd
 import xgboost as xgb
+
 from src.db_manager import DBManager
 
 try:
@@ -16,6 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import mean_squared_error, r2_score
+
 from src.feature_store import FeatureStore
 
 # PATCH NUMPY FOR SHAP COMPATIBILITY
@@ -240,6 +242,7 @@ class RiskModeler:
 
         import joblib
         import yaml
+
         from src.ml_governance import MLGovernance
 
         logger.info("Saving Predictions and Model Artifacts...")

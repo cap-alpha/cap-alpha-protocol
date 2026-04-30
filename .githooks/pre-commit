@@ -3,8 +3,8 @@
 # Pre-commit hook: lint + unit tests via local venv
 #
 # Docker is no longer required for pre-commit. The venv at .venv/ runs
-# the same tools CI uses (black, isort, flake8, pytest). Docker is only
-# needed for Playwright E2E tests and Spotrac scraping.
+# the same tools CI uses (ruff, pytest). Docker is only needed for
+# Playwright E2E tests and Spotrac scraping.
 #
 # Bootstrap: make venv
 
@@ -30,21 +30,17 @@ fi
 # shellcheck disable=SC1090
 . "$ACTIVATE"
 
-echo "=== Pre-commit: Format check ==="
-black --check pipeline/src/ pipeline/tests/ || {
+echo "=== Pre-commit: Format + lint (ruff) ==="
+ruff format --check pipeline/src/ pipeline/tests/ || {
     echo ""
-    echo "Format check failed. Run: black pipeline/src/ pipeline/tests/"
+    echo "Format check failed. Run: make lint-fix"
     exit 1
 }
-
-isort --check pipeline/src/ pipeline/tests/ || {
+ruff check pipeline/src/ pipeline/tests/ || {
     echo ""
-    echo "Import sort check failed. Run: isort pipeline/src/ pipeline/tests/"
+    echo "Lint check failed. Run: make lint-fix"
     exit 1
 }
-
-echo "=== Pre-commit: Flake8 (fatal errors only) ==="
-flake8 pipeline/src/ pipeline/tests/ --count --select=E9,F63,F7,F82 --show-source --statistics
 
 echo "=== Pre-commit: Unit tests ==="
 PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$(pwd)/pipeline" \

@@ -2,6 +2,7 @@ import os
 
 import pandas as pd
 import pytest
+
 from src.db_manager import DBManager
 
 pytestmark = pytest.mark.skipif(

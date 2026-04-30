@@ -1,0 +1,49 @@
+# Dockerfile.pipeline — Cloud Run Job image for daily ingest + resolve
+#
+# This image intentionally EXCLUDES assertion_extractor (which requires
+# local Ollama / qwen2.5:32b). Extraction stays on the local M4 Pro
+# (triggered by launchd or manually). This job handles:
+#   1. media_ingestor  — fetch RSS/YouTube content → BigQuery bronze layer
+#   2. resolve_daily   — score pending predictions against actual outcomes
+#
+# Build:
+#   gcloud builds submit \
+#     --tag us-central1-docker.pkg.dev/cap-alpha-protocol/pundit-ledger/pipeline:latest \
+#     --dockerfile Dockerfile.pipeline \
+#     --project=cap-alpha-protocol \
+#     --timeout=20m .
+#
+# Run locally (for testing):
+#   docker run --rm \
+#     -e GCP_PROJECT_ID=cap-alpha-protocol \
+#     -e SPORTS_DATA_IO_API_KEY=... \
+#     -v ~/.config/gcloud:/root/.config/gcloud \
+#     pipeline:latest
+
+FROM python:3.11-slim
+
+# System deps: git for pip VCS deps, curl for healthchecks
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Install Python deps first (layer-cached separately from source code)
+COPY pipeline/requirements.txt ./pipeline/requirements.txt
+RUN pip install --no-cache-dir -r pipeline/requirements.txt
+
+# Copy pipeline source (excludes heavy scraping/ML deps used only locally)
+COPY pipeline/ ./pipeline/
+
+# Both modules are invoked as `python -m src.XXX` from /app/pipeline
+# so PYTHONPATH must include the pipeline dir (for `from src.X import Y`)
+ENV PYTHONPATH=/app/pipeline
+ENV GCP_PROJECT_ID=cap-alpha-protocol
+
+# Cloud Run Jobs run to completion and exit.
+# Step 1: ingest fresh media into bronze_layer
+# Step 2: resolve pending predictions against actual outcomes
+WORKDIR /app/pipeline
+CMD ["sh", "-c", "python -m src.media_ingestor && python -m src.resolve_daily"]

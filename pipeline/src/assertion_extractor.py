@@ -25,9 +25,11 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import yaml
 from google.api_core.exceptions import NotFound
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
@@ -45,6 +47,57 @@ logger = logging.getLogger(__name__)
 
 RAW_MEDIA_TABLE = "raw_pundit_media"
 PROCESSED_TABLE = "processed_media_hashes"
+
+# Default tier assigned to sources not found in media_sources.yaml
+DEFAULT_PRIORITY_TIER = 2
+
+# Sources with yield_rate below this threshold AND tier==3 get skip_extraction=True
+SKIP_EXTRACTION_YIELD_THRESHOLD = 0.05
+
+_SOURCE_CONFIG_CACHE: Optional[dict] = None
+
+
+def load_source_config() -> dict:
+    """
+    Load media_sources.yaml and return a dict keyed by source id.
+    Returns priority_tier (default 2) and skip_extraction (default False) per source.
+    Results are cached in-process.
+    """
+    global _SOURCE_CONFIG_CACHE
+    if _SOURCE_CONFIG_CACHE is not None:
+        return _SOURCE_CONFIG_CACHE
+
+    config_path = Path(__file__).parent.parent / "config" / "media_sources.yaml"
+    try:
+        with open(config_path) as f:
+            raw = yaml.safe_load(f)
+        sources = raw.get("sources", [])
+        _SOURCE_CONFIG_CACHE = {
+            s["id"]: {
+                "priority_tier": s.get("priority_tier", DEFAULT_PRIORITY_TIER),
+                "skip_extraction": s.get("skip_extraction", False),
+                "name": s.get("name", s["id"]),
+            }
+            for s in sources
+            if "id" in s
+        }
+    except Exception as exc:
+        logger.warning(f"Could not load media_sources.yaml ({exc}); using defaults")
+        _SOURCE_CONFIG_CACHE = {}
+    return _SOURCE_CONFIG_CACHE
+
+
+def get_source_priority_tier(source_id: str) -> int:
+    """Return the priority_tier for a given source_id (default: 2)."""
+    cfg = load_source_config()
+    return cfg.get(source_id, {}).get("priority_tier", DEFAULT_PRIORITY_TIER)
+
+
+def is_skip_extraction(source_id: str) -> bool:
+    """Return True if the source is configured to skip LLM extraction."""
+    cfg = load_source_config()
+    return cfg.get(source_id, {}).get("skip_extraction", False)
+
 
 # Valid claim categories (must match prediction_ledger schema)
 VALID_CATEGORIES = {
@@ -243,6 +296,13 @@ def get_unprocessed_media(
     Fetches raw_pundit_media rows that haven't been processed yet.
     Uses a processed_media_hashes tracking table to know what's been done.
 
+    Results are sorted by source priority_tier ASC (tier 1 first), then
+    published_at DESC (newest first within each tier), so high-yield sources
+    fill the --limit allocation before low-yield ones.
+
+    Sources marked skip_extraction=True in media_sources.yaml are excluded
+    entirely to avoid wasting LLM calls.
+
     By default, only returns rows with a matched pundit to avoid wasting
     LLM calls on unattributed content. Pass include_unmatched=True
     to override and process all content regardless of pundit match.
@@ -255,7 +315,25 @@ def get_unprocessed_media(
         pundit_filter = "\n              AND r.matched_pundit_id IS NOT NULL"
         fallback_pundit_filter = "\n              AND matched_pundit_id IS NOT NULL"
 
+    # Build skip-list from source config
+    source_cfg = load_source_config()
+    skip_sources = [
+        sid for sid, cfg in source_cfg.items() if cfg.get("skip_extraction")
+    ]
+    # Build priority lookup for in-Python sort (BigQuery doesn't know about YAML config)
+    priority_map = {sid: cfg["priority_tier"] for sid, cfg in source_cfg.items()}
+
+    skip_filter = ""
+    fallback_skip_filter = ""
+    if skip_sources:
+        skip_ids = ", ".join(f"'{s}'" for s in skip_sources)
+        skip_filter = f"\n              AND r.source_id NOT IN ({skip_ids})"
+        fallback_skip_filter = f"\n              AND source_id NOT IN ({skip_ids})"
+
     try:
+        # Fetch more rows than needed so we can re-sort by tier in Python
+        # (BQ doesn't have the YAML config; fetching 3× limit then trimming is safe)
+        fetch_limit = max(limit * 3, 300)
         query = f"""
             SELECT r.content_hash, r.source_id, r.title, r.raw_text,
                    r.source_url, r.author, r.matched_pundit_id,
@@ -266,11 +344,12 @@ def get_unprocessed_media(
                 ON r.content_hash = p.content_hash
             WHERE p.content_hash IS NULL
               AND r.raw_text IS NOT NULL
-              AND LENGTH(r.raw_text) > 50{pundit_filter}
-            ORDER BY r.ingested_at DESC
-            LIMIT {limit}
+              AND LENGTH(r.raw_text) > 50{pundit_filter}{skip_filter}
+            ORDER BY r.published_at DESC
+            LIMIT {fetch_limit}
         """
-        return db.fetch_df(query)
+        df = db.fetch_df(query)
+        return _apply_priority_sort(df, priority_map, limit)
     except NotFound as e:
         logger.warning(f"Could not query processed_media_hashes (may not exist): {e}")
         query = f"""
@@ -280,11 +359,34 @@ def get_unprocessed_media(
                    COALESCE(sport, 'NFL') AS sport
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
             WHERE raw_text IS NOT NULL
-              AND LENGTH(raw_text) > 50{fallback_pundit_filter}
+              AND LENGTH(raw_text) > 50{fallback_pundit_filter}{fallback_skip_filter}
             ORDER BY ingested_at DESC
-            LIMIT {limit}
+            LIMIT {fetch_limit}
         """
-        return db.fetch_df(query)
+        df = db.fetch_df(query)
+        return _apply_priority_sort(df, priority_map, limit)
+
+
+def _apply_priority_sort(
+    df: pd.DataFrame, priority_map: dict, limit: int
+) -> pd.DataFrame:
+    """
+    Sort a media DataFrame by source priority_tier ASC, then published_at DESC.
+    Sources not in priority_map get DEFAULT_PRIORITY_TIER.
+    Trims to `limit` rows after sorting.
+    """
+    if df.empty:
+        return df
+    df = df.copy()
+    df["_priority_tier"] = df["source_id"].map(
+        lambda sid: priority_map.get(sid, DEFAULT_PRIORITY_TIER)
+    )
+    df = df.sort_values(
+        ["_priority_tier", "published_at"],
+        ascending=[True, False],
+        na_position="last",
+    ).drop(columns=["_priority_tier"])
+    return df.head(limit).reset_index(drop=True)
 
 
 def mark_as_processed(content_hashes: list[str], db: DBManager) -> None:
@@ -405,6 +507,7 @@ def run_extraction(
         "errors": 0,
         "skipped_no_predictions": 0,
         "filtered_out": 0,
+        "skipped_low_yield": 0,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
 
@@ -434,12 +537,25 @@ def run_extraction(
 
         for _, row in media_df.iterrows():
             content_hash = row["content_hash"]
+            source_id = str(row.get("source_id", ""))
             summary["total_processed"] += 1
 
+            # Belt-and-suspenders: skip sources marked skip_extraction even if they
+            # slipped through the query filter (e.g. config added after last fetch)
+            if not dry_run and is_skip_extraction(source_id):
+                logger.info(
+                    f"Skipping {content_hash[:16]}… — source '{source_id}' has "
+                    f"skip_extraction=True (low yield)"
+                )
+                summary["skipped_low_yield"] += 1
+                processed_hashes.append(content_hash)
+                continue
+
             if dry_run:
+                tier = get_source_priority_tier(source_id)
                 logger.info(
                     f"DRY RUN: would extract from {content_hash[:16]}… "
-                    f"({row.get('title', 'untitled')[:50]})"
+                    f"[tier={tier}] ({row.get('title', 'untitled')[:50]})"
                 )
                 continue
 
@@ -562,6 +678,7 @@ def run_extraction(
             f"Extraction complete: {summary['total_processed']} processed, "
             f"{summary['predictions_extracted']} predictions extracted, "
             f"{summary['predictions_ingested']} ingested, "
+            f"{summary['skipped_low_yield']} skipped (low-yield source), "
             f"{summary['errors']} errors"
         )
         return summary

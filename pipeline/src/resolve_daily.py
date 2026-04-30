@@ -35,6 +35,29 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Sports whose resolution logic is fully implemented
+_SUPPORTED_SPORTS = {"NFL"}
+
+
+def _filter_to_supported_sports(pending: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return only rows whose sport is fully supported by this resolver.
+
+    Any sport not yet implemented (e.g. "NBA") is logged and dropped so
+    its predictions stay PENDING rather than being mis-resolved or erroring.
+    """
+    if pending.empty or "sport" not in pending.columns:
+        return pending
+
+    unsupported = pending[~pending["sport"].isin(_SUPPORTED_SPORTS)]
+    for sport, group in unsupported.groupby("sport", dropna=False):
+        for pred_id in group["prediction_hash"]:
+            logger.info(
+                f"Skipping {sport} prediction {pred_id} — {sport} resolver not yet implemented"
+            )
+
+    return pending[pending["sport"].isin(_SUPPORTED_SPORTS)].copy()
+
 
 # ---------------------------------------------------------------------------
 # Draft pick resolver
@@ -126,7 +149,7 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport="NFL", db=db)
+    pending = _filter_to_supported_sports(get_pending_predictions(sport=None, db=db))
     draft_preds = pending[pending["claim_category"] == "draft_pick"]
 
     if draft_preds.empty:
@@ -446,7 +469,7 @@ def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport="NFL", db=db)
+    pending = _filter_to_supported_sports(get_pending_predictions(sport=None, db=db))
     game_preds = pending[pending["claim_category"] == "game_outcome"]
 
     if game_preds.empty:
@@ -726,7 +749,7 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport="NFL", db=db)
+    pending = _filter_to_supported_sports(get_pending_predictions(sport=None, db=db))
     perf_preds = pending[pending["claim_category"] == "player_performance"]
 
     if perf_preds.empty:
@@ -857,8 +880,21 @@ def resolve_all(
     category: Optional[str] = None,
     dry_run: bool = False,
     db: Optional[DBManager] = None,
+    sport: Optional[str] = None,
 ) -> dict:
-    """Run all resolution passes. Returns combined summary."""
+    """Run all resolution passes. Returns combined summary.
+
+    Args:
+        category: Limit to a single prediction category (draft_pick, game_outcome,
+            player_performance). None means all categories.
+        dry_run: Preview without writing results.
+        db: Optional shared DBManager; created internally if not provided.
+        sport: Future use — restrict fetched predictions to a specific sport.
+            Currently ignored at this level because each resolver calls
+            get_pending_predictions(sport=None) and filters unsupported sports
+            via _filter_to_supported_sports.  Pass sport="NBA" once NBA
+            resolution logic is implemented.
+    """
     close_db = db is None
     if db is None:
         db = DBManager()
@@ -904,9 +940,17 @@ if __name__ == "__main__":
         help="Resolve only a specific category",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--sport",
+        default=None,
+        help=(
+            "Restrict resolution to a specific sport (e.g. NFL, NBA). "
+            "Omit to process all supported sports."
+        ),
+    )
     args = parser.parse_args()
 
-    result = resolve_all(category=args.category, dry_run=args.dry_run)
+    result = resolve_all(category=args.category, dry_run=args.dry_run, sport=args.sport)
     import json
 
     print(json.dumps(result, indent=2))

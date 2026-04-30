@@ -16,6 +16,7 @@ sources:
     scrape_full_text: true
     url: "https://profootballtalk.nbcsports.com/feed/"
     enabled: true
+    priority_tier: 1  # yield_rate=0.70 (179/257 articles) — high-yield news source
     default_pundit:
       id: pft_staff
       name: "PFT Staff"
@@ -43,6 +44,7 @@ sources:
     scrape_full_text: true
     url: "https://www.espn.com/espn/rss/nfl/news"
     enabled: true
+    priority_tier: 1  # yield_rate=1.79 (286/160 articles) — top-yield source (multiple predictions per article)
     default_pundit:
       id: espn_nfl_staff
       name: "ESPN NFL Staff"
@@ -69,6 +71,7 @@ sources:
     type: rss
     url: "https://www.theringer.com/rss/nfl/index.xml"
     enabled: true
+    priority_tier: 2  # yield_rate=unknown (no data yet) — opinion/analysis outlet, estimated medium yield
     pundits:
       - id: bill_simmons
         name: "Bill Simmons"
@@ -85,6 +88,7 @@ sources:
     # Re-enable once a working NFL-only feed URL is confirmed. (#128)
     url: "https://theathletic.com/feeds/rss/news/?sport=football"
     enabled: true
+    priority_tier: 2  # yield_rate=0.17 (68/401 articles) — medium yield
     default_pundit:
       id: athletic_nfl_staff
       name: "The Athletic NFL Staff"
@@ -118,6 +122,8 @@ sources:
     scrape_full_text: true
     url: "https://www.nfl.com/rss/rsslanding?searchString=home"
     enabled: true
+    priority_tier: 3  # yield_rate=0.00 (0/1 articles) — near-zero yield; skip LLM extraction
+    skip_extraction: true
     pundits:
       - id: ian_rapoport
         name: "Ian Rapoport"
@@ -133,6 +139,7 @@ sources:
     scrape_full_text: true
     url: "https://www.si.com/rss/si_nfl.rss"
     enabled: true
+    priority_tier: 2  # yield_rate=unknown (no data yet) — analytical outlet, estimated medium yield
     pundits:
       - id: albert_breer
         name: "Albert Breer"
@@ -145,6 +152,7 @@ sources:
     type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
     enabled: true
+    priority_tier: 1  # yield_rate=0.45 (135/299 articles) — high-yield pundit show
     pundits:
       - id: pat_mcafee
         name: "Pat McAfee"
@@ -158,6 +166,7 @@ sources:
     # exists. Skip Bayless left FS1/Undisputed in 2023. (#171)
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCuF2PqOvMBKBVi9JvtC3GqA"
     enabled: false
+    priority_tier: 1  # Opinion/debate show — expected high yield when re-enabled
     pundits:
       - id: skip_bayless
         name: "Skip Bayless"
@@ -171,6 +180,8 @@ sources:
     # First Take debate/opinion show. Re-enable with correct channel ID. (#128)
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
     enabled: false  # Disabled: channel is NBA game highlights, not NFL prediction content (#128)
+    priority_tier: 3  # yield_rate=0.00 (0/15 articles) — wrong channel; skip extraction when re-enabled
+    skip_extraction: true
     pundits:
       - id: stephen_a_smith
         name: "Stephen A. Smith"
@@ -186,6 +197,7 @@ sources:
     # channel. Re-enable with a full-episode channel ID once confirmed. (#171)
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCFDidMd82mpDkKijLUqHp7A"
     enabled: false
+    priority_tier: 1  # Opinion show — expected high yield when re-enabled with correct channel
     pundits:
       - id: colin_cowherd
         name: "Colin Cowherd"
@@ -197,6 +209,8 @@ sources:
     type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCQoxJOkwaCgyzQtiuAIDcuw"
     enabled: true
+    priority_tier: 3  # yield_rate=0.00 (0/87 articles) — interview/entertainment show; skip LLM extraction
+    skip_extraction: true
     pundits:
       - id: shannon_sharpe
         name: "Shannon Sharpe"
@@ -209,6 +223,7 @@ sources:
     # TODO: verify channel_id — could not confirm via web search
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UNKNOWN"
     enabled: false
+    priority_tier: 1  # Opinion show — expected high yield when re-enabled with correct channel
     pundits:
       - id: nick_wright
         name: "Nick Wright"
@@ -220,6 +235,7 @@ sources:
     type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCORy0Yqzd8bVj2Gb4xyq6HA"
     enabled: true
+    priority_tier: 1  # yield_rate=0.85 (28/33 articles) — high-yield pundit show
     pundits:
       - id: dan_patrick
         name: "Dan Patrick"
@@ -231,6 +247,7 @@ sources:
     type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCqMtxjKnR7ySbEZSs2N-v0Q"
     enabled: true
+    priority_tier: 2  # yield_rate=unknown (no data yet) — interview/opinion show, estimated medium yield
     pundits:
       - id: rich_eisen
         name: "Rich Eisen"

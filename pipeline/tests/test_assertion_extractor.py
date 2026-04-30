@@ -12,11 +12,16 @@ import pandas as pd
 import pytest
 from google.api_core.exceptions import NotFound
 from src.assertion_extractor import (
+    DEFAULT_PRIORITY_TIER,
     VALID_CATEGORIES,
     ExtractionResult,
+    _apply_priority_sort,
     _deduplicate_claims,
     extract_assertions,
+    get_source_priority_tier,
     get_unprocessed_media,
+    is_skip_extraction,
+    load_source_config,
     mark_as_processed,
     reset_processed_hashes,
     run_extraction,
@@ -689,7 +694,14 @@ class TestLLMProvider:
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS
 
-        assert set(PROVIDERS.keys()) == {"gemini", "claude", "openai", "ollama"}
+        # gemini-flash is an alias for GeminiProvider (burst mode for historical backfill)
+        assert set(PROVIDERS.keys()) == {
+            "gemini",
+            "gemini-flash",
+            "claude",
+            "openai",
+            "ollama",
+        }
 
     def test_json_parse_strips_markdown_fences(self):
         from src.llm_provider import LLMProvider
@@ -869,3 +881,270 @@ class TestConstants:
             "contract",
         }
         assert VALID_CATEGORIES == expected
+
+
+# ---------------------------------------------------------------------------
+# Source priority tiers (Issue #381)
+# ---------------------------------------------------------------------------
+
+
+def make_media_df_with_tiers():
+    """DataFrame with mixed sources across three tiers and varying publish dates."""
+    from datetime import datetime, timezone
+
+    return pd.DataFrame(
+        [
+            {
+                "content_hash": "hash_tier3_old",
+                "source_id": "low_yield_source",
+                "title": "Low yield old",
+                "raw_text": "content",
+                "source_url": "https://example.com/1",
+                "author": "Author",
+                "matched_pundit_id": "p1",
+                "matched_pundit_name": "P1",
+                "published_at": datetime(2025, 1, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
+            {
+                "content_hash": "hash_tier1_new",
+                "source_id": "espn_nfl",
+                "title": "High yield new",
+                "raw_text": "content",
+                "source_url": "https://example.com/2",
+                "author": "Author",
+                "matched_pundit_id": "p2",
+                "matched_pundit_name": "P2",
+                "published_at": datetime(2025, 9, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
+            {
+                "content_hash": "hash_tier2_mid",
+                "source_id": "theathletic_nfl",
+                "title": "Medium yield mid",
+                "raw_text": "content",
+                "source_url": "https://example.com/3",
+                "author": "Author",
+                "matched_pundit_id": "p3",
+                "matched_pundit_name": "P3",
+                "published_at": datetime(2025, 5, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
+            {
+                "content_hash": "hash_tier1_old",
+                "source_id": "pat_mcafee_show",
+                "title": "High yield old",
+                "raw_text": "content",
+                "source_url": "https://example.com/4",
+                "author": "Author",
+                "matched_pundit_id": "p4",
+                "matched_pundit_name": "P4",
+                "published_at": datetime(2025, 3, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
+        ]
+    )
+
+
+class TestApplyPrioritySort:
+    """Unit tests for _apply_priority_sort."""
+
+    def test_tier1_before_tier2_before_tier3(self):
+        """Tier 1 sources should appear before tier 2 and 3."""
+        priority_map = {
+            "espn_nfl": 1,
+            "pat_mcafee_show": 1,
+            "theathletic_nfl": 2,
+            "low_yield_source": 3,
+        }
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=10)
+        tiers = [
+            priority_map.get(sid, DEFAULT_PRIORITY_TIER) for sid in result["source_id"]
+        ]
+        # Tiers should be non-decreasing
+        assert tiers == sorted(tiers)
+
+    def test_within_same_tier_newest_first(self):
+        """Within the same tier, newer articles should come first."""
+        priority_map = {
+            "espn_nfl": 1,
+            "pat_mcafee_show": 1,
+            "theathletic_nfl": 2,
+            "low_yield_source": 3,
+        }
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=10)
+        tier1_rows = result[result["source_id"].isin(["espn_nfl", "pat_mcafee_show"])]
+        dates = list(tier1_rows["published_at"])
+        assert dates == sorted(dates, reverse=True)
+
+    def test_limit_respected(self):
+        """Result should not exceed the given limit."""
+        priority_map = {"espn_nfl": 1, "theathletic_nfl": 2}
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=2)
+        assert len(result) == 2
+
+    def test_limit_fills_from_tier1_first(self):
+        """With limit=2 and two tier-1 sources, both slots go to tier 1."""
+        priority_map = {
+            "espn_nfl": 1,
+            "pat_mcafee_show": 1,
+            "theathletic_nfl": 2,
+            "low_yield_source": 3,
+        }
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=2)
+        for sid in result["source_id"]:
+            assert priority_map.get(sid, DEFAULT_PRIORITY_TIER) == 1
+
+    def test_unknown_source_gets_default_tier(self):
+        """Sources missing from priority_map get DEFAULT_PRIORITY_TIER (2)."""
+        priority_map = {"espn_nfl": 1}  # theathletic_nfl and others not mapped
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=10)
+        # espn_nfl (tier 1) should be first
+        assert result.iloc[0]["source_id"] == "espn_nfl"
+
+    def test_empty_dataframe_passthrough(self):
+        """Empty DataFrame should return empty without error."""
+        result = _apply_priority_sort(pd.DataFrame(), {}, limit=10)
+        assert result.empty
+
+
+class TestSourceConfig:
+    """Unit tests for source config helpers."""
+
+    def test_load_source_config_returns_dict(self):
+        """load_source_config should return a non-empty dict."""
+        import src.assertion_extractor as ae
+
+        # Clear cache so we read from disk
+        ae._SOURCE_CONFIG_CACHE = None
+        cfg = load_source_config()
+        assert isinstance(cfg, dict)
+        assert len(cfg) > 0
+
+    def test_known_tier1_sources_have_correct_tier(self):
+        """pat_mcafee_show and espn_nfl should be tier 1 per media_sources.yaml."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert get_source_priority_tier("pat_mcafee_show") == 1
+        assert get_source_priority_tier("espn_nfl") == 1
+
+    def test_skip_extraction_sources(self):
+        """club_shay_shay and nfl_official should have skip_extraction=True."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert is_skip_extraction("club_shay_shay") is True
+        assert is_skip_extraction("nfl_official") is True
+
+    def test_non_skip_source(self):
+        """pat_mcafee_show should NOT be skip_extraction."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert is_skip_extraction("pat_mcafee_show") is False
+
+    def test_unknown_source_defaults(self):
+        """Unknown source gets tier=2 and skip_extraction=False."""
+        assert (
+            get_source_priority_tier("nonexistent_source_xyz") == DEFAULT_PRIORITY_TIER
+        )
+        assert is_skip_extraction("nonexistent_source_xyz") is False
+
+
+class TestPriorityInGetUnprocessedMedia:
+    """Integration tests for priority sorting in get_unprocessed_media."""
+
+    def test_skip_sources_excluded_from_query(self, mock_db):
+        """Sources with skip_extraction=True should appear in the NOT IN filter."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db)
+        query = mock_db.fetch_df.call_args[0][0]
+        # club_shay_shay is skip_extraction=True — should be excluded
+        assert "club_shay_shay" in query
+        assert "NOT IN" in query
+
+    def test_priority_sort_applied_to_results(self, mock_db):
+        """Results returned from DB should be re-sorted by tier before returning."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        # Return rows with tier-3 source first, tier-1 source second
+        from datetime import datetime, timezone
+
+        raw = pd.DataFrame(
+            [
+                {
+                    "content_hash": "hash_tier3",
+                    "source_id": "rotoballer_nfl",  # tier 3
+                    "title": "Low yield",
+                    "raw_text": "text",
+                    "source_url": "https://example.com/a",
+                    "author": "A",
+                    "matched_pundit_id": "p1",
+                    "matched_pundit_name": "P1",
+                    "published_at": datetime(2025, 9, 1, tzinfo=timezone.utc),
+                    "sport": "NFL",
+                },
+                {
+                    "content_hash": "hash_tier1",
+                    "source_id": "espn_nfl",  # tier 1
+                    "title": "High yield",
+                    "raw_text": "text",
+                    "source_url": "https://example.com/b",
+                    "author": "B",
+                    "matched_pundit_id": "p2",
+                    "matched_pundit_name": "P2",
+                    "published_at": datetime(2025, 8, 1, tzinfo=timezone.utc),
+                    "sport": "NFL",
+                },
+            ]
+        )
+        mock_db.fetch_df.return_value = raw
+        result = get_unprocessed_media(mock_db, limit=10)
+        # espn_nfl (tier 1) should come before rotoballer_nfl (tier 3)
+        assert result.iloc[0]["source_id"] == "espn_nfl"
+        assert result.iloc[1]["source_id"] == "rotoballer_nfl"
+
+    def test_run_extraction_skips_low_yield_source(self, mock_db, mock_provider):
+        """Articles from skip_extraction sources are marked processed without LLM call."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+
+        skip_df = pd.DataFrame(
+            [
+                {
+                    "content_hash": "skip_hash_1",
+                    "source_id": "club_shay_shay",  # skip_extraction=True
+                    "title": "Interview show",
+                    "raw_text": "some text content here",
+                    "source_url": "https://youtube.com/v/1",
+                    "author": "Shannon Sharpe",
+                    "matched_pundit_id": "shannon_sharpe",
+                    "matched_pundit_name": "Shannon Sharpe",
+                    "published_at": datetime(2025, 9, 1, tzinfo=timezone.utc),
+                    "sport": "NFL",
+                }
+            ]
+        )
+        mock_db.fetch_df.return_value = skip_df
+
+        with patch("src.assertion_extractor.extract_assertions") as mock_extract:
+            summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["skipped_low_yield"] == 1
+        assert summary["total_processed"] == 1
+        mock_extract.assert_not_called()
+        # Should still be marked processed
+        mock_db.append_dataframe_to_table.assert_called_once()

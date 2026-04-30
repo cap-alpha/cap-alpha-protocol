@@ -55,6 +55,7 @@ set +e
     --append-system-prompt-file "$PROMPT_FILE" \
     --allow-dangerously-skip-permissions \
     --output-format stream-json \
+    --verbose \
     ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
     "$(cat "$PROMPT_FILE")" \
     2>&1 | tee "$TMPOUT"

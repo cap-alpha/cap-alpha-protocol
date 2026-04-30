@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# gh-lars — gh CLI wrapper authenticated as the cap-alpha-workflow-automation GitHub App.
+#
+# Replaces the previous LARS_TOKEN PAT approach with installation tokens minted
+# by scripts/gh-app-token.sh. Tokens last 1 hour and are cached automatically.
+#
+# Usage: identical to `gh` — just call `gh-lars <gh-args>`
+#
+# Rate limits: GitHub App installation tokens get 5,000 req/hr per installation,
+# vs ~1,000/hr for PATs (and much lower for new accounts). No more abuse flags.
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Resolve main repo root — works from both main checkout and worktrees.
+# --git-common-dir returns relative path from main checkout, absolute from worktrees.
+# Normalise by cd-ing from SCRIPT_DIR so relative paths are anchored correctly.
+_GIT_COMMON="$(git -C "$SCRIPT_DIR" rev-parse --git-common-dir 2>/dev/null || true)"
+# If absolute (worktree case), use directly; if relative, resolve from SCRIPT_DIR.
+case "$_GIT_COMMON" in
+    /*) MAIN_REPO="$(cd "$_GIT_COMMON/.." && pwd)" ;;
+    *)  MAIN_REPO="$(cd "$SCRIPT_DIR/$_GIT_COMMON/.." && pwd)" ;;
+esac
+TOKEN_SCRIPT="${SCRIPT_DIR}/gh-app-token.sh"
+PERSONAS_FILE="${MAIN_REPO}/.env.personas"
+
+# Source .env.personas to pick up required GitHub App settings (and Slack creds)
+# when either GH_APP_ID or GH_INSTALLATION_ID is not already set — lets agents
+# call gh-lars without pre-sourcing the file themselves.
+if [[ -f "$PERSONAS_FILE" ]] && [[ -z "${GH_APP_ID:-}" || -z "${GH_INSTALLATION_ID:-}" ]]; then
+    set -a; source "$PERSONAS_FILE"; set +a
+fi
+
+if [[ ! -x "$TOKEN_SCRIPT" ]]; then
+    echo "gh-lars: token script not found or not executable: $TOKEN_SCRIPT" >&2
+    exit 1
+fi
+
+# Explicitly capture + check token — bash set -e doesn't fire on $() failures.
+GH_TOKEN="$("$TOKEN_SCRIPT")"
+if [[ -z "$GH_TOKEN" ]]; then
+    echo "gh-lars: gh-app-token.sh returned empty token" >&2
+    exit 1
+fi
+export GH_TOKEN
+exec gh "$@"

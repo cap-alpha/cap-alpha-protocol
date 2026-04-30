@@ -936,10 +936,8 @@ class TestLLMProvider:
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS
 
-        # gemini-flash is an alias for GeminiProvider (burst mode for historical backfill)
         assert set(PROVIDERS.keys()) == {
             "gemini",
-            "gemini-flash",
             "claude",
             "openai",
             "ollama",

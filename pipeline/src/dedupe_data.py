@@ -4,6 +4,7 @@ from datetime import datetime
 from typing import Optional
 
 import pandas as pd
+
 from src.db_manager import DBManager
 
 logger = logging.getLogger(__name__)

@@ -7,6 +7,7 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from src.llm_provider import (
     PREDICTION_SCHEMA_DESCRIPTION,
     GeminiProvider,

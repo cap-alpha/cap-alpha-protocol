@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import pytest
+
 from src.db_manager import DBManager
 
 # Setup logging
@@ -33,9 +34,8 @@ def test_gold_layer_build_integrity():
         # We don't want to actually overwrite the production table here if we can avoid it,
         # but create_gold_layer does 'CREATE OR REPLACE'.
         # For a test, we'll try to execute the core logic into a temp table.
-        from src.db_manager import DBManager
-
         from scripts.medallion_pipeline import GoldLayer
+        from src.db_manager import DBManager
 
         # We can't easily run create_gold_layer on a temp table without modifying it,
         # but we can verify it runs on the current DB.

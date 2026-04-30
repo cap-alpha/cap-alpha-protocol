@@ -281,7 +281,8 @@ dispatch_issue() {
         return
     fi
 
-    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "$branch" 2>/dev/null || {
+    git -C "$REPO_ROOT" fetch origin main --quiet 2>/dev/null || true
+    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "$branch" origin/main 2>/dev/null || {
         log "  Branch conflict for #${number}, skipping"
         return
     }

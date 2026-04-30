@@ -94,7 +94,10 @@ def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) 
 
     try:
         project_id = os.environ.get("GCP_PROJECT_ID")
-        now = datetime.now(timezone.utc).isoformat()
+        # Keep now as a timezone-aware datetime so it can be bound as a TIMESTAMP
+        # parameter.  Binding ISO strings as STRING to TIMESTAMP columns causes
+        # BigQuery type-mismatch errors during the MERGE.
+        now = datetime.now(timezone.utc)
 
         # Numeric/boolean literals are safe to inline because they come from Python
         # dataclass fields (floats and bools), not from external/data-derived strings.
@@ -146,7 +149,7 @@ def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) 
             bigquery.ScalarQueryParameter(
                 "resolution_status", "STRING", result.resolution_status
             ),
-            bigquery.ScalarQueryParameter("resolved_at", "STRING", now),
+            bigquery.ScalarQueryParameter("resolved_at", "TIMESTAMP", now),
             bigquery.ScalarQueryParameter("resolver", "STRING", result.resolver),
             bigquery.ScalarQueryParameter(
                 "outcome_source", "STRING", result.outcome_source
@@ -157,8 +160,8 @@ def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) 
             bigquery.ScalarQueryParameter(
                 "outcome_notes", "STRING", result.outcome_notes
             ),
-            bigquery.ScalarQueryParameter("updated_at", "STRING", now),
-            bigquery.ScalarQueryParameter("created_at", "STRING", now),
+            bigquery.ScalarQueryParameter("updated_at", "TIMESTAMP", now),
+            bigquery.ScalarQueryParameter("created_at", "TIMESTAMP", now),
         ]
         db.execute(merge_sql, query_parameters=query_parameters)
         logger.info(

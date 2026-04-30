@@ -12,6 +12,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const parsed = parseInt(searchParams.get("limit") ?? "");
+    // Guard against NaN (e.g. ?limit=foo) — fall back to default before clamping.
     const limit = Number.isFinite(parsed) ? Math.min(parsed, 100) : 20;
     const sport = searchParams.get("sport");
     const punditId = searchParams.get("pundit_id");

@@ -1,20 +1,27 @@
 import { NextResponse } from "next/server";
 
-const API_URL =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+// Server-only env var — fail fast if unset so production issues are not
+// masked as empty-200 responses.
+const API_URL = process.env.INTERNAL_API_URL;
 
 export async function GET(req: Request) {
+    if (!API_URL) {
+        console.error("[Ledger Recent API] INTERNAL_API_URL is not set");
+        return NextResponse.json({ error: "API URL not configured" }, { status: 500 });
+    }
+
     const { searchParams } = new URL(req.url);
     const parsed = parseInt(searchParams.get("limit") ?? "");
     const limit = Number.isFinite(parsed) ? Math.min(parsed, 100) : 20;
     const sport = searchParams.get("sport");
+    const punditId = searchParams.get("pundit_id");
 
     const backendUrl = new URL(`${API_URL}/v1/predictions/recent`);
     backendUrl.searchParams.set("limit", String(limit));
     if (sport && sport !== "ALL") {
         backendUrl.searchParams.set("sport", sport);
     }
+    if (punditId) backendUrl.searchParams.set("pundit_id", punditId);
 
     try {
         const res = await fetch(backendUrl.toString(), {

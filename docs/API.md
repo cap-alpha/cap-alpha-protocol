@@ -8,15 +8,9 @@ All endpoints are versioned under `/v1`. Responses are JSON throughout.
 
 ## Authentication
 
-Every endpoint (except the health check `GET /`) requires an API key passed as an HTTP header:
+API-key enforcement is **not yet active** on the backend. The `x-api-key` header is accepted but not validated. Full enforcement will be added in a future release, at which point every endpoint (except the health check `GET /`) will require a key provisioned via the Cap Alpha dashboard. Keys will use the format `capk_live_<random>`.
 
-```
-x-api-key: capk_live_...
-```
-
-Keys are provisioned via the Cap Alpha dashboard. The key format is `capk_live_<random>`.
-
-**Error — missing or invalid key:**
+**Future error — missing or invalid key:**
 ```json
 HTTP 401
 { "detail": "Invalid or missing API key" }
@@ -61,37 +55,6 @@ curl https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/
 
 ---
 
-### `GET /v1/me` — API key info
-
-Returns the tier, rate limit, scopes, and last-used info for the authenticated key. Useful for SDK clients to surface quota state.
-
-**Auth required:** yes
-
-**curl:**
-```bash
-curl https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/v1/me \
-  -H "x-api-key: capk_live_your_key"
-```
-
-**Response:**
-```json
-{
-  "key_id": "capk_live_abc123",
-  "tier": "api_starter",
-  "scopes": ["read"],
-  "last_used_at": "2025-04-27T12:00:00Z"
-}
-```
-
-**Errors:**
-
-| Code | Meaning |
-|---|---|
-| 401 | Missing or invalid API key |
-| 422 | Validation error |
-
----
-
 ### `GET /v1/leaderboard` — Ranked pundits by accuracy
 
 Returns pundits ranked by weighted accuracy score (accuracy × timeliness). Cached for 5 minutes.
@@ -117,10 +80,12 @@ curl "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/v1/leaderboard?limit=10"
     {
       "pundit_id": "mcafee_pat",        // unique slug for the pundit
       "pundit_name": "Pat McAfee",      // display name
-      "total": 142,                     // total predictions tracked
-      "resolved": 118,                  // predictions with a final verdict
-      "correct": 71,                    // correct predictions
-      "accuracy_rate": 0.601,           // correct / resolved (0–1)
+      "sport": "NFL",                   // sport context
+      "total_predictions": 142,         // total predictions tracked
+      "resolved_count": 118,            // predictions with a final verdict
+      "correct_count": 71,              // correct predictions
+      "accuracy_rate": 0.601,           // correct_count / resolved_count (0–1)
+      "avg_brier_score": 0.22,          // probability calibration score (lower is better)
       "avg_weighted_score": 0.72        // accuracy × timeliness composite
     }
   ],
@@ -156,10 +121,12 @@ curl https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/v1/pundits/ \
     {
       "pundit_id": "mcafee_pat",
       "pundit_name": "Pat McAfee",
-      "total": 142,
-      "resolved": 118,
-      "correct": 71,
+      "sport": "NFL",
+      "total_predictions": 142,
+      "resolved_count": 118,
+      "correct_count": 71,
       "accuracy_rate": 0.601,
+      "avg_brier_score": 0.22,
       "avg_weighted_score": 0.72
     }
   ],
@@ -200,10 +167,12 @@ curl https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/v1/pundits/mcafee_pat \
   "pundit": {
     "pundit_id": "mcafee_pat",
     "pundit_name": "Pat McAfee",
-    "total": 142,
-    "resolved": 118,
-    "correct": 71,
+    "sport": "NFL",
+    "total_predictions": 142,
+    "resolved_count": 118,
+    "correct_count": 71,
     "accuracy_rate": 0.601,
+    "avg_brier_score": 0.22,
     "avg_weighted_score": 0.72
   },
   "accuracy_by_category": [

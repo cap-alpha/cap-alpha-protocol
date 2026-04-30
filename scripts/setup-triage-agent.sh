@@ -27,10 +27,8 @@ ok "claude CLI found at $CLAUDE_BIN ($(\"$CLAUDE_BIN\" --version 2>/dev/null | h
 
 # 2. Validate .env.personas
 [[ -f "$PERSONAS" ]] || err ".env.personas not found at $PERSONAS. Create it with GH_APP_ID, GH_INSTALLATION_ID, and SLACK_WEBHOOK_URL."
-# Accept either GitHub App identity (GH_APP_ID) or legacy PAT (LARS_TOKEN)
-if ! grep -q "^GH_APP_ID=" "$PERSONAS" && ! grep -q "^LARS_TOKEN=" "$PERSONAS"; then
-    err ".env.personas missing GitHub identity — need GH_APP_ID (App auth) or LARS_TOKEN (PAT auth)"
-fi
+grep -q "^GH_APP_ID=" "$PERSONAS" || err ".env.personas missing GH_APP_ID — required for GitHub App auth"
+grep -q "^GH_INSTALLATION_ID=" "$PERSONAS" || err ".env.personas missing GH_INSTALLATION_ID — required for GitHub App auth"
 grep -q "^SLACK_WEBHOOK_URL=" "$PERSONAS" || { echo "  WARN: SLACK_WEBHOOK_URL not set — Slack alerts disabled"; }
 ok ".env.personas validated"
 
@@ -66,7 +64,7 @@ echo "--- End dry-run ---"
 echo ""
 
 # 8. Print next-run time and log path
-NEXT_RUN=$(date -v+1H "+%Y-%m-%d %H:%M %Z" 2>/dev/null || date --date="+1 hour" "+%Y-%m-%d %H:%M %Z" 2>/dev/null || echo "in ~1 hour")
+NEXT_RUN=$(date -v+10M "+%Y-%m-%d %H:%M %Z" 2>/dev/null || date --date="+10 minutes" "+%Y-%m-%d %H:%M %Z" 2>/dev/null || echo "in ~10 minutes")
 echo "=== Setup complete ==="
 echo "  Next scheduled run : $NEXT_RUN"
 echo "  Log file           : $LOG_PATH"

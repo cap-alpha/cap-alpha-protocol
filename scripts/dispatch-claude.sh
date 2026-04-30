@@ -36,10 +36,10 @@ done
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 START_TS="$(ts)"
 
-# Build env prefix for subagent environment
-ENV_PREFIX=()
+# Build env command: `env KEY=VAL1 KEY=VAL2 cmd` — single `env` prefix, not nested
+ENV_CMD=(env)
 for kv in "${ENV_VARS[@]}"; do
-    ENV_PREFIX+=(env "$kv")
+    ENV_CMD+=("$kv")
 done
 
 # Invoke claude -p (non-interactive) with stream-json output so we can parse usage
@@ -47,7 +47,7 @@ TMPOUT="$(mktemp)"
 trap 'rm -f "$TMPOUT"' EXIT
 
 set +e
-"${ENV_PREFIX[@]:-env}" "$CLAUDE_BIN" \
+"${ENV_CMD[@]}" "$CLAUDE_BIN" \
     -p \
     --model "$MODEL" \
     --add-dir "$WORKTREE" \
@@ -55,8 +55,8 @@ set +e
     --append-system-prompt-file "$PROMPT_FILE" \
     --allow-dangerously-skip-permissions \
     --output-format stream-json \
-    "${EXTRA_ARGS[@]}" \
-    "$(cat "$PROMPT_FILE")" \
+    --verbose \
+    ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
     2>&1 | tee "$TMPOUT"
 EXIT_CODE=$?
 set -e

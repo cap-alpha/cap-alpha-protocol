@@ -30,21 +30,26 @@ export async function GET(req: Request) {
 
         const data = await res.json();
         // Backend returns resolved_count / correct_count — map to UI field names
-        const mapped = (data.pundits || []).map((p: Record<string, unknown>) => ({
-            ...p,
-            resolved_predictions:
+        const mapped = (data.pundits || []).map((p: Record<string, unknown>) => {
+            const resolved =
                 (p.resolved_count as number) ??
                 (p.resolved_predictions as number) ??
-                0,
-            correct_predictions:
+                0;
+            const correct =
                 (p.correct_count as number) ??
                 (p.correct_predictions as number) ??
-                0,
-            incorrect_predictions:
+                0;
+            const incorrect =
                 (p.incorrect_count as number) ??
                 (p.incorrect_predictions as number) ??
-                0,
-        }));
+                resolved - correct;
+            return {
+                ...p,
+                resolved_predictions: resolved,
+                correct_predictions: correct,
+                incorrect_predictions: incorrect,
+            };
+        });
         return NextResponse.json({ pundits: mapped });
     } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);

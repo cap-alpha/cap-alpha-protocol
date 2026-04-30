@@ -12,6 +12,6 @@ You are operating in a fresh git worktree. The issue number, title, and body are
 6. Push the branch: `git push -u origin HEAD`.
 7. Open a PR via `scripts/gh-lars pr create --title "[Gate N] <title>" --body "Closes #${ISSUE_NUMBER}\n\n<summary>"`.
 8. Queue the PR: `scripts/gh-lars pr merge <pr-number> --rebase --auto`.
-9. Release the issue lock: `ALLOW_MAIN_CHECKOUT=1 .agent/claim.sh release issue:${ISSUE_NUMBER} triage-agent`.
+9. Release the issue lock: `ALLOW_MAIN_CHECKOUT=1 .agent/claim.sh release issue:${ISSUE_NUMBER} ${AGENT_ID}`.
 
 Do not gold-plate. Implement exactly what the acceptance criteria say.

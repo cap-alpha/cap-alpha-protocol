@@ -294,20 +294,24 @@ def _filter_nfl_only(pending: pd.DataFrame) -> pd.DataFrame:
 def resolve_draft_picks(
     db: DBManager,
     dry_run: bool = False,
+    sport: Optional[str] = None,
     pending_override: "Optional[pd.DataFrame]" = None,
 ) -> dict:
     """
     Resolve draft_pick predictions against actual draft results.
 
-    pending_override: if supplied, use this DataFrame instead of fetching
-    PENDING predictions — used by the re-resolve-voids pass.
+    Args:
+        sport: When provided, restrict resolution to predictions whose sport
+            matches this value (e.g. "NFL").  None processes all supported sports.
+        pending_override: if supplied, use this DataFrame instead of fetching
+            PENDING predictions — used by the re-resolve-voids pass.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
     if pending_override is not None:
         pending = pending_override
     else:
-        pending = get_pending_predictions(sport=None, db=db)
+        pending = get_pending_predictions(sport=sport, db=db)
         pending = _filter_nfl_only(pending)
     draft_preds = pending[pending["claim_category"] == "draft_pick"]
 
@@ -649,14 +653,20 @@ def _load_game_scores(db: DBManager, season_year: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
+def resolve_game_outcomes(
+    db: DBManager, dry_run: bool = False, sport: Optional[str] = None
+) -> dict:
     """
     Resolve game_outcome predictions against actual game results.
     Data source: bronze_sportsdataio_scores (HomeTeam, AwayTeam, HomeScore, AwayScore).
+
+    Args:
+        sport: When provided, restrict resolution to predictions whose sport
+            matches this value (e.g. "NFL").  None processes all supported sports.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport=None, db=db)
+    pending = get_pending_predictions(sport=sport, db=db)
     pending = _filter_nfl_only(pending)
     game_preds = pending[pending["claim_category"] == "game_outcome"]
 
@@ -940,15 +950,21 @@ def _load_player_season_stats(db: DBManager, season_year: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
+def resolve_player_performance(
+    db: DBManager, dry_run: bool = False, sport: Optional[str] = None
+) -> dict:
     """
     Resolve player_performance predictions against actual season stats.
     Data source: bronze_nflverse_player_stats (free, no API key required).
     Only resolves predictions for completed seasons.
+
+    Args:
+        sport: When provided, restrict resolution to predictions whose sport
+            matches this value (e.g. "NFL").  None processes all supported sports.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = get_pending_predictions(sport=None, db=db)
+    pending = get_pending_predictions(sport=sport, db=db)
     pending = _filter_nfl_only(pending)
     perf_preds = pending[pending["claim_category"] == "player_performance"]
 
@@ -1409,8 +1425,21 @@ def resolve_all(
     dry_run: bool = False,
     re_resolve_voids: bool = False,
     db: Optional[DBManager] = None,
+    sport: Optional[str] = None,
 ) -> dict:
-    """Run all resolution passes. Returns combined summary."""
+    """Run all resolution passes. Returns combined summary.
+
+    Args:
+        category: Limit to a single prediction category (draft_pick, game_outcome,
+            player_performance). None means all categories.
+        dry_run: Preview without writing results.
+        re_resolve_voids: Re-attempt predictions previously VOID'd as unparseable.
+        db: Optional shared DBManager; created internally if not provided.
+        sport: Restrict fetched predictions to a specific sport (e.g. "NFL").
+            Passed through to get_pending_predictions; unsupported sports are
+            additionally filtered by _filter_nfl_only in each individual resolver.
+            Omit to process all sports.
+    """
     close_db = db is None
     if db is None:
         db = DBManager()
@@ -1431,14 +1460,18 @@ def resolve_all(
                     summaries["draft_pick_voids"] = resolve_draft_picks(
                         db, dry_run=dry_run, pending_override=void_drafts
                     )
-            summaries["draft_pick"] = resolve_draft_picks(db, dry_run=dry_run)
+            summaries["draft_pick"] = resolve_draft_picks(
+                db, dry_run=dry_run, sport=sport
+            )
 
         if not category or category == "game_outcome":
-            summaries["game_outcome"] = resolve_game_outcomes(db, dry_run=dry_run)
+            summaries["game_outcome"] = resolve_game_outcomes(
+                db, dry_run=dry_run, sport=sport
+            )
 
         if not category or category == "player_performance":
             summaries["player_performance"] = resolve_player_performance(
-                db, dry_run=dry_run
+                db, dry_run=dry_run, sport=sport
             )
 
         if not category or category == "award_prediction":

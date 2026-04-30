@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     description: "FTC-compliant affiliate disclosure for Cap Alpha / Pundit Ledger.",
 };
 
-export default function AffiliateDisclosure() {
+export default function DisclosurePage() {
     return (
         <main className="min-h-[100dvh] bg-black text-white px-6 py-16">
             <div className="max-w-3xl mx-auto">

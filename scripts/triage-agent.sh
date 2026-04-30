@@ -68,21 +68,6 @@ print(f"input={total_input} output={total_output}")
 PYEOF
 }
 
-dispatch_summary() {
-    local dispatched_issues="$1"
-    local dispatched_prs="$2"
-    local elapsed="$3"
-
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  DISPATCH SUMMARY"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  Issues dispatched: ${dispatched_issues}"
-    echo "  PRs processed: ${dispatched_prs}"
-    echo "  Duration: ${elapsed}s"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
-}
 
 # ── Quota awareness ───────────────────────────────────────────────────────────
 
@@ -314,9 +299,7 @@ dispatch_issue() {
 triage_issues() {
     local gate dispatched_count=0
     gate="$(current_gate)"
-    log "──────────────────────────────────────────────────────────────────────────────"
-    log "ISSUE TRIAGE"
-    log "Current gate level: ${gate}"
+    log "ISSUES gate=${gate}"
 
     local issues
     issues=$("$GH_LARS" issue list \
@@ -324,13 +307,13 @@ triage_issues() {
         --limit 50 \
         --json number,title,body,labels,assignees \
         2>/dev/null) || {
-        log "WARNING: Could not fetch issues (gh rate-limited or auth failure). Skipping issue triage."
+        log "WARN: issue fetch failed"
         return 0
     }
 
     local issue_count
     issue_count=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)))" <<< "$issues" 2>/dev/null || echo 0)
-    log "Found ${issue_count} open issues to evaluate"
+    log "issues found=${issue_count}"
 
     while IFS=$'\t' read -r number title labels body; do
         [[ -z "$number" ]] && continue
@@ -461,21 +444,20 @@ dispatch_pr_ci() {
 
 triage_prs() {
     local prs
-    log "──────────────────────────────────────────────────────────────────────────────"
-    log "PR TRIAGE"
+    log "PRS"
 
     prs=$("$GH_LARS" pr list \
         --state open \
         --limit 30 \
         --json number,title,headRefName,statusCheckRollup,reviews \
         2>/dev/null) || {
-        log "WARNING: Could not fetch PRs (gh rate-limited or auth failure). Skipping PR triage."
+        log "WARN: pr fetch failed"
         return 0
     }
 
     local pr_count
     pr_count=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)))" <<< "$prs" 2>/dev/null || echo 0)
-    log "Found ${pr_count} open PRs to evaluate"
+    log "prs found=${pr_count}"
 
     # Process each PR via python — output tab-separated action lines
     while IFS=$'\t' read -r action pr_number extra; do
@@ -545,12 +527,7 @@ main() {
     local token_start
     token_start=$(get_recent_token_usage 5)
 
-    log "════════════════════════════════════════════════════════════════════════════════"
-    log "TRIAGE AGENT START — $(date)"
-    log "Repository: ${REPO_ROOT}"
-    log "Dry-run: ${DRY_RUN}"
-    log "Token usage (last 5h): ${token_start}"
-    log "════════════════════════════════════════════════════════════════════════════════"
+    log "START tokens=${token_start} dry=${DRY_RUN}"
 
     # Rate-limit guard: if gh-lars returns 403/429, we skip gracefully (done inside triage_* fns)
     # Quota check
@@ -568,11 +545,7 @@ main() {
     elapsed=$((END_TIME - START_TIME))
     token_end=$(get_recent_token_usage 5)
 
-    log "════════════════════════════════════════════════════════════════════════════════"
-    log "TRIAGE AGENT COMPLETE — $(date)"
-    log "Duration: ${elapsed}s"
-    log "Token usage (last 5h): ${token_end}"
-    log "════════════════════════════════════════════════════════════════════════════════"
+    log "DONE elapsed=${elapsed}s tokens=${token_end}"
 }
 
 main "$@"

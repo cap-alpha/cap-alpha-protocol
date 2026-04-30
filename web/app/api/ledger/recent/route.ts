@@ -17,28 +17,28 @@ export async function GET(req: Request) {
     const rawLimit = parseInt(searchParams.get("limit") || "20", 10);
     const limit = Math.min(Number.isFinite(rawLimit) ? rawLimit : 20, 100);
 
-    const sport = searchParams.get("sport");
-    const punditId = searchParams.get("pundit_id");
-
     const backendUrl = new URL(`${API_URL}/v1/predictions/recent`);
+    // Forward all incoming query params to backend, then override limit
+    searchParams.forEach((value, key) => {
+        if (key !== "limit") {
+            backendUrl.searchParams.set(key, value);
+        }
+    });
     backendUrl.searchParams.set("limit", String(limit));
-    if (sport && sport !== "ALL") {
-        backendUrl.searchParams.set("sport", sport);
+    // Remove ALL sentinel so backend receives no sport filter
+    if (backendUrl.searchParams.get("sport") === "ALL") {
+        backendUrl.searchParams.delete("sport");
     }
-    if (punditId) backendUrl.searchParams.set("pundit_id", punditId);
 
     try {
         const res = await fetch(backendUrl.toString(), {
             headers: {
-                Accept: "application/json",
+                "Accept": "application/json",
             },
         });
 
         if (!res.ok) {
-            console.error(
-                `[Ledger Recent API] Backend returned ${res.status}`,
-                await res.text()
-            );
+            console.error(`[Ledger Recent API] Backend returned ${res.status}`, await res.text());
             return NextResponse.json({ predictions: [] }, { status: 502 });
         }
 

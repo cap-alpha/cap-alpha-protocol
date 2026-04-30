@@ -35,18 +35,22 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const sport = searchParams.get("sport");
 
-    // Build backend URL, forwarding the sport filter if provided
+    // Build backend URL, forwarding all query params
     const backendUrl = new URL(`${API_URL}/v1/pundits/`);
-    if (sport) {
-        backendUrl.searchParams.set("sport", sport);
+    // Forward all incoming query params to backend
+    searchParams.forEach((value, key) => {
+        backendUrl.searchParams.set(key, value);
+    });
+    // Remove ALL sentinel so backend receives no sport filter
+    if (backendUrl.searchParams.get("sport") === "ALL") {
+        backendUrl.searchParams.delete("sport");
     }
 
     try {
         const res = await fetch(backendUrl.toString(), {
             headers: {
-                Accept: "application/json",
+                "Accept": "application/json",
             },
         });
 

@@ -234,11 +234,12 @@ export default function ApiDocsPage() {
                         <SectionLabel><Shield className="w-3.5 h-3.5" /> Authentication</SectionLabel>
                         <h2 className="text-3xl font-black text-white">API key authentication</h2>
                         <p className="text-zinc-400 leading-relaxed max-w-2xl">
-                            Every endpoint (except the root health check <code className="font-mono text-sm text-zinc-300">GET /</code>) requires an API key.
-                            Pass it as an HTTP header on every request.
+                            API-key enforcement is <strong className="text-white">not yet active</strong> on the backend.
+                            The <code className="font-mono text-sm text-zinc-300">x-api-key</code> header is accepted but not validated.
+                            Full enforcement is planned for a future release — at that point every endpoint (except <code className="font-mono text-sm text-zinc-300">GET /</code>) will require a key provisioned via your Cap Alpha dashboard.
                         </p>
                     </div>
-                    <CodeBlock language="bash">{`# Include this header on every request
+                    <CodeBlock language="bash">{`# Pass your key in this header (enforcement coming soon)
 x-api-key: capk_live_your_key`}</CodeBlock>
                     <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4 flex items-start gap-3">
                         <AlertCircle className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
@@ -314,19 +315,6 @@ x-api-key: capk_live_your_key`}</CodeBlock>
 }`}</CodeBlock>
                         </EndpointCard>
 
-                        {/* /v1/me */}
-                        <EndpointCard method="GET" path="/v1/me" description="API key info, quota, and tier">
-                            <CodeBlock language="bash">{`curl https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/v1/me \\
-  -H "x-api-key: capk_live_your_key"`}</CodeBlock>
-                            <CodeBlock language="json">{`{
-  "key_id": "capk_live_abc123",
-  "tier": "api_starter",
-  "scopes": ["read"],
-  "last_used_at": "2025-04-27T12:00:00Z"
-}`}</CodeBlock>
-                            <ErrorTable codes={[{ code: 401, meaning: "Missing or invalid API key" }, { code: 422, meaning: "Validation error" }]} />
-                        </EndpointCard>
-
                         {/* /v1/leaderboard */}
                         <EndpointCard method="GET" path="/v1/leaderboard" description="Pundits ranked by weighted accuracy score">
                             <p className="text-sm text-zinc-400">
@@ -342,10 +330,12 @@ x-api-key: capk_live_your_key`}</CodeBlock>
     {
       "pundit_id": "mcafee_pat",
       "pundit_name": "Pat McAfee",
-      "total": 142,
-      "resolved": 118,
-      "correct": 71,
+      "sport": "NFL",
+      "total_predictions": 142,
+      "resolved_count": 118,
+      "correct_count": 71,
       "accuracy_rate": 0.601,
+      "avg_brier_score": 0.22,
       "avg_weighted_score": 0.72
     }
   ],
@@ -363,10 +353,12 @@ x-api-key: capk_live_your_key`}</CodeBlock>
     {
       "pundit_id": "mcafee_pat",
       "pundit_name": "Pat McAfee",
-      "total": 142,
-      "resolved": 118,
-      "correct": 71,
+      "sport": "NFL",
+      "total_predictions": 142,
+      "resolved_count": 118,
+      "correct_count": 71,
       "accuracy_rate": 0.601,
+      "avg_brier_score": 0.22,
       "avg_weighted_score": 0.72
     }
   ],
@@ -386,10 +378,12 @@ x-api-key: capk_live_your_key`}</CodeBlock>
   "pundit": {
     "pundit_id": "mcafee_pat",
     "pundit_name": "Pat McAfee",
-    "total": 142,
-    "resolved": 118,
-    "correct": 71,
+    "sport": "NFL",
+    "total_predictions": 142,
+    "resolved_count": 118,
+    "correct_count": 71,
     "accuracy_rate": 0.601,
+    "avg_brier_score": 0.22,
     "avg_weighted_score": 0.72
   },
   "accuracy_by_category": [

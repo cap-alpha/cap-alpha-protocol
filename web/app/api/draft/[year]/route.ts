@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
-const API_URL =
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+// Server-only env var — fail fast if unset so production issues are not
+// masked as empty-200 responses.
+const API_URL = process.env.INTERNAL_API_URL;
 
 interface Prediction {
     prediction_hash: string;
@@ -25,6 +25,12 @@ interface DraftData {
     predictions: Prediction[];
 }
 
+const emptyDraft = (year: number, status = 200): NextResponse<DraftData> =>
+    NextResponse.json(
+        { draft_year: year, total_predictions: 0, resolved: 0, pending: 0, predictions: [] },
+        { status }
+    );
+
 export async function GET(
     req: Request,
     { params }: { params: { year: string } }
@@ -33,15 +39,14 @@ export async function GET(
     const year = Number.isFinite(parsed) ? parsed : NaN;
 
     if (isNaN(year) || year < 1900 || year > 2100) {
+        return emptyDraft(year, 400);
+    }
+
+    if (!API_URL) {
+        console.error("[Draft API] INTERNAL_API_URL is not set");
         return NextResponse.json(
-            {
-                draft_year: year || 0,
-                total_predictions: 0,
-                resolved: 0,
-                pending: 0,
-                predictions: [],
-            },
-            { status: 400 }
+            { error: "API URL not configured" } as unknown as DraftData,
+            { status: 500 }
         );
     }
 
@@ -71,7 +76,7 @@ export async function GET(
 
         const data = await res.json();
         // Backend may return resolution_status; normalise to status for UI
-        const predictions = (data.predictions || []).map(
+        const predictions: Prediction[] = (data.predictions || []).map(
             (p: Record<string, unknown>) => ({
                 ...p,
                 status:

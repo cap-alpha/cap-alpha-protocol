@@ -5,6 +5,7 @@ import { Providers } from "@/components/providers";
 import OnboardingModal from "@/components/onboarding-modal";
 import { AuthInterstitial } from "@/components/auth-interstitial";
 import { Navbar } from "@/components/navbar";
+import Footer from "@/components/footer";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -42,6 +43,7 @@ export default function RootLayout({
                     <main className="flex-grow">
                         {children}
                     </main>
+                    <Footer />
                 </Providers>
             </body>
         </html>

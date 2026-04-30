@@ -79,6 +79,16 @@ export default async function SharePlayerPage({ params }: Props) {
           View full profile →
         </a>
       </p>
+
+      {/* Responsible gambling — required for affiliate compliance */}
+      <div className="mt-6 w-full max-w-2xl bg-amber-950/40 border border-amber-900/30 rounded-lg px-4 py-3 text-center">
+        <p className="text-amber-200/80 text-xs leading-snug">
+          <span className="font-semibold">Gambling problem? Call </span>
+          <a href="tel:18004262537" className="underline hover:text-amber-100">1-800-GAMBLER</a>
+          <span className="text-amber-300/60"> · Must be 21+ · </span>
+          <a href="/legal/responsible-gambling" className="underline hover:text-amber-100">Resources</a>
+        </p>
+      </div>
     </main>
   );
 }

@@ -3,6 +3,7 @@
 # Pre-commit hook: lint + unit tests via local venv
 #
 # Runs ruff (format + lint) and pytest. No Docker required.
+#
 # Bootstrap: make setup
 
 set -e

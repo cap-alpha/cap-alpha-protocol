@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
     Shield,
@@ -447,6 +447,12 @@ function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
         buildVector(tokenize(p.extracted_claim ?? ""))
     );
 
+    // NOTE: The 48h same-time window is measured relative to the *first* (representative)
+    // prediction in each group, not each occurrence independently. A multi-occurrence
+    // prediction where occurrence 2 has its own same-time pickups within 48h of occurrence 2
+    // (but >48h from the representative) will not be clustered correctly — those pickups will
+    // appear as additional repeat occurrences. A proper fix would cluster by sorted
+    // ingestion time (new bucket when gap > 48h). Deferred for now.
     const groups: PredictionGroup[] = [];
     const assigned = new Set<string>();
 
@@ -456,9 +462,12 @@ function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
 
         assigned.add(pred.prediction_hash_short);
 
-        const ingestMs = pred.ingestion_timestamp
+        const rawIngestMs = pred.ingestion_timestamp
             ? new Date(pred.ingestion_timestamp).getTime()
             : null;
+        // Normalize NaN (invalid timestamps) to null so time-window comparisons
+        // behave correctly instead of silently treating NaN as "present".
+        const ingestMs = rawIngestMs !== null && Number.isFinite(rawIngestMs) ? rawIngestMs : null;
 
         const sameTimeSources: RecentPrediction[] = [];
         const repeatOccurrences: RecentPrediction[] = [];
@@ -472,9 +481,13 @@ function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
             if (sim < SIMILARITY_THRESHOLD) continue;
 
             // Determine same-time vs repeat
-            const otherIngestMs = other.ingestion_timestamp
+            const rawOtherIngestMs = other.ingestion_timestamp
                 ? new Date(other.ingestion_timestamp).getTime()
                 : null;
+            const otherIngestMs =
+                rawOtherIngestMs !== null && Number.isFinite(rawOtherIngestMs)
+                    ? rawOtherIngestMs
+                    : null;
 
             const SAME_TIME_WINDOW_MS = 48 * 60 * 60 * 1000; // 48h
             const isSameTime =
@@ -942,12 +955,11 @@ function PredictionGroupRow({
     const [expanded, setExpanded] = useState(false);
     const { representative: p, sameTimeSources, repeatOccurrences } = group;
 
-    // All members for source display in drawer
-    const allMembers = [p, ...sameTimeSources, ...repeatOccurrences];
-
-    const hasSameTimeSources = sameTimeSources.length > 0;
+    // Sources for the main row's inline links and detail drawer.
+    // Only includes the representative + same-time pickups of the same statement.
+    // Repeat occurrences are separate rows and carry their own source context.
+    const mainRowSources = [p, ...sameTimeSources];
     const hasRepeats = repeatOccurrences.length > 0;
-    const hasExpansion = hasSameTimeSources || hasRepeats;
 
     return (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 overflow-hidden">
@@ -980,8 +992,8 @@ function PredictionGroupRow({
                                 Brier: <BrierBadge score={p.brier_score} />
                             </span>
                         )}
-                        {/* Show all same-time source links inline (same statement, multiple pickups) */}
-                        {allMembers
+                        {/* Show same-time source links inline (same statement, multiple pickups) */}
+                        {mainRowSources
                             .filter((m) => m.source_url)
                             .map((m) => (
                                 <a
@@ -1000,7 +1012,7 @@ function PredictionGroupRow({
                     {/* Details button → opens drawer */}
                     <button
                         className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-emerald-400 transition-colors border border-zinc-800 hover:border-emerald-500/40 rounded px-2 py-0.5"
-                        onClick={() => onOpenDrawer(p, allMembers)}
+                        onClick={() => onOpenDrawer(p, mainRowSources)}
                         aria-label="Open details drawer"
                     >
                         Details <ArrowRight className="w-2.5 h-2.5" />

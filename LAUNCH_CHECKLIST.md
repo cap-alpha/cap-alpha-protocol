@@ -1,37 +1,49 @@
-# Launch Checklist — First $1 Revenue Gate
+# Launch Checklist
 
-**No public-launch communications until every P0 item is checked.**
+> Last updated: 2026-04-30 | Managed by: GitHub Issues
 
-This document is the single source of truth for launch readiness. Update it as each gate closes (one PR per update is fine).
+## Gate 0 — Must-ship (P0)
 
----
+Issues that block the launch binary. None of these may be open on launch day.
 
-## P0 — Blocking (must all be ✅ before launch)
+- [ ] [#473](https://github.com/andrewsmith/nfl-dead-money/issues/473) — Audit + land all open security CVE PRs
+- [ ] [#474](https://github.com/andrewsmith/nfl-dead-money/issues/474) — Stripe webhook end-to-end correctness test
+- [ ] [#475](https://github.com/andrewsmith/nfl-dead-money/issues/475) — Cryptographic ledger chain validator in CI
+- [ ] [#476](https://github.com/andrewsmith/nfl-dead-money/issues/476) — ToS, Privacy Policy, FTC affiliate disclosure on every page
+- [ ] [#477](https://github.com/andrewsmith/nfl-dead-money/issues/477) — Sentry (server + client) wired with Slack alerts
+- [ ] [#478](https://github.com/andrewsmith/nfl-dead-money/issues/478) — Rate limiting audit — public + API surfaces
+- [ ] [#479](https://github.com/andrewsmith/nfl-dead-money/issues/479) — Apply for EIN online (IRS SS-4, sole proprietorship)
+- [x] [#481](https://github.com/andrewsmith/nfl-dead-money/issues/481) — Open business checking account under sole prop + EIN ✅
+- [x] [#483](https://github.com/andrewsmith/nfl-dead-money/issues/483) — Verify Stripe accepts sole proprietorship + EIN (no LLC required) ✅
+- [x] [#485](https://github.com/andrewsmith/nfl-dead-money/issues/485) — FTC affiliate disclosure — footer + per-page disclosure on all affiliate links ✅
+- [x] [#488](https://github.com/andrewsmith/nfl-dead-money/issues/488) — $500 sports/entertainment law consult — pre-revenue legal review ✅
+- [x] [#490](https://github.com/andrewsmith/nfl-dead-money/issues/490) — Responsible-gambling messaging visible site-wide (1-800-GAMBLER + resources) ✅
+- [x] [#507](https://github.com/andrewsmith/nfl-dead-money/issues/507) — First-signup launch checklist (LAUNCH_CHECKLIST.md in repo) ✅
 
-- [ ] [#479] EIN obtained and recorded in 1Password — _Status: open_
-- [ ] [#481] Business checking account open under sole prop + EIN — _Status: open_
-- [ ] [#483] Stripe verified: accepts sole prop + EIN, test charge succeeded — _Status: open_
-- [ ] [#485] FTC affiliate disclosure live on all pages — _Status: open_
-- [ ] [#488] Sports law consult complete, written sign-off in hand — _Status: open_
-- [ ] [#490] Responsible gambling messaging live site-wide (1-800-GAMBLER) — _Status: open_
-- [x] [#141] Legal pages (ToS, Privacy, AUP) live — _Status: closed — verify still current_
-- [ ] Stripe live-mode end-to-end test (real charge succeeds)
-- [ ] Error tracking live (Sentry or equivalent)
-- [ ] Affiliate programs approved: DraftKings, FanDuel, PrizePicks, Underdog
-- [ ] Affiliate links live on prod with click tracking confirmed
-- [ ] Welcome email lands in Gmail inbox (not spam)
-- [ ] Pro tier gating verified in code
+## Gate 1 — Pre-launch (P1)
 
----
+Must be resolved within 1 week of launch.
 
-## P1 — Important, not blocking
-
-- [ ] [#507] This checklist merged to main and kept up to date
-
----
-
-## Notes
-
-- Reference: #287 (closed — Launch checklist for cap-alpha.co infra, not revenue)
-- Owner: whoever is driving the pre-revenue sprint
-- Update this file as each issue closes; one PR per checklist update is sufficient
+- [ ] [#480](https://github.com/andrewsmith/nfl-dead-money/issues/480) — Prediction-resolution accuracy E2E test suite
+- [ ] [#482](https://github.com/andrewsmith/nfl-dead-money/issues/482) — Written correction/retraction policy — public process for fixing wrong resolutions
+- [ ] [#484](https://github.com/andrewsmith/nfl-dead-money/issues/484) — Stripe replay attack tests + access-grant idempotency hardening
+- [ ] [#486](https://github.com/andrewsmith/nfl-dead-money/issues/486) — Refund flow tested with real $1 test-mode charge
+- [ ] [#487](https://github.com/andrewsmith/nfl-dead-money/issues/487) — Cost alert bands — Vercel bandwidth + BigQuery spend
+- [ ] [#489](https://github.com/andrewsmith/nfl-dead-money/issues/489) — BigQuery + cryptographic ledger backup verification
+- [ ] [#491](https://github.com/andrewsmith/nfl-dead-money/issues/491) — Public status page — linked from site footer
+- [ ] [#492](https://github.com/andrewsmith/nfl-dead-money/issues/492) — Apply to DraftKings affiliate program via Rakuten Advertising
+- [ ] [#493](https://github.com/andrewsmith/nfl-dead-money/issues/493) — Security headers audit — target A+ on Mozilla Observatory
+- [ ] [#494](https://github.com/andrewsmith/nfl-dead-money/issues/494) — Apply to FanDuel affiliate program
+- [ ] [#495](https://github.com/andrewsmith/nfl-dead-money/issues/495) — Dependency vulnerability scan + Dependabot enabled
+- [ ] [#496](https://github.com/andrewsmith/nfl-dead-money/issues/496) — Apply to PrizePicks affiliate program
+- [ ] [#497](https://github.com/andrewsmith/nfl-dead-money/issues/497) — Login rate limiting + account enumeration prevention
+- [ ] [#498](https://github.com/andrewsmith/nfl-dead-money/issues/498) — Apply to Underdog Fantasy affiliate program
+- [ ] [#499](https://github.com/andrewsmith/nfl-dead-money/issues/499) — Mobile pass on real devices — iOS Safari + Android Chrome
+- [ ] [#500](https://github.com/andrewsmith/nfl-dead-money/issues/500) — First affiliate link placement strategy + AB test plan
+- [ ] [#501](https://github.com/andrewsmith/nfl-dead-money/issues/501) — Empty / loading / error state audit — every public route
+- [ ] [#502](https://github.com/andrewsmith/nfl-dead-money/issues/502) — Audit Pro tier value prop — confirm gated features exist in code
+- [ ] [#503](https://github.com/andrewsmith/nfl-dead-money/issues/503) — Lighthouse 90+ scores across all web routes
+- [ ] [#504](https://github.com/andrewsmith/nfl-dead-money/issues/504) — Welcome email + onboarding sequence for first signup
+- [ ] [#505](https://github.com/andrewsmith/nfl-dead-money/issues/505) — WCAG AA accessibility audit — keyboard nav, screen reader, color contrast
+- [ ] [#506](https://github.com/andrewsmith/nfl-dead-money/issues/506) — Pre-launch closed beta plan — invite list + feedback + sign-off criteria
+- [ ] [#508](https://github.com/andrewsmith/nfl-dead-money/issues/508) — LAUNCH_CHECKLIST.md — repo source of truth for launch gates

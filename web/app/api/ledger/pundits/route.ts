@@ -5,6 +5,29 @@ import { NextResponse } from "next/server";
 // back to localhost and returning empty data.
 const API_URL = process.env.INTERNAL_API_URL;
 
+// Normalize backend field names (resolved_count / correct_count) to the
+// legacy web contract (resolved_predictions / correct_predictions /
+// incorrect_predictions) so all frontend consumers stay consistent.
+function normalizePundit(p: Record<string, unknown>): Record<string, unknown> {
+    const resolvedCount = (p.resolved_count as number | undefined) ?? 0;
+    const correctCount = (p.correct_count as number | undefined) ?? 0;
+    return {
+        ...p,
+        resolved_predictions:
+            p.resolved_predictions !== undefined
+                ? p.resolved_predictions
+                : resolvedCount,
+        correct_predictions:
+            p.correct_predictions !== undefined
+                ? p.correct_predictions
+                : correctCount,
+        incorrect_predictions:
+            p.incorrect_predictions !== undefined
+                ? p.incorrect_predictions
+                : resolvedCount - correctCount,
+    };
+}
+
 export async function GET(req: Request) {
     if (!API_URL) {
         console.error("[Ledger Pundits API] INTERNAL_API_URL is not set");
@@ -36,28 +59,7 @@ export async function GET(req: Request) {
         }
 
         const data = await res.json();
-
-        // Map backend field names (total_predictions/resolved_count/correct_count)
-        // to the shape the UI components expect.
-        const pundits = (data.pundits || []).map((p: Record<string, unknown>) => ({
-            ...p,
-            // UI legacy aliases
-            resolved_predictions:
-                (p.resolved_count as number) ??
-                (p.resolved_predictions as number) ??
-                0,
-            correct_predictions:
-                (p.correct_count as number) ??
-                (p.correct_predictions as number) ??
-                0,
-            incorrect_predictions:
-                typeof p.resolved_count === "number" && typeof p.correct_count === "number"
-                    ? p.resolved_count - p.correct_count
-                    : (p.incorrect_count as number) ??
-                      (p.incorrect_predictions as number) ??
-                      0,
-        }));
-
+        const pundits = (data.pundits || []).map(normalizePundit);
         return NextResponse.json({ pundits });
     } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);

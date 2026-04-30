@@ -11,9 +11,12 @@ export async function GET(req: Request) {
     }
 
     const { searchParams } = new URL(req.url);
-    const parsed = parseInt(searchParams.get("limit") ?? "");
-    // Guard against NaN (e.g. ?limit=foo) — fall back to default before clamping.
-    const limit = Number.isFinite(parsed) ? Math.min(parsed, 100) : 20;
+
+    // Guard against NaN from non-numeric limit values (parseInt("abc") → NaN;
+    // Math.min(NaN, 100) stays NaN and produces ?limit=NaN → FastAPI 422).
+    const rawLimit = parseInt(searchParams.get("limit") || "20", 10);
+    const limit = Math.min(Number.isFinite(rawLimit) ? rawLimit : 20, 100);
+
     const sport = searchParams.get("sport");
     const punditId = searchParams.get("pundit_id");
 

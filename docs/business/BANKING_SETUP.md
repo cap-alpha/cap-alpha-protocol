@@ -6,7 +6,10 @@
 
 ## Status: Pending human action
 
-This task requires manual setup by the account owner. No code changes are required. This document tracks the checklist.
+This task requires manual setup by the account owner. No code changes are required
+**for the banking setup itself** — this document tracks the banking checklist only.
+The PR that introduced this file also contains unrelated runtime changes
+(Next.js API routes, resolver updates, triage automation, etc.).
 
 ## Checklist
 

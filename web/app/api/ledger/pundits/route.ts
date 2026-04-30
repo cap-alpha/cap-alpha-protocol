@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 
-// Server-only env var — non-NEXT_PUBLIC_ so it is never bundled into the client.
-// Fail fast if unset so production errors are obvious rather than silently falling
-// back to localhost and returning empty data.
-const API_URL = process.env.INTERNAL_API_URL;
+const API_URL =
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 // Normalize backend field names (resolved_count / correct_count) to the
 // legacy web contract (resolved_predictions / correct_predictions /
@@ -29,11 +29,6 @@ function normalizePundit(p: Record<string, unknown>): Record<string, unknown> {
 }
 
 export async function GET(req: Request) {
-    if (!API_URL) {
-        console.error("[Ledger Pundits API] INTERNAL_API_URL is not set");
-        return NextResponse.json({ error: "API URL not configured" }, { status: 500 });
-    }
-
     const { searchParams } = new URL(req.url);
 
     // Build backend URL, forwarding all query params
@@ -55,10 +50,7 @@ export async function GET(req: Request) {
         });
 
         if (!res.ok) {
-            console.error(
-                `[Ledger Pundits API] Backend returned ${res.status}`,
-                await res.text()
-            );
+            console.error(`[Ledger API] Backend returned ${res.status}`, await res.text());
             return NextResponse.json({ pundits: [] }, { status: 502 });
         }
 

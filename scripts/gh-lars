@@ -27,7 +27,7 @@ PERSONAS_FILE="${MAIN_REPO}/.env.personas"
 # Source .env.personas to pick up required GitHub App settings (and Slack creds)
 # when either GH_APP_ID or GH_INSTALLATION_ID is not already set — lets agents
 # call gh-lars without pre-sourcing the file themselves.
-if [[ -f "$PERSONAS_FILE" ]] && [[ -z "${GH_APP_ID:-}" || -z "${GH_INSTALLATION_ID:-}" ]]; then
+if [[ -f "$PERSONAS_FILE" ]] && { [[ -z "${GH_APP_ID:-}" ]] || [[ -z "${GH_INSTALLATION_ID:-}" ]]; }; then
     set -a; source "$PERSONAS_FILE"; set +a
 fi
 

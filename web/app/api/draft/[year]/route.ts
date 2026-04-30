@@ -42,8 +42,7 @@ export async function GET(
     req: Request,
     { params }: { params: { year: string } }
 ): Promise<NextResponse<DraftData>> {
-    const parsed = parseInt(params.year, 10);
-    const year = Number.isFinite(parsed) ? parsed : NaN;
+    const year = parseInt(params.year, 10);
 
     if (isNaN(year) || year < 1900 || year > 2100) {
         // Use the raw string in the error body so we don't serialise NaN as null.
@@ -71,25 +70,19 @@ export async function GET(
     try {
         const res = await fetch(`${API_URL}/v1/draft/${year}`, {
             headers: {
-                Accept: "application/json",
+                "Accept": "application/json",
             },
         });
 
         if (!res.ok) {
-            console.error(
-                `[Draft API] Backend returned ${res.status}`,
-                await res.text()
-            );
-            return NextResponse.json(
-                {
-                    draft_year: year,
-                    total_predictions: 0,
-                    resolved: 0,
-                    pending: 0,
-                    predictions: [],
-                },
-                { status: 502 }
-            );
+            console.error(`[Draft API] Backend returned ${res.status}`, await res.text());
+            return NextResponse.json({
+                draft_year: year,
+                total_predictions: 0,
+                resolved: 0,
+                pending: 0,
+                predictions: [],
+            });
         }
 
         const data = await res.json();
@@ -98,9 +91,9 @@ export async function GET(
         );
         return NextResponse.json({
             draft_year: year,
-            total_predictions: data.total ?? data.total_predictions ?? 0,
-            resolved: data.resolved ?? 0,
-            pending: data.pending ?? 0,
+            total_predictions: data.total || 0,
+            resolved: data.resolved || 0,
+            pending: data.pending || 0,
             predictions,
         });
     } catch (err) {
@@ -110,15 +103,12 @@ export async function GET(
             backendUrl: API_URL,
             year,
         });
-        return NextResponse.json(
-            {
-                draft_year: year,
-                total_predictions: 0,
-                resolved: 0,
-                pending: 0,
-                predictions: [],
-            },
-            { status: 502 }
-        );
+        return NextResponse.json({
+            draft_year: year,
+            total_predictions: 0,
+            resolved: 0,
+            pending: 0,
+            predictions: [],
+        });
     }
 }

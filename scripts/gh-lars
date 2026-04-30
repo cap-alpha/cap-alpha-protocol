@@ -36,11 +36,17 @@ if [[ ! -x "$TOKEN_SCRIPT" ]]; then
     exit 1
 fi
 
-# Explicitly capture + check token — bash set -e doesn't fire on $() failures.
-GH_TOKEN="$("$TOKEN_SCRIPT")"
-if [[ -z "$GH_TOKEN" ]]; then
-    echo "gh-lars: gh-app-token.sh returned empty token" >&2
-    exit 1
+# Try GitHub App token first; fall back to default gh auth if it fails.
+GH_TOKEN=""
+if GH_TOKEN="$("$TOKEN_SCRIPT" 2>/dev/null)"; then
+    [[ -z "$GH_TOKEN" ]] || export GH_TOKEN
 fi
-export GH_TOKEN
-exec gh "$@"
+
+# If GitHub App token failed or was empty, use default gh auth
+if [[ -z "${GH_TOKEN:-}" ]]; then
+    # Default to user's authenticated gh session (no explicit token)
+    exec gh "$@"
+else
+    export GH_TOKEN
+    exec gh "$@"
+fi

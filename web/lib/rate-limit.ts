@@ -5,7 +5,8 @@
  * Gracefully degrades (fail-open) when UPSTASH_REDIS_REST_URL is not
  * configured, so the API remains available before Upstash is provisioned.
  *
- * Issue: #144
+ * Issue: #144 (API-key tier limits)
+ * Issue: #478 (anonymous IP rate limits for public routes)
  */
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
@@ -30,10 +31,17 @@ export const TIER_RATE_LIMITS: Record<Tier, number> = {
     enterprise: 1_000_000, // effectively unlimited
 };
 
+/**
+ * Per-minute request limit for anonymous/unauthenticated callers on public routes.
+ * Applied per source IP. Intentionally conservative to deter scraping.
+ */
+export const ANONYMOUS_RATE_LIMIT = 100;
+
 // Module-level cache — only populated when UPSTASH env vars are present.
 // Re-checked on every call when env vars are absent (fail-open path).
 let _redis: Redis | null = null;
 const _limiters = new Map<Tier, Ratelimit>();
+let _ipLimiter: Ratelimit | null = null;
 
 function getRedis(): Redis | null {
     if (_redis !== null) return _redis;
@@ -67,6 +75,22 @@ function getLimiter(tier: Tier): Ratelimit | null {
     return limiter;
 }
 
+function getIpLimiter(): Ratelimit | null {
+    const redis = getRedis();
+    if (!redis) return null;
+
+    if (_ipLimiter) return _ipLimiter;
+
+    _ipLimiter = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(ANONYMOUS_RATE_LIMIT, "60 s"),
+        prefix: "rl:anon_ip",
+        analytics: true,
+    });
+
+    return _ipLimiter;
+}
+
 /**
  * Check the rate limit for an API key.
  *
@@ -92,6 +116,46 @@ export async function checkRateLimit(
     }
 
     const result = await limiter.limit(keyId);
+    const resetSeconds = Math.floor(result.reset / 1000);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    return {
+        success: result.success,
+        limit: result.limit,
+        remaining: result.remaining,
+        reset: resetSeconds,
+        ...(result.success
+            ? {}
+            : { retryAfter: Math.max(0, resetSeconds - nowSeconds) }),
+    };
+}
+
+/**
+ * Check the rate limit for an anonymous/unauthenticated caller by IP address.
+ *
+ * Used in middleware to protect public API routes from scraping.
+ * Fail-open when Upstash is not configured.
+ *
+ * @param ip - The caller's IP address (from x-forwarded-for or x-real-ip).
+ * @returns Result with success flag and values for rate limit response headers.
+ */
+export async function checkIpRateLimit(ip: string): Promise<RateLimitResult> {
+    const limiter = getIpLimiter();
+
+    // Fail-open: allow all requests if Upstash is not configured.
+    if (!limiter) {
+        return {
+            success: true,
+            limit: ANONYMOUS_RATE_LIMIT,
+            remaining: ANONYMOUS_RATE_LIMIT,
+            reset: Math.floor(Date.now() / 1000) + 60,
+        };
+    }
+
+    // Normalize IP to avoid key collisions (strip IPv6 brackets, etc.)
+    const key = ip.replace(/[[\]]/g, "").split(",")[0].trim() || "unknown";
+
+    const result = await limiter.limit(key);
     const resetSeconds = Math.floor(result.reset / 1000);
     const nowSeconds = Math.floor(Date.now() / 1000);
 

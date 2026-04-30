@@ -11,17 +11,17 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 from google.api_core.exceptions import NotFound
-
 from src.assertion_extractor import (
+    DEFAULT_PRIORITY_TIER,
     VALID_CATEGORIES,
-    _ABBREV_DENYLIST,
-    _CONFIDENT_WORDS,
-    _HEDGE_ONLY_WORDS,
     ExtractionResult,
+    _apply_priority_sort,
     _deduplicate_claims,
-    _heuristic_quality_gate,
     extract_assertions,
+    get_source_priority_tier,
     get_unprocessed_media,
+    is_skip_extraction,
+    load_source_config,
     mark_as_processed,
     reset_processed_hashes,
     run_extraction,
@@ -89,7 +89,6 @@ class TestExtractAssertions:
                 "target_player": "Patrick Mahomes",
                 "target_team": "KC",
                 "confidence_note": "strong assertion",
-                "prediction_horizon_days": 210,
             }
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -127,7 +126,6 @@ class TestExtractAssertions:
                 "extracted_claim": "Josh Allen wins Super Bowl",
                 "claim_category": "game_outcome",
                 "confidence_note": "strong",
-                "prediction_horizon_days": 180,
             }
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -153,39 +151,6 @@ class TestExtractAssertions:
         assert len(result.predictions) == 0
         assert "API quota exceeded" in result.error
 
-    def test_result_has_duration_ms(self, mock_provider):
-        """ExtractionResult always includes a non-negative duration_ms."""
-        set_provider_predictions(mock_provider, [])
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some text",
-            provider=mock_provider,
-        )
-        assert result.duration_ms is not None
-        assert result.duration_ms >= 0
-
-    def test_result_duration_ms_on_error(self, mock_provider):
-        """duration_ms is still populated even when the provider raises."""
-        mock_provider.extract_predictions.side_effect = Exception("timeout")
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some text",
-            provider=mock_provider,
-        )
-        assert result.duration_ms is not None
-        assert result.duration_ms >= 0
-
-    def test_result_tokens_used_from_provider(self, mock_provider):
-        """tokens_used is read from provider._last_tokens_used if set."""
-        mock_provider._last_tokens_used = 256
-        set_provider_predictions(mock_provider, [])
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some text",
-            provider=mock_provider,
-        )
-        assert result.tokens_used == 256
-
     def test_valid_categories_are_complete(self):
         """All expected categories are defined."""
         expected = {
@@ -195,22 +160,15 @@ class TestExtractAssertions:
             "draft_pick",
             "injury",
             "contract",
-            "award_prediction",
-            "fa_signing",
         }
         assert VALID_CATEGORIES == expected
 
     def test_skips_predictions_without_claim(self, mock_provider):
         predictions = [
-            {
-                "extracted_claim": "",
-                "claim_category": "trade",
-                "prediction_horizon_days": 30,
-            },
+            {"extracted_claim": "", "claim_category": "trade"},
             {
                 "extracted_claim": "Valid claim here",
                 "claim_category": "trade",
-                "prediction_horizon_days": 30,
             },
         ]
         set_provider_predictions(mock_provider, predictions)
@@ -272,104 +230,6 @@ class TestExtractAssertions:
         result = _deduplicate_claims(predictions)
         assert len(result) == 1
         assert "Patrick Mahomes" in result[0]["extracted_claim"]
-
-    def test_temporal_filter_rejects_negative_horizon(self, mock_provider):
-        """Items with prediction_horizon_days <= 0 (retroactive) are filtered out."""
-        predictions = [
-            {
-                "extracted_claim": "Red Murdock was drafted #257 by the Denver Broncos",
-                "claim_category": "draft_pick",
-                "prediction_horizon_days": -1,
-            },
-        ]
-        set_provider_predictions(mock_provider, predictions)
-
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Post-draft recap article",
-            provider=mock_provider,
-        )
-
-        assert len(result.predictions) == 0
-
-    def test_temporal_filter_rejects_zero_horizon(self, mock_provider):
-        """Items with prediction_horizon_days == 0 are also filtered out."""
-        predictions = [
-            {
-                "extracted_claim": "Kaytron Allen was selected by Washington",
-                "claim_category": "draft_pick",
-                "prediction_horizon_days": 0,
-            },
-        ]
-        set_provider_predictions(mock_provider, predictions)
-
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Post-draft recap",
-            provider=mock_provider,
-        )
-
-        assert len(result.predictions) == 0
-
-    def test_temporal_filter_rejects_missing_horizon(self, mock_provider):
-        """Items missing prediction_horizon_days entirely are rejected."""
-        predictions = [
-            {
-                "extracted_claim": "Some player will do something",
-                "claim_category": "player_performance",
-                # prediction_horizon_days intentionally omitted
-            },
-        ]
-        set_provider_predictions(mock_provider, predictions)
-
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some article",
-            provider=mock_provider,
-        )
-
-        assert len(result.predictions) == 0
-
-    def test_temporal_filter_rejects_non_numeric_horizon(self, mock_provider):
-        """Items with a non-numeric prediction_horizon_days are rejected."""
-        predictions = [
-            {
-                "extracted_claim": "Someone will win something",
-                "claim_category": "game_outcome",
-                "prediction_horizon_days": "soon",
-            },
-        ]
-        set_provider_predictions(mock_provider, predictions)
-
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Some article",
-            provider=mock_provider,
-        )
-
-        assert len(result.predictions) == 0
-
-    def test_temporal_filter_retains_positive_horizon(self, mock_provider):
-        """Items with a positive prediction_horizon_days are kept."""
-        predictions = [
-            {
-                "extracted_claim": "Fernando Mendoza will be drafted #1 overall",
-                "claim_category": "draft_pick",
-                "prediction_horizon_days": 14,
-            },
-        ]
-        set_provider_predictions(mock_provider, predictions)
-
-        result = extract_assertions(
-            content_hash="abc123",
-            text="Pre-draft mock article",
-            provider=mock_provider,
-        )
-
-        assert len(result.predictions) == 1
-        assert result.predictions[0]["extracted_claim"] == (
-            "Fernando Mendoza will be drafted #1 overall"
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -462,47 +322,6 @@ class TestMarkAsProcessed:
         assert len(df) == 2
         assert "content_hash" in df.columns
         assert "processed_at" in df.columns
-
-    def test_writes_provenance_columns(self, mock_db):
-        """Provenance columns are written when supplied."""
-        mark_as_processed(
-            ["hash_1"],
-            mock_db,
-            extractor_model="qwen2.5:32b",
-            extractor_provider="ollama",
-            assertions_extracted=3,
-            extraction_duration_ms=4200,
-            prompt_version="v2",
-            tokens_used=512,
-        )
-        df = mock_db.append_dataframe_to_table.call_args[0][0]
-        assert df.loc[0, "extractor_model"] == "qwen2.5:32b"
-        assert df.loc[0, "extractor_provider"] == "ollama"
-        assert df.loc[0, "assertions_extracted"] == 3
-        assert df.loc[0, "extraction_duration_ms"] == 4200
-        assert df.loc[0, "prompt_version"] == "v2"
-        assert df.loc[0, "tokens_used"] == 512
-
-    def test_provenance_by_hash_overrides_scalar(self, mock_db):
-        """Per-hash provenance takes precedence over scalar defaults."""
-        provenance = {
-            "hash_1": {"extractor_model": "llama3.1:8b", "assertions_extracted": 1},
-            "hash_2": {"extractor_model": "qwen2.5:32b", "assertions_extracted": 5},
-        }
-        mark_as_processed(
-            ["hash_1", "hash_2"],
-            mock_db,
-            extractor_provider="ollama",
-            provenance_by_hash=provenance,
-        )
-        df = mock_db.append_dataframe_to_table.call_args[0][0]
-        row1 = df[df["content_hash"] == "hash_1"].iloc[0]
-        row2 = df[df["content_hash"] == "hash_2"].iloc[0]
-        assert row1["extractor_model"] == "llama3.1:8b"
-        assert row1["assertions_extracted"] == 1
-        assert row1["extractor_provider"] == "ollama"  # scalar fallback
-        assert row2["extractor_model"] == "qwen2.5:32b"
-        assert row2["assertions_extracted"] == 5
 
     def test_no_op_on_empty_list(self, mock_db):
         mark_as_processed([], mock_db)
@@ -604,23 +423,6 @@ class TestRunExtraction:
 
         assert summary["skipped_no_predictions"] == 1
 
-    @patch("src.assertion_extractor.mark_as_processed")
-    @patch("src.assertion_extractor.extract_assertions")
-    def test_zero_predictions_does_not_mark_processed(
-        self, mock_extract, mock_mark, mock_db, mock_provider
-    ):
-        """Zero-prediction results must NOT call mark_as_processed and must increment counter."""
-        mock_db.fetch_df.return_value = make_raw_media_df(1)
-        mock_extract.return_value = ExtractionResult(
-            content_hash="hash_0",
-            predictions=[],
-        )
-
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
-
-        mock_mark.assert_not_called()
-        assert summary["extracted_zero_predictions"] == 1
-
     def test_dry_run_skips_llm(self, mock_db):
         mock_db.fetch_df.return_value = make_raw_media_df(2)
 
@@ -636,44 +438,6 @@ class TestRunExtraction:
         summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
         assert summary["total_processed"] == 0
-
-    @patch("src.assertion_extractor.ingest_batch")
-    @patch("src.assertion_extractor.extract_assertions")
-    def test_provenance_written_to_processed_table(
-        self, mock_extract, mock_ingest, mock_db, mock_provider
-    ):
-        """run_extraction writes provenance columns when marking articles processed."""
-        mock_provider.model = "qwen2.5:32b"
-        mock_db.fetch_df.return_value = make_raw_media_df(1)
-        mock_extract.return_value = ExtractionResult(
-            content_hash="hash_0",
-            predictions=[
-                {
-                    "extracted_claim": "Mahomes wins MVP",
-                    "claim_category": "player_performance",
-                    "season_year": 2026,
-                    "target_player": "Patrick Mahomes",
-                    "confidence_note": "strong",
-                }
-            ],
-            duration_ms=3500,
-            tokens_used=400,
-        )
-        mock_ingest.return_value = ["pred_hash_1"]
-
-        run_extraction(limit=10, db=mock_db, provider=mock_provider)
-
-        mock_db.append_dataframe_to_table.assert_called_once()
-        df = mock_db.append_dataframe_to_table.call_args[0][0]
-        assert "extractor_model" in df.columns
-        assert "extractor_provider" in df.columns
-        assert "assertions_extracted" in df.columns
-        assert "extraction_duration_ms" in df.columns
-        assert "prompt_version" in df.columns
-        assert "tokens_used" in df.columns
-        assert df.loc[0, "assertions_extracted"] == 1
-        assert df.loc[0, "extraction_duration_ms"] == 3500
-        assert df.loc[0, "tokens_used"] == 400
 
     @patch("src.assertion_extractor.get_unprocessed_media")
     def test_passes_include_unmatched_flag(self, mock_get, mock_db, mock_provider):
@@ -921,17 +685,11 @@ class TestPreFilterIntegration:
 
 
 class TestLLMProvider:
-    def test_provider_factory_returns_provider_from_config(self):
+    def test_provider_factory_returns_ollama_by_default(self):
         from src.llm_provider import load_llm_config
 
         config = load_llm_config()
-        assert config["extraction"]["provider"] in {
-            "gemini",
-            "gemini-flash",
-            "ollama",
-            "claude",
-            "openai",
-        }
+        assert config["extraction"]["provider"] == "ollama"
 
     def test_provider_factory_lists_all_providers(self):
         from src.llm_provider import PROVIDERS
@@ -1123,390 +881,272 @@ class TestConstants:
             "draft_pick",
             "injury",
             "contract",
-            "award_prediction",
-            "fa_signing",
         }
         assert VALID_CATEGORIES == expected
 
 
 # ---------------------------------------------------------------------------
-# allow_historical flag (Issue #262 / PR #319)
+# Source priority tiers (Issue #381)
 # ---------------------------------------------------------------------------
 
 
-class TestAllowHistorical:
-    """Tests for the allow_historical temporal-filter bypass added in #262."""
+def make_media_df_with_tiers():
+    """DataFrame with mixed sources across three tiers and varying publish dates."""
+    from datetime import datetime, timezone
 
-    def _make_provider_with_past_prediction(self, past_year: int):
-        provider = MagicMock()
-        provider.model = "mock"
-        provider.extract_predictions.return_value = [
+    return pd.DataFrame(
+        [
             {
-                "extracted_claim": f"The Chiefs will win the Super Bowl in {past_year}",
-                "claim_category": "game_outcome",
-                "season_year": past_year,
-                "stance": "bullish",
-                "target_player": None,
-                "prediction_horizon_days": 30,
-            }
-        ]
-        return provider
-
-    def test_past_season_filtered_by_default(self):
-        """Default: temporal filter should drop past-season predictions."""
-        past_year = 2022
-        provider = self._make_provider_with_past_prediction(past_year)
-        result = extract_assertions(
-            content_hash="hash_hist_1",
-            text="The Chiefs won the Super Bowl in 2022.",
-            provider=provider,
-            allow_historical=False,
-        )
-        assert result.predictions == [], (
-            f"Expected past-season ({past_year}) prediction to be filtered out"
-        )
-
-    def test_past_season_passes_with_allow_historical(self):
-        """allow_historical=True should bypass the temporal filter."""
-        past_year = 2022
-        provider = self._make_provider_with_past_prediction(past_year)
-        result = extract_assertions(
-            content_hash="hash_hist_2",
-            text="The Chiefs will win the Super Bowl in 2022.",
-            provider=provider,
-            allow_historical=True,
-        )
-        assert len(result.predictions) == 1, (
-            "Expected past-season prediction to pass when allow_historical=True"
-        )
-        assert result.predictions[0]["season_year"] == past_year
-
-    def test_current_year_always_passes(self):
-        """Current-year predictions should pass regardless of allow_historical."""
-        import datetime as dt
-
-        current_year = dt.datetime.now().year
-        provider = MagicMock()
-        provider.model = "mock"
-        provider.extract_predictions.return_value = [
+                "content_hash": "hash_tier3_old",
+                "source_id": "low_yield_source",
+                "title": "Low yield old",
+                "raw_text": "content",
+                "source_url": "https://example.com/1",
+                "author": "Author",
+                "matched_pundit_id": "p1",
+                "matched_pundit_name": "P1",
+                "published_at": datetime(2025, 1, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
             {
-                "extracted_claim": f"Mahomes will throw 40 TDs in {current_year}",
-                "claim_category": "player_performance",
-                "season_year": current_year,
-                "stance": "bullish",
-                "target_player": "Patrick Mahomes",
-                "prediction_horizon_days": 180,
-            }
-        ]
-        result = extract_assertions(
-            content_hash="hash_current",
-            text=f"Mahomes will throw 40 TDs in {current_year}.",
-            provider=provider,
-            allow_historical=False,
-        )
-        assert len(result.predictions) == 1
-
-    def test_run_extraction_passes_allow_historical(self, mock_db, mock_provider):
-        """run_extraction should thread allow_historical through to extract_assertions."""
-        past_year = 2023
-        import datetime as dt
-
-        mock_provider.extract_predictions.return_value = [
+                "content_hash": "hash_tier1_new",
+                "source_id": "espn_nfl",
+                "title": "High yield new",
+                "raw_text": "content",
+                "source_url": "https://example.com/2",
+                "author": "Author",
+                "matched_pundit_id": "p2",
+                "matched_pundit_name": "P2",
+                "published_at": datetime(2025, 9, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
             {
-                "extracted_claim": f"The Eagles will win in {past_year}",
-                "claim_category": "game_outcome",
-                "season_year": past_year,
-                "stance": "bullish",
-                "target_player": None,
-                "prediction_horizon_days": 30,
-            }
+                "content_hash": "hash_tier2_mid",
+                "source_id": "theathletic_nfl",
+                "title": "Medium yield mid",
+                "raw_text": "content",
+                "source_url": "https://example.com/3",
+                "author": "Author",
+                "matched_pundit_id": "p3",
+                "matched_pundit_name": "P3",
+                "published_at": datetime(2025, 5, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
+            {
+                "content_hash": "hash_tier1_old",
+                "source_id": "pat_mcafee_show",
+                "title": "High yield old",
+                "raw_text": "content",
+                "source_url": "https://example.com/4",
+                "author": "Author",
+                "matched_pundit_id": "p4",
+                "matched_pundit_name": "P4",
+                "published_at": datetime(2025, 3, 1, tzinfo=timezone.utc),
+                "sport": "NFL",
+            },
         ]
-
-        media_df = make_raw_media_df(1)
-        mock_db.fetch_df.return_value = media_df
-
-        with patch("src.assertion_extractor.ingest_batch") as mock_ingest:
-            mock_ingest.return_value = ["some_hash"]
-            result = run_extraction(
-                limit=10,
-                dry_run=False,
-                db=mock_db,
-                provider=mock_provider,
-                allow_historical=True,
-            )
-
-        # With allow_historical=True, the past prediction should be kept
-        assert result["predictions_extracted"] >= 1, (
-            "Expected predictions to be extracted with allow_historical=True"
-        )
+    )
 
 
-# ---------------------------------------------------------------------------
-# Concurrency flag (Issue #240)
-# ---------------------------------------------------------------------------
+class TestApplyPrioritySort:
+    """Unit tests for _apply_priority_sort."""
 
-
-class TestConcurrency:
-    """Tests for --concurrency N flag on the serial (non-gemini-flash) path."""
-
-    @patch("src.assertion_extractor.ingest_batch")
-    @patch("src.assertion_extractor.extract_assertions")
-    def test_concurrency_1_is_sequential_default(
-        self, mock_extract, mock_ingest, mock_db, mock_provider
-    ):
-        """concurrency=1 (default) produces the same results as the original serial path."""
-        mock_db.fetch_df.return_value = make_raw_media_df(3)
-        mock_extract.return_value = ExtractionResult(
-            content_hash="hash_0",
-            predictions=[
-                {
-                    "extracted_claim": "Mahomes wins MVP in 2026",
-                    "claim_category": "player_performance",
-                    "stance": "bullish",
-                    "confidence_note": "strong",
-                }
-            ],
-        )
-        mock_ingest.return_value = ["pred_hash_1", "pred_hash_2", "pred_hash_3"]
-
-        summary = run_extraction(
-            limit=10, db=mock_db, provider=mock_provider, concurrency=1
-        )
-
-        assert summary["total_processed"] == 3
-        assert summary["predictions_extracted"] == 3
-        assert mock_extract.call_count == 3
-
-    @patch("src.assertion_extractor.ingest_batch")
-    @patch("src.assertion_extractor.extract_assertions")
-    def test_concurrency_gt1_processes_all_articles(
-        self, mock_extract, mock_ingest, mock_db, mock_provider
-    ):
-        """concurrency=3 still processes all articles and collects predictions."""
-        mock_db.fetch_df.return_value = make_raw_media_df(4)
-        mock_extract.return_value = ExtractionResult(
-            content_hash="hash_0",
-            predictions=[
-                {
-                    "extracted_claim": "Bears win NFC North",
-                    "claim_category": "game_outcome",
-                    "stance": "bullish",
-                    "confidence_note": "explicit",
-                }
-            ],
-        )
-        mock_ingest.return_value = ["p1", "p2", "p3", "p4"]
-
-        summary = run_extraction(
-            limit=10, db=mock_db, provider=mock_provider, concurrency=3
-        )
-
-        assert summary["total_processed"] == 4
-        assert summary["predictions_extracted"] == 4
-        assert mock_extract.call_count == 4
-
-    @patch("src.assertion_extractor.ingest_batch")
-    @patch("src.assertion_extractor.extract_assertions")
-    def test_concurrency_gt1_handles_per_article_errors(
-        self, mock_extract, mock_ingest, mock_db, mock_provider
-    ):
-        """With concurrency > 1, a per-article error doesn't abort the whole batch."""
-        mock_db.fetch_df.return_value = make_raw_media_df(3)
-        # First call errors; subsequent calls succeed
-        mock_extract.side_effect = [
-            ExtractionResult(
-                content_hash="hash_0",
-                predictions=[],
-                error="LLM timeout",
-            ),
-            ExtractionResult(
-                content_hash="hash_1",
-                predictions=[
-                    {
-                        "extracted_claim": "Allen wins MVP",
-                        "claim_category": "award_prediction",
-                        "stance": "bullish",
-                        "confidence_note": "strong",
-                    }
-                ],
-            ),
-            ExtractionResult(
-                content_hash="hash_2",
-                predictions=[],
-                error="Connection refused",
-            ),
-        ]
-        mock_ingest.return_value = ["ph1"]
-
-        summary = run_extraction(
-            limit=10, db=mock_db, provider=mock_provider, concurrency=2
-        )
-
-        assert summary["total_processed"] == 3
-        assert summary["errors"] == 2
-        assert summary["predictions_extracted"] == 1
-
-    @patch("src.assertion_extractor.ingest_batch")
-    @patch("src.assertion_extractor.extract_assertions")
-    def test_concurrency_default_is_1(
-        self, mock_extract, mock_ingest, mock_db, mock_provider
-    ):
-        """run_extraction default concurrency=1 — no ThreadPoolExecutor for serial providers."""
-        mock_db.fetch_df.return_value = make_raw_media_df(2)
-        mock_extract.return_value = ExtractionResult(
-            content_hash="hash_0", predictions=[]
-        )
-        mock_ingest.return_value = []
-
-        # Should run without error at default concurrency
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
-
-        assert summary["total_processed"] == 2
-
-
-# ---------------------------------------------------------------------------
-# Heuristic quality gate tests
-# ---------------------------------------------------------------------------
-
-
-class TestHeuristicQualityGate:
-    """Tests for _heuristic_quality_gate — post-LLM hedge filter."""
-
-    def _pred(self, claim: str) -> dict:
-        return {
-            "extracted_claim": claim,
-            "claim_category": "player_performance",
-            "season_year": 2026,
-            "stance": "bullish",
+    def test_tier1_before_tier2_before_tier3(self):
+        """Tier 1 sources should appear before tier 2 and 3."""
+        priority_map = {
+            "espn_nfl": 1,
+            "pat_mcafee_show": 1,
+            "theathletic_nfl": 2,
+            "low_yield_source": 3,
         }
-
-    def test_pure_hedge_no_anchor_dropped(self):
-        """Claim with only hedge words and no anchor is filtered."""
-        preds = [self._pred("He might be a good fit for the team")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 1
-        assert kept == []
-
-    def test_hedge_with_number_kept(self):
-        """Hedge word present but claim has a number — keep it."""
-        preds = [self._pred("He might throw 4000 yards this season")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 0
-        assert len(kept) == 1
-
-    def test_hedge_with_proper_noun_kept(self):
-        """Hedge word present but claim has a proper noun (player name) — keep."""
-        preds = [self._pred("Mahomes might win the MVP award")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 0
-        assert len(kept) == 1
-
-    def test_confident_language_survives_hedge(self):
-        """Confident 'will' alongside 'might' — gate passes."""
-        preds = [self._pred("He might struggle but will start week 1")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 0
-        assert len(kept) == 1
-
-    def test_punctuation_stripped_from_hedge_words(self):
-        """Hedge word with trailing punctuation ('might,') is still detected."""
-        preds = [self._pred("He might, if healthy, see more targets")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        # 'might' detected despite comma, no anchor → filtered
-        assert filtered == 1
-
-    def test_dollar_amount_as_anchor(self):
-        """Dollar amount rescues a hedge claim from being filtered."""
-        preds = [self._pred("He could sign for $20M per year")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 0
-        assert len(kept) == 1
-
-    def test_team_abbreviation_as_anchor(self):
-        """Team abbreviation (KC, NYG) not in denylist rescues claim."""
-        preds = [self._pred("He might reunite with KC this offseason")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 0
-        assert len(kept) == 1
-
-    def test_generic_acronym_not_anchor(self):
-        """Generic acronyms (QB, TD, NFL) in denylist do NOT rescue the claim."""
-        preds = [self._pred("A QB might win the TD race this year")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        # QB and TD are in denylist, NFL is too — no rescue
-        assert filtered == 1
-
-    def test_no_hedge_always_passes(self):
-        """Claims with no hedge words pass regardless."""
-        preds = [self._pred("The Eagles will win the Super Bowl")]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 0
-        assert len(kept) == 1
-
-    def test_multiple_predictions_mixed(self):
-        """Mixed batch: some filtered, some kept."""
-        preds = [
-            self._pred("He might be a good fit"),  # filtered — hedge, no anchor
-            self._pred(
-                "Lamar Jackson will throw 40 TDs"
-            ),  # kept — proper noun + number
-            self._pred(
-                "it could be worse"
-            ),  # filtered — hedge, no anchor (lowercase start)
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=10)
+        tiers = [
+            priority_map.get(sid, DEFAULT_PRIORITY_TIER) for sid in result["source_id"]
         ]
-        kept, filtered = _heuristic_quality_gate(preds)
-        assert filtered == 2
-        assert len(kept) == 1
-        assert kept[0]["extracted_claim"] == "Lamar Jackson will throw 40 TDs"
+        # Tiers should be non-decreasing
+        assert tiers == sorted(tiers)
 
-    def test_extraction_result_filtered_low_quality_field(self):
-        """ExtractionResult.filtered_low_quality defaults to 0."""
-        result = ExtractionResult(content_hash="abc", predictions=[])
-        assert result.filtered_low_quality == 0
+    def test_within_same_tier_newest_first(self):
+        """Within the same tier, newer articles should come first."""
+        priority_map = {
+            "espn_nfl": 1,
+            "pat_mcafee_show": 1,
+            "theathletic_nfl": 2,
+            "low_yield_source": 3,
+        }
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=10)
+        tier1_rows = result[result["source_id"].isin(["espn_nfl", "pat_mcafee_show"])]
+        dates = list(tier1_rows["published_at"])
+        assert dates == sorted(dates, reverse=True)
 
-    def test_extraction_result_tracks_filtered_count(self):
-        """extract_assertions propagates filtered_low_quality from the gate."""
-        provider = MagicMock()
-        provider.extract_predictions.return_value = [
-            {
-                "extracted_claim": "He might be okay",
-                "claim_category": "player_performance",
-                "season_year": 2026,
-                "stance": "neutral",
-                "prediction_horizon_days": 90,
-            }
-        ]
-        result = extract_assertions(
-            content_hash="test123",
-            text="Some article text",
-            provider=provider,
+    def test_limit_respected(self):
+        """Result should not exceed the given limit."""
+        priority_map = {"espn_nfl": 1, "theathletic_nfl": 2}
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=2)
+        assert len(result) == 2
+
+    def test_limit_fills_from_tier1_first(self):
+        """With limit=2 and two tier-1 sources, both slots go to tier 1."""
+        priority_map = {
+            "espn_nfl": 1,
+            "pat_mcafee_show": 1,
+            "theathletic_nfl": 2,
+            "low_yield_source": 3,
+        }
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=2)
+        for sid in result["source_id"]:
+            assert priority_map.get(sid, DEFAULT_PRIORITY_TIER) == 1
+
+    def test_unknown_source_gets_default_tier(self):
+        """Sources missing from priority_map get DEFAULT_PRIORITY_TIER (2)."""
+        priority_map = {"espn_nfl": 1}  # theathletic_nfl and others not mapped
+        df = make_media_df_with_tiers()
+        result = _apply_priority_sort(df, priority_map, limit=10)
+        # espn_nfl (tier 1) should be first
+        assert result.iloc[0]["source_id"] == "espn_nfl"
+
+    def test_empty_dataframe_passthrough(self):
+        """Empty DataFrame should return empty without error."""
+        result = _apply_priority_sort(pd.DataFrame(), {}, limit=10)
+        assert result.empty
+
+
+class TestSourceConfig:
+    """Unit tests for source config helpers."""
+
+    def test_load_source_config_returns_dict(self):
+        """load_source_config should return a non-empty dict."""
+        import src.assertion_extractor as ae
+
+        # Clear cache so we read from disk
+        ae._SOURCE_CONFIG_CACHE = None
+        cfg = load_source_config()
+        assert isinstance(cfg, dict)
+        assert len(cfg) > 0
+
+    def test_known_tier1_sources_have_correct_tier(self):
+        """pat_mcafee_show and espn_nfl should be tier 1 per media_sources.yaml."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert get_source_priority_tier("pat_mcafee_show") == 1
+        assert get_source_priority_tier("espn_nfl") == 1
+
+    def test_skip_extraction_sources(self):
+        """club_shay_shay and nfl_official should have skip_extraction=True."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert is_skip_extraction("club_shay_shay") is True
+        assert is_skip_extraction("nfl_official") is True
+
+    def test_non_skip_source(self):
+        """pat_mcafee_show should NOT be skip_extraction."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert is_skip_extraction("pat_mcafee_show") is False
+
+    def test_unknown_source_defaults(self):
+        """Unknown source gets tier=2 and skip_extraction=False."""
+        assert (
+            get_source_priority_tier("nonexistent_source_xyz") == DEFAULT_PRIORITY_TIER
         )
-        # The hedge-only claim should be filtered
-        assert result.filtered_low_quality == 1
-        assert result.predictions == []
+        assert is_skip_extraction("nonexistent_source_xyz") is False
 
-    def test_confident_words_set_not_duplicated(self):
-        """_CONFIDENT_WORDS should contain won't and curly apostrophe variant, not duplicates."""
-        straight = "won't"
-        curly = "won\u2019t"
-        assert straight in _CONFIDENT_WORDS
-        assert curly in _CONFIDENT_WORDS
-        # No plain string duplicates (sets deduplicate, but verify both variants present)
-        assert len([w for w in _CONFIDENT_WORDS if "won" in w]) == 2
 
-    def test_abbrev_denylist_contains_expected_entries(self):
-        """Verify the denylist has key football acronyms."""
-        for acronym in ("NFL", "QB", "TD", "RB", "WR", "TE"):
-            assert acronym in _ABBREV_DENYLIST
+class TestPriorityInGetUnprocessedMedia:
+    """Integration tests for priority sorting in get_unprocessed_media."""
 
-    def test_run_extraction_summary_has_filtered_low_quality(self, mock_db=None):
-        """run_extraction summary dict always contains filtered_low_quality key."""
-        from unittest.mock import MagicMock, patch
+    def test_skip_sources_excluded_from_query(self, mock_db):
+        """Sources with skip_extraction=True should appear in the NOT IN filter."""
+        import src.assertion_extractor as ae
 
-        db = MagicMock()
-        db.fetch_df.return_value = pd.DataFrame()
-        provider = MagicMock()
-        provider.model = "test"
-        summary = run_extraction(limit=5, db=db, provider=provider)
-        assert "filtered_low_quality" in summary
-        assert "prompt_version" in summary
+        ae._SOURCE_CONFIG_CACHE = None
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db)
+        query = mock_db.fetch_df.call_args[0][0]
+        # club_shay_shay is skip_extraction=True — should be excluded
+        assert "club_shay_shay" in query
+        assert "NOT IN" in query
+
+    def test_priority_sort_applied_to_results(self, mock_db):
+        """Results returned from DB should be re-sorted by tier before returning."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        # Return rows with tier-3 source first, tier-1 source second
+        from datetime import datetime, timezone
+
+        raw = pd.DataFrame(
+            [
+                {
+                    "content_hash": "hash_tier3",
+                    "source_id": "rotoballer_nfl",  # tier 3
+                    "title": "Low yield",
+                    "raw_text": "text",
+                    "source_url": "https://example.com/a",
+                    "author": "A",
+                    "matched_pundit_id": "p1",
+                    "matched_pundit_name": "P1",
+                    "published_at": datetime(2025, 9, 1, tzinfo=timezone.utc),
+                    "sport": "NFL",
+                },
+                {
+                    "content_hash": "hash_tier1",
+                    "source_id": "espn_nfl",  # tier 1
+                    "title": "High yield",
+                    "raw_text": "text",
+                    "source_url": "https://example.com/b",
+                    "author": "B",
+                    "matched_pundit_id": "p2",
+                    "matched_pundit_name": "P2",
+                    "published_at": datetime(2025, 8, 1, tzinfo=timezone.utc),
+                    "sport": "NFL",
+                },
+            ]
+        )
+        mock_db.fetch_df.return_value = raw
+        result = get_unprocessed_media(mock_db, limit=10)
+        # espn_nfl (tier 1) should come before rotoballer_nfl (tier 3)
+        assert result.iloc[0]["source_id"] == "espn_nfl"
+        assert result.iloc[1]["source_id"] == "rotoballer_nfl"
+
+    def test_run_extraction_skips_low_yield_source(self, mock_db, mock_provider):
+        """Articles from skip_extraction sources are marked processed without LLM call."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+
+        skip_df = pd.DataFrame(
+            [
+                {
+                    "content_hash": "skip_hash_1",
+                    "source_id": "club_shay_shay",  # skip_extraction=True
+                    "title": "Interview show",
+                    "raw_text": "some text content here",
+                    "source_url": "https://youtube.com/v/1",
+                    "author": "Shannon Sharpe",
+                    "matched_pundit_id": "shannon_sharpe",
+                    "matched_pundit_name": "Shannon Sharpe",
+                    "published_at": datetime(2025, 9, 1, tzinfo=timezone.utc),
+                    "sport": "NFL",
+                }
+            ]
+        )
+        mock_db.fetch_df.return_value = skip_df
+
+        with patch("src.assertion_extractor.extract_assertions") as mock_extract:
+            summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        assert summary["skipped_low_yield"] == 1
+        assert summary["total_processed"] == 1
+        mock_extract.assert_not_called()
+        # Should still be marked processed
+        mock_db.append_dataframe_to_table.assert_called_once()

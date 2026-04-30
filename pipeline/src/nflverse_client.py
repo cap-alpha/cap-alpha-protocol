@@ -1,11 +1,14 @@
 """
-nflverse_client.py — Free NFL data ingestion via nfl_data_py (nflverse GitHub CSVs).
-No API key required. Writes bronze tables to BigQuery dataset `nfl_dead_money`.
+nflverse_client.py — Free NFL data ingestion via nfl_data_py (nflverse GitHub CSVs)
 
-Tables produced:
-  bronze_nflverse_player_stats   — seasonal aggregates (passing/rushing/receiving)
-  bronze_nflverse_draft_picks    — draft pick history
-  bronze_nflverse_weekly_stats   — per-week player stats
+No API key required. Pulls seasonal stats, weekly stats, and draft picks from
+the nflverse GitHub releases and writes them to BigQuery bronze tables.
+
+Usage:
+    python -m src.nflverse_client --all
+    python -m src.nflverse_client --player-stats
+    python -m src.nflverse_client --draft-picks
+    python -m src.nflverse_client --weekly-stats
 """
 
 import argparse
@@ -17,128 +20,159 @@ from google.cloud import bigquery
 
 from src.db_manager import DBManager
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
-def _write_truncate(db: DBManager, df: pd.DataFrame, table_name: str) -> None:
+def _sanitize_df(df: pd.DataFrame) -> pd.DataFrame:
+    """Sanitize column names and cast object columns to string for BigQuery compatibility."""
+    df = df.copy()
+    df.columns = df.columns.astype(str).str.replace(r"[^a-zA-Z0-9_]", "_", regex=True)
+    df["_ingested_at"] = pd.Timestamp.utcnow()
+    # Cast object columns to string to avoid Parquet type mismatch
+    for col in df.columns:
+        if df[col].dtype == "object":
+            df[col] = df[col].astype(str)
+    return df
+
+
+def _write_to_bq(df: pd.DataFrame, table_name: str, db: DBManager) -> None:
     """Write a DataFrame to BigQuery with WRITE_TRUNCATE (full refresh)."""
-    if df is None or df.empty:
-        logger.warning(f"No data to write for {table_name} — skipping.")
-        return
-
-    df_clean = df.copy()
-
-    # Sanitize column names for BigQuery
-    df_clean.columns = df_clean.columns.astype(str).str.replace(
-        r"[^a-zA-Z0-9_]", "_", regex=True
-    )
-
-    # Add ingestion timestamp
-    df_clean["_ingested_at"] = pd.Timestamp.utcnow()
-
-    # Cast object columns to string to avoid Parquet type mismatches
-    for col in df_clean.columns:
-        if df_clean[col].dtype == "object":
-            df_clean[col] = df_clean[col].astype(str)
-
     table_ref = f"{db.project_id}.{db.dataset_id}.{table_name}"
     job_config = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
-    job = db.client.load_table_from_dataframe(
-        df_clean, table_ref, job_config=job_config
-    )
+    job = db.client.load_table_from_dataframe(df, table_ref, job_config=job_config)
     job.result()
-    logger.info(f"Loaded {len(df_clean)} rows into `{table_ref}` (WRITE_TRUNCATE).")
+    logger.info(f"Wrote {len(df):,} rows to {table_ref}")
+
+
+def _available_seasons(url_template: str, candidate_seasons: list[int]) -> list[int]:
+    """Return only seasons whose parquet file actually exists on GitHub releases."""
+    import urllib.request
+
+    available = []
+    for year in candidate_seasons:
+        url = url_template.format(year)
+        try:
+            with urllib.request.urlopen(url) as r:
+                if r.status == 200:
+                    available.append(year)
+        except Exception:
+            logger.debug(f"Season {year} not yet available at {url}")
+    return available
 
 
 def ingest_bronze_player_season_stats(seasons: list[int] | None = None) -> None:
-    """Ingest player seasonal stats from nflverse into bronze_nflverse_player_stats.
+    """Ingest player seasonal stats from nflverse (free) into bronze_nflverse_player_stats.
 
-    Note: nflverse seasonal parquet files are published per-year. The 2025 NFL season
-    (which ends Feb 2026) file may not be available yet if the season is in-progress.
-    Default seasons are conservative — add 2025 once the file is published.
+    Key columns: player_id, player_name, season, completions, attempts,
+    passing_yards, passing_tds, rushing_yards, rushing_tds,
+    receptions, targets, receiving_yards, receiving_tds.
     """
     if seasons is None:
-        seasons = [2023, 2024]
+        seasons = [2023, 2024, 2025]
 
-    logger.info(f"Fetching seasonal player stats for seasons: {seasons}")
+    # Filter to seasons that are actually available on GitHub releases
+    url_tpl = "https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_{0}.parquet"
+    seasons = _available_seasons(url_tpl, seasons)
+    if not seasons:
+        logger.warning("No seasonal stats available for the requested seasons.")
+        return
+
+    logger.info(f"Fetching nflverse seasonal stats for seasons: {seasons}")
     df = nfl.import_seasonal_data(seasons)
-    logger.info(f"Fetched {len(df)} rows of seasonal player data.")
+    if df.empty:
+        logger.warning("No seasonal stats returned from nflverse.")
+        return
+
+    df = _sanitize_df(df)
+    logger.info(f"Loaded {len(df):,} player-season rows. Writing to BigQuery…")
 
     with DBManager() as db:
-        _write_truncate(db, df, "bronze_nflverse_player_stats")
+        _write_to_bq(df, "bronze_nflverse_player_stats", db)
 
 
 def ingest_bronze_draft_picks(seasons: list[int] | None = None) -> None:
-    """Ingest draft picks from nflverse into bronze_nflverse_draft_picks."""
+    """Ingest draft picks from nflverse into bronze_nflverse_draft_picks.
+
+    Covers the requested seasons (defaults to 2020–2026).
+    """
     if seasons is None:
         seasons = [2020, 2021, 2022, 2023, 2024, 2025, 2026]
 
-    logger.info(f"Fetching draft picks for seasons: {seasons}")
+    logger.info(f"Fetching nflverse draft picks for seasons: {seasons}")
     df = nfl.import_draft_picks(seasons)
-    logger.info(f"Fetched {len(df)} rows of draft pick data.")
+    if df.empty:
+        logger.warning("No draft picks returned from nflverse.")
+        return
+
+    df = _sanitize_df(df)
+    logger.info(f"Loaded {len(df):,} draft-pick rows. Writing to BigQuery…")
 
     with DBManager() as db:
-        _write_truncate(db, df, "bronze_nflverse_draft_picks")
-
-
-def ingest_bronze_players() -> None:
-    """Ingest all NFL players from nflverse into bronze_nflverse_players.
-
-    Provides gsis_id (=player_id) to display_name mapping needed to join
-    seasonal/weekly stats with player names.
-    """
-    logger.info("Fetching all NFL players from nflverse...")
-    df = nfl.import_players()
-    logger.info(f"Fetched {len(df)} player records.")
-
-    with DBManager() as db:
-        _write_truncate(db, df, "bronze_nflverse_players")
+        _write_to_bq(df, "bronze_nflverse_draft_picks", db)
 
 
 def ingest_bronze_weekly_stats(seasons: list[int] | None = None) -> None:
-    """Ingest weekly player stats from nflverse into bronze_nflverse_weekly_stats.
-
-    Note: 2025 weekly data is available mid-season but seasonal aggregates lag.
-    """
+    """Ingest weekly player stats from nflverse into bronze_nflverse_weekly_stats."""
     if seasons is None:
-        seasons = [2023, 2024]
+        seasons = [2023, 2024, 2025]
 
-    logger.info(f"Fetching weekly player stats for seasons: {seasons}")
+    url_tpl = "https://github.com/nflverse/nflverse-data/releases/download/player_stats/player_stats_{0}.parquet"
+    seasons = _available_seasons(url_tpl, seasons)
+    if not seasons:
+        logger.warning("No weekly stats available for the requested seasons.")
+        return
+
+    logger.info(f"Fetching nflverse weekly stats for seasons: {seasons}")
     df = nfl.import_weekly_data(seasons)
-    logger.info(f"Fetched {len(df)} rows of weekly player data.")
+    if df.empty:
+        logger.warning("No weekly stats returned from nflverse.")
+        return
+
+    df = _sanitize_df(df)
+    logger.info(f"Loaded {len(df):,} player-week rows. Writing to BigQuery…")
 
     with DBManager() as db:
-        _write_truncate(db, df, "bronze_nflverse_weekly_stats")
+        _write_to_bq(df, "bronze_nflverse_weekly_stats", db)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Ingest nflverse data into BigQuery bronze tables."
+        description="Ingest free NFL data from nflverse (nfl_data_py) into BigQuery bronze tables."
     )
     parser.add_argument(
-        "--player-stats", action="store_true", help="Ingest seasonal player stats"
-    )
-    parser.add_argument("--draft-picks", action="store_true", help="Ingest draft picks")
-    parser.add_argument(
-        "--weekly-stats", action="store_true", help="Ingest weekly player stats"
+        "--player-stats",
+        action="store_true",
+        help="Ingest seasonal player stats → bronze_nflverse_player_stats",
     )
     parser.add_argument(
-        "--players", action="store_true", help="Ingest all NFL players (name lookup)"
+        "--draft-picks",
+        action="store_true",
+        help="Ingest draft picks → bronze_nflverse_draft_picks",
     )
-    parser.add_argument("--all", action="store_true", help="Run all ingestion jobs")
+    parser.add_argument(
+        "--weekly-stats",
+        action="store_true",
+        help="Ingest weekly player stats → bronze_nflverse_weekly_stats",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Ingest all three tables",
+    )
     args = parser.parse_args()
 
-    if not any(
-        [args.player_stats, args.draft_picks, args.weekly_stats, args.players, args.all]
-    ):
+    if not any([args.all, args.player_stats, args.draft_picks, args.weekly_stats]):
         parser.print_help()
-    else:
-        if args.all or args.player_stats:
-            ingest_bronze_player_season_stats()
-        if args.all or args.draft_picks:
-            ingest_bronze_draft_picks()
-        if args.all or args.weekly_stats:
-            ingest_bronze_weekly_stats()
-        if args.all or args.players:
-            ingest_bronze_players()
+        raise SystemExit(1)
+
+    if args.all or args.player_stats:
+        ingest_bronze_player_season_stats()
+    if args.all or args.draft_picks:
+        ingest_bronze_draft_picks()
+    if args.all or args.weekly_stats:
+        ingest_bronze_weekly_stats()
+
+    logger.info("nflverse ingestion complete.")

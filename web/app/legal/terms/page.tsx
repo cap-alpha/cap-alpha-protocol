@@ -45,6 +45,11 @@ export default function TermsOfService() {
                             this application be construed as financial, legal, or professional
                             sports-betting advice.
                         </p>
+                        <p className="text-amber-400 font-semibold text-sm">
+                            Sports betting is regulated by individual states. You must be 21 or older
+                            (or the minimum legal age in your jurisdiction) to engage in sports wagering
+                            where permitted by law. Void where prohibited.
+                        </p>
                     </section>
 
                     <section className="space-y-3">

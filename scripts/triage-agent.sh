@@ -110,7 +110,7 @@ PYEOF
 
     if (( recent_output_tokens >= QUOTA_OUTPUT_LIMIT )); then
         log "QUOTA EXCEEDED: ${recent_output_tokens} output tokens in last ${QUOTA_WINDOW_HOURS}h (limit: ${QUOTA_OUTPUT_LIMIT}). Pausing run."
-        slack_alert "Triage agent quota pause: ${recent_output_tokens} output tokens in last ${QUOTA_WINDOW_HOURS}h. Retries every 10 min."
+        slack_alert "Triage agent quota pause: ${recent_output_tokens} output tokens in last ${QUOTA_WINDOW_HOURS}h. Next run in ~10min."
         return 1
     fi
 
@@ -125,7 +125,7 @@ slack_alert() {
     if [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
         local payload
         payload=$(python3 -c "import json,sys; print(json.dumps({'channel': sys.argv[1], 'text': sys.argv[2]}))" \
-            "${SLACK_CHANNEL:-#pundit-ledger-nfl-dead-money-cap-alpha-protocol}" \
+            "${SLACK_CHANNEL:-#cap-alpha-protocol}" \
             "$message")
         curl -s -X POST "$SLACK_WEBHOOK_URL" -H 'Content-type: application/json' --data "$payload" > /dev/null || true
     fi
@@ -368,8 +368,28 @@ for issue in data:
 
 dispatch_pr_copilot() {
     local pr_number="$1"
-    # COPILOT dispatch skipped: thread data not available
-    log "COPILOT dispatch skipped: thread data not available (PR #${pr_number})"
+    local worktree_path="${REPO_ROOT}/.claude/worktrees/auto-pr-copilot-${pr_number}"
+
+    if $DRY_RUN; then
+        log "would dispatch: PR #${pr_number} copilot-fix via Sonnet"
+        return
+    fi
+
+    log "Dispatching Copilot fix for PR #${pr_number}"
+    [[ -d "$worktree_path" ]] && { log "  Copilot worktree already exists, skipping"; return; }
+
+    git -C "$REPO_ROOT" worktree add --detach "$worktree_path" 2>/dev/null || {
+        log "  Could not create worktree for copilot fix on PR #${pr_number}"
+        return
+    }
+
+    spawn_background "$DISPATCH" \
+        --model "claude-sonnet-4-6" \
+        --prompt-file "${PROMPTS_DIR}/copilot-fix.md" \
+        --worktree "$worktree_path" \
+        --label "pr-copilot-${pr_number}" \
+        --env "PR_NUMBER=${pr_number}" \
+        --env "AGENT_ID=${AGENT_ID}"
 }
 
 dispatch_pr_lint() {
@@ -384,7 +404,7 @@ dispatch_pr_lint() {
     log "Dispatching lint fix for PR #${pr_number}"
     [[ -d "$worktree_path" ]] && { log "  Lint worktree already exists, skipping"; return; }
 
-    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "auto/pr-${pr_number}-lint" 2>/dev/null || {
+    git -C "$REPO_ROOT" worktree add --detach "$worktree_path" 2>/dev/null || {
         log "  Could not create worktree for lint fix on PR #${pr_number}"
         return
     }
@@ -394,7 +414,8 @@ dispatch_pr_lint() {
         --prompt-file "${PROMPTS_DIR}/lint-fix.md" \
         --worktree "$worktree_path" \
         --label "pr-lint-${pr_number}" \
-        --env "PR_NUMBER=${pr_number}"
+        --env "PR_NUMBER=${pr_number}" \
+        --env "AGENT_ID=${AGENT_ID}"
 }
 
 dispatch_pr_ci() {
@@ -409,7 +430,7 @@ dispatch_pr_ci() {
     log "Dispatching CI investigation for PR #${pr_number} (${failing_check})"
     [[ -d "$worktree_path" ]] && { log "  CI worktree already exists, skipping"; return; }
 
-    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "auto/pr-${pr_number}-ci" 2>/dev/null || {
+    git -C "$REPO_ROOT" worktree add --detach "$worktree_path" 2>/dev/null || {
         log "  Could not create worktree for CI investigate on PR #${pr_number}"
         return
     }
@@ -420,7 +441,8 @@ dispatch_pr_ci() {
         --worktree "$worktree_path" \
         --label "pr-ci-${pr_number}" \
         --env "PR_NUMBER=${pr_number}" \
-        --env "FAILING_CHECK=${failing_check}"
+        --env "FAILING_CHECK=${failing_check}" \
+        --env "AGENT_ID=${AGENT_ID}"
 }
 
 triage_prs() {
@@ -482,13 +504,11 @@ data = json.loads(open(sys.argv[1]).read())
 for pr in data:
     number = pr.get("number","")
 
-    # Copilot reviews with open comments (reviewThreads not available in all gh versions;
-    # use reviews with state CHANGES_REQUESTED as a proxy for pending fixups)
+    # Detect PRs needing review fixes — use CHANGES_REQUESTED as proxy
     reviews = pr.get("reviews") or []
     has_changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
     if has_changes_requested:
-        thread_json = json.dumps(reviews)
-        print(f"COPILOT\t{number}\t{thread_json}")
+        print(f"COPILOT\t{number}\t")
         continue  # prioritize copilot fix; lint/CI can wait
 
     # CI status

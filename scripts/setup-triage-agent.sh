@@ -27,13 +27,8 @@ ok "claude CLI found at $CLAUDE_BIN ($(\"$CLAUDE_BIN\" --version 2>/dev/null | h
 
 # 2. Validate .env.personas
 [[ -f "$PERSONAS" ]] || err ".env.personas not found at $PERSONAS. Create it with GH_APP_ID, GH_INSTALLATION_ID, and SLACK_WEBHOOK_URL."
-# Accept either GitHub App identity (GH_APP_ID + GH_INSTALLATION_ID) or legacy PAT (LARS_TOKEN)
-if ! grep -q "^GH_APP_ID=" "$PERSONAS" && ! grep -q "^LARS_TOKEN=" "$PERSONAS"; then
-    err ".env.personas missing GitHub identity — need GH_APP_ID (App auth) or LARS_TOKEN (PAT auth)"
-fi
-if grep -q "^GH_APP_ID=" "$PERSONAS" && ! grep -q "^GH_INSTALLATION_ID=" "$PERSONAS"; then
-    err ".env.personas has GH_APP_ID but is missing GH_INSTALLATION_ID (required for App auth)"
-fi
+grep -q "^GH_APP_ID=" "$PERSONAS" || err ".env.personas missing GH_APP_ID — required for GitHub App auth"
+grep -q "^GH_INSTALLATION_ID=" "$PERSONAS" || err ".env.personas missing GH_INSTALLATION_ID — required for GitHub App auth"
 grep -q "^SLACK_WEBHOOK_URL=" "$PERSONAS" || { echo "  WARN: SLACK_WEBHOOK_URL not set — Slack alerts disabled"; }
 ok ".env.personas validated"
 

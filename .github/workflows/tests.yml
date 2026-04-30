@@ -41,9 +41,17 @@ jobs:
           --ignore=pipeline/tests/test_api_vegas.py
       env:
         PYTHONPATH: ${{ github.workspace }}/pipeline
-    
 
-    
+    - name: Validate cryptographic ledger chain integrity
+      # Explicitly targets chain-hash unit tests (no BigQuery required — mocked).
+      # Runs with -x to fail fast on the first broken chain invariant.
+      # Blocks merge if any chain hash computation or verification logic is broken.
+      run: |
+        pytest pipeline/tests/test_cryptographic_ledger.py -x -v --tb=short \
+          -k "not Integration"
+      env:
+        PYTHONPATH: ${{ github.workspace }}/pipeline
+
     - name: Upload coverage reports
       if: always()
       uses: codecov/codecov-action@v3

@@ -47,7 +47,7 @@ TMPOUT="$(mktemp)"
 trap 'rm -f "$TMPOUT"' EXIT
 
 set +e
-"${ENV_PREFIX[@]:-}" env "$CLAUDE_BIN" \
+"${ENV_PREFIX[@]:-env}" "$CLAUDE_BIN" \
     -p \
     --model "$MODEL" \
     --add-dir "$WORKTREE" \
@@ -55,7 +55,7 @@ set +e
     --append-system-prompt-file "$PROMPT_FILE" \
     --allow-dangerously-skip-permissions \
     --output-format stream-json \
-    "${EXTRA_ARGS[@]:-}" \
+    ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"} \
     "$(cat "$PROMPT_FILE")" \
     2>&1 | tee "$TMPOUT"
 EXIT_CODE=$?

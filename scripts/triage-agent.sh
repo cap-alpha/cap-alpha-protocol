@@ -332,30 +332,111 @@ for issue in data:
 
 # ── PR triage ─────────────────────────────────────────────────────────────────
 
-dispatch_pr_copilot() {
-    local pr_number="$1" thread_json="$2"
-    local worktree_path="${REPO_ROOT}/.claude/worktrees/auto-pr-copilot-${pr_number}"
+GH_OWNER="cap-alpha"
+GH_REPO="cap-alpha-protocol"
+
+# Fetch all unresolved review threads and PR comments for a PR via GraphQL.
+# Outputs two tab-separated fields: thread_json<TAB>comment_json
+fetch_pr_threads_and_comments() {
+    local pr_number="$1"
+    local result
+    result=$("$GH_LARS" api graphql \
+        -f query='
+query($owner:String!,$repo:String!,$number:Int!){
+  repository(owner:$owner,name:$repo){
+    pullRequest(number:$number){
+      reviewThreads(first:50){
+        nodes{
+          id
+          isResolved
+          path
+          line
+          comments(first:1){nodes{body author{login}}}
+        }
+      }
+      comments(first:50){
+        nodes{
+          id
+          body
+          author{login}
+          url
+        }
+      }
+    }
+  }
+}' \
+        -f owner="${GH_OWNER}" \
+        -f repo="${GH_REPO}" \
+        -F number="${pr_number}" \
+        2>/dev/null) || { echo "[]	[]"; return; }
+
+    python3 - "$pr_number" <<'PYEOF' <(echo "$result")
+import sys, json
+
+raw = open(sys.argv[1]).read()
+try:
+    data = json.loads(raw)
+    pr_data = data.get("data", {}).get("repository", {}).get("pullRequest", {})
+
+    # Unresolved review threads
+    all_threads = pr_data.get("reviewThreads", {}).get("nodes", []) or []
+    unresolved = []
+    for t in all_threads:
+        if not t.get("isResolved", True):
+            first_comment = {}
+            comments = t.get("comments", {}).get("nodes", []) or []
+            if comments:
+                first_comment = comments[0]
+            unresolved.append({
+                "id": t.get("id"),
+                "path": t.get("path"),
+                "line": t.get("line"),
+                "body": first_comment.get("body", ""),
+                "author": (first_comment.get("author") or {}).get("login", ""),
+            })
+
+    # PR-level comments
+    pr_comments = pr_data.get("comments", {}).get("nodes", []) or []
+    comments_out = []
+    for c in pr_comments:
+        comments_out.append({
+            "id": c.get("id"),
+            "body": c.get("body", ""),
+            "author": (c.get("author") or {}).get("login", ""),
+            "url": c.get("url", ""),
+        })
+
+    print(json.dumps(unresolved) + "\t" + json.dumps(comments_out))
+except Exception as e:
+    print("[]	[]")
+PYEOF
+}
+
+dispatch_pr_review_fix() {
+    local pr_number="$1" thread_json="$2" comment_json="$3"
+    local worktree_path="${REPO_ROOT}/.claude/worktrees/auto-pr-review-${pr_number}"
 
     if $DRY_RUN; then
-        log "would dispatch: PR #${pr_number} copilot-fix via Sonnet"
+        log "would dispatch: PR #${pr_number} pr-review-fix via Sonnet"
         return
     fi
 
-    log "Dispatching Copilot fix for PR #${pr_number}"
-    [[ -d "$worktree_path" ]] && { log "  Copilot worktree already exists, skipping"; return; }
+    log "Dispatching review-fix for PR #${pr_number}"
+    [[ -d "$worktree_path" ]] && { log "  Review-fix worktree already exists, skipping"; return; }
 
     git -C "$REPO_ROOT" worktree add "$worktree_path" 2>/dev/null || {
-        log "  Could not create worktree for copilot fix on PR #${pr_number}"
+        log "  Could not create worktree for review-fix on PR #${pr_number}"
         return
     }
 
     spawn_background "$DISPATCH" \
         --model "claude-sonnet-4-6" \
-        --prompt-file "${PROMPTS_DIR}/copilot-fix.md" \
+        --prompt-file "${PROMPTS_DIR}/pr-review-fix.md" \
         --worktree "$worktree_path" \
-        --label "pr-copilot-${pr_number}" \
+        --label "pr-review-${pr_number}" \
         --env "PR_NUMBER=${pr_number}" \
-        --env "THREAD_JSON=${thread_json}"
+        --env "THREAD_JSON=${thread_json}" \
+        --env "COMMENT_JSON=${comment_json}"
 }
 
 dispatch_pr_lint() {
@@ -370,7 +451,7 @@ dispatch_pr_lint() {
     log "Dispatching lint fix for PR #${pr_number}"
     [[ -d "$worktree_path" ]] && { log "  Lint worktree already exists, skipping"; return; }
 
-    git -C "$REPO_ROOT" worktree add "$worktree_path" 2>/dev/null || {
+    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "auto/pr-${pr_number}-lint" 2>/dev/null || {
         log "  Could not create worktree for lint fix on PR #${pr_number}"
         return
     }
@@ -395,7 +476,7 @@ dispatch_pr_ci() {
     log "Dispatching CI investigation for PR #${pr_number} (${failing_check})"
     [[ -d "$worktree_path" ]] && { log "  CI worktree already exists, skipping"; return; }
 
-    git -C "$REPO_ROOT" worktree add "$worktree_path" 2>/dev/null || {
+    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "auto/pr-${pr_number}-ci" 2>/dev/null || {
         log "  Could not create worktree for CI investigate on PR #${pr_number}"
         return
     }
@@ -414,7 +495,7 @@ triage_prs() {
     prs=$("$GH_LARS" pr list \
         --state open \
         --limit 30 \
-        --json number,title,headRefName,statusCheckRollup,reviews \
+        --json number,title,headRefName,statusCheckRollup \
         2>/dev/null) || {
         log "WARNING: Could not fetch PRs (gh rate-limited or auth failure). Skipping PR triage."
         return 0
@@ -424,30 +505,43 @@ triage_prs() {
     pr_count=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)))" <<< "$prs" 2>/dev/null || echo 0)
     log "Found ${pr_count} open PRs"
 
-    # Process each PR via python — output tab-separated action lines
-    while IFS=$'\t' read -r action pr_number extra; do
+    # Extract PR numbers and CI status via python
+    while IFS=$'\t' read -r pr_number lint_failing ci_failing_name; do
         [[ -z "$pr_number" ]] && continue
 
-        case "$action" in
-            COPILOT)
-                if ! is_pr_claimed "${pr_number}-copilot"; then
-                    claim_resource "pr:${pr_number}-copilot" || true
-                    dispatch_pr_copilot "$pr_number" "$extra"
-                fi
-                ;;
-            LINT)
-                if ! is_pr_claimed "${pr_number}-lint"; then
-                    claim_resource "pr:${pr_number}-lint" || true
-                    dispatch_pr_lint "$pr_number"
-                fi
-                ;;
-            CI)
-                if ! is_pr_claimed "${pr_number}-ci"; then
-                    claim_resource "pr:${pr_number}-ci" || true
-                    dispatch_pr_ci "$pr_number" "$extra"
-                fi
-                ;;
-        esac
+        # Fetch unresolved threads and comments via GraphQL for every open PR
+        local fetch_result thread_json comment_json
+        fetch_result=$(fetch_pr_threads_and_comments "$pr_number")
+        thread_json=$(echo "$fetch_result" | cut -f1)
+        comment_json=$(echo "$fetch_result" | cut -f2)
+
+        local has_threads=false has_comments=false
+        # Check if there are any unresolved threads
+        if python3 -c "import sys,json; d=json.loads(sys.argv[1]); sys.exit(0 if len(d)>0 else 1)" "$thread_json" 2>/dev/null; then
+            has_threads=true
+        fi
+        # Check if there are any PR-level comments
+        if python3 -c "import sys,json; d=json.loads(sys.argv[1]); sys.exit(0 if len(d)>0 else 1)" "$comment_json" 2>/dev/null; then
+            has_comments=true
+        fi
+
+        # Priority: comments/threads > lint > other CI
+        if $has_threads || $has_comments; then
+            if ! is_pr_claimed "${pr_number}-review"; then
+                claim_resource "pr:${pr_number}-review" || true
+                dispatch_pr_review_fix "$pr_number" "$thread_json" "$comment_json"
+            fi
+        elif [[ "$lint_failing" == "1" ]]; then
+            if ! is_pr_claimed "${pr_number}-lint"; then
+                claim_resource "pr:${pr_number}-lint" || true
+                dispatch_pr_lint "$pr_number"
+            fi
+        elif [[ -n "$ci_failing_name" ]]; then
+            if ! is_pr_claimed "${pr_number}-ci"; then
+                claim_resource "pr:${pr_number}-ci" || true
+                dispatch_pr_ci "$pr_number" "$ci_failing_name"
+            fi
+        fi
 
     done < <(python3 -c '
 import sys, json
@@ -455,34 +549,22 @@ import sys, json
 data = json.loads(open(sys.argv[1]).read())
 
 for pr in data:
-    number = pr.get("number","")
-
-    # Copilot reviews with open comments (reviewThreads not available in all gh versions;
-    # use reviews with state CHANGES_REQUESTED as a proxy for pending fixups)
-    reviews = pr.get("reviews") or []
-    has_changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
-    if has_changes_requested:
-        thread_json = json.dumps(reviews)
-        print(f"COPILOT\t{number}\t{thread_json}")
-        continue  # prioritize copilot fix; lint/CI can wait
+    number = pr.get("number", "")
 
     # CI status
     checks = pr.get("statusCheckRollup") or []
-    lint_failing = False
+    lint_failing = 0
     ci_failing_name = ""
     for check in checks:
         name = (check.get("name") or check.get("context") or "").lower()
         conclusion = (check.get("conclusion") or check.get("state") or "").upper()
         if conclusion in ("FAILURE", "TIMED_OUT", "ERROR"):
             if "lint" in name or "ruff" in name or "format" in name:
-                lint_failing = True
-            else:
+                lint_failing = 1
+            elif not ci_failing_name:
                 ci_failing_name = check.get("name") or check.get("context") or "unknown"
 
-    if lint_failing:
-        print(f"LINT\t{number}\t")
-    elif ci_failing_name:
-        print(f"CI\t{number}\t{ci_failing_name}")
+    print(f"{number}\t{lint_failing}\t{ci_failing_name}")
 ' <(echo "$prs"))
 }
 

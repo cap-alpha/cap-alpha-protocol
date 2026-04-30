@@ -36,17 +36,16 @@ if [[ ! -x "$TOKEN_SCRIPT" ]]; then
     exit 1
 fi
 
-# Try GitHub App token first; fall back to default gh auth if it fails.
+# Mint GitHub App token — fail fast if it fails (no bare-gh fallback per CLAUDE.md).
 GH_TOKEN=""
-if GH_TOKEN="$("$TOKEN_SCRIPT" 2>/dev/null)"; then
-    [[ -z "$GH_TOKEN" ]] || export GH_TOKEN
+if ! GH_TOKEN="$("$TOKEN_SCRIPT" 2>&1)"; then
+    echo "Error: GitHub App token minting failed: $GH_TOKEN" >&2
+    exit 1
+fi
+if [[ -z "$GH_TOKEN" ]]; then
+    echo "Error: GitHub App token minting failed (empty token)" >&2
+    exit 1
 fi
 
-# If GitHub App token failed or was empty, use default gh auth
-if [[ -z "${GH_TOKEN:-}" ]]; then
-    # Default to user's authenticated gh session (no explicit token)
-    exec gh "$@"
-else
-    export GH_TOKEN
-    exec gh "$@"
-fi
+export GH_TOKEN
+exec gh "$@"

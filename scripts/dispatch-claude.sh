@@ -48,11 +48,10 @@ trap 'rm -f "$TMPOUT"' EXIT
 
 set +e
 "${ENV_CMD[@]}" "$CLAUDE_BIN" \
-    -p \
+    -p "$(cat "$PROMPT_FILE")" \
     --model "$MODEL" \
     --add-dir "$WORKTREE" \
     --allowedTools "Bash,Read,Write,Edit,Glob,Grep" \
-    --append-system-prompt-file "$PROMPT_FILE" \
     --allow-dangerously-skip-permissions \
     --output-format stream-json \
     --verbose \

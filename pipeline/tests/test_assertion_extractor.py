@@ -160,8 +160,6 @@ class TestExtractAssertions:
             "draft_pick",
             "injury",
             "contract",
-            "award_prediction",
-            "fa_signing",
         }
         assert VALID_CATEGORIES == expected
 
@@ -883,8 +881,6 @@ class TestConstants:
             "draft_pick",
             "injury",
             "contract",
-            "award_prediction",
-            "fa_signing",
         }
         assert VALID_CATEGORIES == expected
 

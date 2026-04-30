@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 
-// Server-only env var — fail fast if unset so production issues are not
-// masked as empty-200 responses.
-const API_URL = process.env.INTERNAL_API_URL;
+const API_URL =
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 export async function GET(req: Request) {
-    if (!API_URL) {
-        console.error("[Ledger Recent API] INTERNAL_API_URL is not set");
-        return NextResponse.json({ error: "API URL not configured" }, { status: 500 });
-    }
-
     const { searchParams } = new URL(req.url);
 
     // Guard against NaN from non-numeric limit values (parseInt("abc") → NaN;

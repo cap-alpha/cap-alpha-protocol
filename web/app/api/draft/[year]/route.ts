@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
-// Server-only env var — fail fast if unset so production issues are not
-// masked as empty-200 responses.
-const API_URL = process.env.INTERNAL_API_URL;
+const API_URL =
+    process.env.API_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 interface Prediction {
     prediction_hash: string;
@@ -59,14 +60,6 @@ export async function GET(
         );
     }
 
-    if (!API_URL) {
-        console.error("[Draft API] INTERNAL_API_URL is not set");
-        return NextResponse.json(
-            { error: "API URL not configured" } as unknown as DraftData,
-            { status: 500 }
-        );
-    }
-
     try {
         const res = await fetch(`${API_URL}/v1/draft/${year}`, {
             headers: {
@@ -82,7 +75,7 @@ export async function GET(
                 resolved: 0,
                 pending: 0,
                 predictions: [],
-            });
+            }, { status: 502 });
         }
 
         const data = await res.json();
@@ -109,6 +102,6 @@ export async function GET(
             resolved: 0,
             pending: 0,
             predictions: [],
-        });
+        }, { status: 502 });
     }
 }

@@ -14,9 +14,9 @@
     <key>WorkingDirectory</key>
     <string>REPO_ROOT_PLACEHOLDER</string>
 
-    <!-- Run every hour -->
+    <!-- Run every 10 minutes -->
     <key>StartInterval</key>
-    <integer>3600</integer>
+    <integer>600</integer>
 
     <key>StandardOutPath</key>
     <string>HOME_PLACEHOLDER/Library/Logs/com.capalpha.triage-agent.log</string>

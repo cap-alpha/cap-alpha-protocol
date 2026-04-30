@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# triage-agent.sh — Autonomous hourly triage: dispatch issues, fix PR threads, fix lint, investigate CI.
-# Invoked by launchd (com.capalpha.triage-agent) every hour.
+# triage-agent.sh — Autonomous triage: dispatch issues, fix PR threads, fix lint, investigate CI.
+# Invoked by launchd (com.capalpha.triage-agent) every 10 minutes.
 #
 # Flags:
 #   --dry-run   Print what would be dispatched; do not invoke claude or claim locks.
 
 set -euo pipefail
+START_TIME=$(date +%s)
 
 PERSONAS_FILE="$(dirname "${BASH_SOURCE[0]}")/../.env.personas"
 if [ -f "$PERSONAS_FILE" ]; then
@@ -35,6 +36,53 @@ DRY_RUN=false
 
 ts()  { date -u +%Y-%m-%dT%H:%M:%SZ; }
 log() { echo "[$(ts)] $*"; }
+
+get_recent_token_usage() {
+    local window_hours="${1:-5}"
+    [[ ! -f "$USAGE_LOG" ]] && echo "0" && return 0
+    python3 - "$USAGE_LOG" "$window_hours" <<'PYEOF'
+import sys, json
+from datetime import datetime, timezone, timedelta
+
+log_path = sys.argv[1]
+window_hours = int(sys.argv[2])
+cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+
+total_input = 0
+total_output = 0
+try:
+    with open(log_path) as f:
+        for line in f:
+            try:
+                obj = json.loads(line.strip())
+                ts_str = obj.get("ts", "")
+                ts = datetime.fromisoformat(ts_str.rstrip("Z")).replace(tzinfo=timezone.utc)
+                if ts >= cutoff:
+                    total_input += obj.get("input_tokens", 0)
+                    total_output += obj.get("output_tokens", 0)
+            except Exception:
+                pass
+except FileNotFoundError:
+    pass
+print(f"input={total_input} output={total_output}")
+PYEOF
+}
+
+dispatch_summary() {
+    local dispatched_issues="$1"
+    local dispatched_prs="$2"
+    local elapsed="$3"
+
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  DISPATCH SUMMARY"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  Issues dispatched: ${dispatched_issues}"
+    echo "  PRs processed: ${dispatched_prs}"
+    echo "  Duration: ${elapsed}s"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
 
 # ── Quota awareness ───────────────────────────────────────────────────────────
 
@@ -240,7 +288,7 @@ dispatch_issue() {
         return
     fi
 
-    log "Dispatching issue #${number}: ${title}"
+    log "DISPATCH issue #${number}: ${title}"
 
     # Remove stale worktree if present without a live branch
     if [[ -d "$worktree_path" ]]; then
@@ -264,9 +312,11 @@ dispatch_issue() {
 }
 
 triage_issues() {
-    local gate
+    local gate dispatched_count=0
     gate="$(current_gate)"
-    log "Current gate: ${gate}"
+    log "──────────────────────────────────────────────────────────────────────────────"
+    log "ISSUE TRIAGE"
+    log "Current gate level: ${gate}"
 
     local issues
     issues=$("$GH_LARS" issue list \
@@ -280,7 +330,7 @@ triage_issues() {
 
     local issue_count
     issue_count=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)))" <<< "$issues" 2>/dev/null || echo 0)
-    log "Found ${issue_count} open issues"
+    log "Found ${issue_count} open issues to evaluate"
 
     while IFS=$'\t' read -r number title labels body; do
         [[ -z "$number" ]] && continue
@@ -332,111 +382,30 @@ for issue in data:
 
 # ── PR triage ─────────────────────────────────────────────────────────────────
 
-GH_OWNER="cap-alpha"
-GH_REPO="cap-alpha-protocol"
-
-# Fetch all unresolved review threads and PR comments for a PR via GraphQL.
-# Outputs two tab-separated fields: thread_json<TAB>comment_json
-fetch_pr_threads_and_comments() {
-    local pr_number="$1"
-    local result
-    result=$("$GH_LARS" api graphql \
-        -f query='
-query($owner:String!,$repo:String!,$number:Int!){
-  repository(owner:$owner,name:$repo){
-    pullRequest(number:$number){
-      reviewThreads(first:50){
-        nodes{
-          id
-          isResolved
-          path
-          line
-          comments(first:1){nodes{body author{login}}}
-        }
-      }
-      comments(first:50){
-        nodes{
-          id
-          body
-          author{login}
-          url
-        }
-      }
-    }
-  }
-}' \
-        -f owner="${GH_OWNER}" \
-        -f repo="${GH_REPO}" \
-        -F number="${pr_number}" \
-        2>/dev/null) || { echo "[]	[]"; return; }
-
-    python3 - "$pr_number" <<'PYEOF' <(echo "$result")
-import sys, json
-
-raw = open(sys.argv[1]).read()
-try:
-    data = json.loads(raw)
-    pr_data = data.get("data", {}).get("repository", {}).get("pullRequest", {})
-
-    # Unresolved review threads
-    all_threads = pr_data.get("reviewThreads", {}).get("nodes", []) or []
-    unresolved = []
-    for t in all_threads:
-        if not t.get("isResolved", True):
-            first_comment = {}
-            comments = t.get("comments", {}).get("nodes", []) or []
-            if comments:
-                first_comment = comments[0]
-            unresolved.append({
-                "id": t.get("id"),
-                "path": t.get("path"),
-                "line": t.get("line"),
-                "body": first_comment.get("body", ""),
-                "author": (first_comment.get("author") or {}).get("login", ""),
-            })
-
-    # PR-level comments
-    pr_comments = pr_data.get("comments", {}).get("nodes", []) or []
-    comments_out = []
-    for c in pr_comments:
-        comments_out.append({
-            "id": c.get("id"),
-            "body": c.get("body", ""),
-            "author": (c.get("author") or {}).get("login", ""),
-            "url": c.get("url", ""),
-        })
-
-    print(json.dumps(unresolved) + "\t" + json.dumps(comments_out))
-except Exception as e:
-    print("[]	[]")
-PYEOF
-}
-
-dispatch_pr_review_fix() {
-    local pr_number="$1" thread_json="$2" comment_json="$3"
-    local worktree_path="${REPO_ROOT}/.claude/worktrees/auto-pr-review-${pr_number}"
+dispatch_pr_copilot() {
+    local pr_number="$1" thread_json="$2"
+    local worktree_path="${REPO_ROOT}/.claude/worktrees/auto-pr-copilot-${pr_number}"
 
     if $DRY_RUN; then
-        log "would dispatch: PR #${pr_number} pr-review-fix via Sonnet"
+        log "would dispatch: PR #${pr_number} copilot-fix via Sonnet"
         return
     fi
 
-    log "Dispatching review-fix for PR #${pr_number}"
-    [[ -d "$worktree_path" ]] && { log "  Review-fix worktree already exists, skipping"; return; }
+    log "Dispatching Copilot fix for PR #${pr_number}"
+    [[ -d "$worktree_path" ]] && { log "  Copilot worktree already exists, skipping"; return; }
 
     git -C "$REPO_ROOT" worktree add "$worktree_path" 2>/dev/null || {
-        log "  Could not create worktree for review-fix on PR #${pr_number}"
+        log "  Could not create worktree for copilot fix on PR #${pr_number}"
         return
     }
 
     spawn_background "$DISPATCH" \
         --model "claude-sonnet-4-6" \
-        --prompt-file "${PROMPTS_DIR}/pr-review-fix.md" \
+        --prompt-file "${PROMPTS_DIR}/copilot-fix.md" \
         --worktree "$worktree_path" \
-        --label "pr-review-${pr_number}" \
+        --label "pr-copilot-${pr_number}" \
         --env "PR_NUMBER=${pr_number}" \
-        --env "THREAD_JSON=${thread_json}" \
-        --env "COMMENT_JSON=${comment_json}"
+        --env "THREAD_JSON=${thread_json}"
 }
 
 dispatch_pr_lint() {
@@ -451,7 +420,7 @@ dispatch_pr_lint() {
     log "Dispatching lint fix for PR #${pr_number}"
     [[ -d "$worktree_path" ]] && { log "  Lint worktree already exists, skipping"; return; }
 
-    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "auto/pr-${pr_number}-lint" 2>/dev/null || {
+    git -C "$REPO_ROOT" worktree add "$worktree_path" 2>/dev/null || {
         log "  Could not create worktree for lint fix on PR #${pr_number}"
         return
     }
@@ -476,7 +445,7 @@ dispatch_pr_ci() {
     log "Dispatching CI investigation for PR #${pr_number} (${failing_check})"
     [[ -d "$worktree_path" ]] && { log "  CI worktree already exists, skipping"; return; }
 
-    git -C "$REPO_ROOT" worktree add "$worktree_path" -b "auto/pr-${pr_number}-ci" 2>/dev/null || {
+    git -C "$REPO_ROOT" worktree add "$worktree_path" 2>/dev/null || {
         log "  Could not create worktree for CI investigate on PR #${pr_number}"
         return
     }
@@ -492,10 +461,13 @@ dispatch_pr_ci() {
 
 triage_prs() {
     local prs
+    log "──────────────────────────────────────────────────────────────────────────────"
+    log "PR TRIAGE"
+
     prs=$("$GH_LARS" pr list \
         --state open \
         --limit 30 \
-        --json number,title,headRefName,statusCheckRollup \
+        --json number,title,headRefName,statusCheckRollup,reviews \
         2>/dev/null) || {
         log "WARNING: Could not fetch PRs (gh rate-limited or auth failure). Skipping PR triage."
         return 0
@@ -503,45 +475,32 @@ triage_prs() {
 
     local pr_count
     pr_count=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)))" <<< "$prs" 2>/dev/null || echo 0)
-    log "Found ${pr_count} open PRs"
+    log "Found ${pr_count} open PRs to evaluate"
 
-    # Extract PR numbers and CI status via python
-    while IFS=$'\t' read -r pr_number lint_failing ci_failing_name; do
+    # Process each PR via python — output tab-separated action lines
+    while IFS=$'\t' read -r action pr_number extra; do
         [[ -z "$pr_number" ]] && continue
 
-        # Fetch unresolved threads and comments via GraphQL for every open PR
-        local fetch_result thread_json comment_json
-        fetch_result=$(fetch_pr_threads_and_comments "$pr_number")
-        thread_json=$(echo "$fetch_result" | cut -f1)
-        comment_json=$(echo "$fetch_result" | cut -f2)
-
-        local has_threads=false has_comments=false
-        # Check if there are any unresolved threads
-        if python3 -c "import sys,json; d=json.loads(sys.argv[1]); sys.exit(0 if len(d)>0 else 1)" "$thread_json" 2>/dev/null; then
-            has_threads=true
-        fi
-        # Check if there are any PR-level comments
-        if python3 -c "import sys,json; d=json.loads(sys.argv[1]); sys.exit(0 if len(d)>0 else 1)" "$comment_json" 2>/dev/null; then
-            has_comments=true
-        fi
-
-        # Priority: comments/threads > lint > other CI
-        if $has_threads || $has_comments; then
-            if ! is_pr_claimed "${pr_number}-review"; then
-                claim_resource "pr:${pr_number}-review" || true
-                dispatch_pr_review_fix "$pr_number" "$thread_json" "$comment_json"
-            fi
-        elif [[ "$lint_failing" == "1" ]]; then
-            if ! is_pr_claimed "${pr_number}-lint"; then
-                claim_resource "pr:${pr_number}-lint" || true
-                dispatch_pr_lint "$pr_number"
-            fi
-        elif [[ -n "$ci_failing_name" ]]; then
-            if ! is_pr_claimed "${pr_number}-ci"; then
-                claim_resource "pr:${pr_number}-ci" || true
-                dispatch_pr_ci "$pr_number" "$ci_failing_name"
-            fi
-        fi
+        case "$action" in
+            COPILOT)
+                if ! is_pr_claimed "${pr_number}-copilot"; then
+                    claim_resource "pr:${pr_number}-copilot" || true
+                    dispatch_pr_copilot "$pr_number" "$extra"
+                fi
+                ;;
+            LINT)
+                if ! is_pr_claimed "${pr_number}-lint"; then
+                    claim_resource "pr:${pr_number}-lint" || true
+                    dispatch_pr_lint "$pr_number"
+                fi
+                ;;
+            CI)
+                if ! is_pr_claimed "${pr_number}-ci"; then
+                    claim_resource "pr:${pr_number}-ci" || true
+                    dispatch_pr_ci "$pr_number" "$extra"
+                fi
+                ;;
+        esac
 
     done < <(python3 -c '
 import sys, json
@@ -549,30 +508,49 @@ import sys, json
 data = json.loads(open(sys.argv[1]).read())
 
 for pr in data:
-    number = pr.get("number", "")
+    number = pr.get("number","")
+
+    # Copilot reviews with open comments (reviewThreads not available in all gh versions;
+    # use reviews with state CHANGES_REQUESTED as a proxy for pending fixups)
+    reviews = pr.get("reviews") or []
+    has_changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
+    if has_changes_requested:
+        thread_json = json.dumps(reviews)
+        print(f"COPILOT\t{number}\t{thread_json}")
+        continue  # prioritize copilot fix; lint/CI can wait
 
     # CI status
     checks = pr.get("statusCheckRollup") or []
-    lint_failing = 0
+    lint_failing = False
     ci_failing_name = ""
     for check in checks:
         name = (check.get("name") or check.get("context") or "").lower()
         conclusion = (check.get("conclusion") or check.get("state") or "").upper()
         if conclusion in ("FAILURE", "TIMED_OUT", "ERROR"):
             if "lint" in name or "ruff" in name or "format" in name:
-                lint_failing = 1
-            elif not ci_failing_name:
+                lint_failing = True
+            else:
                 ci_failing_name = check.get("name") or check.get("context") or "unknown"
 
-    print(f"{number}\t{lint_failing}\t{ci_failing_name}")
+    if lint_failing:
+        print(f"LINT\t{number}\t")
+    elif ci_failing_name:
+        print(f"CI\t{number}\t{ci_failing_name}")
 ' <(echo "$prs"))
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 main() {
-    log "=== Triage agent v2 starting === (dry-run: ${DRY_RUN})"
-    log "Repo: ${REPO_ROOT}"
+    local token_start
+    token_start=$(get_recent_token_usage 5)
+
+    log "════════════════════════════════════════════════════════════════════════════════"
+    log "TRIAGE AGENT START — $(date)"
+    log "Repository: ${REPO_ROOT}"
+    log "Dry-run: ${DRY_RUN}"
+    log "Token usage (last 5h): ${token_start}"
+    log "════════════════════════════════════════════════════════════════════════════════"
 
     # Rate-limit guard: if gh-lars returns 403/429, we skip gracefully (done inside triage_* fns)
     # Quota check
@@ -584,7 +562,17 @@ main() {
     triage_prs
 
     wait_all
-    log "=== Triage agent v2 complete ==="
+
+    local END_TIME elapsed token_end
+    END_TIME=$(date +%s)
+    elapsed=$((END_TIME - START_TIME))
+    token_end=$(get_recent_token_usage 5)
+
+    log "════════════════════════════════════════════════════════════════════════════════"
+    log "TRIAGE AGENT COMPLETE — $(date)"
+    log "Duration: ${elapsed}s"
+    log "Token usage (last 5h): ${token_end}"
+    log "════════════════════════════════════════════════════════════════════════════════"
 }
 
 main "$@"

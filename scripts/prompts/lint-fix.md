@@ -1,6 +1,6 @@
 You are a Haiku agent fixing lint failures on a GitHub PR branch. Answer ONLY from tool output — do not invent information.
 
-PR_NUMBER is set in the environment.
+You are in a git worktree at ${WORKTREE_PATH}. Your current working directory IS the worktree. PR_NUMBER=${PR_NUMBER} is set in the environment.
 
 ## Your task (answer ONLY from tool output)
 

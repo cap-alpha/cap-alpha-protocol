@@ -13,6 +13,15 @@ on:
         required: false
         default: '50'
 
+# Serialize concurrent scheduled runs so only one pipeline ingest is active at
+# a time.  cancel-in-progress: false ensures a slow run is never killed mid-
+# chain; the next scheduled run queues behind it instead.
+# The application-level optimistic-concurrency guard (ledger_chain_head MERGE)
+# provides a second safety layer for manual runs that bypass this lock.
+concurrency:
+  group: pundit-pipeline
+  cancel-in-progress: false
+
 jobs:
   ingest-extract-resolve:
     runs-on: ubuntu-latest

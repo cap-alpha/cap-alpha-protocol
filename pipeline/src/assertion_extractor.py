@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -32,6 +33,7 @@ from typing import Optional
 import pandas as pd
 import yaml
 from google.api_core.exceptions import NotFound
+from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.db_manager import DBManager
 from src.llm_provider import (
@@ -150,6 +152,27 @@ DEFAULT_PRIORITY_TIER = 2
 SKIP_EXTRACTION_YIELD_THRESHOLD = 0.05
 
 _SOURCE_CONFIG_CACHE: Optional[dict] = None
+
+# Allowlist pattern for source_id values used in SQL queries.
+# Restricts to alphanumeric, underscores, and hyphens — the only characters
+# that appear in real source ids (e.g. "espn_nfl", "pat-mcafee-show").
+_SOURCE_ID_PATTERN = re.compile(r"^[a-zA-Z0-9_-]{1,128}$")
+
+
+def _validate_source_id(source_id: str) -> str:
+    """
+    Validate a source_id before it is used in a SQL expression.
+
+    Returns the source_id unchanged if it matches the allowlist pattern.
+    Raises ValueError with a descriptive message if it contains unexpected
+    characters (e.g. SQL-injection payloads like ``foo' OR '1'='1``).
+    """
+    if not _SOURCE_ID_PATTERN.match(source_id):
+        raise ValueError(
+            f"Invalid source_id {source_id!r}: must match [a-zA-Z0-9_-]{{1,128}}. "
+            "This value came from user/YAML input and failed the allowlist check."
+        )
+    return source_id
 
 
 def load_source_config() -> dict:
@@ -435,9 +458,22 @@ def get_unprocessed_media(
     skip_filter = ""
     fallback_skip_filter = ""
     if skip_sources:
-        skip_ids = ", ".join(f"'{s}'" for s in skip_sources)
-        skip_filter = f"\n              AND r.source_id NOT IN ({skip_ids})"
-        fallback_skip_filter = f"\n              AND source_id NOT IN ({skip_ids})"
+        # Validate every source_id from media_sources.yaml before interpolation.
+        # This guards against a malicious PR inserting a poisoned id that could
+        # break the query or widen the NOT IN filter via SQL injection.
+        validated_ids = []
+        for sid in skip_sources:
+            try:
+                validated_ids.append(_validate_source_id(sid))
+            except ValueError:
+                logger.warning(
+                    f"Skipping invalid source_id {sid!r} from media_sources.yaml "
+                    "(failed allowlist check — not included in skip filter)"
+                )
+        if validated_ids:
+            skip_ids = ", ".join(f"'{s}'" for s in validated_ids)
+            skip_filter = f"\n              AND r.source_id NOT IN ({skip_ids})"
+            fallback_skip_filter = f"\n              AND source_id NOT IN ({skip_ids})"
 
     try:
         # Fetch more rows than needed so we can re-sort by tier in Python
@@ -515,17 +551,30 @@ def mark_as_processed(content_hashes: list[str], db: DBManager) -> None:
 def reset_processed_hashes(db: DBManager, source_id: Optional[str] = None) -> int:
     """
     Clears processed_media_hashes so those items are re-extracted on the next run.
+
+    ``source_id`` is validated against an allowlist pattern and passed to BigQuery
+    as a bound ``ScalarQueryParameter`` — never interpolated into SQL directly.
+    Raises ``ValueError`` for any source_id that fails the allowlist check.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
     if source_id:
+        # Validate before use — raises ValueError on injection payloads.
+        _validate_source_id(source_id)
+
+        # Use BigQuery named parameter (@source_id) so the value is never
+        # concatenated into SQL text.  This closes the SQLi vector from #553.
         query = f"""
             DELETE FROM `{project_id}.nfl_dead_money.{PROCESSED_TABLE}` p
             WHERE p.content_hash IN (
                 SELECT content_hash FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
-                WHERE source_id = '{source_id}'
+                WHERE source_id = @source_id
             )
         """
+        job_config = QueryJobConfig(
+            query_parameters=[ScalarQueryParameter("source_id", "STRING", source_id)]
+        )
         logger.info(f"Clearing processed hashes for source_id={source_id!r}...")
+        result = db.execute(query, query_parameters=job_config.query_parameters)
     else:
         query = (
             f"DELETE FROM `{project_id}.nfl_dead_money.{PROCESSED_TABLE}` WHERE TRUE"
@@ -533,8 +582,8 @@ def reset_processed_hashes(db: DBManager, source_id: Optional[str] = None) -> in
         logger.warning(
             "Clearing ALL processed hashes — full re-extraction on next run."
         )
+        result = db.execute(query)
 
-    result = db.execute(query)
     rows_deleted = result.job.num_dml_affected_rows or 0
     logger.info(f"Deleted {rows_deleted} rows from {PROCESSED_TABLE}.")
     return rows_deleted

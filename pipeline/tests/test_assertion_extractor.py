@@ -17,6 +17,7 @@ from src.assertion_extractor import (
     ExtractionResult,
     _apply_priority_sort,
     _deduplicate_claims,
+    _validate_source_id,
     extract_assertions,
     get_source_priority_tier,
     get_unprocessed_media,
@@ -424,7 +425,8 @@ class TestResetProcessedHashes:
         assert "DELETE FROM" in query
         assert "WHERE TRUE" in query
 
-    def test_source_reset_filters_by_source_id(self, mock_db):
+    def test_source_reset_uses_named_parameter(self, mock_db):
+        """Fix for #553: source_id must be passed as @source_id named param, not interpolated."""
         mock_result = MagicMock()
         mock_result.job.num_dml_affected_rows = 3
         mock_db.execute.return_value = mock_result
@@ -432,8 +434,18 @@ class TestResetProcessedHashes:
         deleted = reset_processed_hashes(mock_db, source_id="espn_nfl")
 
         assert deleted == 3
-        query = mock_db.execute.call_args[0][0]
-        assert "source_id = 'espn_nfl'" in query
+        call_args = mock_db.execute.call_args
+        # call_args.args holds positional args, call_args.kwargs holds keyword args
+        query = call_args.args[0]
+        # Query must use @source_id placeholder — NOT the literal value interpolated
+        assert "@source_id" in query
+        assert "espn_nfl" not in query  # value must not appear in SQL text
+        # query_parameters kwarg must be set with the correct value
+        query_params = call_args.kwargs.get("query_parameters")
+        assert query_params is not None
+        assert len(query_params) == 1
+        assert query_params[0].name == "source_id"
+        assert query_params[0].value == "espn_nfl"
 
     def test_handles_zero_rows(self, mock_db):
         mock_result = MagicMock()
@@ -441,6 +453,82 @@ class TestResetProcessedHashes:
         mock_db.execute.return_value = mock_result
 
         assert reset_processed_hashes(mock_db) == 0
+
+
+# ---------------------------------------------------------------------------
+# Security: SQL injection regression tests (#553)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateSourceId:
+    """Unit tests for the _validate_source_id allowlist guard."""
+
+    def test_valid_alphanum_id(self):
+        assert _validate_source_id("espn_nfl") == "espn_nfl"
+
+    def test_valid_id_with_hyphens(self):
+        assert _validate_source_id("pat-mcafee-show") == "pat-mcafee-show"
+
+    def test_valid_id_with_numbers(self):
+        assert _validate_source_id("source123") == "source123"
+
+    def test_rejects_single_quote(self):
+        """A bare single quote would break a naively interpolated SQL string."""
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            _validate_source_id("foo'bar")
+
+    def test_rejects_classic_sqli_payload(self):
+        """Classic SQLi payload must be rejected before reaching any query."""
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            _validate_source_id("foo' OR '1'='1")
+
+    def test_rejects_comment_payload(self):
+        """SQL comment sequence should be rejected."""
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            _validate_source_id("foo; -- DROP TABLE")
+
+    def test_rejects_space(self):
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            _validate_source_id("has space")
+
+    def test_rejects_empty_string(self):
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            _validate_source_id("")
+
+    def test_rejects_oversized_id(self):
+        """IDs longer than 128 chars should fail."""
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            _validate_source_id("a" * 129)
+
+
+class TestResetProcessedHashesSecurity:
+    """Regression tests for the SQLi fix in reset_processed_hashes (#553)."""
+
+    def test_malicious_source_id_raises_before_query(self, mock_db):
+        """A SQLi payload must raise ValueError — db.execute must never be called."""
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            reset_processed_hashes(mock_db, source_id="foo' OR '1'='1")
+
+        mock_db.execute.assert_not_called()
+
+    def test_semicolon_payload_raises(self, mock_db):
+        with pytest.raises(ValueError, match="Invalid source_id"):
+            reset_processed_hashes(
+                mock_db,
+                source_id="x; DELETE FROM processed_media_hashes WHERE TRUE; --",
+            )
+
+        mock_db.execute.assert_not_called()
+
+    def test_valid_source_id_still_works(self, mock_db):
+        """A legitimate source_id must still execute successfully."""
+        mock_result = MagicMock()
+        mock_result.job.num_dml_affected_rows = 2
+        mock_db.execute.return_value = mock_result
+
+        deleted = reset_processed_hashes(mock_db, source_id="the_athletic_nfl")
+        assert deleted == 2
+        mock_db.execute.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

@@ -151,6 +151,82 @@ class TestExtractAssertions:
         assert len(result.predictions) == 0
         assert "API quota exceeded" in result.error
 
+    def test_retries_on_transient_errors_then_succeeds(self, mock_provider):
+        """2 transient connection failures followed by success — tenacity retries."""
+        from src.assertion_extractor import _is_transient_llm_error
+
+        success_predictions = [
+            {
+                "extracted_claim": "Mahomes wins MVP in 2026",
+                "claim_category": "player_performance",
+                "season_year": 2026,
+                "target_player": "Patrick Mahomes",
+                "target_team": "KC",
+                "confidence_note": "strong",
+            }
+        ]
+
+        call_count = {"n": 0}
+
+        def flaky_extract(prompt):
+            call_count["n"] += 1
+            if call_count["n"] < 3:
+                raise ConnectionError("connection refused")
+            return success_predictions
+
+        mock_provider.extract_predictions.side_effect = flaky_extract
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes is going all the way",
+            provider=mock_provider,
+        )
+
+        # Verify the call was retried and ultimately succeeded
+        assert call_count["n"] == 3
+        assert result.error is None
+        assert len(result.predictions) == 1
+        assert result.predictions[0]["extracted_claim"] == "Mahomes wins MVP in 2026"
+
+    def test_does_not_retry_on_permanent_errors(self, mock_provider):
+        """Auth/quota errors are permanent — tenacity should NOT retry them."""
+        call_count = {"n": 0}
+
+        def auth_fail(prompt):
+            call_count["n"] += 1
+            raise Exception("401 unauthorized invalid api key")
+
+        mock_provider.extract_predictions.side_effect = auth_fail
+
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Some text",
+            provider=mock_provider,
+        )
+
+        # Should have been called only once (no retries on permanent errors)
+        assert call_count["n"] == 1
+        assert result.error is not None
+
+    def test_is_transient_llm_error_classifies_correctly(self):
+        """Unit test for the transient-error classifier."""
+        from src.assertion_extractor import _is_transient_llm_error
+
+        # Transient errors
+        assert _is_transient_llm_error(Exception("connection refused")) is True
+        assert _is_transient_llm_error(Exception("read timeout occurred")) is True
+        assert (
+            _is_transient_llm_error(Exception("HTTP error 503 service unavailable"))
+            is True
+        )
+        assert _is_transient_llm_error(ConnectionError("reset by peer")) is True
+
+        # Permanent errors — must NOT be retried
+        assert _is_transient_llm_error(Exception("401 unauthorized")) is False
+        assert _is_transient_llm_error(Exception("invalid api key")) is False
+        assert _is_transient_llm_error(Exception("quota exceeded")) is False
+        assert _is_transient_llm_error(Exception("403 forbidden")) is False
+
     def test_valid_categories_are_complete(self):
         """All expected categories are defined."""
         expected = {
@@ -412,6 +488,24 @@ class TestRunExtraction:
 
         assert summary["errors"] == 1
         assert summary["predictions_extracted"] == 0
+
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_error_does_not_mark_as_processed(
+        self, mock_extract, mock_db, mock_provider
+    ):
+        """Transient LLM errors must NOT mark the hash processed so next run retries."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+            error="connection timeout",
+        )
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        # mark_as_processed (append_dataframe_to_table) must NOT be called for
+        # errored articles — they should remain unprocessed for the next run.
+        mock_db.append_dataframe_to_table.assert_not_called()
 
     @patch("src.assertion_extractor.extract_assertions")
     def test_counts_no_predictions(self, mock_extract, mock_db, mock_provider):

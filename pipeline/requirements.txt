@@ -34,3 +34,4 @@ duckduckgo-search
 pydantic
 youtube-transcript-api>=0.6.3,<2.0.0
 readability-lxml
+tenacity

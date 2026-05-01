@@ -72,6 +72,12 @@ class TestIngestPredictionSport:
         mock_job = MagicMock()
         mock_job.result.return_value = None
         db.client.load_table_from_dataframe.return_value = mock_job
+        # _try_advance_chain_head calls db.client.query(...); the returned job's
+        # num_dml_affected_rows must be an int so `affected > 0` does not raise
+        # TypeError on Python 3.10 (MagicMock is not comparable with int).
+        mock_query_job = MagicMock()
+        mock_query_job.num_dml_affected_rows = 1
+        db.client.query.return_value = mock_query_job
         return db
 
     def test_ingest_prediction_writes_sport_nfl(self):

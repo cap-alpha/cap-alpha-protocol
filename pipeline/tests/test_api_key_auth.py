@@ -4,6 +4,7 @@ Uses FastAPI TestClient with mocked DBManager and BigQuery client.
 No BigQuery connection required.
 """
 
+import importlib
 import os
 from unittest.mock import MagicMock, patch
 
@@ -13,7 +14,12 @@ from fastapi.testclient import TestClient
 # Patch DB initialisation before importing the app
 with patch("src.db_manager.DBManager._initialize_connection"):
     from api.main import app
-    from api.api_key_auth import _hash_key, verify_api_key, get_db_for_auth
+    from api.api_key_auth import (
+        _check_pepper,
+        _hash_key,
+        get_db_for_auth,
+        verify_api_key,
+    )
     from api.pundit_router import get_db
 
 
@@ -184,3 +190,74 @@ class TestMeEndpoint:
     def test_me_without_key_returns_401_or_422(self, client, mock_auth_db):
         resp = client.get("/v1/me")
         assert resp.status_code in (401, 422)
+
+
+# ---------------------------------------------------------------------------
+# Pepper enforcement — _check_pepper security tests
+# ---------------------------------------------------------------------------
+
+
+class TestPepperEnforcement:
+    """Verify that startup behaviour matches the security contract:
+
+    - Production (PROD=1): RuntimeError when pepper is absent or < 16 bytes.
+    - Dev/test (no PROD env var): warns but continues.
+    """
+
+    # --- production mode ---
+
+    def test_raises_in_production_when_pepper_unset(self):
+        env = {"PROD": "1"}
+        with patch.dict(os.environ, env, clear=False):
+            # Remove API_KEY_PEPPER from env so it's truly unset.
+            with patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("API_KEY_PEPPER", None)
+                with pytest.raises(RuntimeError, match="API_KEY_PEPPER"):
+                    _check_pepper()
+
+    def test_raises_in_production_when_pepper_too_short(self):
+        env = {"PROD": "1", "API_KEY_PEPPER": "tooshort"}
+        with patch.dict(os.environ, env, clear=False):
+            with pytest.raises(RuntimeError, match="API_KEY_PEPPER"):
+                _check_pepper()
+
+    def test_passes_in_production_with_long_enough_pepper(self):
+        env = {"PROD": "1", "API_KEY_PEPPER": "a" * 16}
+        with patch.dict(os.environ, env, clear=False):
+            # Should not raise
+            _check_pepper()
+
+    def test_raises_in_production_when_env_equals_production(self):
+        env = {"ENV": "production", "API_KEY_PEPPER": ""}
+        with patch.dict(os.environ, env, clear=False):
+            os.environ.pop("PROD", None)
+            with pytest.raises(RuntimeError, match="API_KEY_PEPPER"):
+                _check_pepper()
+
+    # --- dev/test mode ---
+
+    def test_warns_but_continues_in_dev_when_pepper_unset(self, caplog):
+        import logging
+
+        env_without_prod = {}
+        with patch.dict(os.environ, env_without_prod, clear=False):
+            os.environ.pop("PROD", None)
+            os.environ.pop("ENV", None)
+            os.environ.pop("API_KEY_PEPPER", None)
+            with caplog.at_level(logging.CRITICAL, logger="api.api_key_auth"):
+                # Must not raise
+                _check_pepper()
+        assert any("API_KEY_PEPPER" in r.message for r in caplog.records)
+
+    # --- cross-pepper isolation ---
+
+    def test_key_hashed_with_pepper1_does_not_match_pepper2(self):
+        """A key issued under pepper1 must not verify under pepper2."""
+        raw_key = "capk_live_test_key_abc123"
+        with patch.dict(os.environ, {"API_KEY_PEPPER": "pepper_one_xxxxxxxxxx"}):
+            hash_pepper1 = _hash_key(raw_key)
+        with patch.dict(os.environ, {"API_KEY_PEPPER": "pepper_two_xxxxxxxxxx"}):
+            hash_pepper2 = _hash_key(raw_key)
+        assert hash_pepper1 != hash_pepper2, (
+            "Rotating API_KEY_PEPPER must invalidate existing key hashes"
+        )

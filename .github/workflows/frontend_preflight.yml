@@ -36,7 +36,10 @@ jobs:
       - name: Static Build Schema Validation
         working-directory: ./web
         env:
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Clerk SDK throws Missing publishableKey at static-generation time when
+          # this env var is empty. A non-empty placeholder suppresses that error;
+          # real auth is never exercised during a build-only run.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder_for_ci_build' }}
           # Stripe SDK initialises at module load time in billing API routes.
           # A non-empty placeholder is required so `next build` can import those
           # modules without throwing "Neither apiKey nor config.authenticator

@@ -4,25 +4,30 @@ Daily Prediction Resolution Engine (Issue #169, #191)
 Matches PENDING predictions from gold_layer.prediction_ledger against actual
 NFL outcomes to automatically score pundit accuracy.
 
-Handles three categories:
+Handles five categories:
   1. draft_pick — resolved against bronze_sportsdataio_players draft data
   2. game_outcome — resolved against bronze_sportsdataio_scores
-  3. player_performance — resolved against bronze_sportsdataio_player_season_stats
+  3. player_performance — resolved against bronze_nflverse_player_stats (free, no API key)
+  4. award_prediction — resolved against pipeline/config/nfl_awards_<season>.yaml
+  5. fa_signing — resolved against bronze_sportsdataio_players current team data
 
 Usage (inside Docker):
-    python -m src.resolve_daily                         # resolve all pending
-    python -m src.resolve_daily --category draft_pick   # single category
-    python -m src.resolve_daily --dry-run               # preview without writing
+    python -m src.resolve_daily                           # resolve all pending
+    python -m src.resolve_daily --category award_prediction  # single category
+    python -m src.resolve_daily --dry-run                 # preview without writing
 """
 
 import argparse
 import logging
 import os
 import re
+from pathlib import Path
 from typing import Optional
 
 import pandas as pd
+import yaml
 from google.api_core.exceptions import NotFound
+
 from src.db_manager import DBManager
 from src.resolution_engine import (
     get_pending_predictions,
@@ -34,29 +39,6 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
 )
 logger = logging.getLogger(__name__)
-
-# Sports whose resolution logic is fully implemented
-_SUPPORTED_SPORTS = {"NFL"}
-
-
-def _filter_to_supported_sports(pending: pd.DataFrame) -> pd.DataFrame:
-    """
-    Return only rows whose sport is fully supported by this resolver.
-
-    Any sport not yet implemented (e.g. "NBA") is logged and dropped so
-    its predictions stay PENDING rather than being mis-resolved or erroring.
-    """
-    if pending.empty or "sport" not in pending.columns:
-        return pending
-
-    unsupported = pending[~pending["sport"].isin(_SUPPORTED_SPORTS)]
-    for sport, group in unsupported.groupby("sport", dropna=False):
-        for pred_id in group["prediction_hash"]:
-            logger.info(
-                f"Skipping {sport} prediction {pred_id} — {sport} resolver not yet implemented"
-            )
-
-    return pending[pending["sport"].isin(_SUPPORTED_SPORTS)].copy()
 
 
 # ---------------------------------------------------------------------------
@@ -113,8 +95,42 @@ def _extract_draft_claim(claim: str) -> dict:
         "eighth": 8,
         "ninth": 9,
         "tenth": 10,
+        "eleventh": 11,
+        "twelfth": 12,
+        "thirteenth": 13,
+        "fourteenth": 14,
+        "fifteenth": 15,
+        "sixteenth": 16,
+        "seventeenth": 17,
+        "eighteenth": 18,
+        "nineteenth": 19,
+        "twentieth": 20,
     }
-    pick_match = re.search(r"(?:no\.?\s*|#)(\d+)\s*(?:overall\s*)?pick", claim_lower)
+    # Match: "#7 pick", "No. 7 pick", "No. 7 overall pick", "#7 overall",
+    # "drafted 7th overall", "drafted 39th overall", "pick #7", "drafted #7",
+    # plus the original "(N) overall pick" variants.
+    pick_match = re.search(
+        r"(?:no\.?\s*|#|pick\s*#?|drafted\s+#?)(\d+)(?:st|nd|rd|th)?\s*(?:overall|pick)",
+        claim_lower,
+    )
+    if not pick_match:
+        # Bare "#N overall" or "Nth overall" without a leading keyword.
+        pick_match = re.search(r"#?(\d+)(?:st|nd|rd|th)?\s+overall", claim_lower)
+    if not pick_match:
+        # "with the Nth pick in/of/by" or "at pick N" or "with pick No. N"
+        pick_match = re.search(
+            r"(?:with\s+(?:the\s+)?|at\s+)(?:pick\s+(?:no\.?\s*)?)?(\d+)(?:st|nd|rd|th)?\s+pick\b",
+            claim_lower,
+        )
+    if not pick_match:
+        # "with pick No. N" or "by pick No. N" (no trailing keyword)
+        pick_match = re.search(r"(?:with|by|at)\s+pick\s+no\.?\s*(\d+)", claim_lower)
+    if not pick_match:
+        # "at No. N" or "by No. N" — standalone pick number reference
+        pick_match = re.search(r"(?:at|by)\s+no\.?\s*(\d+)\b", claim_lower)
+    if not pick_match:
+        # "drafted #N by" — bare #N followed by "by" team (no overall/pick after)
+        pick_match = re.search(r"drafted\s+#(\d+)\s+by\b", claim_lower)
     if pick_match:
         result["pick_number"] = int(pick_match.group(1))
     else:
@@ -123,16 +139,38 @@ def _extract_draft_claim(claim: str) -> dict:
                 result["pick_number"] = num
                 break
 
-    # Extract "top-N pick"
+    # Pattern 2: ordinal suffix — "16th overall", "3rd overall pick"
+    if "pick_number" not in result:
+        ordinal_match = re.search(
+            r"(\d+)(?:st|nd|rd|th)\s+(?:overall|pick)", claim_lower
+        )
+        if ordinal_match:
+            result["pick_number"] = int(ordinal_match.group(1))
+
+    # Pattern 3: "at No. N" / "No. N overall" / "No. N in the" / "No. N by"
+    if "pick_number" not in result:
+        no_match = re.search(
+            r"(?:at\s+)?no\.?\s*(\d+)\s*(?:overall|in\s+the|by\s+)", claim_lower
+        )
+        if no_match:
+            result["pick_number"] = int(no_match.group(1))
+
+    # Extract "top-N pick" or "within the first N picks"
     top_match = re.search(r"top[- ](\d+)\s*pick", claim_lower)
     if top_match:
         result["top_n"] = int(top_match.group(1))
+    if "top_n" not in result:
+        within_match = re.search(
+            r"within\s+the\s+(?:first\s+)?(?:top\s+)?(\d+)\s+picks?", claim_lower
+        )
+        if within_match:
+            result["top_n"] = int(within_match.group(1))
 
     # Extract "Round 1" or "first round"
     round_match = re.search(r"round\s*(\d+)", claim_lower)
     if round_match:
         result["round_number"] = int(round_match.group(1))
-    elif "first round" in claim_lower:
+    elif "first round" in claim_lower or "first-round" in claim_lower:
         result["round_number"] = 1
 
     # Extract draft year
@@ -143,13 +181,138 @@ def _extract_draft_claim(claim: str) -> dict:
     return result
 
 
-def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
+# NFL team abbreviation mapping for claim parsing
+_TEAM_PATTERNS = {
+    "raiders": "LV",
+    "giants": "NYG",
+    "jets": "NYJ",
+    "cardinals": "ARI",
+    "titans": "TEN",
+    "chiefs": "KC",
+    "commanders": "WAS",
+    "saints": "NO",
+    "browns": "CLE",
+    "cowboys": "DAL",
+    "dolphins": "MIA",
+    "rams": "LAR",
+    "ravens": "BAL",
+    "buccaneers": "TB",
+    "bucs": "TB",
+    "lions": "DET",
+    "vikings": "MIN",
+    "panthers": "CAR",
+    "eagles": "PHI",
+    "steelers": "PIT",
+    "chargers": "LAC",
+    "bears": "CHI",
+    "texans": "HOU",
+    "patriots": "NE",
+    "49ers": "SF",
+    "bills": "BUF",
+    "bengals": "CIN",
+    "seahawks": "SEA",
+    "packers": "GB",
+    "broncos": "DEN",
+    "jaguars": "JAX",
+    "falcons": "ATL",
+    "colts": "IND",
+    "washington": "WAS",
+    "detroit": "DET",
+    "minnesota": "MIN",
+}
+
+
+def _resolve_team_claim(claim, parsed, year_draft_data, phash, db, dry_run):
+    """Resolve team-level draft claims like 'Giants will have two top-10 picks'."""
+    claim_lower = claim.lower()
+
+    # Find team in claim
+    team_abbr = None
+    for pattern, abbr in _TEAM_PATTERNS.items():
+        if pattern in claim_lower:
+            team_abbr = abbr
+            break
+
+    if not team_abbr:
+        return None  # Can't find a team
+
+    team_picks = year_draft_data[year_draft_data["draft_team"] == team_abbr]
+
+    # "will pick a quarterback in Round 1" or "picking a quarterback"
+    if "quarterback" in claim_lower or " qb " in claim_lower:
+        # Check if team drafted a QB (check Position field if available)
+        # For now, just check if they had any pick
+        if not team_picks.empty:
+            notes = f"{team_abbr} had {len(team_picks)} pick(s) in this round"
+            logger.info(f"  TEAM {phash[:12]}… — {notes} (needs manual QB check)")
+        return None  # Can't verify position from draft data alone
+
+    # "will have two picks in the top 10" or "pair of top-10 selections"
+    top_n_match = re.search(r"(two|2|pair|three|3)\s+.*top[- ](\d+)", claim_lower)
+    if top_n_match:
+        count_word = top_n_match.group(1)
+        top_n = int(top_n_match.group(2))
+        expected_count = {"two": 2, "2": 2, "pair": 2, "three": 3, "3": 3}.get(
+            count_word, 2
+        )
+        actual_top = team_picks[team_picks["draft_pick"] <= top_n]
+        correct = len(actual_top) >= expected_count
+        notes = f"{team_abbr} had {len(actual_top)} pick(s) in top {top_n} (expected {expected_count})"
+        logger.info(
+            f"  {'CORRECT' if correct else 'INCORRECT'} {phash[:12]}… — {notes}"
+        )
+        if not dry_run:
+            resolve_binary(
+                phash, correct, outcome_source="draft_board", outcome_notes=notes, db=db
+            )
+        return "resolved"
+
+    return None  # Couldn't parse team claim pattern
+
+
+def _filter_nfl_only(pending: pd.DataFrame) -> pd.DataFrame:
+    """
+    Log and drop any non-NFL predictions from a pending DataFrame.
+
+    When new sport resolvers are added (e.g. NBA), remove the corresponding
+    sport from this filter so those predictions are handled instead of skipped.
+    """
+    if "sport" not in pending.columns:
+        return pending
+
+    non_nfl = pending[pending["sport"].notna() & (pending["sport"] != "NFL")]
+    for _, pred in non_nfl.iterrows():
+        sport = pred["sport"]
+        pred_id = pred["prediction_hash"][:12]
+        logger.info(
+            f"Skipping {sport} prediction {pred_id}… "
+            f"— {sport} resolver not yet implemented"
+        )
+    return pending[pending["sport"].isna() | (pending["sport"] == "NFL")]
+
+
+def resolve_draft_picks(
+    db: DBManager,
+    dry_run: bool = False,
+    sport: Optional[str] = None,
+    pending_override: "Optional[pd.DataFrame]" = None,
+) -> dict:
     """
     Resolve draft_pick predictions against actual draft results.
+
+    Args:
+        sport: When provided, restrict resolution to predictions whose sport
+            matches this value (e.g. "NFL").  None processes all supported sports.
+        pending_override: if supplied, use this DataFrame instead of fetching
+            PENDING predictions — used by the re-resolve-voids pass.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = _filter_to_supported_sports(get_pending_predictions(sport=None, db=db))
+    if pending_override is not None:
+        pending = pending_override
+    else:
+        pending = get_pending_predictions(sport=sport, db=db)
+        pending = _filter_nfl_only(pending)
     draft_preds = pending[pending["claim_category"] == "draft_pick"]
 
     if draft_preds.empty:
@@ -161,6 +324,17 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
         logger.warning("No draft data available for resolution.")
         return summary
 
+    # SportsDataIO stores the top ~22 first-round picks as 0-indexed
+    # (CollegeDraftRound=0, CollegeDraftPick=0 = #1 overall pick).
+    # Normalize to 1-indexed so all downstream comparisons are consistent.
+    zero_indexed_mask = (draft_data["draft_round"] == 0) & (
+        draft_data["draft_pick"] >= 0
+    )
+    draft_data.loc[zero_indexed_mask, "draft_round"] = 1
+    draft_data.loc[zero_indexed_mask, "draft_pick"] = (
+        draft_data.loc[zero_indexed_mask, "draft_pick"] + 1
+    )
+
     logger.info(
         f"Resolving {len(draft_preds)} draft_pick predictions "
         f"against {len(draft_data)} player draft records"
@@ -170,24 +344,29 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
         summary["checked"] += 1
         claim = pred["extracted_claim"]
         phash = pred["prediction_hash"]
-        player_name = pred.get("target_player_id") or ""  # Legacy field (has names)
+        # Check both player name fields
+        player_name = ""
+        for field in ["target_player_name", "target_player_id"]:
+            val = pred.get(field)
+            if val and pd.notna(val) and str(val).lower() not in ("none", "multi", ""):
+                player_name = str(val)
+                break
         season_year = pred.get("season_year")
 
         parsed = _extract_draft_claim(claim)
         draft_year = parsed.get("draft_year")
         if not draft_year and pd.notna(season_year):
             draft_year = int(season_year)
-
+        # Default to current year for draft_pick claims with no year
         if not draft_year:
-            logger.info(f"  SKIP {phash[:12]}… — no draft year in claim or metadata")
-            summary["skipped"] += 1
-            continue
+            draft_year = pd.Timestamp.now().year
 
         # Check if we have actual draft pick data for this year
         current_year = pd.Timestamp.now().year
         year_draft_data = draft_data[
             (draft_data["draft_year"] == draft_year)
             & (draft_data["draft_pick"].notna())
+            & (draft_data["draft_pick"] > 0)
         ]
         if draft_year > current_year or (
             draft_year == current_year and len(year_draft_data) == 0
@@ -216,10 +395,22 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
                     break
 
         if player_matches.empty:
-            logger.info(
-                f"  SKIP {phash[:12]}… — can't find player in draft data: {claim[:60]}"
+            # Try team-level resolution
+            team_result = _resolve_team_claim(
+                claim, parsed, year_draft_data, phash, db, dry_run
             )
-            summary["skipped"] += 1
+            if team_result is not None:
+                if team_result == "resolved":
+                    summary["resolved"] += 1
+                elif team_result == "voided":
+                    summary["voided"] += 1
+                else:
+                    summary["skipped"] += 1
+            else:
+                logger.info(
+                    f"  SKIP {phash[:12]}… — can't find player or team pattern: {claim[:60]}"
+                )
+                summary["skipped"] += 1
             continue
 
         # Use the first match (best match)
@@ -229,8 +420,8 @@ def resolve_draft_picks(db: DBManager, dry_run: bool = False) -> dict:
         actual_team = actual.get("draft_team")
         actual_name = actual.get("Name")
 
-        # Skip if pick data is missing or invalid (pick 0 = not yet assigned)
-        if not pd.notna(actual_pick) or int(actual_pick) == 0:
+        # Skip if pick data is missing (0-indexed picks already normalized to 1+ above)
+        if not pd.notna(actual_pick):
             logger.info(
                 f"  SKIP {phash[:12]}… — player found but pick not yet assigned: {actual_name}"
             )
@@ -462,14 +653,21 @@ def _load_game_scores(db: DBManager, season_year: int) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
+def resolve_game_outcomes(
+    db: DBManager, dry_run: bool = False, sport: Optional[str] = None
+) -> dict:
     """
     Resolve game_outcome predictions against actual game results.
     Data source: bronze_sportsdataio_scores (HomeTeam, AwayTeam, HomeScore, AwayScore).
+
+    Args:
+        sport: When provided, restrict resolution to predictions whose sport
+            matches this value (e.g. "NFL").  None processes all supported sports.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = _filter_to_supported_sports(get_pending_predictions(sport=None, db=db))
+    pending = get_pending_predictions(sport=sport, db=db)
+    pending = _filter_nfl_only(pending)
     game_preds = pending[pending["claim_category"] == "game_outcome"]
 
     if game_preds.empty:
@@ -633,32 +831,33 @@ def resolve_game_outcomes(db: DBManager, dry_run: bool = False) -> dict:
 # Player performance resolver
 # ---------------------------------------------------------------------------
 
-# Mapping from common stat phrases → column names in bronze_sportsdataio_player_season_stats
+# Mapping from common stat phrases → column names in bronze_nflverse_player_stats
+# (nflverse uses snake_case columns, not the PascalCase of the old SportsData.io source)
 _STAT_ALIASES: dict[str, str] = {
-    "passing yards": "PassingYards",
-    "passing yard": "PassingYards",
-    "pass yards": "PassingYards",
-    "passing touchdowns": "PassingTouchdowns",
-    "passing tds": "PassingTouchdowns",
-    "passing td": "PassingTouchdowns",
-    "tds": "PassingTouchdowns",  # default to passing (resolved by position context)
-    "interceptions": "Interceptions",
-    "rushing yards": "RushingYards",
-    "rushing yard": "RushingYards",
-    "rush yards": "RushingYards",
-    "rushes for": "RushingYards",
-    "rush for": "RushingYards",
-    "rushing touchdowns": "RushingTouchdowns",
-    "rushing tds": "RushingTouchdowns",
-    "receiving yards": "ReceivingYards",
-    "receiving yard": "ReceivingYards",
-    "rec yards": "ReceivingYards",
-    "receiving touchdowns": "ReceivingTouchdowns",
-    "receiving tds": "ReceivingTouchdowns",
-    "receptions": "Receptions",
-    "catches": "Receptions",
-    "sacks": "Sacks",
-    "tackles": "Tackles",
+    "passing yards": "passing_yards",
+    "passing yard": "passing_yards",
+    "pass yards": "passing_yards",
+    "passing touchdowns": "passing_tds",
+    "passing tds": "passing_tds",
+    "passing td": "passing_tds",
+    "tds": "passing_tds",  # default to passing (resolved by position context)
+    "interceptions": "interceptions",
+    "rushing yards": "rushing_yards",
+    "rushing yard": "rushing_yards",
+    "rush yards": "rushing_yards",
+    "rushes for": "rushing_yards",
+    "rush for": "rushing_yards",
+    "rushing touchdowns": "rushing_tds",
+    "rushing tds": "rushing_tds",
+    "receiving yards": "receiving_yards",
+    "receiving yard": "receiving_yards",
+    "rec yards": "receiving_yards",
+    "receiving touchdowns": "receiving_tds",
+    "receiving tds": "receiving_tds",
+    "receptions": "receptions",
+    "catches": "receptions",
+    "sacks": "sacks",
+    "tackles": "sacks",  # nflverse seasonal data does not have tackles; map to sacks as fallback
 }
 
 
@@ -720,36 +919,53 @@ def _extract_player_stat_claim(claim: str) -> dict:
 
 def _load_player_season_stats(db: DBManager, season_year: int) -> pd.DataFrame:
     """
-    Load player season stats from bronze_sportsdataio_player_season_stats.
-    Returns empty DataFrame if table doesn't exist.
+    Load player season stats from bronze_nflverse_player_stats (free, no API key).
+    Joins with bronze_nflverse_players to resolve player_id → display_name.
+    Returns empty DataFrame if table doesn't exist or has no data for the season.
     """
     project_id = os.environ["GCP_PROJECT_ID"]
     query = f"""
         SELECT
-            Name, Season,
-            PassingYards, PassingTouchdowns, Interceptions,
-            RushingYards, RushingTouchdowns,
-            ReceivingYards, ReceivingTouchdowns, Receptions,
-            Sacks, Tackles
-        FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_player_season_stats`
-        WHERE Season = {season_year}
+            p.display_name AS Name,
+            s.season AS Season,
+            s.passing_yards AS passing_yards,
+            s.passing_tds AS passing_tds,
+            s.interceptions AS interceptions,
+            s.rushing_yards AS rushing_yards,
+            s.rushing_tds AS rushing_tds,
+            s.receiving_yards AS receiving_yards,
+            s.receiving_tds AS receiving_tds,
+            s.receptions AS receptions,
+            s.sacks AS sacks
+        FROM `{project_id}.nfl_dead_money.bronze_nflverse_player_stats` s
+        JOIN `{project_id}.nfl_dead_money.bronze_nflverse_players` p
+          ON s.player_id = p.gsis_id
+        WHERE s.season = {season_year}
+          AND s.season_type = 'REG'
     """
     try:
         return db.fetch_df(query)
-    except (NotFound, Exception) as e:
+    except Exception as e:
         logger.warning(f"Player season stats not available (season {season_year}): {e}")
         return pd.DataFrame()
 
 
-def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
+def resolve_player_performance(
+    db: DBManager, dry_run: bool = False, sport: Optional[str] = None
+) -> dict:
     """
     Resolve player_performance predictions against actual season stats.
-    Data source: bronze_sportsdataio_player_season_stats.
+    Data source: bronze_nflverse_player_stats (free, no API key required).
     Only resolves predictions for completed seasons.
+
+    Args:
+        sport: When provided, restrict resolution to predictions whose sport
+            matches this value (e.g. "NFL").  None processes all supported sports.
     """
     summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
 
-    pending = _filter_to_supported_sports(get_pending_predictions(sport=None, db=db))
+    pending = get_pending_predictions(sport=sport, db=db)
+    pending = _filter_nfl_only(pending)
     perf_preds = pending[pending["claim_category"] == "player_performance"]
 
     if perf_preds.empty:
@@ -858,7 +1074,7 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
             resolve_binary(
                 prediction_hash=phash,
                 correct=correct,
-                outcome_source="sportsdataio_player_stats",
+                outcome_source="nflverse_player_stats",
                 outcome_notes=outcome_notes,
                 db=db,
             )
@@ -876,9 +1092,338 @@ def resolve_player_performance(db: DBManager, dry_run: bool = False) -> dict:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Award prediction resolver
+# ---------------------------------------------------------------------------
+
+# Maps claim text keywords → award config key in nfl_awards_<season>.yaml
+_AWARD_KEYWORDS: dict[str, list[str]] = {
+    "mvp": ["mvp", "most valuable player"],
+    "opoy": ["opoy", "offensive player of the year"],
+    "dpoy": ["dpoy", "defensive player of the year"],
+    "offensive_rookie": [
+        "offensive rookie of the year",
+        "oroty",
+        "offensive roy",
+    ],
+    "defensive_rookie": [
+        "defensive rookie of the year",
+        "droty",
+        "defensive roy",
+    ],
+    "coach_of_the_year": ["coach of the year", "coty"],
+    "comeback_player": ["comeback player of the year", "cpoy"],
+    "walter_payton_man_of_the_year": ["walter payton", "man of the year"],
+    "super_bowl_mvp": ["super bowl mvp"],
+}
+
+
+def _load_awards_config(season: int) -> dict[str, Optional[str]]:
+    """Load NFL award winners from config/nfl_awards_<season>.yaml."""
+    config_path = Path(__file__).parent.parent / "config" / f"nfl_awards_{season}.yaml"
+    if not config_path.exists():
+        logger.debug(f"Awards config not found: {config_path}")
+        return {}
+    with open(config_path) as fh:
+        data = yaml.safe_load(fh) or {}
+    return data.get("awards", {})
+
+
+def _parse_award_type(claim: str) -> Optional[str]:
+    """Return the award config key if the claim names a known award, else None."""
+    claim_lower = claim.lower()
+    for award_key, keywords in _AWARD_KEYWORDS.items():
+        if any(kw in claim_lower for kw in keywords):
+            return award_key
+    return None
+
+
+def resolve_award_predictions(
+    db: DBManager, season: Optional[int] = None, dry_run: bool = False
+) -> dict:
+    """
+    Resolve award_prediction claims against the award config file for the season.
+
+    Marks CORRECT if the predicted player matches the actual winner, INCORRECT
+    if a different player won, or SKIPPED if the config has no data yet (null).
+    """
+    summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+
+    pending = get_pending_predictions(sport=None, db=db)
+    pending = _filter_nfl_only(pending)
+    award_preds = pending[pending["claim_category"] == "award_prediction"]
+
+    if award_preds.empty:
+        logger.info("No pending award_prediction predictions to resolve.")
+        return summary
+
+    # Cache awards by season to avoid repeated file reads
+    awards_cache: dict[int, dict] = {}
+
+    for _, pred in award_preds.iterrows():
+        summary["checked"] += 1
+        claim = pred["extracted_claim"]
+        phash = pred["prediction_hash"]
+        season_year = pred.get("season_year")
+
+        if pd.isna(season_year):
+            logger.info(f"  SKIP {phash[:12]}… — no season_year on award claim")
+            summary["skipped"] += 1
+            continue
+
+        season_year = int(season_year)
+
+        # NFL awards announced in February of season_year+1
+        now = pd.Timestamp.now()
+        awards_announced = now.year > season_year + 1 or (
+            now.year == season_year + 1 and now.month >= 2
+        )
+        if not awards_announced:
+            logger.info(
+                f"  SKIP {phash[:12]}… — {season_year} season awards not yet announced"
+            )
+            summary["skipped"] += 1
+            continue
+
+        if season_year not in awards_cache:
+            awards_cache[season_year] = _load_awards_config(season_year)
+        awards = awards_cache[season_year]
+
+        if not awards:
+            logger.info(
+                f"  SKIP {phash[:12]}… — no awards config for {season_year} season"
+            )
+            summary["skipped"] += 1
+            continue
+
+        award_key = _parse_award_type(claim)
+        if award_key is None:
+            logger.info(f"  VOID {phash[:12]}… — unrecognised award type: {claim[:60]}")
+            if not dry_run:
+                void_prediction(phash, "unrecognised_award_type", db=db)
+            summary["voided"] += 1
+            continue
+
+        actual_winner = awards.get(award_key)
+        if actual_winner is None:
+            logger.info(
+                f"  SKIP {phash[:12]}… — {award_key} winner not in config for {season_year}"
+            )
+            summary["skipped"] += 1
+            continue
+
+        # Extract the predicted player name
+        predicted_player = pred.get("target_player_name") or pred.get(
+            "target_player_id"
+        )
+        if not predicted_player or pd.isna(predicted_player):
+            logger.info(
+                f"  VOID {phash[:12]}… — no predicted player name: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "no_predicted_player", db=db)
+            summary["voided"] += 1
+            continue
+
+        # Fuzzy name match: both sides lowercased, check if predicted is in actual or vice versa
+        pred_lower = _normalize_name(str(predicted_player))
+        actual_lower = _normalize_name(actual_winner)
+        correct = (
+            pred_lower
+            and actual_lower
+            and (pred_lower in actual_lower or actual_lower in pred_lower)
+        )
+
+        notes = f"{award_key} winner: {actual_winner}"
+        logger.info(
+            f"  {'CORRECT' if correct else 'INCORRECT'} {phash[:12]}… — "
+            f"predicted '{predicted_player}', actual '{actual_winner}' ({award_key})"
+        )
+        if not dry_run:
+            resolve_binary(
+                phash,
+                bool(correct),
+                outcome_source="nfl_awards_config",
+                outcome_notes=notes,
+                db=db,
+            )
+        summary["resolved"] += 1
+
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# FA signing resolver
+# ---------------------------------------------------------------------------
+
+
+def _load_current_rosters(db: DBManager) -> pd.DataFrame:
+    """Load current player team assignments from bronze_sportsdataio_players."""
+    project_id = os.environ.get("GCP_PROJECT_ID", "cap-alpha-protocol")
+    try:
+        df = db.fetch_df(
+            f"""
+            SELECT
+                Name,
+                LOWER(Name) AS name_lower,
+                Team AS current_team
+            FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
+            WHERE Team IS NOT NULL AND Team != ''
+            """
+        )
+        return df
+    except NotFound:
+        logger.warning("bronze_sportsdataio_players table not found")
+        return pd.DataFrame()
+
+
+def _parse_fa_team(claim: str) -> Optional[str]:
+    """
+    Extract the destination team from an FA signing claim.
+    e.g. "Davante Adams will sign with the Cowboys" → "Cowboys"
+    """
+    # Pattern: "sign with [the] <Team>" or "join [the] <Team>" or "land with <Team>"
+    patterns = [
+        r"(?:sign(?:s|ed)? with|join(?:s|ed)?|land(?:s|ed)? (?:with )?|go(?:es|ing)? to) (?:the )?([A-Z][a-zA-Z\s]+?)(?:\.|,|$|\s(?:on|for|in|at)\b)",
+        r"(?:sign(?:s|ed)? a deal with|ink(?:s|ed)? (?:a deal )?with) (?:the )?([A-Z][a-zA-Z\s]+?)(?:\.|,|$)",
+    ]
+    for pat in patterns:
+        m = re.search(pat, claim)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
+    """
+    Resolve fa_signing predictions against current SportsDataIO roster data.
+
+    Marks CORRECT if the player's current team matches the predicted team,
+    INCORRECT if they're on a different team, VOID if player not found in data.
+    """
+    summary = {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+
+    pending = get_pending_predictions(sport="NFL", db=db)
+    fa_preds = pending[pending["claim_category"] == "fa_signing"]
+
+    if fa_preds.empty:
+        logger.info("No pending fa_signing predictions to resolve.")
+        return summary
+
+    rosters = _load_current_rosters(db)
+    if rosters.empty:
+        logger.warning("No roster data available; skipping fa_signing resolution.")
+        for _ in fa_preds.iterrows():
+            summary["checked"] += 1
+            summary["skipped"] += 1
+        return summary
+
+    for _, pred in fa_preds.iterrows():
+        summary["checked"] += 1
+        claim = pred["extracted_claim"]
+        phash = pred["prediction_hash"]
+
+        player_name = pred.get("target_player_name") or pred.get("target_player_id")
+        if not player_name or pd.isna(player_name):
+            logger.info(
+                f"  VOID {phash[:12]}… — no player name in fa_signing: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "no_player_name", db=db)
+            summary["voided"] += 1
+            continue
+
+        predicted_team_raw = _parse_fa_team(claim)
+        if not predicted_team_raw:
+            logger.info(
+                f"  VOID {phash[:12]}… — can't parse destination team: {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, "unparseable_fa_team", db=db)
+            summary["voided"] += 1
+            continue
+
+        predicted_abbr = _normalize_team(predicted_team_raw)
+        if not predicted_abbr:
+            logger.info(
+                f"  VOID {phash[:12]}… — unknown team '{predicted_team_raw}': {claim[:60]}"
+            )
+            if not dry_run:
+                void_prediction(phash, f"unknown_team:{predicted_team_raw}", db=db)
+            summary["voided"] += 1
+            continue
+
+        norm_player = _normalize_name(str(player_name))
+        player_rows = rosters[
+            rosters["name_lower"].str.contains(norm_player, na=False, regex=False)
+        ]
+
+        if player_rows.empty:
+            logger.info(
+                f"  SKIP {phash[:12]}… — '{player_name}' not found in SportsDataIO"
+            )
+            summary["skipped"] += 1
+            continue
+
+        actual_team = player_rows.iloc[0]["current_team"]
+        actual_abbr = _normalize_team(str(actual_team)) or actual_team
+
+        correct = predicted_abbr == actual_abbr
+        notes = f"predicted {predicted_abbr}, actual {actual_abbr}"
+        logger.info(
+            f"  {'CORRECT' if correct else 'INCORRECT'} {phash[:12]}… — "
+            f"'{player_name}': {notes}"
+        )
+        if not dry_run:
+            resolve_binary(
+                phash,
+                bool(correct),
+                outcome_source="sportsdataio_rosters",
+                outcome_notes=notes,
+                db=db,
+            )
+        summary["resolved"] += 1
+
+    return summary
+
+
+def _get_void_predictions_by_note(
+    note: str, db: DBManager, sport: Optional[str] = "NFL"
+) -> "pd.DataFrame":
+    """
+    Fetch predictions that were previously VOID'd with a specific outcome_notes value.
+    Used by the re-resolve pass to retry previously unresolvable predictions.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    sport_filter = f"AND COALESCE(l.sport, 'NFL') = '{sport}'" if sport else ""
+    query = f"""
+        SELECT
+            l.prediction_hash,
+            l.pundit_id,
+            l.pundit_name,
+            l.extracted_claim,
+            l.claim_category,
+            l.season_year,
+            l.target_player_id,
+            l.target_player_name,
+            l.target_team,
+            COALESCE(l.sport, 'NFL') AS sport,
+            l.ingestion_timestamp
+        FROM `{project_id}.gold_layer.prediction_ledger` l
+        JOIN `{project_id}.gold_layer.prediction_resolutions` r
+            ON l.prediction_hash = r.prediction_hash
+        WHERE r.resolution_status = 'VOID'
+          AND r.outcome_notes = '{note}'
+          {sport_filter}
+        ORDER BY l.ingestion_timestamp ASC
+    """
+    return db.fetch_df(query)
+
+
 def resolve_all(
     category: Optional[str] = None,
     dry_run: bool = False,
+    re_resolve_voids: bool = False,
     db: Optional[DBManager] = None,
     sport: Optional[str] = None,
 ) -> dict:
@@ -888,12 +1433,12 @@ def resolve_all(
         category: Limit to a single prediction category (draft_pick, game_outcome,
             player_performance). None means all categories.
         dry_run: Preview without writing results.
+        re_resolve_voids: Re-attempt predictions previously VOID'd as unparseable.
         db: Optional shared DBManager; created internally if not provided.
-        sport: Future use — restrict fetched predictions to a specific sport.
-            Currently ignored at this level because each resolver calls
-            get_pending_predictions(sport=None) and filters unsupported sports
-            via _filter_to_supported_sports.  Pass sport="NBA" once NBA
-            resolution logic is implemented.
+        sport: Restrict fetched predictions to a specific sport (e.g. "NFL").
+            Passed through to get_pending_predictions; unsupported sports are
+            additionally filtered by _filter_nfl_only in each individual resolver.
+            Omit to process all sports.
     """
     close_db = db is None
     if db is None:
@@ -903,15 +1448,39 @@ def resolve_all(
         summaries = {}
 
         if not category or category == "draft_pick":
-            summaries["draft_pick"] = resolve_draft_picks(db, dry_run=dry_run)
+            if re_resolve_voids:
+                # Re-attempt draft predictions previously VOID'd as unparseable
+                void_drafts = _get_void_predictions_by_note(
+                    "unparseable_draft_claim", db=db
+                )
+                logger.info(
+                    f"Re-resolve-voids: {len(void_drafts)} unparseable_draft_claim entries"
+                )
+                if not void_drafts.empty:
+                    summaries["draft_pick_voids"] = resolve_draft_picks(
+                        db, dry_run=dry_run, pending_override=void_drafts
+                    )
+            summaries["draft_pick"] = resolve_draft_picks(
+                db, dry_run=dry_run, sport=sport
+            )
 
         if not category or category == "game_outcome":
-            summaries["game_outcome"] = resolve_game_outcomes(db, dry_run=dry_run)
+            summaries["game_outcome"] = resolve_game_outcomes(
+                db, dry_run=dry_run, sport=sport
+            )
 
         if not category or category == "player_performance":
             summaries["player_performance"] = resolve_player_performance(
+                db, dry_run=dry_run, sport=sport
+            )
+
+        if not category or category == "award_prediction":
+            summaries["award_prediction"] = resolve_award_predictions(
                 db, dry_run=dry_run
             )
+
+        if not category or category == "fa_signing":
+            summaries["fa_signing"] = resolve_fa_signings(db, dry_run=dry_run)
 
         # Combined summary
         total = {
@@ -936,21 +1505,28 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Daily Prediction Resolver")
     parser.add_argument(
         "--category",
-        choices=["draft_pick", "game_outcome", "player_performance"],
+        choices=[
+            "draft_pick",
+            "game_outcome",
+            "player_performance",
+            "award_prediction",
+            "fa_signing",
+        ],
         help="Resolve only a specific category",
     )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument(
-        "--sport",
-        default=None,
-        help=(
-            "Restrict resolution to a specific sport (e.g. NFL, NBA). "
-            "Omit to process all supported sports."
-        ),
+        "--re-resolve-voids",
+        action="store_true",
+        help="Also re-attempt predictions previously VOID'd as unparseable",
     )
     args = parser.parse_args()
 
-    result = resolve_all(category=args.category, dry_run=args.dry_run, sport=args.sport)
+    result = resolve_all(
+        category=args.category,
+        dry_run=args.dry_run,
+        re_resolve_voids=args.re_resolve_voids,
+    )
     import json
 
     print(json.dumps(result, indent=2))

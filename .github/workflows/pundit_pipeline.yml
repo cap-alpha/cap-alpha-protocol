@@ -44,8 +44,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python -m src.media_ingestor 2>&1 | tail -20
-        continue-on-error: true
+          python -m src.media_ingestor
 
       - name: Extract predictions
         env:
@@ -54,8 +53,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched 2>&1 | tail -20
-        continue-on-error: true
+          python -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
 
       - name: Refresh SportsDataIO draft data
         env:
@@ -64,8 +62,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()" 2>&1 | tail -5
-        continue-on-error: true
+          python -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()"
 
       - name: Resolve predictions
         env:
@@ -73,10 +70,10 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python -m src.resolve_daily --category draft_pick 2>&1 | tail -20
-        continue-on-error: true
+          python -m src.resolve_daily --category draft_pick
 
       - name: Report status
+        if: always()
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline

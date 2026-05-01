@@ -1,11 +1,12 @@
 """
-Tests for the Cryptographic Hashing Pipeline (Issue #111).
+Tests for the Cryptographic Hashing Pipeline (Issue #111, #552).
 
 Unit tests run without BigQuery. Integration tests require GCP_PROJECT_ID.
 """
 
 import hashlib
 import os
+import threading
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, call, patch
 
@@ -16,6 +17,8 @@ from src.cryptographic_ledger import (
     HASH_SEED,
     PunditPrediction,
     _canonical_payload,
+    _read_chain_head,
+    _try_advance_chain_head,
     compute_chain_hash,
     compute_prediction_hash,
     get_latest_chain_hash,
@@ -45,15 +48,44 @@ def sample_prediction():
     )
 
 
+def _make_mock_db(chain_head: str = HASH_SEED):
+    """
+    Return a MagicMock DBManager configured for the new atomic-guard path.
+
+    - ``db.fetch_df`` returns the chain_head sentinel row (or empty DataFrame).
+    - ``db.client.query().result()`` is a no-op (DDL / MERGE calls).
+    - MERGE job reports 1 row affected (i.e. we win the race) by default.
+    - ``db.client.load_table_from_dataframe`` returns a no-op job.
+    """
+    db = MagicMock()
+
+    # _ensure_chain_head_table and _try_advance_chain_head both call
+    # db.client.query(...).result()  — make the job return num_dml_affected_rows=1
+    merge_job = MagicMock()
+    merge_job.result.return_value = None
+    merge_job.num_dml_affected_rows = 1
+    db.client.query.return_value = merge_job
+
+    # _read_chain_head calls db.fetch_df for the sentinel, then any subsequent
+    # call from verify_chain_integrity etc reads the main ledger.
+    if chain_head == HASH_SEED:
+        # sentinel table is empty (fresh ledger)
+        db.fetch_df.return_value = pd.DataFrame()
+    else:
+        # sentinel row exists
+        db.fetch_df.return_value = pd.DataFrame({"chain_hash": [chain_head]})
+
+    # _append_to_ledger calls db.client.load_table_from_dataframe
+    append_job = MagicMock()
+    append_job.result.return_value = None
+    db.client.load_table_from_dataframe.return_value = append_job
+
+    return db
+
+
 @pytest.fixture
 def mock_db():
-    db = MagicMock()
-    db.fetch_df.return_value = pd.DataFrame()  # empty ledger by default
-    # Simulate BQ load job (used by _append_to_ledger via db.client)
-    mock_job = MagicMock()
-    mock_job.result.return_value = None
-    db.client.load_table_from_dataframe.return_value = mock_job
-    return db
+    return _make_mock_db()
 
 
 # ---------------------------------------------------------------------------
@@ -149,12 +181,12 @@ class TestIngestPrediction:
         mock_db.client.load_table_from_dataframe.assert_called_once()
 
     def test_ingest_uses_seed_for_first_record(self, sample_prediction, mock_db):
-        mock_db.fetch_df.return_value = pd.DataFrame()  # empty ledger
+        # empty sentinel → seed used
+        mock_db.fetch_df.return_value = pd.DataFrame()
         ingest_prediction(sample_prediction, db=mock_db)
 
         call_args = mock_db.client.load_table_from_dataframe.call_args
         df = call_args[0][0]
-        # chain_hash for first record = sha256(prediction_hash + "")
         prediction_hash = compute_prediction_hash(sample_prediction)
         expected_chain = compute_chain_hash(prediction_hash, HASH_SEED)
         assert df.iloc[0]["chain_hash"] == expected_chain
@@ -191,7 +223,6 @@ class TestIngestBatch:
         df = call_args[0][0]
         assert len(df) == 2
 
-        # Verify chain: row[1].chain_hash = sha256(row[1].prediction_hash + row[0].chain_hash)
         h0 = compute_prediction_hash(sample_prediction)
         chain0 = compute_chain_hash(h0, HASH_SEED)
         h1 = compute_prediction_hash(pred2)
@@ -213,6 +244,11 @@ class TestIngestBatch:
         assert hashes[0] == compute_prediction_hash(sample_prediction)
         assert hashes[1] == compute_prediction_hash(pred2)
 
+    def test_empty_batch_returns_empty(self, mock_db):
+        hashes = ingest_batch([], db=mock_db)
+        assert hashes == []
+        mock_db.client.load_table_from_dataframe.assert_not_called()
+
 
 class TestVerifyChainIntegrity:
     def test_empty_ledger_is_verified(self, mock_db):
@@ -223,7 +259,6 @@ class TestVerifyChainIntegrity:
         assert result["first_break_at"] is None
 
     def test_valid_chain_passes(self, mock_db):
-        # Build a valid 2-record chain
         h0 = "a" * 64
         chain0 = compute_chain_hash(h0, HASH_SEED)
         h1 = "b" * 64
@@ -255,9 +290,7 @@ class TestVerifyChainIntegrity:
 
     def test_tampered_record_fails(self, mock_db):
         h0 = "a" * 64
-        chain0 = compute_chain_hash(h0, HASH_SEED)
 
-        # Tamper: wrong chain_hash on record 0
         mock_db.fetch_df.return_value = pd.DataFrame(
             [
                 {
@@ -273,6 +306,233 @@ class TestVerifyChainIntegrity:
         result = verify_chain_integrity(db=mock_db)
         assert result["verified"] is False
         assert result["first_break_at"] == h0
+
+
+# ---------------------------------------------------------------------------
+# Concurrency regression tests (Issue #552)
+# ---------------------------------------------------------------------------
+
+
+class TestAtomicChainHead:
+    """Unit tests for the optimistic-concurrency sentinel helpers."""
+
+    def test_try_advance_returns_true_when_merge_affects_row(self):
+        db = MagicMock()
+        job = MagicMock()
+        job.result.return_value = None
+        job.num_dml_affected_rows = 1
+        db.client.query.return_value = job
+
+        won = _try_advance_chain_head(db, HASH_SEED, "a" * 64)
+        assert won is True
+
+    def test_try_advance_returns_false_when_merge_zero_rows(self):
+        """Simulates a concurrent writer that already advanced the head."""
+        db = MagicMock()
+        job = MagicMock()
+        job.result.return_value = None
+        job.num_dml_affected_rows = 0
+        db.client.query.return_value = job
+
+        won = _try_advance_chain_head(db, HASH_SEED, "b" * 64)
+        assert won is False
+
+    def test_try_advance_returns_false_when_affected_rows_none(self):
+        """Guard against BigQuery returning None for num_dml_affected_rows."""
+        db = MagicMock()
+        job = MagicMock()
+        job.result.return_value = None
+        job.num_dml_affected_rows = None
+        db.client.query.return_value = job
+
+        won = _try_advance_chain_head(db, HASH_SEED, "c" * 64)
+        assert won is False
+
+    def test_read_chain_head_returns_seed_when_empty(self):
+        db = MagicMock()
+        # _ensure_chain_head_table — DDL query
+        ddl_job = MagicMock()
+        ddl_job.result.return_value = None
+        db.client.query.return_value = ddl_job
+        # sentinel table is empty
+        db.fetch_df.return_value = pd.DataFrame()
+
+        result = _read_chain_head(db)
+        assert result == HASH_SEED
+
+    def test_read_chain_head_returns_stored_value(self):
+        stored = "d" * 64
+        db = MagicMock()
+        ddl_job = MagicMock()
+        ddl_job.result.return_value = None
+        db.client.query.return_value = ddl_job
+        db.fetch_df.return_value = pd.DataFrame({"chain_hash": [stored]})
+
+        result = _read_chain_head(db)
+        assert result == stored
+
+
+class TestConcurrentIngestRaceCondition:
+    """
+    Regression test for Issue #552.
+
+    Two threads call ingest_batch simultaneously with mocked BigQuery.
+    The mock serialises MERGE attempts: only the first caller wins (returns
+    num_dml_affected_rows=1); the second gets 0, retries, then gets 1.
+
+    Assertions:
+    - Both calls complete without exception.
+    - The combined set of ingested rows forms a strictly linear chain
+      (no branching, no duplicate chain_hash values).
+    """
+
+    def _build_pred(self, idx: int) -> PunditPrediction:
+        return PunditPrediction(
+            pundit_id=f"pundit_{idx}",
+            pundit_name=f"Pundit {idx}",
+            source_url=f"https://example.com/{idx}",
+            raw_assertion_text=f"Claim number {idx}.",
+            ingestion_timestamp=datetime(
+                2025, 9, idx + 1, 12, 0, 0, tzinfo=timezone.utc
+            ),
+        )
+
+    def test_concurrent_ingest_produces_linear_chain(self):
+        """
+        Simulate two concurrent ingest_batch calls racing on chain-head.
+
+        Mock strategy:
+          - Shared in-memory chain_head starts at HASH_SEED.
+          - A threading.Lock serialises MERGE attempts.
+          - First MERGE call within a lock succeeds (returns 1).
+          - Second call within the same slot returns 0 (conflict).
+          - After conflict the loser re-reads the updated head and retries.
+        """
+        chain_head_state = {"value": HASH_SEED}
+        state_lock = threading.Lock()
+        appended_rows: list[dict] = []
+        append_lock = threading.Lock()
+
+        def make_db_for_thread():
+            db = MagicMock()
+
+            def mock_query(sql, **kwargs):
+                job = MagicMock()
+                job.result.return_value = None
+
+                # MERGE attempt — parse expected_hash and new_hash from SQL
+                if "MERGE" in sql:
+                    # Extract the two hashes embedded in the MERGE SQL.
+                    # Format: AND T.chain_hash = '<expected>' ... SET chain_hash = '<new>'
+                    import re
+
+                    expected_match = re.search(r"T\.chain_hash = '([0-9a-f]*)'", sql)
+                    new_match = re.search(r"SET chain_hash = '([0-9a-f]+)'", sql)
+                    # Also handle the INSERT branch (first-ever row)
+                    insert_match = re.search(r"VALUES \('HEAD', '([0-9a-f]+)'", sql)
+
+                    expected = expected_match.group(1) if expected_match else HASH_SEED
+                    new_val = (
+                        new_match.group(1)
+                        if new_match
+                        else (insert_match.group(1) if insert_match else None)
+                    )
+
+                    with state_lock:
+                        if chain_head_state["value"] == expected and new_val:
+                            chain_head_state["value"] = new_val
+                            job.num_dml_affected_rows = 1
+                        else:
+                            job.num_dml_affected_rows = 0
+                else:
+                    # DDL (CREATE TABLE IF NOT EXISTS) — always succeeds
+                    job.num_dml_affected_rows = 0
+
+                return job
+
+            def mock_fetch_df(query, **kwargs):
+                if "ledger_chain_head" in query:
+                    with state_lock:
+                        current = chain_head_state["value"]
+                    if current == HASH_SEED:
+                        return pd.DataFrame()
+                    return pd.DataFrame({"chain_hash": [current]})
+                # verify_chain_integrity path — not exercised here
+                return pd.DataFrame()
+
+            def mock_load(df, table_ref, job_config=None):
+                with append_lock:
+                    appended_rows.extend(df.to_dict("records"))
+                load_job = MagicMock()
+                load_job.result.return_value = None
+                return load_job
+
+            db.client.query = mock_query
+            db.fetch_df = mock_fetch_df
+            db.client.load_table_from_dataframe = mock_load
+            return db
+
+        # Thread A ingests pred_0, Thread B ingests pred_1 concurrently.
+        pred_a = self._build_pred(0)
+        pred_b = self._build_pred(1)
+        errors: list[Exception] = []
+
+        def run_a():
+            try:
+                ingest_batch([pred_a], db=make_db_for_thread())
+            except Exception as e:
+                errors.append(e)
+
+        def run_b():
+            try:
+                ingest_batch([pred_b], db=make_db_for_thread())
+            except Exception as e:
+                errors.append(e)
+
+        t_a = threading.Thread(target=run_a)
+        t_b = threading.Thread(target=run_b)
+        t_a.start()
+        t_b.start()
+        t_a.join(timeout=30)
+        t_b.join(timeout=30)
+
+        assert not errors, f"Thread raised exception: {errors}"
+        assert len(appended_rows) == 2, (
+            f"Expected exactly 2 rows appended, got {len(appended_rows)}"
+        )
+
+        # Chain must be linear — no duplicate chain_hash values
+        chain_hashes = [r["chain_hash"] for r in appended_rows]
+        assert len(set(chain_hashes)) == 2, (
+            "Duplicate chain_hash detected — chain branched under concurrent load"
+        )
+
+        # Verify each row's chain_hash is derivable from the previous
+        # (we don't know the order so we check both orderings)
+        h_a = appended_rows[0]["chain_hash"]
+        h_b = appended_rows[1]["chain_hash"]
+        pred_hash_a = appended_rows[0]["prediction_hash"]
+        pred_hash_b = appended_rows[1]["prediction_hash"]
+
+        # One of the two orderings must produce a valid chain from HASH_SEED
+        chain_from_a = compute_chain_hash(pred_hash_a, HASH_SEED)
+        chain_from_b = compute_chain_hash(pred_hash_b, HASH_SEED)
+
+        if h_a == chain_from_a:
+            # A was first; B must chain from A
+            assert h_b == compute_chain_hash(pred_hash_b, h_a), (
+                "Chain broken: row B does not chain from row A"
+            )
+        elif h_b == chain_from_b:
+            # B was first; A must chain from B
+            assert h_a == compute_chain_hash(pred_hash_a, h_b), (
+                "Chain broken: row A does not chain from row B"
+            )
+        else:
+            pytest.fail(
+                "Neither row is a valid first link — chain is corrupt. "
+                f"h_a={h_a[:16]}…  h_b={h_b[:16]}…"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -314,7 +574,6 @@ class TestLedgerIntegration:
         prediction_hash = ingest_prediction(prediction, db=db)
         assert len(prediction_hash) == 64
 
-        # Verify the chain is still intact after our write
         result = verify_chain_integrity(db=db)
         assert result["verified"] is True
         db.close()

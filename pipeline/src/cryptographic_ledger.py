@@ -7,11 +7,20 @@ BigQuery table with SHA-256 hashing for tamper-evident record keeping.
 Immutability is enforced at two layers:
   1. Application layer: only WRITE_APPEND via append_dataframe_to_table()
   2. IAM layer: service account lacks bigquery.tables.delete/update on this table
+
+Concurrency safety (Issue #552):
+  The chain-hash read → compute → write sequence is protected by a MERGE-based
+  optimistic-concurrency guard against the ``gold_layer.ledger_chain_head``
+  sentinel table.  Two concurrent ingest calls will race on the MERGE; exactly
+  one wins (MERGE rows_affected > 0) and the loser retries after brief backoff.
+  This guarantees the SHA-256 chain remains strictly linear regardless of how
+  many concurrent pipeline runs overlap.
 """
 
 import hashlib
 import logging
 import os
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -24,7 +33,12 @@ from src.db_manager import DBManager
 logger = logging.getLogger(__name__)
 
 LEDGER_TABLE = "gold_layer.prediction_ledger"
+CHAIN_HEAD_TABLE = "gold_layer.ledger_chain_head"
 HASH_SEED = ""  # Empty string seed for the first chain_hash
+
+# Concurrency-guard tunables
+_MAX_RETRIES = 10
+_RETRY_BASE_SLEEP_S = 0.5  # exponential back-off base (seconds)
 
 
 @dataclass
@@ -80,6 +94,9 @@ def get_latest_chain_hash(db: DBManager) -> str:
     """
     Fetches the chain_hash of the most recently ingested ledger row.
     Returns HASH_SEED if the table is empty.
+
+    NOTE: kept for ``verify_chain_integrity`` and direct inspection.
+    Do NOT use inside ingest paths — use the chain-head sentinel instead.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
     query = f"""
@@ -99,6 +116,88 @@ def get_latest_chain_hash(db: DBManager) -> str:
         return HASH_SEED
 
 
+# ---------------------------------------------------------------------------
+# Chain-head sentinel helpers (Issue #552 — atomic concurrency guard)
+# ---------------------------------------------------------------------------
+
+
+def _ensure_chain_head_table(db: DBManager) -> None:
+    """
+    Creates ``gold_layer.ledger_chain_head`` if it does not yet exist.
+    The table holds exactly one row: the current tail chain_hash.
+    BigQuery DDL is idempotent with IF NOT EXISTS.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    ddl = f"""
+        CREATE TABLE IF NOT EXISTS `{project_id}.{CHAIN_HEAD_TABLE}` (
+            singleton_key STRING NOT NULL,
+            chain_hash    STRING NOT NULL,
+            updated_at    TIMESTAMP NOT NULL
+        )
+    """
+    db.client.query(ddl).result()
+
+
+def _read_chain_head(db: DBManager) -> str:
+    """
+    Returns the current tail chain_hash from the sentinel table.
+    Returns HASH_SEED when the sentinel row does not exist yet.
+    Creates the table if needed.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    _ensure_chain_head_table(db)
+    query = f"""
+        SELECT chain_hash
+        FROM `{project_id}.{CHAIN_HEAD_TABLE}`
+        WHERE singleton_key = 'HEAD'
+        LIMIT 1
+    """
+    try:
+        df = db.fetch_df(query)
+        if df.empty:
+            return HASH_SEED
+        return str(df.iloc[0]["chain_hash"])
+    except Exception as e:
+        logger.warning(f"Could not read chain_head sentinel: {e}")
+        return HASH_SEED
+
+
+def _try_advance_chain_head(db: DBManager, expected_hash: str, new_hash: str) -> bool:
+    """
+    Atomically advances the chain-head sentinel from ``expected_hash`` to
+    ``new_hash`` using a BigQuery MERGE statement.
+
+    Returns True  — we won the race; safe to append rows to the ledger.
+    Returns False — another writer changed the head first; caller must retry.
+
+    MERGE semantics:
+      WHEN NOT MATCHED AND expected_hash == HASH_SEED → INSERT first-ever row
+      WHEN MATCHED AND chain_hash == expected_hash    → UPDATE to new_hash
+    Both branches are conditional, so a concurrent writer that already advanced
+    the head will cause 0 rows_affected → returns False.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    now_ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f UTC")
+
+    # Safely embed hashes — they are SHA-256 hex strings (no SQL injection risk),
+    # but we quote defensively to be explicit.
+    merge_sql = f"""
+        MERGE `{project_id}.{CHAIN_HEAD_TABLE}` AS T
+        USING (SELECT 'HEAD' AS singleton_key) AS S
+        ON T.singleton_key = S.singleton_key
+        WHEN NOT MATCHED AND '{expected_hash}' = '{HASH_SEED}' THEN
+            INSERT (singleton_key, chain_hash, updated_at)
+            VALUES ('HEAD', '{new_hash}', TIMESTAMP '{now_ts}')
+        WHEN MATCHED AND T.chain_hash = '{expected_hash}' THEN
+            UPDATE SET chain_hash = '{new_hash}',
+                       updated_at = TIMESTAMP '{now_ts}'
+    """
+    job = db.client.query(merge_sql)
+    job.result()
+    affected = job.num_dml_affected_rows if job.num_dml_affected_rows is not None else 0
+    return affected > 0
+
+
 def _append_to_ledger(df: pd.DataFrame, db: DBManager) -> None:
     """
     Writes rows to gold_layer.prediction_ledger using WRITE_APPEND.
@@ -112,57 +211,21 @@ def _append_to_ledger(df: pd.DataFrame, db: DBManager) -> None:
     job.result()
 
 
+# ---------------------------------------------------------------------------
+# Public ingest API
+# ---------------------------------------------------------------------------
+
+
 def ingest_prediction(
     prediction: PunditPrediction, db: Optional[DBManager] = None
 ) -> str:
     """
     Hash a single PunditPrediction and append it to the ledger.
 
+    Delegates to ``ingest_batch`` so concurrency protection is applied.
     Returns the prediction_hash of the newly ingested record.
     """
-    close_db = db is None
-    if db is None:
-        db = DBManager()
-
-    try:
-        previous_chain_hash = get_latest_chain_hash(db)
-        prediction_hash = compute_prediction_hash(prediction)
-        chain_hash = compute_chain_hash(prediction_hash, previous_chain_hash)
-
-        row = {
-            "prediction_hash": prediction_hash,
-            "chain_hash": chain_hash,
-            "ingestion_timestamp": prediction.ingestion_timestamp,
-            "source_url": prediction.source_url,
-            "pundit_id": prediction.pundit_id,
-            "pundit_name": prediction.pundit_name,
-            "raw_assertion_text": prediction.raw_assertion_text,
-            "extracted_claim": prediction.extracted_claim,
-            "claim_category": prediction.claim_category,
-            "season_year": prediction.season_year,
-            "target_player_id": prediction.target_player_id,
-            "target_player_name": prediction.target_player_name,
-            "target_team": prediction.target_team,
-            "stance": prediction.stance,
-            "sport": prediction.sport,
-            "prompt_version": prediction.prompt_version,
-            "llm_provider": prediction.llm_provider,
-            "llm_model": prediction.llm_model,
-            "resolution_status": "PENDING",
-            "resolved_at": None,
-            "resolution_notes": None,
-        }
-
-        _append_to_ledger(pd.DataFrame([row]), db)
-
-        logger.info(
-            f"Ingested prediction {prediction_hash[:16]}… "
-            f"pundit={prediction.pundit_id} chain={chain_hash[:16]}…"
-        )
-        return prediction_hash
-    finally:
-        if close_db:
-            db.close()
+    return ingest_batch([prediction], db=db)[0]
 
 
 def ingest_batch(
@@ -170,53 +233,99 @@ def ingest_batch(
 ) -> list[str]:
     """
     Hash and append a batch of predictions sequentially (order matters for chain integrity).
+
+    Concurrency guarantee (Issue #552):
+      1. Read current chain-head from ``ledger_chain_head`` sentinel.
+      2. Build the full chain for this batch in-process (no I/O).
+      3. Atomically claim the sentinel via a conditional MERGE:
+           - MERGE sets chain_head = new_tail ONLY IF current == expected.
+           - If another writer won the race (0 rows affected), back off + retry.
+      4. After winning the MERGE, append rows to the append-only ledger.
+
+    Exactly one concurrent caller can claim a given chain-head value; the chain
+    therefore stays strictly linear regardless of overlapping pipeline runs.
+
     Returns list of prediction_hashes in ingestion order.
     """
+    if not predictions:
+        return []
+
     close_db = db is None
     if db is None:
         db = DBManager()
 
-    hashes = []
     try:
-        previous_chain_hash = get_latest_chain_hash(db)
-        rows = []
+        for attempt in range(1, _MAX_RETRIES + 1):
+            # Step 1: read current chain head
+            previous_chain_hash = _read_chain_head(db)
 
-        for prediction in predictions:
-            prediction_hash = compute_prediction_hash(prediction)
-            chain_hash = compute_chain_hash(prediction_hash, previous_chain_hash)
+            # Step 2: build chain in-process
+            rows = []
+            hashes = []
+            current_chain_hash = previous_chain_hash
 
-            rows.append(
-                {
-                    "prediction_hash": prediction_hash,
-                    "chain_hash": chain_hash,
-                    "ingestion_timestamp": prediction.ingestion_timestamp,
-                    "source_url": prediction.source_url,
-                    "pundit_id": prediction.pundit_id,
-                    "pundit_name": prediction.pundit_name,
-                    "raw_assertion_text": prediction.raw_assertion_text,
-                    "extracted_claim": prediction.extracted_claim,
-                    "claim_category": prediction.claim_category,
-                    "season_year": prediction.season_year,
-                    "target_player_id": prediction.target_player_id,
-                    "target_player_name": prediction.target_player_name,
-                    "target_team": prediction.target_team,
-                    "stance": prediction.stance,
-                    "sport": prediction.sport,
-                    "prompt_version": prediction.prompt_version,
-                    "llm_provider": prediction.llm_provider,
-                    "llm_model": prediction.llm_model,
-                    "resolution_status": "PENDING",
-                    "resolved_at": None,
-                    "resolution_notes": None,
-                }
+            for prediction in predictions:
+                prediction_hash = compute_prediction_hash(prediction)
+                chain_hash = compute_chain_hash(prediction_hash, current_chain_hash)
+
+                rows.append(
+                    {
+                        "prediction_hash": prediction_hash,
+                        "chain_hash": chain_hash,
+                        "ingestion_timestamp": prediction.ingestion_timestamp,
+                        "source_url": prediction.source_url,
+                        "pundit_id": prediction.pundit_id,
+                        "pundit_name": prediction.pundit_name,
+                        "raw_assertion_text": prediction.raw_assertion_text,
+                        "extracted_claim": prediction.extracted_claim,
+                        "claim_category": prediction.claim_category,
+                        "season_year": prediction.season_year,
+                        "target_player_id": prediction.target_player_id,
+                        "target_player_name": prediction.target_player_name,
+                        "target_team": prediction.target_team,
+                        "stance": prediction.stance,
+                        "sport": prediction.sport,
+                        "prompt_version": prediction.prompt_version,
+                        "llm_provider": prediction.llm_provider,
+                        "llm_model": prediction.llm_model,
+                        "resolution_status": "PENDING",
+                        "resolved_at": None,
+                        "resolution_notes": None,
+                    }
+                )
+                hashes.append(prediction_hash)
+                current_chain_hash = chain_hash  # advance chain
+
+            new_chain_head = current_chain_hash  # tail of this batch
+
+            # Step 3: atomically claim the sentinel slot
+            won = _try_advance_chain_head(db, previous_chain_hash, new_chain_head)
+            if not won:
+                sleep_s = _RETRY_BASE_SLEEP_S * (2 ** (attempt - 1))
+                logger.warning(
+                    "ingest_batch: chain-head conflict on attempt %d/%d; "
+                    "another writer advanced the head — retrying in %.1fs",
+                    attempt,
+                    _MAX_RETRIES,
+                    sleep_s,
+                )
+                time.sleep(sleep_s)
+                continue
+
+            # Step 4: append rows to the ledger (we now exclusively own this slot)
+            _append_to_ledger(pd.DataFrame(rows), db)
+
+            logger.info(
+                "Ingested batch of %d predictions into ledger (attempt %d).",
+                len(predictions),
+                attempt,
             )
-            hashes.append(prediction_hash)
-            previous_chain_hash = chain_hash  # advance chain
+            return hashes
 
-        _append_to_ledger(pd.DataFrame(rows), db)
-
-        logger.info(f"Ingested batch of {len(predictions)} predictions into ledger.")
-        return hashes
+        raise RuntimeError(
+            f"ingest_batch: failed to claim chain-head after {_MAX_RETRIES} attempts. "
+            "Another writer may be holding the slot or BQ MERGE is misbehaving."
+        )
     finally:
         if close_db:
             db.close()
@@ -257,7 +366,8 @@ def verify_chain_integrity(db: Optional[DBManager] = None) -> dict:
             )
             if expected_chain != stored_chain_hash:
                 logger.error(
-                    f"Chain integrity BROKEN at prediction_hash={stored_prediction_hash}"
+                    "Chain integrity BROKEN at prediction_hash=%s",
+                    stored_prediction_hash,
                 )
                 return {
                     "verified": False,
@@ -266,7 +376,7 @@ def verify_chain_integrity(db: Optional[DBManager] = None) -> dict:
                 }
             previous_chain_hash = stored_chain_hash
 
-        logger.info(f"Chain integrity verified: {len(df)} records intact.")
+        logger.info("Chain integrity verified: %d records intact.", len(df))
         return {"verified": True, "total_records": len(df), "first_break_at": None}
     finally:
         if close_db:

@@ -40,6 +40,12 @@ from src.llm_provider import (
     get_provider_with_fallback,
     load_llm_config,
 )
+from tenacity import (
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
@@ -48,6 +54,94 @@ logger = logging.getLogger(__name__)
 
 RAW_MEDIA_TABLE = "raw_pundit_media"
 PROCESSED_TABLE = "processed_media_hashes"
+
+# ---------------------------------------------------------------------------
+# Retry / backoff helpers (Issue #550)
+# ---------------------------------------------------------------------------
+
+# These error message fragments indicate transient failures that should be
+# retried.  Auth errors and schema-validation failures are NOT in this list
+# and will fail-fast.
+_TRANSIENT_FRAGMENTS = (
+    "connection",
+    "timeout",
+    "timed out",
+    "temporarily unavailable",
+    "service unavailable",
+    "internal server error",
+    "bad gateway",
+    "gateway timeout",
+    "reset by peer",
+    "broken pipe",
+    "eof occurred",
+    "remote end closed",
+    "connection refused",
+    "network",
+    "read timeout",
+    "connect timeout",
+    "http error 500",
+    "http error 502",
+    "http error 503",
+    "http error 504",
+    "status code 500",
+    "status code 502",
+    "status code 503",
+    "status code 504",
+)
+
+# These fragments indicate permanent failures — auth, schema, bad requests.
+# Do NOT retry these.
+_PERMANENT_FRAGMENTS = (
+    "401",
+    "403",
+    "unauthorized",
+    "forbidden",
+    "api key",
+    "authentication",
+    "permission denied",
+    "invalid api key",
+    "quota exceeded",  # hard quota — retrying won't help
+    "billing",
+)
+
+
+def _is_transient_llm_error(exc: BaseException) -> bool:
+    """
+    Return True for transient LLM/network errors that warrant a retry.
+
+    Permanent errors (auth, schema-validation, hard quota) return False
+    so tenacity stops retrying immediately via retry_if_exception.
+    """
+    msg = str(exc).lower()
+
+    # Explicit permanent-error check first (short-circuit)
+    for frag in _PERMANENT_FRAGMENTS:
+        if frag in msg:
+            return False
+
+    # Check for known transient patterns
+    for frag in _TRANSIENT_FRAGMENTS:
+        if frag in msg:
+            return True
+
+    # requests.exceptions live behind a lazy import in llm_provider; check
+    # by class name so we don't require requests at module import time.
+    cls_name = type(exc).__name__
+    transient_classes = {
+        "ConnectionError",
+        "Timeout",
+        "ReadTimeout",
+        "ConnectTimeout",
+        "ChunkedEncodingError",
+        "HTTPError",
+        "SSLError",
+        "ProxyError",
+    }
+    if cls_name in transient_classes:
+        return True
+
+    return False
+
 
 # Default tier assigned to sources not found in media_sources.yaml
 DEFAULT_PRIORITY_TIER = 2
@@ -259,8 +353,17 @@ def extract_assertions(
         text=text[:4000],
     )
 
+    @retry(
+        retry=retry_if_exception(_is_transient_llm_error),
+        wait=wait_exponential(multiplier=1, min=2, max=30),
+        stop=stop_after_attempt(3),
+        reraise=True,
+    )
+    def _call_provider() -> list[dict]:
+        return provider.extract_predictions(prompt)
+
     try:
-        predictions = provider.extract_predictions(prompt)
+        predictions = _call_provider()
         # Filter empty claims, then deduplicate near-identical ones
         valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
         # Hard temporal filter: reject predictions about past seasons/drafts.
@@ -610,10 +713,13 @@ def run_extraction(
 
             if result.error:
                 logger.warning(
-                    f"Extraction error for {content_hash[:16]}…: {result.error}"
+                    f"Extraction error for {content_hash[:16]}…: {result.error} "
+                    f"— leaving unprocessed so next run retries"
                 )
                 summary["errors"] += 1
-                processed_hashes.append(content_hash)
+                # Do NOT mark as processed — leave the hash out of
+                # processed_hashes so the next pipeline run will retry
+                # this article rather than silently treating it as done.
                 continue
 
             if not result.predictions:

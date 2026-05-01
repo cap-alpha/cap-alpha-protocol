@@ -35,6 +35,12 @@ from src.team_batcher import BATCH_PROMPT_VERSION, ArticleRecord
 def mock_db():
     db = MagicMock()
     db.fetch_df.return_value = pd.DataFrame()
+    # _try_advance_chain_head calls db.client.query(...); the returned job's
+    # num_dml_affected_rows must be an int so `affected > 0` does not raise
+    # TypeError on Python 3.10 (MagicMock is not comparable with int).
+    mock_query_job = MagicMock()
+    mock_query_job.num_dml_affected_rows = 1
+    db.client.query.return_value = mock_query_job
     return db
 
 

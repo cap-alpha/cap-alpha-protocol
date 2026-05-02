@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees
+.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees
 
 PYTHON ?= python3
 VENV := .venv
@@ -12,9 +12,12 @@ DOCKER := docker compose --env-file docker_env.txt
 # SETUP
 # -----------------------------------------------------------------------------
 
-setup: venv
+setup: venv web-install
 	git config core.hooksPath .githooks
 	@echo "Done. Venv at $(VENV)/, git hooks configured."
+
+web-install:
+	cd web && npm install
 
 setup-triage-agent:
 	bash scripts/setup-triage-agent.sh

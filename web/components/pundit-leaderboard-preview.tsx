@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { Activity, CheckCircle2, XCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AnimatedCounter } from "@/components/animated-counter";
+import { HoverableRow } from "@/components/hoverable-row";
 
 interface PunditStat {
     pundit_name: string;
@@ -24,11 +26,14 @@ function AccuracyBar({ rate }: { rate: number | null }) {
             <div className="w-20 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                 <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
             </div>
-            <span className={cn("text-xs font-mono font-semibold tabular-nums",
-                pct >= 60 ? "text-emerald-400" : pct >= 45 ? "text-yellow-400" : "text-red-400"
-            )}>
-                {pct}%
-            </span>
+            <AnimatedCounter
+                value={pct}
+                suffix="%"
+                duration={900}
+                className={cn("text-xs font-mono font-semibold tabular-nums",
+                    pct >= 60 ? "text-emerald-400" : pct >= 45 ? "text-yellow-400" : "text-red-400"
+                )}
+            />
         </div>
     );
 }
@@ -84,18 +89,18 @@ export function PunditLeaderboardPreview() {
             {/* Stats bar */}
             <div className="flex gap-6 text-xs font-mono text-zinc-500 pb-2 border-b border-zinc-900">
                 <span>
-                    <span className="text-white font-semibold">{pundits.length}+</span> pundits tracked
+                    <AnimatedCounter value={pundits.length} suffix="+" duration={600} className="text-white font-semibold" /> pundits tracked
                 </span>
                 <span>
-                    <span className="text-white font-semibold">{totalPredictions.toLocaleString()}</span> predictions logged
+                    <AnimatedCounter value={totalPredictions} duration={1000} className="text-white font-semibold" /> predictions logged
                 </span>
                 <span>
-                    <span className="text-white font-semibold">{totalResolved.toLocaleString()}</span> resolved
+                    <AnimatedCounter value={totalResolved} duration={800} className="text-white font-semibold" /> resolved
                 </span>
             </div>
 
             {pundits.map((p, idx) => (
-                <div
+                <HoverableRow
                     key={p.pundit_id}
                     className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3"
                 >
@@ -136,7 +141,7 @@ export function PunditLeaderboardPreview() {
                     <span className="text-xs font-mono text-zinc-600 shrink-0 w-20 text-right">
                         {p.total_predictions} picks
                     </span>
-                </div>
+                </HoverableRow>
             ))}
         </div>
     );

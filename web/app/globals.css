@@ -35,6 +35,25 @@
     --ring: 142.1 76.2% 36.3%;
 
     --radius: 0.5rem;
+
+    /* L2 — Semantic outcome colors */
+    --color-correct: 142.1 76.2% 36.3%;       /* green-600 */
+    --color-correct-bg: 142.1 76.2% 36.3% / 0.12;
+    --color-incorrect: 0 84.2% 60.2%;          /* red-500 */
+    --color-incorrect-bg: 0 84.2% 60.2% / 0.12;
+    --color-pending: 37.7 92.1% 50.2%;         /* amber-500 */
+    --color-pending-bg: 37.7 92.1% 50.2% / 0.12;
+    --color-info: 217.2 91.2% 59.8%;           /* blue-400 */
+    --color-info-bg: 217.2 91.2% 59.8% / 0.12;
+    --color-brand: 142.1 76.2% 36.3%;          /* keep emerald as brand */
+
+    /* L3 — 3-layer depth system */
+    --color-canvas: 240 10% 3.9%;      /* #09090b — page background */
+    --color-surface: 240 6% 7%;        /* #111113 — card backgrounds */
+    --color-elevated: 240 5% 11%;      /* #1c1c1f — modal/popover backgrounds */
+    --shadow-glow-brand: 0 0 0 1px hsl(142.1 76.2% 36.3% / 0.3), 0 4px 24px hsl(142.1 76.2% 36.3% / 0.12);
+    --shadow-glow-correct: 0 0 0 1px hsl(142.1 76.2% 36.3% / 0.3), 0 4px 24px hsl(142.1 76.2% 36.3% / 0.08);
+    --shadow-glow-incorrect: 0 0 0 1px hsl(0 84.2% 60.2% / 0.3), 0 4px 24px hsl(0 84.2% 60.2% / 0.08);
   }
 }
 
@@ -44,7 +63,7 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-canvas text-foreground;
   }
 }
 

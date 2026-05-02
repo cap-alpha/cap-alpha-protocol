@@ -16,6 +16,7 @@ import {
     ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { AffiliateCTA } from "@/components/affiliate-cta";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -472,6 +473,21 @@ export default function PunditAccountabilityPage() {
 
             {/* Body */}
             <div className="max-w-5xl mx-auto px-4 py-8 space-y-10">
+                {/* Placement 1 — Pundit scorecard affiliate CTA */}
+                <AffiliateCTA
+                    platformA="draftkings"
+                    platformB="fanduel"
+                    cta={
+                        (pundit.accuracy_rate ?? 0) >= 0.6
+                            ? `${pundit.pundit_name} is on a run. Back their calls on {platform}.`
+                            : (pundit.accuracy_rate !== null && pundit.accuracy_rate < 0.5)
+                            ? `Fade ${pundit.pundit_name}. Bet against them on {platform}.`
+                            : `See where the smart money goes. Join {platform}.`
+                    }
+                    placement="pundit_scorecard"
+                    extra={{ pundit_id: pundit.pundit_id }}
+                />
+
                 {/* Category breakdown */}
                 <CategorySection breakdown={accuracy_by_category} />
 

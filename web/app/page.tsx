@@ -3,6 +3,7 @@ import { Shield, TrendingUp, BarChart3, Lock, ArrowRight, Zap } from "lucide-rea
 import { WaitlistForm } from "@/components/waitlist-form";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
 import { UpgradeButton } from "@/components/upgrade-button";
+import { AffiliateCTA } from "@/components/affiliate-cta";
 
 export const revalidate = 300; // 5-minute ISR
 
@@ -57,6 +58,18 @@ export default function LandingPage() {
                         </Link>
                     </div>
                     <PunditLeaderboardPreview />
+                </div>
+            </section>
+
+            {/* Placement 2 — Homepage affiliate CTA */}
+            <section className="w-full px-6 pb-16">
+                <div className="max-w-5xl mx-auto">
+                    <AffiliateCTA
+                        platformA="draftkings"
+                        platformB="prizepicks"
+                        cta="Turn pundit accountability into profit — join {platform} today."
+                        placement="homepage_hero"
+                    />
                 </div>
             </section>
 

@@ -81,7 +81,7 @@ export async function GET(
         // fonts unavailable — ImageResponse will fall back to system fonts
     }
 
-    const fonts: ConstructorParameters<typeof ImageResponse>[1]["fonts"] = [];
+    const fonts: NonNullable<ConstructorParameters<typeof ImageResponse>[1]>["fonts"] = [];
     if (interBoldData) {
         fonts.push({ name: "Inter", data: interBoldData, weight: 700 });
     }

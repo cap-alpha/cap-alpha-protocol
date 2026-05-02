@@ -1,7 +1,11 @@
 import { Resend } from 'resend'
 import { createHmac } from 'crypto'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+let _resend: Resend | null = null
+function getResend(): Resend {
+    if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
+    return _resend
+}
 
 export const FROM_ADDRESS = 'Cap Alpha <noreply@cap-alpha.co>'
 export const REPLY_TO = 'support@cap-alpha.co'
@@ -19,7 +23,7 @@ export function unsubscribeUrl(email: string): string {
 
 export async function sendWelcomeEmail(email: string, firstName?: string): Promise<void> {
     const { renderWelcomeEmail } = await import('./email-templates')
-    await resend.emails.send({
+    await getResend().emails.send({
         from: FROM_ADDRESS,
         replyTo: REPLY_TO,
         to: email,
@@ -30,7 +34,7 @@ export async function sendWelcomeEmail(email: string, firstName?: string): Promi
 
 export async function sendOnboardingDay3Email(email: string, firstName?: string): Promise<void> {
     const { renderDay3Email } = await import('./email-templates')
-    await resend.emails.send({
+    await getResend().emails.send({
         from: FROM_ADDRESS,
         replyTo: REPLY_TO,
         to: email,
@@ -41,7 +45,7 @@ export async function sendOnboardingDay3Email(email: string, firstName?: string)
 
 export async function sendOnboardingDay7Email(email: string, firstName?: string): Promise<void> {
     const { renderDay7Email } = await import('./email-templates')
-    await resend.emails.send({
+    await getResend().emails.send({
         from: FROM_ADDRESS,
         replyTo: REPLY_TO,
         to: email,

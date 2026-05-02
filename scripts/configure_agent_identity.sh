@@ -58,3 +58,16 @@ if [ ! -e "$WORKTREE_ROOT/.venv" ]; then
   ln -sf "$REPO_ROOT/.venv" "$WORKTREE_ROOT/.venv"
   echo "  .venv symlink -> $REPO_ROOT/.venv"
 fi
+
+# Symlink web/node_modules and web/.env.local when a web/ directory exists,
+# so `npm run build` works from worktrees without reinstalling packages.
+if [ -d "$REPO_ROOT/web" ] && [ -d "$WORKTREE_ROOT/web" ]; then
+  if [ ! -e "$WORKTREE_ROOT/web/node_modules" ]; then
+    ln -sf "$REPO_ROOT/web/node_modules" "$WORKTREE_ROOT/web/node_modules"
+    echo "  web/node_modules symlink -> $REPO_ROOT/web/node_modules"
+  fi
+  if [ ! -e "$WORKTREE_ROOT/web/.env.local" ] && [ -f "$REPO_ROOT/web/.env.local" ]; then
+    ln -sf "$REPO_ROOT/web/.env.local" "$WORKTREE_ROOT/web/.env.local"
+    echo "  web/.env.local symlink -> $REPO_ROOT/web/.env.local"
+  fi
+fi

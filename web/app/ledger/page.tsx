@@ -15,6 +15,7 @@ import {
     ChevronUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PredictionShareButton } from "@/components/prediction-share-button";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1017,6 +1018,8 @@ function PredictionGroupRow({
                     >
                         Details <ArrowRight className="w-2.5 h-2.5" />
                     </button>
+                    {/* Share button */}
+                    <PredictionShareButton predictionId={p.prediction_hash_short} />
                     {/* Expand/collapse for repeat occurrences */}
                     {hasRepeats && (
                         <button

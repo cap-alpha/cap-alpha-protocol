@@ -1,14 +1,24 @@
 """
-NLP Assertion Extraction Pipeline (Issue #79, #178)
+NLP Assertion Extraction Pipeline (Issue #79, #178, #555 Phase C)
 
 Converts unstructured pundit media text (from raw_pundit_media) into structured
 prediction vectors and feeds them into the cryptographic ledger.
 
-Pipeline flow:
-  raw_pundit_media (bronze) → LLM extraction → PunditPrediction → prediction_ledger (gold)
+Pipeline flow (Phase C):
+  raw_pundit_media (bronze)
+    → LLM extraction (speech_act_type + testability_score inline)
+    → raw_utterance (silver_v2_claims) — ALL utterances written here
+    → prediction_ledger (gold) — only testable assertions/conditionals/recalls
 
 Uses a pluggable LLM provider (Gemini, Claude, OpenAI, or Ollama local).
 Provider is selected via pipeline/config/llm_config.yaml.
+
+Environment:
+    TESTABILITY_THRESHOLD  — float 0.0–1.0, default 0.6. Utterances with
+                             testability_score >= threshold AND speech_act_type
+                             in (assertion, conditional, recall) are promoted to
+                             prediction_ledger. Set to 0.0 for backward-compat
+                             mode (everything promoted).
 
 Usage (inside Docker):
     python -m src.assertion_extractor                  # process all unprocessed
@@ -24,6 +34,7 @@ import logging
 import os
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
@@ -56,6 +67,55 @@ logger = logging.getLogger(__name__)
 
 RAW_MEDIA_TABLE = "raw_pundit_media"
 PROCESSED_TABLE = "processed_media_hashes"
+
+# ---------------------------------------------------------------------------
+# Phase C — speech-act + testability constants
+# ---------------------------------------------------------------------------
+
+# Table name for the silver_v2_claims.raw_utterance write (Phase C)
+RAW_UTTERANCE_DATASET = "silver_v2_claims"
+RAW_UTTERANCE_TABLE = "raw_utterance"
+
+# speech_act_types that are promoted to prediction_ledger when
+# testability_score >= TESTABILITY_THRESHOLD.
+PROMOTABLE_SPEECH_ACTS = frozenset({"assertion", "conditional", "recall"})
+
+# All valid speech_act_type values (used for validation).
+VALID_SPEECH_ACT_TYPES = frozenset(
+    {
+        "assertion",
+        "conditional",
+        "recall",
+        "rhetorical_question",
+        "hedge",
+        "commentary",
+        "opinion",
+        "analogy",
+        "joke",
+    }
+)
+
+# Default testability threshold.  Override via env var TESTABILITY_THRESHOLD.
+_DEFAULT_TESTABILITY_THRESHOLD = 0.6
+
+
+def get_testability_threshold() -> float:
+    """Return the runtime testability threshold from env (default 0.6)."""
+    raw = os.environ.get("TESTABILITY_THRESHOLD", "")
+    if raw.strip():
+        try:
+            val = float(raw.strip())
+            if 0.0 <= val <= 1.0:
+                return val
+            logger.warning(
+                f"TESTABILITY_THRESHOLD={val!r} out of range [0,1]; using default {_DEFAULT_TESTABILITY_THRESHOLD}"
+            )
+        except ValueError:
+            logger.warning(
+                f"TESTABILITY_THRESHOLD={raw!r} is not a float; using default {_DEFAULT_TESTABILITY_THRESHOLD}"
+            )
+    return _DEFAULT_TESTABILITY_THRESHOLD
+
 
 # ---------------------------------------------------------------------------
 # Retry / backoff helpers (Issue #550)
@@ -229,35 +289,128 @@ VALID_CATEGORIES = {
     "fa_signing",  # Free agency: player signs with a specific team
 }
 
-EXTRACTION_PROMPT = """You are a {sport} prediction extraction system. Extract testable predictions from the content below.
+EXTRACTION_PROMPT = """You are a {sport} speech-act extraction system. Analyze the content below and extract ALL speech acts — including rhetorical questions, hedges, and opinions — not just testable predictions.
 
 PUBLISHED: {published_date}
 
-Rules — what TO extract:
-- Concrete, falsifiable claims about FUTURE outcomes with a clear stance
-- Must have: a SUBJECT (player/team) + a TESTABLE OUTCOME + a TIMEFRAME (season, game, date)
-- Examples of good extractions:
-  "Patrick Mahomes will win MVP in 2025" → stance: bullish
-  "The Browns will miss the playoffs in 2025" → stance: bearish
-  "Travis Kelce will retire after the 2025 season" → stance: neutral
+For EACH utterance, classify it and score its testability. Return a JSON array where each element has:
+{{
+  "text": "verbatim quote or close paraphrase",
+  "speech_act_type": "assertion|conditional|recall|rhetorical_question|hedge|commentary|opinion|analogy|joke",
+  "testability_subscores": {{
+    "subject_specificity": 0.0,
+    "predicate_falsifiability": 0.0,
+    "threshold_concreteness": 0.0,
+    "resolution_horizon_defined": 0.0,
+    "evidence_accessibility": 0.0
+  }},
+  "testability_score": 0.0,
+  "resolution_horizon": "ISO8601 datetime or null",
+  "predicate": "will_win|will_be_below|will_retire|will_sign|will_miss_playoffs|...",
+  "subject": "entity name string",
+  "predicate_args": {{}},
+  "extracted_claim": "concise testable statement for ledger (or empty string if not testable)",
+  "claim_category": "player_performance|game_outcome|trade|draft_pick|injury|contract|award_prediction|fa_signing",
+  "stance": "bullish|bearish|neutral",
+  "season_year": null,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "how explicit/confident the prediction is",
+  "prediction_horizon_days": -1
+}}
 
-Stance rules:
-- bullish: prediction is positive/optimistic about the subject (win award, make playoffs, exceed stats target)
-- bearish: prediction is negative/pessimistic about the subject (miss playoffs, underperform, get cut, lose)
-- neutral: no clear directional bias (retirement, trade, purely factual future event)
+speech_act_type definitions:
+- assertion: declarative claim about a future outcome ("Mahomes will win MVP")
+- conditional: claim contingent on a condition ("IF they stay healthy, Eagles win the Super Bowl")
+- recall: speaker recalls a past prediction or fact as evidence ("I said three months ago that...")
+- rhetorical_question: question used for emphasis, not an assertion ("Can anyone stop this offense?")
+- hedge: statement explicitly marked as uncertain ("I think he might...", "wouldn't surprise me if")
+- commentary: analysis/explanation without a testable outcome ("This offense runs through the slot")
+- opinion: subjective evaluation without falsifiable outcome ("He's the best QB in the league")
+- analogy: comparison to illustrate a point, not a direct claim
+- joke: humor, sarcasm
 
-Rules — what NOT to extract:
-- HEDGED statements: "wouldn't surprise me if", "I could see", "most likely", "might", "probably"
-- VAGUE qualitative claims: "will be good", "will make plays", "will be a factor", "well worth it"
-- TAUTOLOGIES: "the deal will eventually be released", "they will bring in players"
-- SCHEME/STYLE descriptions: "will run a 4-3 defense", "will use more zone coverage"
-- HISTORICAL FACTS or ALREADY-RESOLVED events: if the outcome is already known at the article's publish date, do NOT extract it
-- CONSENSUS RESTATING: "the Chiefs will be competitive" (everyone knows this)
-- OPINIONS without testable outcomes: "he's the best QB in the league"
-- ADMINISTRATIVE details: payment structures, meeting schedules, procedural items
-- Claims about events from PAST SEASONS that are already concluded
+testability_score = average of 5 sub-scores (each 0.0–1.0):
+- subject_specificity: Is the subject a nameable entity? "The Eagles"=1.0, "young QBs these days"=0.0
+- predicate_falsifiability: Can it be scored TRUE/FALSE? "will win the SB"=1.0, "will struggle"=0.4
+- threshold_concreteness: "below 3%"=1.0, "low"=0.3, "some"=0.0
+- resolution_horizon_defined: "by Q4 2025"=1.0, "soon"=0.3, "eventually"=0.0
+- evidence_accessibility: Is there a data source that can answer this? "Eagles wins >= 11"=1.0, "most exciting team"=0.0
 
-If the article contains no concrete, falsifiable predictions with clear stances, return an empty list.
+Stance rules (for promoted claims):
+- bullish: prediction is positive/optimistic about the subject
+- bearish: prediction is negative/pessimistic about the subject
+- neutral: no clear directional bias (retirement, trade, factual future event)
+
+--- FEW-SHOT EXAMPLES ---
+
+Example 1 — Rhetorical question (NOT promoted to ledger):
+Input: "Can anyone stop Patrick Mahomes at this point?"
+Output:
+{{
+  "text": "Can anyone stop Patrick Mahomes at this point?",
+  "speech_act_type": "rhetorical_question",
+  "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.2}},
+  "testability_score": 0.26,
+  "resolution_horizon": null,
+  "predicate": "",
+  "subject": "Patrick Mahomes",
+  "predicate_args": {{}},
+  "extracted_claim": "",
+  "claim_category": "player_performance",
+  "stance": "bullish",
+  "season_year": null,
+  "target_player": "Patrick Mahomes",
+  "target_team": "KC",
+  "confidence_note": "rhetorical emphasis",
+  "prediction_horizon_days": -1
+}}
+
+Example 2 — Genuine assertion (PROMOTED to ledger):
+Input: "The Eagles will win at least 11 games this season."
+Output:
+{{
+  "text": "The Eagles will win at least 11 games this season.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0}},
+  "testability_score": 0.96,
+  "resolution_horizon": "2025-12-31T23:59:59Z",
+  "predicate": "will_win_at_least",
+  "subject": "Philadelphia Eagles",
+  "predicate_args": {{"threshold": 11, "stat": "wins", "unit": "games"}},
+  "extracted_claim": "Eagles will win at least 11 games in the 2025 season",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": 2025,
+  "target_player": null,
+  "target_team": "PHI",
+  "confidence_note": "explicit numeric threshold",
+  "prediction_horizon_days": 150
+}}
+
+Example 3 — Conditional (PROMOTED to ledger):
+Input: "If their offensive line stays healthy, the Ravens will reach the AFC Championship."
+Output:
+{{
+  "text": "If their offensive line stays healthy, the Ravens will reach the AFC Championship.",
+  "speech_act_type": "conditional",
+  "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.7, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0}},
+  "testability_score": 0.88,
+  "resolution_horizon": "2025-12-31T23:59:59Z",
+  "predicate": "will_reach",
+  "subject": "Baltimore Ravens",
+  "predicate_args": {{"milestone": "AFC Championship", "condition": "offensive line stays healthy"}},
+  "extracted_claim": "Ravens will reach the AFC Championship (conditional on OL health)",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": 2025,
+  "target_player": null,
+  "target_team": "BAL",
+  "confidence_note": "conditional on OL health",
+  "prediction_horizon_days": 120
+}}
+
+--- END EXAMPLES ---
 
 SOURCE: {source_name}
 AUTHOR: {author}
@@ -274,6 +427,186 @@ class ExtractionResult:
     predictions: list[dict]
     error: Optional[str] = None
     raw_response: Optional[str] = None
+    # Phase C: all extracted utterances (before testability filter)
+    utterances: list[dict] = None
+
+    def __post_init__(self):
+        if self.utterances is None:
+            self.utterances = []
+
+
+def compute_testability_score(subscores: dict) -> float:
+    """
+    Compute a testability_score as the mean of the 5 required sub-scores.
+    Each sub-score must be 0.0–1.0. If any sub-score is missing, it defaults
+    to 0.0 so the average is penalised appropriately.
+    """
+    keys = [
+        "subject_specificity",
+        "predicate_falsifiability",
+        "threshold_concreteness",
+        "resolution_horizon_defined",
+        "evidence_accessibility",
+    ]
+    if not subscores:
+        return 0.0
+    values = []
+    for k in keys:
+        raw = subscores.get(k, 0.0)
+        try:
+            v = float(raw)
+        except (TypeError, ValueError):
+            v = 0.0
+        values.append(max(0.0, min(1.0, v)))
+    return round(sum(values) / len(values), 4)
+
+
+def _is_promotable(utterance: dict, threshold: float) -> bool:
+    """
+    Return True if an utterance should be promoted to prediction_ledger.
+    Conditions:
+      - speech_act_type in PROMOTABLE_SPEECH_ACTS (assertion, conditional, recall)
+      - testability_score >= threshold
+      - extracted_claim is non-empty
+
+    Backward compatibility: if speech_act_type is absent (legacy LLM response format
+    without Phase C fields), it defaults to "assertion" so old responses continue to
+    be promoted.  Similarly, if testability_score is absent the response predates
+    Phase C scoring and is treated as fully testable (score=1.0) to avoid silently
+    dropping legitimate legacy predictions.
+    """
+    sat = utterance.get("speech_act_type") or "assertion"
+    # If testability_score is explicitly present (including 0.0), use it.
+    # If absent entirely (legacy format), default to 1.0 to maintain backward compat.
+    score_raw = utterance.get("testability_score")
+    score = 1.0 if score_raw is None else float(score_raw)
+    claim = utterance.get("extracted_claim", "")
+    return sat in PROMOTABLE_SPEECH_ACTS and score >= threshold and bool(claim.strip())
+
+
+def _resolve_speaker_entity_id(pundit_id: str, db: Optional["DBManager"] = None) -> str:
+    """
+    Resolve a pundit_id to a silver_v2_core.entity_id.
+    Attempts a BigQuery lookup by external_ids or alias.
+    On any failure, returns the placeholder "UNRESOLVED:{pundit_id}".
+    """
+    if db is None:
+        return f"UNRESOLVED:{pundit_id}"
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id:
+        return f"UNRESOLVED:{pundit_id}"
+    try:
+        query = f"""
+            SELECT entity_id
+            FROM `{project_id}.silver_v2_core.entity`
+            WHERE JSON_EXTRACT_SCALAR(external_ids, '$.pundit_id') = @pundit_id
+               OR entity_id = @pundit_id
+            LIMIT 1
+        """
+        from google.cloud.bigquery import ScalarQueryParameter as SQP
+
+        row = db.fetch_df(
+            query,
+            query_parameters=[SQP("pundit_id", "STRING", pundit_id)],
+        )
+        if not row.empty:
+            return str(row.iloc[0]["entity_id"])
+    except Exception as exc:
+        logger.debug(f"Entity lookup failed for pundit_id={pundit_id!r}: {exc}")
+    return f"UNRESOLVED:{pundit_id}"
+
+
+def write_raw_utterances(
+    utterances: list[dict],
+    source_doc_id: str,
+    speaker_entity_id: str,
+    uttered_at: datetime,
+    domain: str,
+    db: "DBManager",
+) -> int:
+    """
+    Write all utterances to silver_v2_claims.raw_utterance.
+    Returns the number of rows written.
+
+    Each row maps the Phase C LLM output to the migration 016 schema:
+      utterance_id, source_doc_id, speaker_entity_id, uttered_at, text,
+      speech_act_type, testability_score, resolution_horizon, domain,
+      extraction_confidence, created_at
+    """
+    if not utterances:
+        return 0
+
+    now = datetime.now(timezone.utc)
+    rows = []
+    for u in utterances:
+        # Ensure testability_score is the recomputed value if subscores present
+        subscores = u.get("testability_subscores") or {}
+        if subscores:
+            score = compute_testability_score(subscores)
+        else:
+            raw_score = u.get("testability_score", 0.0)
+            try:
+                score = float(raw_score)
+            except (TypeError, ValueError):
+                score = 0.0
+
+        sat = u.get("speech_act_type", "commentary")
+        if sat not in VALID_SPEECH_ACT_TYPES:
+            sat = "commentary"
+
+        # Resolution horizon: parse ISO8601 or leave None
+        rh = u.get("resolution_horizon")
+        rh_ts = None
+        if rh:
+            try:
+                rh_ts = pd.Timestamp(rh, tz="UTC")
+            except Exception:
+                rh_ts = None
+
+        rows.append(
+            {
+                "utterance_id": str(uuid.uuid4()),
+                "source_doc_id": source_doc_id,
+                "speaker_entity_id": speaker_entity_id,
+                "uttered_at": uttered_at,
+                "text": str(u.get("text", ""))[:4000],
+                "speech_act_type": sat,
+                "testability_score": score,
+                "resolution_horizon": rh_ts,
+                "domain": domain,
+                "extraction_confidence": max(
+                    0.0, min(1.0, float(u.get("extraction_confidence", score)))
+                ),
+                "created_at": now,
+            }
+        )
+
+    df = pd.DataFrame(rows)
+    # Use qualified table name: write to silver_v2_claims dataset
+    full_table = f"{RAW_UTTERANCE_DATASET}.{RAW_UTTERANCE_TABLE}"
+    try:
+        # Directly use client with full project.dataset.table reference
+        project_id = os.environ.get("GCP_PROJECT_ID", "")
+        table_ref = f"{project_id}.{full_table}"
+        job_config = __import__(
+            "google.cloud.bigquery", fromlist=["LoadJobConfig"]
+        ).LoadJobConfig(write_disposition="WRITE_APPEND")
+        df_clean = df.copy()
+        # Cast object cols to str for BQ Parquet compatibility
+        for col in df_clean.columns:
+            if df_clean[col].dtype == object:
+                df_clean[col] = df_clean[col].astype(str)
+        job = db.client.load_table_from_dataframe(
+            df_clean, table_ref, job_config=job_config
+        )
+        job.result()
+        logger.info(f"Wrote {len(rows)} raw_utterance rows to {table_ref}")
+    except Exception as exc:
+        logger.warning(
+            f"Failed to write raw_utterances to {full_table}: {exc} — continuing"
+        )
+        return 0
+    return len(rows)
 
 
 def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
@@ -284,38 +617,6 @@ def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> lis
     """
     if len(predictions) <= 1:
         return predictions
-
-    kept = []
-    for pred in predictions:
-        claim = pred.get("extracted_claim", "").lower()
-        is_dup = False
-        for i, existing in enumerate(kept):
-            existing_claim = existing.get("extracted_claim", "").lower()
-            ratio = SequenceMatcher(None, claim, existing_claim).ratio()
-            if ratio >= threshold:
-                if len(claim) > len(existing_claim):
-                    kept[i] = pred
-                is_dup = True
-                break
-        if not is_dup:
-            kept.append(pred)
-
-    removed = len(predictions) - len(kept)
-    if removed > 0:
-        logger.info(f"Dedup: removed {removed} near-duplicate claims")
-    return kept
-
-
-def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
-    """
-    Remove near-duplicate claims from a single article's extraction.
-    Uses SequenceMatcher to detect semantic overlap. Keeps the longest
-    (most specific) claim from each cluster.
-    """
-    if len(predictions) <= 1:
-        return predictions
-
-    from difflib import SequenceMatcher
 
     kept = []
     for pred in predictions:
@@ -386,15 +687,36 @@ def extract_assertions(
         return provider.extract_predictions(prompt)
 
     try:
-        predictions = _call_provider()
-        # Filter empty claims, then deduplicate near-identical ones
-        valid = [p for p in predictions if p.get("extracted_claim", "").strip()]
-        # Hard temporal filter: reject predictions about past seasons/drafts.
-        # Bypassed with allow_historical=True for backfill ingestion of
-        # already-completed seasons where outcomes ARE known.
+        all_utterances = _call_provider()
+
+        # Phase C: recompute testability_score from subscores when available
+        # (LLM may drift; we own the formula).
+        for u in all_utterances:
+            subscores = u.get("testability_subscores") or {}
+            if subscores:
+                u["testability_score"] = compute_testability_score(subscores)
+
+        threshold = get_testability_threshold()
+
+        # Phase C: separate ALL utterances (for raw_utterance write) from
+        # PROMOTED ones (for prediction_ledger).  An utterance is promoted if:
+        #   - speech_act_type in (assertion, conditional, recall)
+        #   - testability_score >= threshold
+        #   - extracted_claim is non-empty
+        promoted = [u for u in all_utterances if _is_promotable(u, threshold)]
+
+        suppressed_count = len(all_utterances) - len(promoted)
+        if suppressed_count > 0:
+            logger.info(
+                f"Speech-act filter: {suppressed_count} utterance(s) suppressed "
+                f"(rhetorical/hedge/etc. or testability_score < {threshold})"
+            )
+
+        # Hard temporal filter on promoted claims: reject past-season claims.
+        # Bypassed with allow_historical=True for backfill runs.
         current_year = datetime.now().year
         filtered = []
-        for p in valid:
+        for p in promoted:
             sy = p.get("season_year")
             if (
                 not allow_historical
@@ -408,15 +730,26 @@ def extract_assertions(
                 )
                 continue
             filtered.append(p)
+
         deduped = _deduplicate_claims(filtered)
+
+        logger.info(
+            f"Extraction: {len(all_utterances)} utterance(s) extracted, "
+            f"{len(deduped)} promoted to ledger "
+            f"(testability_score >= {threshold}), "
+            f"{suppressed_count} suppressed (rhetorical/hedge/etc.)"
+        )
+
         return ExtractionResult(
             content_hash=content_hash,
             predictions=deduped,
+            utterances=all_utterances,
         )
     except Exception as e:
         return ExtractionResult(
             content_hash=content_hash,
             predictions=[],
+            utterances=[],
             error=str(e),
         )
 
@@ -638,13 +971,14 @@ def run_extraction(
     gemini_client=None,
 ) -> dict:
     """
-    Main extraction entry point.
+    Main extraction entry point (Phase C).
 
     1. Fetch unprocessed raw media from BQ
-    2. Send each to LLM for assertion extraction
-    3. Convert extracted predictions into PunditPredictions
-    4. Ingest into the cryptographic ledger
-    5. Mark as processed
+    2. Send each to LLM for speech-act + testability extraction
+    3. Write ALL utterances to silver_v2_claims.raw_utterance (Phase C)
+    4. Promote qualifying utterances to PunditPredictions for ledger
+    5. Ingest into the cryptographic ledger
+    6. Mark as processed
 
     Returns a summary dict for observability.
     """
@@ -658,14 +992,19 @@ def run_extraction(
             config.setdefault("extraction", {})["provider"] = provider_name
         provider = get_provider_with_fallback("extraction", config)
 
+    threshold = get_testability_threshold()
+
     summary = {
         "total_processed": 0,
         "predictions_extracted": 0,
         "predictions_ingested": 0,
+        "utterances_written": 0,
+        "suppressed": 0,
         "errors": 0,
         "skipped_no_predictions": 0,
         "filtered_out": 0,
         "skipped_low_yield": 0,
+        "testability_threshold": threshold,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
 
@@ -771,19 +1110,41 @@ def run_extraction(
                 # this article rather than silently treating it as done.
                 continue
 
+            # Phase C: write ALL utterances to raw_utterance regardless of
+            # whether they are promotable — this is the full audit trail.
+            pundit_id = row.get("matched_pundit_id") or "unknown"
+            pundit_name = row.get("matched_pundit_name") or str(
+                row.get("author", "Unknown")
+            )
+            source_url = str(row.get("source_url", ""))
+
+            if result.utterances:
+                uttered_at = (
+                    pd.Timestamp(row["published_at"]).to_pydatetime()
+                    if pd.notna(row.get("published_at"))
+                    else datetime.now(timezone.utc)
+                )
+                # Resolve speaker entity_id (best-effort; placeholder on miss)
+                speaker_entity_id = _resolve_speaker_entity_id(str(pundit_id), db=db)
+                article_sport = str(row.get("sport", sport))
+                written = write_raw_utterances(
+                    utterances=result.utterances,
+                    source_doc_id=content_hash,
+                    speaker_entity_id=speaker_entity_id,
+                    uttered_at=uttered_at,
+                    domain=article_sport.lower(),
+                    db=db,
+                )
+                summary["utterances_written"] += written
+                suppressed_here = len(result.utterances) - len(result.predictions)
+                summary["suppressed"] += max(0, suppressed_here)
+
             if not result.predictions:
                 summary["skipped_no_predictions"] += 1
                 processed_hashes.append(content_hash)
                 continue
 
             summary["predictions_extracted"] += len(result.predictions)
-
-            # Convert to PunditPredictions for ledger ingestion
-            pundit_id = row.get("matched_pundit_id") or "unknown"
-            pundit_name = row.get("matched_pundit_name") or str(
-                row.get("author", "Unknown")
-            )
-            source_url = str(row.get("source_url", ""))
 
             for pred in result.predictions:
                 raw_player = pred.get("target_player")
@@ -848,7 +1209,10 @@ def run_extraction(
 
         logger.info(
             f"Extraction complete: {summary['total_processed']} processed, "
-            f"{summary['predictions_extracted']} predictions extracted, "
+            f"{summary['utterances_written']} utterances → raw_utterance, "
+            f"{summary['predictions_extracted']} promoted to ledger "
+            f"(testability_score >= {threshold}), "
+            f"{summary['suppressed']} suppressed (rhetorical/hedge/etc.), "
             f"{summary['predictions_ingested']} ingested, "
             f"{summary['skipped_low_yield']} skipped (low-yield source), "
             f"{summary['errors']} errors"

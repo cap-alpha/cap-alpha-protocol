@@ -314,7 +314,7 @@ triage_issues() {
     }
 
     local issue_count
-    issue_count=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)))" <<< "$issues" 2>/dev/null || echo 0)
+    issue_count=$(printf '%s' "$issues" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
     log "issues found=${issue_count}"
 
     while IFS=$'\t' read -r number title labels body; do
@@ -352,17 +352,16 @@ triage_issues() {
             notify "$number" "$title" "$BLOCK_REASON" "$BLOCK_QUESTION"
         fi
 
-    done < <(python3 -c '
+    done < <(printf '%s' "$issues" | python3 -c '
 import sys, json
-raw = open(sys.argv[1]).read()
-data = json.loads(raw)
+data = json.load(sys.stdin)
 for issue in data:
     number = issue.get("number","")
     title  = (issue.get("title","") or "").replace("\t"," ").replace("\n"," ")
     body   = (issue.get("body","") or "").replace("\t"," ").replace("\n"," ")[:2000]
     labels = ", ".join(l["name"] for l in (issue.get("labels") or []))
     print(f"{number}\t{title}\t{labels}\t{body}")
-' <(echo "$issues"))
+')
 }
 
 # ── PR triage ─────────────────────────────────────────────────────────────────
@@ -460,7 +459,7 @@ triage_prs() {
     }
 
     local pr_count
-    pr_count=$(python3 -c "import sys,json; print(len(json.load(sys.stdin)))" <<< "$prs" 2>/dev/null || echo 0)
+    pr_count=$(printf '%s' "$prs" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
     log "prs found=${pr_count}"
 
     # Process each PR via python — output tab-separated action lines
@@ -497,10 +496,10 @@ triage_prs() {
                 ;;
         esac
 
-    done < <(python3 -c '
+    done < <(printf '%s' "$prs" | python3 -c '
 import sys, json
 
-data = json.loads(open(sys.argv[1]).read())
+data = json.load(sys.stdin)
 
 for pr in data:
     number = pr.get("number","")
@@ -529,7 +528,7 @@ for pr in data:
         print(f"LINT\t{number}\t")
     elif ci_failing_name:
         print(f"CI\t{number}\t{ci_failing_name}")
-' <(echo "$prs"))
+')
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────

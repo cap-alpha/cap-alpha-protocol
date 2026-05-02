@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
     Shield,
     CheckCircle2,
@@ -690,16 +691,65 @@ export default function LedgerPage() {
                         <Activity className="w-4 h-4 animate-pulse mr-2" />
                         <span className="font-mono text-sm">Loading ledger…</span>
                     </div>
-                ) : activeTab === "leaderboard" ? (
-                    <LeaderboardTab pundits={sorted} />
                 ) : (
-                    <RecentTab
-                        predictions={recent}
+                    <TabContent
+                        activeTab={activeTab}
+                        pundits={sorted}
+                        recent={recent}
                         onOpenDrawer={openDrawer}
                     />
                 )}
             </div>
         </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Tab content — AnimatePresence for cross-fade + slide between tabs
+// ---------------------------------------------------------------------------
+
+function TabContent({
+    activeTab,
+    pundits,
+    recent,
+    onOpenDrawer,
+}: {
+    activeTab: "leaderboard" | "recent";
+    pundits: PunditStat[];
+    recent: RecentPrediction[];
+    onOpenDrawer: (p: RecentPrediction, sources: RecentPrediction[]) => void;
+}) {
+    const shouldReduceMotion = useReducedMotion();
+
+    const variants = shouldReduceMotion
+        ? {
+              initial: { opacity: 0 },
+              animate: { opacity: 1 },
+              exit: { opacity: 0 },
+          }
+        : {
+              initial: { opacity: 0, y: 8 },
+              animate: { opacity: 1, y: 0 },
+              exit: { opacity: 0, y: -8 },
+          };
+
+    return (
+        <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+                key={activeTab}
+                variants={variants}
+                initial="initial"
+                animate="animate"
+                exit="exit"
+                transition={{ duration: 0.2 }}
+            >
+                {activeTab === "leaderboard" ? (
+                    <LeaderboardTab pundits={pundits} />
+                ) : (
+                    <RecentTab predictions={recent} onOpenDrawer={onOpenDrawer} />
+                )}
+            </motion.div>
+        </AnimatePresence>
     );
 }
 

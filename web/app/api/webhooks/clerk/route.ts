@@ -5,6 +5,7 @@ import { WebhookEvent } from '@clerk/nextjs/server'
 import { db } from '@/db'
 import { users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
+import { sendWelcomeEmail } from '@/lib/email'
 
 export async function POST(req: Request) {
     // You can find this in the Clerk Dashboard -> Webhooks -> choose the webhook
@@ -58,7 +59,7 @@ export async function POST(req: Request) {
     const eventType = evt.type;
 
     if (eventType === 'user.created') {
-        const { id, email_addresses } = evt.data;
+        const { id, email_addresses, first_name } = evt.data;
         // @ts-ignore
         const email = email_addresses[0]?.email_address;
 
@@ -67,10 +68,22 @@ export async function POST(req: Request) {
                 await db.insert(users).values({
                     clerkId: id,
                     email: email,
+                    onboardingStep: 0,
                 }).onConflictDoNothing();
                 console.log(`User created: ${email}`);
             } catch (e) {
                 console.error('Error inserting user:', e);
+            }
+
+            // Send welcome email — fire and forget; don't block webhook response
+            if (process.env.RESEND_API_KEY) {
+                sendWelcomeEmail(email, first_name ?? undefined)
+                    .then(() => {
+                        return db.update(users)
+                            .set({ onboardingStep: 1 })
+                            .where(eq(users.clerkId, id))
+                    })
+                    .catch((e: unknown) => console.error('Welcome email failed:', e))
             }
         }
     } else if (eventType === 'user.updated') {

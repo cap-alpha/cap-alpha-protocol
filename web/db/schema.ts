@@ -1,5 +1,5 @@
 
-import { pgTable, serial, text, timestamp, jsonb, uuid, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, jsonb, uuid, boolean } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
     id: serial("id").primaryKey(),
@@ -14,6 +14,9 @@ export const users = pgTable("users", {
     tosAgreedAt: timestamp("tos_agreed_at"),
     tosVersion: text("tos_version"),
     createdAt: timestamp("created_at").defaultNow(),
+    // Email onboarding sequence tracking (0=none, 1=welcome sent, 2=day3 sent, 3=day7 sent)
+    onboardingStep: integer("onboarding_step").default(0).notNull(),
+    emailUnsubscribedAt: timestamp("email_unsubscribed_at"),
 });
 
 export const scenarios = pgTable("scenarios", {

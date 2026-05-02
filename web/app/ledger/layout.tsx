@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
+import { AffiliateInlineLink } from "@/components/affiliate-cta";
 
 export const metadata: Metadata = {
     title: "Pundit Leaderboard",
@@ -37,6 +38,16 @@ export default function LedgerLayout({
                             Privacy
                         </Link>
                     </div>
+                    {/* Placement 3 — Ledger footer affiliate link */}
+                    <span className="text-[11px]">
+                        Ready to act on the data?{" "}
+                        <AffiliateInlineLink
+                            platformA="underdog"
+                            platformB="prizepicks"
+                            label="Sign up at {platform}"
+                            placement="ledger_footer"
+                        />
+                    </span>
                     <span>&copy; {new Date().getFullYear()} Pundit Ledger.</span>
                 </div>
             </footer>

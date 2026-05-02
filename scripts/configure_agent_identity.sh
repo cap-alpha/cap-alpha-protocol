@@ -41,12 +41,20 @@ fi
 
 if [ "$current_name" = "$CLAUDE_NAME" ] && [ "$current_email" = "$CLAUDE_EMAIL" ]; then
   echo "agent identity already configured for this worktree"
-  exit 0
+else
+  git config --local user.name  "$CLAUDE_NAME"
+  git config --local user.email "$CLAUDE_EMAIL"
+
+  echo "configured agent identity in $(git rev-parse --show-toplevel):"
+  echo "  user.name  = $CLAUDE_NAME"
+  echo "  user.email = $CLAUDE_EMAIL"
 fi
 
-git config --local user.name  "$CLAUDE_NAME"
-git config --local user.email "$CLAUDE_EMAIL"
-
-echo "configured agent identity in $(git rev-parse --show-toplevel):"
-echo "  user.name  = $CLAUDE_NAME"
-echo "  user.email = $CLAUDE_EMAIL"
+# Symlink .venv from the main checkout into this worktree so `make check`
+# and direct `source .venv/bin/activate` calls work without cd-ing to repo root.
+REPO_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
+WORKTREE_ROOT="$(git rev-parse --show-toplevel)"
+if [ ! -e "$WORKTREE_ROOT/.venv" ]; then
+  ln -sf "$REPO_ROOT/.venv" "$WORKTREE_ROOT/.venv"
+  echo "  .venv symlink -> $REPO_ROOT/.venv"
+fi

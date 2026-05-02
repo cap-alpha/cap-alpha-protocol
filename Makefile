@@ -1,7 +1,9 @@
 .PHONY: up down shell-pipeline venv test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees
 
 PYTHON ?= python3
-VENV := .venv
+# Resolve VENV to the main repo root — works from both the main checkout and worktrees.
+REPO_ROOT := $(shell cd "$$(git rev-parse --git-common-dir)/.." && pwd)
+VENV := $(REPO_ROOT)/.venv
 ACTIVATE := . $(VENV)/bin/activate
 PY := $(ACTIVATE) &&
 

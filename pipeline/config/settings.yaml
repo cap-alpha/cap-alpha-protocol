@@ -24,3 +24,14 @@ paths:
 scrapers:
   spotrac_base_url: "https://www.spotrac.com/nfl"
   pfr_base_url: "https://www.pro-football-reference.com"
+
+# Phase C — Speech-act extraction (Issue #555)
+extraction:
+  # Testability threshold for promoting utterances to prediction_ledger.
+  # Utterances with testability_score >= this value AND speech_act_type in
+  # (assertion, conditional, recall) are written to prediction_ledger.
+  # All utterances are always written to silver_v2_claims.raw_utterance first.
+  #
+  # Override at runtime: export TESTABILITY_THRESHOLD=0.6
+  # Set to 0.0 for backward-compatibility mode (everything promoted).
+  testability_threshold: 0.6  # default; overridden by TESTABILITY_THRESHOLD env var

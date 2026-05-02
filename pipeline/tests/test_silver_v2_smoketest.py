@@ -142,9 +142,14 @@ def _bq_client():
 
 
 _B1_REASON = "Phase B-1: requires BQ backfill — set RUN_INTEGRATION_TESTS=1"
+_skip_b1 = pytest.mark.skipif(
+    not os.environ.get("GCP_PROJECT_ID"),
+    reason="GCP_PROJECT_ID not set — skipping BQ integration tests",
+)
 
 
 @pytest.mark.integration
+@_skip_b1
 def test_brady_entity_and_three_retire_transitions():
     """
     Tom Brady must have exactly 3 Retire transition events in silver_v2_core.
@@ -179,6 +184,7 @@ def test_brady_entity_and_three_retire_transitions():
 
 
 @pytest.mark.integration
+@_skip_b1
 def test_chad_johnson_name_change_transitions():
     """
     Chad Johnson must have 2 NameChange transitions representing the
@@ -232,6 +238,7 @@ def test_chad_johnson_name_change_transitions():
 
 
 @pytest.mark.integration
+@_skip_b1
 def test_bo_jackson_concurrent_employment():
     """
     Bo Jackson must have 2 concurrent employment attribute events with

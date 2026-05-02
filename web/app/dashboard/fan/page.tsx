@@ -63,12 +63,16 @@ export default async function FanDashboard() {
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative">
-                            <PredictionCard 
-                                playerId={featuredPrediction.player_name}
-                                playerName={featuredPrediction.player_name}
-                                currentCapHit={(featuredPrediction.cap_hit_millions || 15) * 1000000}
-                                position={featuredPrediction.position}
-                                team={featuredPrediction.team}
+                            <PredictionCard
+                                prediction={{
+                                    id: featuredPrediction.player_name,
+                                    text: `${featuredPrediction.player_name} will be released or restructured before the season.`,
+                                    pundidName: "Fan Consensus",
+                                    pundidSlug: "fan-consensus",
+                                    madeAt: new Date().toISOString(),
+                                    outcome: "pending",
+                                    confidence: featuredPrediction.risk_score,
+                                }}
                             />
                             {/* We can map more Prediction Cards here if we want a full slate of games */}
                         </div>

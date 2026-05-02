@@ -23,7 +23,7 @@ export default function LandingPage() {
                         Cryptographically Verified
                     </div>
 
-                    <h1 className="text-5xl sm:text-6xl font-black tracking-tight leading-[1.05]">
+                    <h1 className="font-serif text-display-xl">
                         Hold Pundits{" "}
                         <span className="text-emerald-400">Accountable.</span>
                     </h1>

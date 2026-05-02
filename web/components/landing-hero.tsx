@@ -4,11 +4,12 @@ import { useState, useEffect } from "react";
 import { SignInButton } from "@clerk/nextjs";
 import { WaitlistForm } from "./waitlist-form";
 import { Button } from "@/components/ui/button";
-import { Clock, TrendingDown, MessageSquareWarning, ChevronLeft, ChevronRight, Twitter, Pause, Play, Heart, Repeat, MessageSquare, Calendar } from "lucide-react";
+import { Clock, TrendingDown, ChevronLeft, ChevronRight, Twitter, Pause, Play, Heart, Repeat, MessageSquare, Calendar } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
+import { PredictionOutcomeStamp } from "./prediction-outcome-stamp";
 
 type Tweet = {
     text: string;
@@ -209,11 +210,25 @@ export function LandingHero({ receipts }: { receipts: Receipt[] }) {
 
                                     {/* Column 3: The Truth */}
                                     <div className="p-8 flex flex-col justify-start relative z-10">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/80 font-bold border border-white/20 shadow-lg">3</span>
-                                            <h3 className="text-sm font-bold uppercase tracking-widest text-white/80">
-                                                What Actually Happened
-                                            </h3>
+                                        <div className="flex items-center justify-between gap-3 mb-6">
+                                            <div className="flex items-center gap-3">
+                                                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/80 font-bold border border-white/20 shadow-lg">3</span>
+                                                <h3 className="text-sm font-bold uppercase tracking-widest text-white/80">
+                                                    What Actually Happened
+                                                </h3>
+                                            </div>
+                                            <PredictionOutcomeStamp
+                                                outcome={
+                                                    currentReceipt.trend === "correct"
+                                                        ? "correct"
+                                                        : currentReceipt.trend === "incorrect"
+                                                        ? "incorrect"
+                                                        : currentReceipt.trend === "void"
+                                                        ? "void"
+                                                        : "pending"
+                                                }
+                                                size="md"
+                                            />
                                         </div>
                                         <div className="space-y-6">
                                             <div>

@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { PredictionShareButton } from "@/components/prediction-share-button";
 import { PunditSearchBar } from "@/components/pundit-search-bar";
+import { PunditCard, type PunditCardProps } from "@/components/pundit-card";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -518,6 +519,118 @@ function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
 }
 
 // ---------------------------------------------------------------------------
+// localStorage default view key
+// ---------------------------------------------------------------------------
+
+const STORAGE_KEY = "ledger-default-view";
+type TopLevelView = "hof" | "hos" | "all";
+
+function readStoredView(): TopLevelView {
+    if (typeof window === "undefined") return "hof";
+    try {
+        const v = localStorage.getItem(STORAGE_KEY);
+        if (v === "hof" || v === "hos" || v === "all") return v;
+    } catch {
+        // ignore
+    }
+    return "hof";
+}
+
+// ---------------------------------------------------------------------------
+// HOF / HOS tab — pundit card grid
+// ---------------------------------------------------------------------------
+
+function hofCardProps(p: PunditStat): PunditCardProps {
+    return {
+        punditId: p.pundit_id,
+        name: p.pundit_name,
+        accuracy: p.accuracy_rate ?? 0,
+        correctCount: p.correct_predictions,
+        totalCount: p.total_predictions,
+        variant: "hof",
+    };
+}
+
+function hosCardProps(p: PunditStat): PunditCardProps {
+    return {
+        punditId: p.pundit_id,
+        name: p.pundit_name,
+        accuracy: p.accuracy_rate ?? 0,
+        correctCount: p.correct_predictions,
+        totalCount: p.total_predictions,
+        variant: "hos",
+    };
+}
+
+function HofHosGrid({
+    pundits,
+    variant,
+    recent,
+}: {
+    pundits: PunditStat[];
+    variant: "hof" | "hos";
+    recent: RecentPrediction[];
+}) {
+    if (pundits.length === 0) {
+        return (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
+                {variant === "hof"
+                    ? "No pundits with resolved predictions yet."
+                    : "Not enough pundits with 10+ resolved predictions yet."}
+            </div>
+        );
+    }
+
+    // Build a lookup: punditId -> most recent resolved prediction
+    const resolvedByPundit = new Map<string, RecentPrediction>();
+    for (const p of recent) {
+        if (
+            p.resolution_status === "CORRECT" ||
+            p.resolution_status === "INCORRECT"
+        ) {
+            const existing = resolvedByPundit.get(p.pundit_id);
+            if (!existing) {
+                resolvedByPundit.set(p.pundit_id, p);
+            } else {
+                // keep most recent
+                if (
+                    new Date(p.ingestion_timestamp) >
+                    new Date(existing.ingestion_timestamp)
+                ) {
+                    resolvedByPundit.set(p.pundit_id, p);
+                }
+            }
+        }
+    }
+
+    const cards = pundits.map((p) => {
+        const fp = resolvedByPundit.get(p.pundit_id);
+        const base = variant === "hof" ? hofCardProps(p) : hosCardProps(p);
+        if (fp) {
+            return {
+                ...base,
+                featuredPrediction: {
+                    text: fp.extracted_claim,
+                    outcome: (fp.resolution_status === "CORRECT"
+                        ? "correct"
+                        : "incorrect") as "correct" | "incorrect",
+                    resolvedAt: fmtDate(fp.ingestion_timestamp) ?? "",
+                },
+            };
+        }
+        return base;
+    });
+
+    return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" data-testid="hof-hos-grid">
+            {cards.map((card) => (
+                <PunditCard key={card.punditId} {...card} />
+            ))}
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -526,11 +639,30 @@ export default function LedgerPage() {
     const [recent, setRecent] = useState<RecentPrediction[]>([]);
     const [loading, setLoading] = useState(true);
     const [sportFilter, setSportFilter] = useState<string>("ALL");
+
+    // Top-level view: hof | hos | all (persisted to localStorage)
+    const [topView, setTopView] = useState<TopLevelView>("hof");
+
+    // Inner tabs for "all" view
     const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">(
         "leaderboard"
     );
     const [drawerPrediction, setDrawerPrediction] = useState<RecentPrediction | null>(null);
     const [drawerSources, setDrawerSources] = useState<RecentPrediction[]>([]);
+
+    // Hydrate from localStorage on mount
+    useEffect(() => {
+        setTopView(readStoredView());
+    }, []);
+
+    const handleTopView = (v: TopLevelView) => {
+        setTopView(v);
+        try {
+            localStorage.setItem(STORAGE_KEY, v);
+        } catch {
+            // ignore
+        }
+    };
 
     const openDrawer = (prediction: RecentPrediction, sources: RecentPrediction[]) => {
         setDrawerPrediction(prediction);
@@ -581,6 +713,17 @@ export default function LedgerPage() {
     );
 
     const SPORTS = ["ALL", "NFL", "NBA", "MLB"];
+
+    // HOF: top 10 by accuracy (must have resolved predictions)
+    const hofPundits = sorted
+        .filter((p) => p.resolved_predictions > 0 && p.accuracy_rate !== null)
+        .slice(0, 10);
+
+    // HOS: bottom 10 by accuracy with min 10 predictions
+    const hosPundits = [...sorted]
+        .filter((p) => p.total_predictions >= 10 && p.accuracy_rate !== null)
+        .sort((a, b) => (a.accuracy_rate ?? 1) - (b.accuracy_rate ?? 1))
+        .slice(0, 10);
 
     return (
         <div className="min-h-screen bg-black text-white">
@@ -641,7 +784,7 @@ export default function LedgerPage() {
                         <PunditSearchBar placeholder="Search pundits..." />
                     </div>
 
-                    {/* Sport filter — applies to both tabs */}
+                    {/* Sport filter — applies to all views */}
                     <div className="flex items-center gap-2 mt-4">
                         <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1">
                             Sport:
@@ -669,27 +812,62 @@ export default function LedgerPage() {
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="border-b border-zinc-900">
+            {/* Top-level view toggle: HOF | HOS | All */}
+            <div className="border-b border-zinc-900 bg-zinc-950/30">
                 <div className="max-w-6xl mx-auto px-4">
-                    <div className="flex gap-0">
-                        {(["leaderboard", "recent"] as const).map((tab) => (
+                    <div className="flex gap-0" role="tablist" aria-label="Ledger view">
+                        {(
+                            [
+                                { id: "hof", label: "Hall of Fame" },
+                                { id: "hos", label: "Hall of Shame" },
+                                { id: "all", label: "All" },
+                            ] as { id: TopLevelView; label: string }[]
+                        ).map(({ id, label }) => (
                             <button
-                                key={tab}
-                                onClick={() => setActiveTab(tab)}
+                                key={id}
+                                role="tab"
+                                aria-selected={topView === id}
+                                data-testid={`top-view-${id}`}
+                                onClick={() => handleTopView(id)}
                                 className={cn(
                                     "px-5 py-3 text-sm font-semibold uppercase tracking-wide transition-colors border-b-2",
-                                    activeTab === tab
-                                        ? "border-emerald-500 text-emerald-400"
+                                    topView === id
+                                        ? id === "hos"
+                                            ? "border-red-500 text-red-400"
+                                            : "border-emerald-500 text-emerald-400"
                                         : "border-transparent text-zinc-500 hover:text-zinc-300"
                                 )}
                             >
-                                {tab === "leaderboard" ? "Leaderboard" : `Recent (${resolvedFeed.length})`}
+                                {label}
                             </button>
                         ))}
                     </div>
                 </div>
             </div>
+
+            {/* Secondary tabs — only shown when topView === "all" */}
+            {topView === "all" && (
+                <div className="border-b border-zinc-900">
+                    <div className="max-w-6xl mx-auto px-4">
+                        <div className="flex gap-0">
+                            {(["leaderboard", "recent"] as const).map((tab) => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={cn(
+                                        "px-5 py-3 text-sm font-semibold uppercase tracking-wide transition-colors border-b-2",
+                                        activeTab === tab
+                                            ? "border-emerald-500 text-emerald-400"
+                                            : "border-transparent text-zinc-500 hover:text-zinc-300"
+                                    )}
+                                >
+                                    {tab === "leaderboard" ? "Leaderboard" : `Recent (${resolvedFeed.length})`}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Content */}
             <div className="max-w-6xl mx-auto px-4 py-8">
@@ -697,6 +875,20 @@ export default function LedgerPage() {
                     <div className="flex items-center justify-center h-48 text-zinc-600">
                         <Activity className="w-4 h-4 animate-pulse mr-2" />
                         <span className="font-mono text-sm">Loading ledger…</span>
+                    </div>
+                ) : topView === "hof" ? (
+                    <div>
+                        <p className="text-xs font-mono text-zinc-500 mb-6 uppercase tracking-widest">
+                            Top 10 by accuracy — all-time
+                        </p>
+                        <HofHosGrid pundits={hofPundits} variant="hof" recent={recent} />
+                    </div>
+                ) : topView === "hos" ? (
+                    <div>
+                        <p className="text-xs font-mono text-zinc-500 mb-6 uppercase tracking-widest">
+                            Bottom 10 by accuracy — min 10 predictions
+                        </p>
+                        <HofHosGrid pundits={hosPundits} variant="hos" recent={recent} />
                     </div>
                 ) : (
                     <TabContent
@@ -959,18 +1151,21 @@ function RecentTab({
     const resolvedGroups = groupPredictions(resolved);
     const pendingGroups = groupPredictions(pending);
 
+    const resolvedClusters = buildSemanticClusters(resolvedGroups);
+    const pendingClusters = buildSemanticClusters(pendingGroups.slice(0, 10));
+
     return (
         <div className="space-y-6">
-            {resolvedGroups.length > 0 && (
+            {resolvedClusters.length > 0 && (
                 <div>
                     <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
                         Recently Resolved
                     </h3>
-                    <div className="space-y-2">
-                        {resolvedGroups.map((g) => (
-                            <PredictionGroupRow
-                                key={g.key}
-                                group={g}
+                    <div className="space-y-3">
+                        {resolvedClusters.map((cluster) => (
+                            <SemanticClusterSection
+                                key={cluster.label}
+                                cluster={cluster}
                                 onOpenDrawer={onOpenDrawer}
                             />
                         ))}
@@ -978,20 +1173,102 @@ function RecentTab({
                 </div>
             )}
 
-            {pendingGroups.length > 0 && (
+            {pendingClusters.length > 0 && (
                 <div>
                     <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
                         Awaiting Resolution
                     </h3>
-                    <div className="space-y-2">
-                        {pendingGroups.slice(0, 10).map((g) => (
-                            <PredictionGroupRow
-                                key={g.key}
-                                group={g}
+                    <div className="space-y-3">
+                        {pendingClusters.map((cluster) => (
+                            <SemanticClusterSection
+                                key={cluster.label}
+                                cluster={cluster}
                                 onOpenDrawer={onOpenDrawer}
                             />
                         ))}
                     </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Semantic cluster group divider + collapse toggle
+// ---------------------------------------------------------------------------
+
+interface SemanticCluster {
+    label: string;
+    groups: PredictionGroup[];
+}
+
+/** Cluster groups by representative's claim_category — used as a proxy for semantic bucket */
+function buildSemanticClusters(groups: PredictionGroup[]): SemanticCluster[] {
+    const buckets = new Map<string, PredictionGroup[]>();
+    for (const g of groups) {
+        const cat = g.representative.claim_category ?? "other";
+        if (!buckets.has(cat)) buckets.set(cat, []);
+        buckets.get(cat)!.push(g);
+    }
+    const labels: Record<string, string> = {
+        game_outcome: "Game Outcomes",
+        player_performance: "Player Performance",
+        trade: "Trades",
+        draft_pick: "Draft Picks",
+        injury: "Injuries",
+        contract: "Contracts",
+        other: "Other",
+    };
+    return Array.from(buckets.entries()).map(([cat, gs]) => ({
+        label: labels[cat] ?? cat,
+        groups: gs,
+    }));
+}
+
+function SemanticClusterSection({
+    cluster,
+    onOpenDrawer,
+}: {
+    cluster: SemanticCluster;
+    onOpenDrawer: (p: RecentPrediction, sources: RecentPrediction[]) => void;
+}) {
+    const total = cluster.groups.length;
+    const defaultCollapsed = total > 3;
+    const [collapsed, setCollapsed] = useState(defaultCollapsed);
+
+    return (
+        <div data-testid="prediction-group" className="space-y-1">
+            {/* Divider with collapse toggle */}
+            <button
+                className="w-full flex items-center gap-2 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors py-1 group"
+                onClick={() => setCollapsed((v) => !v)}
+                aria-expanded={!collapsed}
+                aria-label={`Toggle ${cluster.label} group`}
+            >
+                <span className="text-zinc-700">──</span>
+                <span className="uppercase tracking-widest">
+                    Similar predictions ({total})
+                </span>
+                <span className="text-zinc-700 group-hover:text-zinc-500">──</span>
+                <span className="ml-auto">
+                    {collapsed ? (
+                        <ChevronDown className="w-3 h-3" />
+                    ) : (
+                        <ChevronUp className="w-3 h-3" />
+                    )}
+                </span>
+            </button>
+
+            {/* Group rows */}
+            {!collapsed && (
+                <div className="space-y-2">
+                    {cluster.groups.map((g) => (
+                        <PredictionGroupRow
+                            key={g.key}
+                            group={g}
+                            onOpenDrawer={onOpenDrawer}
+                        />
+                    ))}
                 </div>
             )}
         </div>
@@ -1147,3 +1424,9 @@ function PredictionGroupRow({
         </div>
     );
 }
+
+// Expose SemanticClusterSection for use in RecentTab — add grouped view
+// NOTE: The RecentTab currently renders flat PredictionGroupRows. We expose
+// the cluster section here for the explicit grouping headers feature. The RecentTab
+// itself uses the flat layout; callers can switch to SemanticClusterSection.
+export { SemanticClusterSection, buildSemanticClusters };

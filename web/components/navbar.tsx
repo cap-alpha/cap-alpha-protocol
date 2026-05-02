@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserButton, useUser, SignInButton } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
+import { PunditSearchBar } from "@/components/pundit-search-bar";
 
 // Routes visible only to signed-in users
 const AUTH_ONLY_ROUTES = ["/dashboard", "/scenarios", "/fantasy"];
@@ -90,6 +91,14 @@ export function Navbar() {
                             </>
                         )}
                     </nav>
+                </div>
+
+                {/* Desktop pundit search — center of navbar, ≥1024px only */}
+                <div className="hidden lg:flex flex-1 justify-center px-8 max-w-sm mx-auto">
+                    <PunditSearchBar
+                        placeholder="Search pundits..."
+                        className="w-full"
+                    />
                 </div>
 
                 <div className="flex items-center gap-4">

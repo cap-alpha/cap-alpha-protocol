@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PredictionShareButton } from "@/components/prediction-share-button";
+import { PunditSearchBar } from "@/components/pundit-search-bar";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -635,8 +636,13 @@ export default function LedgerPage() {
                         </div>
                     </div>
 
+                    {/* Pundit search — primary navigation */}
+                    <div className="mt-6 max-w-md">
+                        <PunditSearchBar placeholder="Search pundits..." />
+                    </div>
+
                     {/* Sport filter — applies to both tabs */}
-                    <div className="flex items-center gap-2 mt-6">
+                    <div className="flex items-center gap-2 mt-4">
                         <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1">
                             Sport:
                         </span>

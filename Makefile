@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees
+.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2
 
 PYTHON ?= python3
 # Resolve VENV to the main repo root — works from both the main checkout and worktrees.
@@ -121,6 +121,13 @@ resolve-draft:
 	@echo "Running draft_pick resolution pass..."
 	$(PY) PYTHONPATH=$$(pwd)/pipeline \
 		python -m src.resolve_daily --category draft_pick
+
+# -----------------------------------------------------------------------------
+# SILVER V2 — backfill + migration
+# -----------------------------------------------------------------------------
+
+backfill-silver-v2:
+	$(PY) python pipeline/scripts/backfill_silver_v2_sample.py
 
 # -----------------------------------------------------------------------------
 # WEB

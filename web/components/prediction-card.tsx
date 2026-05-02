@@ -1,123 +1,147 @@
 "use client";
 
-import React, { useState } from "react";
-import { TrendingUp, TrendingDown, Minus, CheckCircle } from "lucide-react";
-import { cn } from "@/lib/utils";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
 import { slugify } from "@/lib/utils";
+import { PredictionOutcomeStamp } from "./prediction-outcome-stamp";
 
-interface PredictionCardProps {
-    playerId: string;
-    playerName: string;
-    currentCapHit: number;
-    position: string;
-    team: string;
+type PredictionOutcome = "correct" | "incorrect" | "pending" | "void";
+
+export type PredictionCardPrediction = {
+  id: string;
+  text: string;
+  pundidName: string;
+  pundidSlug: string;
+  madeAt: string;
+  resolvedAt?: string;
+  outcome: PredictionOutcome;
+  confidence?: number;
+};
+
+export type PredictionCardProps = {
+  prediction: PredictionCardPrediction;
+  variant?: "compact" | "full";
+  className?: string;
+};
+
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return iso;
+  }
 }
 
-export function PredictionCard({ playerId, playerName, currentCapHit, position, team }: PredictionCardProps) {
-    const [voteDir, setVoteDir] = useState<"BUY" | "HOLD" | "SHORT" | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [hasVoted, setHasVoted] = useState(false);
+function ConfidenceBar({ value }: { value: number }) {
+  const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider w-20">
+        Confidence
+      </span>
+      <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-emerald-500 rounded-full"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-[10px] font-mono text-zinc-400 w-8 text-right">
+        {pct}%
+      </span>
+    </div>
+  );
+}
 
-    const handleVote = async (direction: "BUY" | "HOLD" | "SHORT") => {
-        setVoteDir(direction);
-        setIsSubmitting(true);
-        
-        try {
-            const res = await fetch("/api/predictions", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ playerId, direction, timestamp: Date.now() }),
-            });
-            
-            if (res.ok) {
-                setHasVoted(true);
-            }
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
+export function PredictionCard({
+  prediction,
+  variant = "full",
+  className,
+}: PredictionCardProps) {
+  const {
+    text,
+    pundidName,
+    pundidSlug,
+    madeAt,
+    resolvedAt,
+    outcome,
+    confidence,
+  } = prediction;
 
-    const formatMoney = (val: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(val);
-
+  if (variant === "compact") {
     return (
-        <div className="bg-card border border-border rounded-lg p-5 shadow-sm">
-            <div className="flex mb-4 items-baseline justify-between border-b border-border/50 pb-3">
-                <div className="flex items-baseline gap-2">
-                    <h3 className="text-lg font-bold text-foreground">
-                        <Link href={`/player/${encodeURIComponent(slugify(playerName))}`} className="hover:underline hover:text-emerald-400 transition-colors">
-                            {playerName}
-                        </Link>
-                    </h3>
-                    <p className="text-xs font-medium text-muted-foreground">{position} • {team}</p>
-                </div>
-                <div className="text-right">
-                    <p className="font-mono text-base font-semibold text-foreground">
-                        {formatMoney(currentCapHit)}
-                        <span className="text-xs text-muted-foreground ml-1 font-sans font-normal">Cap Hit</span>
-                    </p>
-                </div>
-            </div>
-
-            {hasVoted ? (
-                <div className="flex flex-col items-center justify-center p-4 bg-muted/50 rounded-md">
-                    <CheckCircle className="h-6 w-6 text-foreground mb-2" />
-                    <p className="text-sm font-semibold text-foreground">Prediction Logged</p>
-                    <p className="text-xs text-muted-foreground">+50 Alpha Credits</p>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    <div className="text-sm font-medium text-muted-foreground mb-1">
-                        Predict Action: {team} vs. {playerName}
-                    </div>
-                    
-                    <div className="grid grid-cols-3 gap-2">
-                        <button
-                            disabled={isSubmitting}
-                            onClick={() => handleVote("BUY")}
-                            className={cn(
-                                "flex flex-col items-center justify-center py-2 px-1 rounded border border-transparent transition-all",
-                                "hover:bg-green-500/10 hover:text-green-500",
-                                "disabled:opacity-50",
-                                voteDir === "BUY" ? "bg-green-500/10 border-green-500/30 text-green-500" : "bg-muted/30 text-muted-foreground"
-                            )}
-                        >
-                            <TrendingUp className="h-4 w-4 mb-1" />
-                            <span className="text-[10px] uppercase font-semibold">Extend</span>
-                        </button>
-
-                        <button
-                            disabled={isSubmitting}
-                            onClick={() => handleVote("HOLD")}
-                            className={cn(
-                                "flex flex-col items-center justify-center py-2 px-1 rounded border border-transparent transition-all",
-                                "hover:bg-amber-500/10 hover:text-amber-500",
-                                "disabled:opacity-50",
-                                voteDir === "HOLD" ? "bg-amber-500/10 border-amber-500/30 text-amber-500" : "bg-muted/30 text-muted-foreground"
-                            )}
-                        >
-                            <Minus className="h-4 w-4 mb-1" />
-                            <span className="text-[10px] uppercase font-semibold">Restructure</span>
-                        </button>
-
-                        <button
-                            disabled={isSubmitting}
-                            onClick={() => handleVote("SHORT")}
-                            className={cn(
-                                "flex flex-col items-center justify-center py-2 px-1 rounded border border-transparent transition-all",
-                                "hover:bg-rose-500/10 hover:text-rose-500",
-                                "disabled:opacity-50",
-                                voteDir === "SHORT" ? "bg-rose-500/10 border-rose-500/30 text-rose-500" : "bg-muted/30 text-muted-foreground"
-                            )}
-                        >
-                            <TrendingDown className="h-4 w-4 mb-1" />
-                            <span className="text-[10px] uppercase font-semibold">Cut/Trade</span>
-                        </button>
-                    </div>
-                </div>
-            )}
+      <div
+        className={cn(
+          "flex items-center gap-3 rounded-lg border border-zinc-800 bg-[#111113] px-4 py-3 shadow-sm",
+          className
+        )}
+      >
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-zinc-200 truncate">{text}</p>
+          <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
+            <Link
+              href={`/pundit/${pundidSlug}`}
+              className="hover:text-emerald-400 transition-colors"
+            >
+              {pundidName}
+            </Link>
+            {" · "}
+            {formatDate(madeAt)}
+          </p>
         </div>
+        <PredictionOutcomeStamp outcome={outcome} size="sm" className="shrink-0" />
+      </div>
     );
+  }
+
+  // Full variant
+  return (
+    <div
+      className={cn(
+        "relative rounded-lg border border-zinc-800 bg-[#111113] shadow-[inset_0_0_0_1px_rgba(255,255,255,0.04)] overflow-hidden",
+        className
+      )}
+    >
+      {/* Stamp overlay — top-right, absolute */}
+      <div className="absolute top-4 right-4 z-10">
+        <PredictionOutcomeStamp outcome={outcome} size="md" />
+      </div>
+
+      {/* Card body */}
+      <div className="p-5">
+        {/* Pundit header */}
+        <div className="mb-4 pr-32">
+          <Link
+            href={`/pundit/${pundidSlug}`}
+            className="text-xs font-mono font-bold uppercase tracking-widest text-emerald-400 hover:text-emerald-300 transition-colors"
+          >
+            {pundidName}
+          </Link>
+        </div>
+
+        {/* Prediction text */}
+        <p className="text-lg font-semibold italic text-zinc-100 leading-snug mb-5">
+          &ldquo;{text}&rdquo;
+        </p>
+
+        {/* Confidence bar */}
+        {confidence !== undefined && (
+          <div className="mb-4">
+            <ConfidenceBar value={confidence} />
+          </div>
+        )}
+
+        {/* Date footer */}
+        <div className="flex items-center justify-between border-t border-zinc-800/60 pt-3 mt-3">
+          <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+            <span>Made {formatDate(madeAt)}</span>
+            {resolvedAt && <span>Resolved {formatDate(resolvedAt)}</span>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }

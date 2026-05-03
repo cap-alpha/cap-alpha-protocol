@@ -59,7 +59,10 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           LLM_EXTRACTION_PROVIDER: gemini
+          LLM_EXTRACTION_MODEL: gemini-2.5-flash
+          LLM_EXTRACTION_RATE_LIMIT: "1.0"
           PYTHONPATH: ${{ github.workspace }}/pipeline
           # CI provenance — written to silver_v2_claims.extraction_run by run_extraction()
           GITHUB_SHA: ${{ github.sha }}

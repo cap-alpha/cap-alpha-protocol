@@ -197,9 +197,21 @@ class DBManager:
             )
 
             # Cast object types to string to avoid Parquet type mismatch exceptions
+            # but preserve None values in nullable string columns
             for col in df_cleaned.columns:
                 if df_cleaned[col].dtype == "object":
-                    df_cleaned[col] = df_cleaned[col].astype(str)
+                    # Check if all non-null values are already strings
+                    non_null_values = df_cleaned[col].dropna()
+                    if len(non_null_values) > 0 and all(
+                        isinstance(v, str) for v in non_null_values
+                    ):
+                        # Column is already nullable string — preserve None values
+                        df_cleaned[col] = df_cleaned[col].where(
+                            df_cleaned[col].notna(), None
+                        )
+                    else:
+                        # Column has mixed types — coerce to string
+                        df_cleaned[col] = df_cleaned[col].astype(str)
 
             job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
             job = self.client.load_table_from_dataframe(

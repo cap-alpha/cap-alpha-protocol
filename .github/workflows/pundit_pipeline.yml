@@ -82,6 +82,15 @@ jobs:
           cd pipeline
           python -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
 
+      - name: Verify extraction produced output
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          cd pipeline
+          python scripts/check_extraction_health.py --window-minutes 120 --min-count 1
+
       - name: Refresh SportsDataIO draft data
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

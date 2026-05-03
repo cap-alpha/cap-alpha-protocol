@@ -35,6 +35,7 @@ async function getQualityData(): Promise<QualityResponse> {
             punditStats: [],
             dataQuality: {
                 null_metadata_pct: 0,
+                pct_rows_with_complete_metadata: 1,
                 zero_output_runs_7d: 0,
                 provider_mix: {},
             },

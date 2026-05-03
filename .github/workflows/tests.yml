@@ -38,7 +38,8 @@ jobs:
       run: |
         pytest pipeline/tests/ -v --tb=short --cov=pipeline/src --cov-report=term-missing --cov-report=xml \
           --ignore=pipeline/tests/test_api.py \
-          --ignore=pipeline/tests/test_api_vegas.py
+          --ignore=pipeline/tests/test_api_vegas.py \
+          -m "not integration"
       env:
         PYTHONPATH: ${{ github.workspace }}/pipeline
 

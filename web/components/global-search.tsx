@@ -153,7 +153,7 @@ export function GlobalSearch() {
                         )}
                     </div>
                     <div className="bg-slate-900/50 p-2 px-4 border-t border-slate-800 text-[10px] text-slate-500 font-mono uppercase flex justify-between">
-                        <span>Search Engine: Cap Alpha Protocol</span>
+                        <span>Search Engine: Cap Alpha</span>
                         <span><kbd className="bg-slate-800 px-1 rounded">ESC</kbd> to close</span>
                     </div>
                 </DialogContent>

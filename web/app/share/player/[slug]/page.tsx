@@ -30,7 +30,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   }
 
   const title = `${player.player_name} — Cap Alpha Intel`;
-  const description = `${player.player_name} (${player.position}, ${player.team}) · $${player.cap_hit_millions?.toFixed(1)}M cap hit · ML risk score ${player.risk_score?.toFixed(2) ?? "N/A"} · Powered by NFL Dead Money`;
+  const description = `${player.player_name} (${player.position}, ${player.team}) · $${player.cap_hit_millions?.toFixed(1)}M cap hit · ML risk score ${player.risk_score?.toFixed(2) ?? "N/A"} · Powered by Cap Alpha`;
 
   return {
     title,

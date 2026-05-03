@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "assertion",
+  "testability_score_expected": 0.85,
+  "claim_count_expected": 1,
+  "notes": "Contract event prediction with specific deadline and parties"
+}

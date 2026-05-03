@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "hedge",
+  "testability_score_expected": 0.30,
+  "claim_count_expected": 1,
+  "notes": "Maximum hedging — repeated uncertainty markers ('think', 'maybe', 'could', 'not sure at all') drain specificity"
+}

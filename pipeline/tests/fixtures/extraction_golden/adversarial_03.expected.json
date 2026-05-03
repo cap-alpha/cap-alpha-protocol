@@ -1,0 +1,7 @@
+{
+  "speech_act_type": "assertion",
+  "testability_score_expected": 0.72,
+  "claim_count_expected": 1,
+  "adversarial_type": "hedged_assertion",
+  "notes": "Hedged but assertive: speaker expresses explicit numeric confidence and commits to a prediction. Despite hedge language, intent is a forward prediction. Expected: assertion, not hedge."
+}

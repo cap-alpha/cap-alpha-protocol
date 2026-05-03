@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "conditional",
+  "testability_score_expected": 0.72,
+  "claim_count_expected": 1,
+  "notes": "Classic if-then conditional: WR acquisition unlocks rookie TD count prediction"
+}

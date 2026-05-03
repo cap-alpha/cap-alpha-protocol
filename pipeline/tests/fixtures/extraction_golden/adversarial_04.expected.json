@@ -1,0 +1,7 @@
+{
+  "speech_act_type": "commentary",
+  "testability_score_expected": 0.32,
+  "claim_count_expected": 1,
+  "adversarial_type": "attribution",
+  "notes": "Reporter relaying attributed claim while explicitly disclaiming personal ownership. Should NOT be assertion (speaker's own prediction). Speaker is transmitting, not originating — classify as commentary."
+}

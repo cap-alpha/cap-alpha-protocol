@@ -780,6 +780,50 @@ def load_llm_config(config_path: Optional[Path] = None) -> dict:
         return yaml.safe_load(f)
 
 
+_GEMINI_MODEL_PREFIXES = ("gemini-",)
+_CLAUDE_MODEL_PREFIXES = ("claude-",)
+_OPENAI_MODEL_PREFIXES = ("gpt-", "o1", "o3")
+
+
+def _validate_provider_model(provider_name: str, model: str) -> None:
+    """Raise ValueError if the model name is inconsistent with the provider.
+
+    This catches cross-provider leaks such as using an Ollama model name
+    (e.g. 'llama3.1:8b') when the provider is set to 'gemini'.
+
+    Rules:
+      - gemini / gemini-flash: model must start with 'gemini-'
+      - claude: model must start with 'claude-'
+      - openai: model must start with 'gpt-', 'o1', or 'o3'
+      - ollama: no restriction (any model name accepted)
+    """
+    canonical = provider_name.lower()
+
+    if canonical in ("gemini", "gemini-flash"):
+        if not any(model.startswith(p) for p in _GEMINI_MODEL_PREFIXES):
+            raise ValueError(
+                f"Invalid model {model!r} for Gemini provider. "
+                f"Use a gemini-* model name (e.g. 'gemini-2.5-flash'). "
+                f"This mismatch is likely caused by llm_config.yaml still containing "
+                f"an Ollama model name while LLM_EXTRACTION_PROVIDER is set to 'gemini'."
+            )
+
+    elif canonical == "claude":
+        if not any(model.startswith(p) for p in _CLAUDE_MODEL_PREFIXES):
+            raise ValueError(
+                f"Invalid model {model!r} for Claude provider. "
+                f"Use a claude-* model name (e.g. 'claude-sonnet-4-20250514')."
+            )
+
+    elif canonical == "openai":
+        if not any(model.startswith(p) for p in _OPENAI_MODEL_PREFIXES):
+            raise ValueError(
+                f"Invalid model {model!r} for OpenAI provider. "
+                f"Use a gpt-*, o1*, or o3* model name (e.g. 'gpt-4o')."
+            )
+    # ollama: any model name is valid
+
+
 def get_provider(
     role: str = "extraction",
     config: Optional[dict] = None,
@@ -838,6 +882,11 @@ def get_provider(
                 "GEMINI_API_KEY is required when using the gemini/gemini-flash provider. "
                 "Set it with: export GEMINI_API_KEY=<your-key>"
             )
+
+    # Validate provider+model combination before constructing the provider.
+    # This catches the exact production bug: LLM_EXTRACTION_PROVIDER=gemini
+    # while llm_config.yaml (or an env var) still has an Ollama model name.
+    _validate_provider_model(provider_name, model)
 
     logger.info(f"Initializing {provider_name} provider (model={model}, role={role})")
     return provider_cls(model=model)

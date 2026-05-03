@@ -235,7 +235,7 @@ export default async function Image({ params }: Props) {
               textTransform: "uppercase",
             }}
           >
-            NFL Dead Money · Cap Alpha Intel
+            Cap Alpha Intel
           </span>
           <span
             style={{

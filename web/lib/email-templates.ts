@@ -39,7 +39,7 @@ function baseLayout(content: string, unsubUrl: string): string {
           <tr>
             <td style="padding:24px 40px;border-top:1px solid #222222;background:#0d0d0d;">
               <p style="margin:0 0 8px;font-size:12px;color:#555555;line-height:1.6;">
-                Cap Alpha Protocol · ${PHYSICAL_ADDRESS}
+                Cap Alpha · ${PHYSICAL_ADDRESS}
               </p>
               <p style="margin:0;font-size:12px;color:#555555;">
                 <a href="${unsubUrl}" style="color:#888888;text-decoration:underline;">Unsubscribe</a>

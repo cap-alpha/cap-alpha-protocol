@@ -76,7 +76,7 @@ export function PersonalityMagnetCard({ player }: { player: any }) {
             <div className="relative z-10 mt-10 pt-6 border-t border-white/10 flex justify-between items-center">
                 <div className="flex items-center gap-2">
                     <Zap className="h-4 w-4 text-amber-500" />
-                    <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest">NFL Dead Money • Cap Alpha Intel</span>
+                    <span className="text-xs font-mono text-zinc-400 uppercase tracking-widest">Cap Alpha Intel</span>
                 </div>
                 <button 
                     onClick={() => {

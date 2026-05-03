@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "hedge",
+  "testability_score_expected": 0.33,
+  "claim_count_expected": 1,
+  "notes": "Double-negative hedge with vague outcome ('decent', 'better than expected') — low testability"
+}

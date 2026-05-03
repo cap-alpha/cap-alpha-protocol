@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "assertion",
+  "testability_score_expected": 0.82,
+  "claim_count_expected": 1,
+  "notes": "Team division title prediction with specific year"
+}

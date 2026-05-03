@@ -1,0 +1,7 @@
+{
+  "speech_act_type": "assertion",
+  "testability_score_expected": 0.62,
+  "claim_count_expected": 1,
+  "adversarial_type": "double_negation",
+  "notes": "Double-negation: 'won't say X won't happen' is logically equivalent to asserting X will happen. LLM must resolve the negation and classify as assertion."
+}

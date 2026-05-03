@@ -1,0 +1,7 @@
+{
+  "speech_act_type": "rhetorical_question",
+  "testability_score_expected": 0.12,
+  "claim_count_expected": 1,
+  "adversarial_type": "sarcasm",
+  "notes": "Sarcastic pseudo-assertion — literal claim is obviously false; extractor must NOT label as assertion. Sarcasm + rhetorical follow-up should resolve to rhetorical_question."
+}

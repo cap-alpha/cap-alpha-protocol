@@ -554,14 +554,20 @@ def write_raw_utterances(
         if sat not in VALID_SPEECH_ACT_TYPES:
             sat = "commentary"
 
-        # Resolution horizon: parse ISO8601 or leave None
+        # Resolution horizon: BQ column is STRING — keep as-is, never convert to Timestamp.
+        # Converting to pd.Timestamp produced a mixed object/Timestamp column that
+        # pyarrow could not serialize, silently dropping every row written to silver_v2_claims.
         rh = u.get("resolution_horizon")
-        rh_ts = None
-        if rh:
-            try:
-                rh_ts = pd.Timestamp(rh, tz="UTC")
-            except Exception:
-                rh_ts = None
+        if isinstance(rh, str) and rh.strip():
+            rh_ts = rh.strip()
+        elif isinstance(rh, (dict, list)):
+            import json as _json
+
+            rh_ts = _json.dumps(rh)
+        elif rh is not None:
+            rh_ts = str(rh)
+        else:
+            rh_ts = None
 
         rows.append(
             {

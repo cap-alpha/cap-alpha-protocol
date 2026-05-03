@@ -185,3 +185,24 @@ Rules:
 - **When in doubt between two tiers**, pick the cheaper one and upgrade only if output is visibly inadequate.
 
 **Why:** On 2026-04-26 ~$1,895 burned in 2h with Opus = 79% of spend, mostly routine progress checks Sonnet/Haiku could have done at 5–20× lower cost. The user wants Opus reserved for planning where plan quality compounds, Sonnet for coding, Haiku for cheap status work.
+
+## Extraction-touching PR rules
+
+### Protected paths
+Any PR that modifies one or more of these files is an **extraction PR** and must satisfy the rules below:
+
+```
+pipeline/src/assertion_extractor.py
+pipeline/src/llm_provider.py
+pipeline/config/llm_config.yaml
+pipeline/migrations/
+pipeline/scripts/check_extraction_health.py
+```
+
+### Hard requirements for every extraction PR
+1. **Real Gemini call required.** The PR must include (or update) an extraction smoke or integration test that executes at least one real LLM call. `--dry-run` alone is not sufficient — dry-run does not exercise the actual model response path.
+2. **PR template checkbox must be checked.** The "Extraction risk" section of the PR template must have the smoke/integration test box checked and the test file linked.
+3. **CODEOWNERS review.** PRs touching protected paths are subject to CODEOWNERS review (enforced once the smoke test CI job has been green for 2+ consecutive days per issue #597).
+
+### Why
+Extraction bugs are silent and expensive: a broken extractor produces zero assertions with no error, causing silent data loss that only shows up days later in pundit score dashboards. A real Gemini call in CI catches prompt regressions, JSON schema mismatches, and provider-level errors that dry-run cannot catch.

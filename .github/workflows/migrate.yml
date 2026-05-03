@@ -1,0 +1,45 @@
+name: Apply DB Migrations
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Prevent concurrent migration runs — never cancel an in-progress migration.
+concurrency:
+  group: migrate-prod
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r pipeline/requirements.txt
+
+      - name: Authenticate to GCP
+        run: |
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/gcp-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV
+
+      - name: Apply pending migrations
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+          GITHUB_SHA: ${{ github.sha }}
+        run: |
+          cd pipeline
+          python scripts/apply_migrations.py
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/gcp-key.json

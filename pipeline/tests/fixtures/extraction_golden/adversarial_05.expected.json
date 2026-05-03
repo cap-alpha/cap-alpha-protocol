@@ -1,0 +1,7 @@
+{
+  "speech_act_type": "assertion",
+  "testability_score_expected": 0.82,
+  "claim_count_expected": 2,
+  "adversarial_type": "compound",
+  "notes": "Two distinct speech acts: (1) confident assertion about AFC West, (2) hedge about secondary. First utterance = assertion, second = hedge. claim_count=2. Test checks first utterance speech_act_type."
+}

@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "assertion",
+  "testability_score_expected": 0.88,
+  "claim_count_expected": 1,
+  "notes": "Statistical prediction with specific threshold — high specificity and falsifiability"
+}

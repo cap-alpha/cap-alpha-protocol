@@ -21,7 +21,6 @@ DISPATCH="${REPO_ROOT}/scripts/dispatch-claude.sh"
 PROMPTS_DIR="${REPO_ROOT}/scripts/prompts"
 NOTIFICATIONS="${REPO_ROOT}/.claude/notifications.md"
 USAGE_LOG="${REPO_ROOT}/.claude/usage_log.jsonl"
-GATE_FILE="${REPO_ROOT}/.claude/current_gate.txt"
 CLAUDE_BIN="${CLAUDE_BIN:-/opt/homebrew/bin/claude}"
 AGENT_ID="triage-agent-$(hostname -s)-$$"
 
@@ -241,24 +240,24 @@ spawn_background() {
     BACKGROUND_PIDS+=($!)
 }
 
-# ── Gate filter ───────────────────────────────────────────────────────────────
+# ── Gate filter (label-based) ─────────────────────────────────────────────────
 
-current_gate() {
-    if [[ -f "$GATE_FILE" ]]; then
-        tr -d '[:space:]' < "$GATE_FILE"
-    else
-        echo "0"
-    fi
+# Returns true (0) if the issue has any workable gate label
+is_workable_label() {
+    local labels="$1"
+    echo "$labels" | grep -qE '(^|,)\s*(gate-1|ready|P0|P1)\s*(,|$)'
 }
 
-issue_gate() {
-    local title="$1"
-    # Match [Gate N] or [Gate N / WO-NNN]
-    if [[ "$title" =~ \[Gate[[:space:]]+([0-9]+) ]]; then
-        echo "${BASH_REMATCH[1]}"
-    else
-        echo "-1"   # Not a gated issue — skip
-    fi
+# Returns true (0) if the issue has gate-2 label
+is_gate2_label() {
+    local labels="$1"
+    echo "$labels" | grep -qE '(^|,)\s*gate-2\s*(,|$)'
+}
+
+# Returns true (0) if the issue has ANY gate/priority label
+has_gate_label() {
+    local labels="$1"
+    echo "$labels" | grep -qE '(^|,)\s*(gate-1|gate-2|gate-3|ready|P0|P1|P2)\s*(,|$)'
 }
 
 # ── Issue dispatch ────────────────────────────────────────────────────────────
@@ -299,9 +298,8 @@ dispatch_issue() {
 }
 
 triage_issues() {
-    local gate dispatched_count=0
-    gate="$(current_gate)"
-    log "ISSUES gate=${gate}"
+    local dispatched_count=0
+    log "ISSUES (label-based gating)"
 
     local issues
     issues=$("$GH_LARS" issue list \
@@ -317,17 +315,81 @@ triage_issues() {
     issue_count=$(printf '%s' "$issues" | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo 0)
     log "issues found=${issue_count}"
 
+    # ── Auto-labeling pass: label ungated issues that look ready ──────────────
+    local auto_gate_count=0
+    local AUTO_GATE_CAP=5
+
+    while IFS=$'\t' read -r number labels body_len has_ac; do
+        [[ -z "$number" ]] && continue
+        (( auto_gate_count >= AUTO_GATE_CAP )) && break
+
+        # Skip if already has a gate label
+        if has_gate_label "$labels"; then
+            continue
+        fi
+
+        if [[ "$has_ac" == "true" ]] && (( body_len > 100 )); then
+            log "AUTO-GATE issue #${number}: applied gate-1 (body=${body_len} chars, has_ac=true)"
+            if ! $DRY_RUN; then
+                "$GH_LARS" issue edit "$number" --add-label "gate-1" 2>/dev/null || \
+                    log "  WARN: could not apply gate-1 to #${number}"
+            fi
+            (( auto_gate_count++ )) || true
+        elif (( body_len < 50 )); then
+            log "SKIP-GATE issue #${number}: body too short (${body_len} chars), needs human triage"
+        fi
+
+    done < <(printf '%s' "$issues" | python3 -c '
+import sys, json
+data = json.load(sys.stdin)
+for issue in data:
+    number  = issue.get("number","")
+    labels  = ", ".join(l["name"] for l in (issue.get("labels") or []))
+    body    = (issue.get("body","") or "")
+    body_len = len(body)
+    has_ac  = "true" if ("- [ ]" in body) else "false"
+    print(f"{number}\t{labels}\t{body_len}\t{has_ac}")
+')
+
+    # Re-fetch issues to pick up freshly applied labels
+    if (( auto_gate_count > 0 )) && ! $DRY_RUN; then
+        issues=$("$GH_LARS" issue list \
+            --state open \
+            --limit 50 \
+            --json number,title,body,labels,assignees \
+            2>/dev/null) || true
+    fi
+
+    # ── Dispatch loop: work on gate-1/ready/P0/P1 issues ─────────────────────
+    # Check if any P0/P1 issues exist — drain those first
+    local has_high_priority=false
+    while IFS=$'\t' read -r number labels _rest; do
+        [[ -z "$number" ]] && continue
+        if echo "$labels" | grep -qE '(^|,)\s*(P0|P1)\s*(,|$)'; then
+            has_high_priority=true
+            break
+        fi
+    done < <(printf '%s' "$issues" | python3 -c '
+import sys, json
+data = json.load(sys.stdin)
+for issue in data:
+    number = issue.get("number","")
+    labels = ", ".join(l["name"] for l in (issue.get("labels") or []))
+    print(f"{number}\t{labels}\t")
+')
+
     while IFS=$'\t' read -r number title labels body; do
         [[ -z "$number" ]] && continue
 
-        local ig
-        ig=$(issue_gate "$title")
-        if (( ig < 0 )); then
-            log "  #${number} not gated, skipping"
+        # Skip gate-2-only issues if high-priority (P0/P1) issues exist
+        if $has_high_priority && is_gate2_label "$labels" && ! is_workable_label "$labels"; then
+            log "  #${number} gate-2 only, deferring (P0/P1 work pending)"
             continue
         fi
-        if (( ig > gate )); then
-            log "  #${number} gate ${ig} > current ${gate}, skipping"
+
+        # Only work on issues with a workable label
+        if ! is_workable_label "$labels"; then
+            log "  #${number} no workable gate label (labels=${labels}), skipping"
             continue
         fi
 
@@ -340,7 +402,7 @@ triage_issues() {
         BLOCK_QUESTION=""
         if can_work_autonomously "$body" "$labels"; then
             if $DRY_RUN; then
-                log "would dispatch: issue #${number} '${title}'"
+                log "would dispatch: issue #${number} '${title}' (labels=${labels})"
             else
                 if claim_resource "issue:${number}"; then
                     dispatch_issue "$number" "$title" "$body"
@@ -659,6 +721,10 @@ main() {
     triage_prs
 
     wait_all
+
+    # Prune merged/stale worktrees every run
+    log "PRUNE worktrees"
+    bash "${REPO_ROOT}/scripts/prune_worktrees.sh" 2>&1 | while IFS= read -r line; do log "  $line"; done || true
 
     local END_TIME elapsed token_end
     END_TIME=$(date +%s)

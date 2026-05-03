@@ -1464,11 +1464,14 @@ def _make_mock_db_for_bq_write():
 
 class TestWriteRawUtterancesResolutionHorizon:
     """
-    Regression tests for the resolution_horizon STRING serialization bug.
+    Regression tests for the resolution_horizon TIMESTAMP serialization.
 
-    silver_v2_claims.raw_utterance defines resolution_horizon as STRING.
-    Passing a pd.Timestamp, datetime, date, dict, or list caused pyarrow to
-    silently drop every row.  The fix serializes the value to str before BQ write.
+    silver_v2_claims.raw_utterance defines resolution_horizon as TIMESTAMP
+    (nullable).  The column must be written as datetime64[ns, UTC] so pyarrow
+    can serialize it correctly.  Passing an "object" dtype column (strings/None)
+    caused the "Array, ListArray, or StructArray" pyarrow error and silently
+    dropped every row.  The fix applies pd.to_datetime(utc=True, errors="coerce")
+    to the column before calling load_table_from_dataframe.
     """
 
     _BASE_UTTERANCE = {
@@ -1501,67 +1504,80 @@ class TestWriteRawUtterancesResolutionHorizon:
         assert len(rows) == 1
         return rows[0]["resolution_horizon"]
 
-    def test_datetime_is_serialized_to_string(self):
-        """datetime object → isoformat string."""
+    def _is_utc_timestamp(self, val):
+        import pandas as pd
+
+        return isinstance(val, pd.Timestamp) and val.tzinfo is not None
+
+    def test_datetime_becomes_utc_timestamp(self):
+        """datetime object → UTC pd.Timestamp in the written DataFrame."""
         dt = datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
         result = self._write_one(dt)
-        assert isinstance(result, str)
-        assert "2025-12-31" in result
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025 and result.month == 12 and result.day == 31
 
-    def test_date_is_serialized_to_string(self):
-        """date object → isoformat string."""
+    def test_date_becomes_utc_timestamp(self):
+        """date object → UTC pd.Timestamp (midnight UTC)."""
         d = date(2025, 12, 31)
         result = self._write_one(d)
-        assert isinstance(result, str)
-        assert "2025-12-31" in result
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025 and result.month == 12 and result.day == 31
 
-    def test_pd_timestamp_is_serialized_to_string(self):
-        """pd.Timestamp → isoformat string."""
+    def test_pd_timestamp_stays_utc_timestamp(self):
+        """pd.Timestamp → UTC pd.Timestamp."""
         import pandas as pd
 
         ts = pd.Timestamp("2025-12-31T23:59:59Z")
         result = self._write_one(ts)
-        assert isinstance(result, str)
-        assert "2025-12-31" in result
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025
 
-    def test_dict_is_serialized_to_json_string(self):
-        """dict → json.dumps string."""
-        d = {"year": 2025, "quarter": "Q4"}
-        result = self._write_one(d)
-        assert isinstance(result, str)
-        parsed = json.loads(result)
-        assert parsed == d
+    def test_dict_becomes_nat(self):
+        """dict cannot represent a datetime → NaT (NULL in BQ)."""
+        import pandas as pd
 
-    def test_list_is_serialized_to_json_string(self):
-        """list → json.dumps string."""
-        lst = ["2025-Q4", "end of season"]
-        result = self._write_one(lst)
-        assert isinstance(result, str)
-        parsed = json.loads(result)
-        assert parsed == lst
+        result = self._write_one({"year": 2025, "quarter": "Q4"})
+        assert result is pd.NaT
 
-    def test_iso_string_is_passed_through_unchanged(self):
-        """A plain ISO-8601 string is left as-is."""
-        iso = "2025-12-31T23:59:59Z"
-        result = self._write_one(iso)
-        assert result == iso
+    def test_list_becomes_nat(self):
+        """list cannot represent a datetime → NaT (NULL in BQ)."""
+        import pandas as pd
 
-    def test_none_remains_none(self):
-        """None is left as None (nullable STRING in BQ)."""
+        result = self._write_one(["2025-Q4", "end of season"])
+        assert result is pd.NaT
+
+    def test_iso_string_becomes_utc_timestamp(self):
+        """ISO-8601 string → UTC pd.Timestamp."""
+        result = self._write_one("2025-12-31T23:59:59Z")
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025
+
+    def test_unparseable_string_becomes_nat(self):
+        """Non-date string (e.g. 'end of season') → NaT (NULL in BQ)."""
+        import pandas as pd
+
+        result = self._write_one("end of the 2025 NFL season")
+        assert result is pd.NaT
+
+    def test_none_becomes_nat(self):
+        """None → NaT (NULL in BQ TIMESTAMP column)."""
+        import pandas as pd
+
         result = self._write_one(None)
-        # After DataFrame round-trip with astype(str), None becomes "None" string
-        # but the important thing is no exception is raised and a row is written.
-        # Accept either None or the string "None" (pandas astype(str) coercion).
-        assert result is None or result == "None"
+        assert result is pd.NaT
 
-    def test_empty_string_becomes_none(self):
-        """Empty/whitespace string is normalized to None."""
+    def test_empty_string_becomes_nat(self):
+        """Empty string cannot be parsed as datetime → NaT."""
+        import pandas as pd
+
         result = self._write_one("")
-        assert result is None or result == "None"
+        assert result is pd.NaT
 
-    def test_multiple_utterances_all_serialized(self):
-        """All rows in a batch have their resolution_horizon serialized."""
+    def test_multiple_utterances_all_written(self):
+        """All rows in a batch are written; valid dates become Timestamps, None → NaT."""
         import os
+
+        import pandas as pd
 
         os.environ.setdefault("GCP_PROJECT_ID", "test-project")
         db = _make_mock_db_for_bq_write()
@@ -1584,8 +1600,11 @@ class TestWriteRawUtterancesResolutionHorizon:
         assert n == 3
         rows = _capture_load_args(db)
         assert len(rows) == 3
-        # First row: datetime → string
-        assert isinstance(rows[0]["resolution_horizon"], str)
-        assert "2025-12-31" in rows[0]["resolution_horizon"]
-        # Second row: already a string, passed through
-        assert rows[1]["resolution_horizon"] == "2026-01-15T00:00:00Z"
+        # datetime → UTC Timestamp
+        assert self._is_utc_timestamp(rows[0]["resolution_horizon"])
+        assert rows[0]["resolution_horizon"].year == 2025
+        # ISO string → UTC Timestamp
+        assert self._is_utc_timestamp(rows[1]["resolution_horizon"])
+        assert rows[1]["resolution_horizon"].year == 2026
+        # None → NaT
+        assert rows[2]["resolution_horizon"] is pd.NaT

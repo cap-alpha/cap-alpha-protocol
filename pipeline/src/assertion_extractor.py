@@ -554,23 +554,12 @@ def write_raw_utterances(
         if sat not in VALID_SPEECH_ACT_TYPES:
             sat = "commentary"
 
-        # Resolution horizon: serialize to a plain ISO-8601 STRING for BQ.
-        # The silver_v2_claims.raw_utterance DDL defines this column as STRING,
-        # so we must not pass a pd.Timestamp, datetime, dict, or list — pyarrow
-        # cannot coerce those and silently drops the entire row.
+        # resolution_horizon: BQ column type is TIMESTAMP (nullable).
+        # Keep as string/None here; pd.to_datetime below does the final coercion.
+        # Flatten dicts/lists to None — they can't represent a datetime.
         rh = u.get("resolution_horizon")
-        rh_str: Optional[str] = None
-        if rh is not None:
-            if isinstance(rh, (dict, list)):
-                rh_str = json.dumps(rh)
-            elif isinstance(rh, str):
-                rh_str = rh if rh.strip() else None
-            else:
-                # datetime, date, pd.Timestamp, or any other object
-                try:
-                    rh_str = rh.isoformat()
-                except AttributeError:
-                    rh_str = str(rh)
+        if isinstance(rh, (dict, list, bool)):
+            rh = None
 
         rows.append(
             {
@@ -581,7 +570,7 @@ def write_raw_utterances(
                 "text": str(u.get("text", ""))[:4000],
                 "speech_act_type": sat,
                 "testability_score": score,
-                "resolution_horizon": rh_str,
+                "resolution_horizon": rh,
                 "domain": domain,
                 "extraction_confidence": max(
                     0.0, min(1.0, float(u.get("extraction_confidence", score)))
@@ -610,6 +599,17 @@ def write_raw_utterances(
         )
 
     df = pd.DataFrame(rows)
+
+    # BQ schema: resolution_horizon is TIMESTAMP (nullable).
+    # Convert string/None values to datetime64[ns, UTC] so pyarrow can serialize
+    # them as TIMESTAMP.  errors="coerce" turns unparseable strings into NaT
+    # (which becomes NULL in BQ).  An "object" dtype column of strings cannot
+    # be serialized to TIMESTAMP by pyarrow — this pd.to_datetime call is the
+    # fix for the "Array, ListArray, or StructArray" pyarrow error.
+    df["resolution_horizon"] = pd.to_datetime(
+        df["resolution_horizon"], utc=True, errors="coerce"
+    )
+
     # Use qualified table name: write to silver_v2_claims dataset
     full_table = f"{RAW_UTTERANCE_DATASET}.{RAW_UTTERANCE_TABLE}"
     try:
@@ -620,7 +620,9 @@ def write_raw_utterances(
             "google.cloud.bigquery", fromlist=["LoadJobConfig"]
         ).LoadJobConfig(write_disposition="WRITE_APPEND")
         df_clean = df.copy()
-        # Cast object cols to str for BQ Parquet compatibility
+        # Cast remaining object-dtype cols to str for BQ Parquet compatibility.
+        # datetime64 columns (uttered_at, created_at, resolution_horizon) are
+        # not "object" dtype and are skipped automatically.
         for col in df_clean.columns:
             if df_clean[col].dtype == object:
                 df_clean[col] = df_clean[col].astype(str)

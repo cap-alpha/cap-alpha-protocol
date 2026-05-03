@@ -29,7 +29,7 @@ const Footer = () => {
                 <div className="max-w-7xl mx-auto flex flex-col items-center justify-center space-y-4">
                     <p className="text-slate-400 text-sm text-center max-w-2xl leading-relaxed">
                         <span className="font-bold text-slate-300">NOTICE:</span> For simulation and entertainment purposes only.
-                        The data and predictions provided by the Cap Alpha Protocol are probabilistic simulations and should not be
+                        The data and predictions provided by Cap Alpha are probabilistic simulations and should not be
                         construed as financial, legal, or professional sports management advice.
                     </p>
                     <p className="text-slate-500 text-xs text-center max-w-2xl leading-relaxed">

@@ -113,7 +113,7 @@ export function PersonaShowcase() {
                         Choose your <span className={`text-transparent bg-clip-text bg-gradient-to-r ${activePersona.gradient} transition-all duration-700`}>Context.</span>
                     </h2>
                     <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-                        Cap Alpha Protocol is a multi-dimensional analytics engine. 
+                        Cap Alpha is a multi-dimensional analytics engine.
                         Your tools, telemetry, and permissions adapt to your specific role in the ecosystem.
                     </p>
                 </div>

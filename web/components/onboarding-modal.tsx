@@ -84,7 +84,7 @@ export default function OnboardingModal() {
 
                 <div className="flex justify-center pt-2">
                     <p className="text-xs text-zinc-600 uppercase tracking-widest">
-                        Cap Alpha Protocol • v2.0
+                        Cap Alpha • v2.0
                     </p>
                 </div>
             </div>

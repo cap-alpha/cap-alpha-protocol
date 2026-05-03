@@ -1336,3 +1336,105 @@ class TestPriorityInGetUnprocessedMedia:
         mock_extract.assert_not_called()
         # Should still be marked processed
         mock_db.append_dataframe_to_table.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# extraction_run table write
+# ---------------------------------------------------------------------------
+
+
+class TestExtractionRunWrite:
+    """_write_extraction_run() is called by run_extraction() in try/finally."""
+
+    @patch("src.assertion_extractor._write_extraction_run")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_writes_run_row_on_success(
+        self, mock_extract, mock_write_run, mock_db, mock_provider
+    ):
+        """run_extraction() writes an extraction_run row after a successful run."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0", predictions=[]
+        )
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        mock_write_run.assert_called_once()
+        kwargs = mock_write_run.call_args.kwargs
+        assert kwargs["articles_processed"] == 1
+        assert kwargs["errors"] == 0
+        assert kwargs["provider"] != ""
+        assert kwargs["model"] != ""
+
+    @patch("src.assertion_extractor._write_extraction_run")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_writes_run_row_on_partial_error(
+        self, mock_extract, mock_write_run, mock_db, mock_provider
+    ):
+        """run_extraction() writes an extraction_run row even when extraction errors occur."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+            error="LLM quota exceeded",
+        )
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        mock_write_run.assert_called_once()
+        kwargs = mock_write_run.call_args.kwargs
+        assert kwargs["errors"] == 1
+
+    @patch("src.assertion_extractor._write_extraction_run")
+    def test_skips_run_row_in_dry_run(self, mock_write_run, mock_db):
+        """run_extraction(dry_run=True) must NOT write an extraction_run row."""
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+
+        run_extraction(limit=10, dry_run=True, db=mock_db)
+
+        mock_write_run.assert_not_called()
+
+    @patch("src.assertion_extractor._write_extraction_run")
+    def test_writes_run_row_when_no_media(self, mock_write_run, mock_db, mock_provider):
+        """run_extraction() writes a zero-row extraction_run entry even when there is nothing to extract."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        mock_write_run.assert_called_once()
+        kwargs = mock_write_run.call_args.kwargs
+        assert kwargs["articles_processed"] == 0
+        assert kwargs["utterances_written"] == 0
+
+    @patch("src.assertion_extractor._write_extraction_run")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_tracks_utterance_metrics(
+        self, mock_extract, mock_write_run, mock_db, mock_provider
+    ):
+        """mean_testability_score and metadata_completeness_pct are computed from utterances."""
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+            utterances=[
+                {
+                    "text": "Mahomes wins MVP",
+                    "speech_act_type": "assertion",
+                    "testability_score": 0.8,
+                    "extraction_confidence": 0.9,
+                },
+                {
+                    "text": "The season will be interesting",
+                    "speech_act_type": "opinion",
+                    "testability_score": 0.2,
+                    "extraction_confidence": 0.7,
+                },
+            ],
+        )
+
+        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+
+        mock_write_run.assert_called_once()
+        kwargs = mock_write_run.call_args.kwargs
+        assert kwargs["mean_testability_score"] == pytest.approx(0.5, abs=1e-6)
+        assert kwargs["metadata_completeness_pct"] == pytest.approx(100.0, abs=1e-6)

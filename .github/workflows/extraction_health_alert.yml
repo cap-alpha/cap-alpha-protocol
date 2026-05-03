@@ -1,0 +1,146 @@
+name: Extraction Health Alert
+
+# Hourly job: queries last 4h of silver_v2_claims.extraction_run and fails if:
+#   (a) zero rows   — pipeline may have stopped running
+#   (b) error rate  > 20%   (errors / articles_processed)
+#   (c) any run has metadata_completeness_pct < 100
+#
+# Job runtime budget: < 3 min (BQ query + issue creation)
+# On failure: opens a GitHub issue with label "incident:extraction"
+
+on:
+  schedule:
+    - cron: '17 * * * *'  # :17 past every hour — avoids top-of-hour GHA congestion
+  workflow_dispatch:
+
+jobs:
+  check-extraction-health:
+    runs-on: ubuntu-latest
+    # Runtime budget < 3 min; timeout at 5 to allow for GCP auth latency
+    timeout-minutes: 5
+    # Do not run on fork PRs that lack repo secrets
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install BigQuery client
+        run: pip install google-cloud-bigquery pyarrow
+
+      - name: Authenticate to GCP
+        run: |
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/gcp-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV
+
+      - name: Check extraction health
+        id: health_check
+        continue-on-error: true
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          python - <<'PY'
+          import os, sys
+          from google.cloud import bigquery
+
+          project_id = os.environ["GCP_PROJECT_ID"]
+          client = bigquery.Client(project=project_id)
+
+          query = f"""
+          SELECT
+            COUNT(*) AS row_count,
+            COALESCE(SUM(errors), 0) AS total_errors,
+            COALESCE(SUM(articles_processed), 0) AS total_articles,
+            MIN(metadata_completeness_pct) AS min_metadata_completeness
+          FROM `{project_id}.silver_v2_claims.extraction_run`
+          WHERE started_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 4 HOUR)
+          """
+
+          rows = list(client.query(query).result())
+          r = rows[0]
+
+          failures = []
+
+          # (a) zero rows in last 4h — pipeline may not be running
+          if r.row_count == 0:
+              failures.append("zero extraction_run rows in last 4h — pipeline may have stopped")
+
+          # (b) error rate > 20%
+          if r.total_articles and r.total_articles > 0:
+              error_rate = r.total_errors / r.total_articles
+              if error_rate > 0.20:
+                  failures.append(
+                      f"error rate {error_rate:.1%} exceeds 20% "
+                      f"(errors={r.total_errors}, articles={r.total_articles})"
+                  )
+
+          # (c) metadata incomplete
+          if r.min_metadata_completeness is not None and r.min_metadata_completeness < 100:
+              failures.append(
+                  f"metadata_completeness_pct={r.min_metadata_completeness:.1f} < 100"
+              )
+
+          if failures:
+              print("UNHEALTHY:", "; ".join(failures), file=sys.stderr)
+              for f in failures:
+                  print(f"  - {f}")
+              sys.exit(1)
+
+          print(
+              f"OK: {r.row_count} runs in last 4h | "
+              f"error_rate={(r.total_errors / r.total_articles if r.total_articles else 0):.1%} | "
+              f"min_metadata={r.min_metadata_completeness}"
+          )
+          PY
+
+      - name: Install GitHub App PEM
+        if: steps.health_check.outcome == 'failure'
+        run: |
+          mkdir -p ~/.ghconfig
+          printf '%s' '${{ secrets.GH_APP_PEM_CONTENT }}' > ~/.ghconfig/triage-app.pem
+          chmod 600 ~/.ghconfig/triage-app.pem
+
+      - name: Open incident issue
+        if: steps.health_check.outcome == 'failure'
+        env:
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_INSTALLATION_ID: ${{ secrets.GH_INSTALLATION_ID }}
+        run: |
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          scripts/gh-lars issue create \
+            --title "incident: extraction health check failed $(date -u '+%Y-%m-%dT%H:%MZ')" \
+            --label "incident:extraction" \
+            --body "$(cat <<EOF
+          ## Extraction health check failed
+
+          The hourly extraction health check detected an issue. Check the [workflow run]($WORKFLOW_URL) for details.
+
+          **Conditions checked:**
+          - Zero extraction_run rows in last 4h → pipeline may have stopped
+          - Error rate > 20% (errors / articles_processed)
+          - metadata_completeness_pct < 100 on any run in last 4h
+
+          **Runbook:**
+          1. Check \`silver_v2_claims.extraction_run\` for recent rows
+          2. Check \`pundit_pipeline\` workflow for failures
+          3. Resolve and close this issue once healthy
+
+          /cc @king-hrothgar
+          EOF
+          )"
+
+      - name: Assert healthy
+        if: steps.health_check.outcome == 'failure'
+        run: |
+          echo "Extraction health check failed — incident issue opened"
+          exit 1
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/gcp-key.json ~/.ghconfig/triage-app.pem

@@ -71,6 +71,7 @@ export interface PunditStatRow {
 
 export interface DataQuality {
     null_metadata_pct: number;
+    pct_rows_with_complete_metadata: number;
     zero_output_runs_7d: number;
     provider_mix: Record<string, number>;
 }
@@ -98,6 +99,7 @@ const EMPTY_RESPONSE: QualityResponse = {
     punditStats: [],
     dataQuality: {
         null_metadata_pct: 0,
+        pct_rows_with_complete_metadata: 1,
         zero_output_runs_7d: 0,
         provider_mix: {},
     },
@@ -297,19 +299,34 @@ export async function GET() {
                     ORDER BY date DESC
                     LIMIT 1
                 )
+                -- Phase C completeness: speech_act_type, testability_score, domain, extraction_confidence (#595)
+                phase_c_null AS (
+                    SELECT
+                        COUNT(*) AS total_all,
+                        COUNTIF(
+                            speech_act_type IS NULL
+                            OR testability_score IS NULL
+                            OR domain IS NULL
+                            OR extraction_confidence IS NULL
+                        ) AS phase_c_null_count
+                    FROM ${UTTERANCE_TABLE}
+                    WHERE uttered_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
+                )
                 SELECT
                     l.last_30d_testability_pass,
                     l.last_30d_metadata_pass,
                     l.mean_score AS latest_mean_testability,
                     l.completeness_rate AS latest_completeness_rate,
                     l.null_pct AS overall_null_pct,
+                    SAFE_DIVIDE(p.total_all - p.phase_c_null_count, p.total_all)
+                        AS pct_rows_with_complete_metadata,
                     -- Provider mix from domain field (proxy)
                     (SELECT COUNT(*) FROM ${UTTERANCE_TABLE}
                      WHERE uttered_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
                        AND domain = 'nfl') AS nfl_count_7d,
                     (SELECT COUNT(*) FROM ${UTTERANCE_TABLE}
                      WHERE uttered_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)) AS total_7d
-                FROM latest l
+                FROM latest l, phase_c_null p
             `,
             params: {
                 testability_threshold: TESTABILITY_THRESHOLD,
@@ -326,6 +343,9 @@ export async function GET() {
             (qualityRows as Array<Record<string, unknown>>)[0] ?? null;
 
         const nullMetadataPct = Number(qRow?.overall_null_pct ?? 0);
+        const pctRowsWithCompleteMetadata = Number(
+            qRow?.pct_rows_with_complete_metadata ?? 1
+        );
         const latestTestability = Number(qRow?.latest_mean_testability ?? 0);
         const latestCompleteness = Number(
             qRow?.latest_completeness_rate ?? 0
@@ -342,6 +362,7 @@ export async function GET() {
 
         const dataQuality: DataQuality = {
             null_metadata_pct: nullMetadataPct,
+            pct_rows_with_complete_metadata: pctRowsWithCompleteMetadata,
             zero_output_runs_7d: zeroOutputRuns7d,
             provider_mix: {
                 nfl: Number(qRow?.nfl_count_7d ?? 0),

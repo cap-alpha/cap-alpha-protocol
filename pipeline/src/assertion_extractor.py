@@ -554,14 +554,23 @@ def write_raw_utterances(
         if sat not in VALID_SPEECH_ACT_TYPES:
             sat = "commentary"
 
-        # Resolution horizon: parse ISO8601 or leave None
+        # Resolution horizon: serialize to a plain ISO-8601 STRING for BQ.
+        # The silver_v2_claims.raw_utterance DDL defines this column as STRING,
+        # so we must not pass a pd.Timestamp, datetime, dict, or list — pyarrow
+        # cannot coerce those and silently drops the entire row.
         rh = u.get("resolution_horizon")
-        rh_ts = None
-        if rh:
-            try:
-                rh_ts = pd.Timestamp(rh, tz="UTC")
-            except Exception:
-                rh_ts = None
+        rh_str: Optional[str] = None
+        if rh is not None:
+            if isinstance(rh, (dict, list)):
+                rh_str = json.dumps(rh)
+            elif isinstance(rh, str):
+                rh_str = rh if rh.strip() else None
+            else:
+                # datetime, date, pd.Timestamp, or any other object
+                try:
+                    rh_str = rh.isoformat()
+                except AttributeError:
+                    rh_str = str(rh)
 
         rows.append(
             {
@@ -572,7 +581,7 @@ def write_raw_utterances(
                 "text": str(u.get("text", ""))[:4000],
                 "speech_act_type": sat,
                 "testability_score": score,
-                "resolution_horizon": rh_ts,
+                "resolution_horizon": rh_str,
                 "domain": domain,
                 "extraction_confidence": max(
                     0.0, min(1.0, float(u.get("extraction_confidence", score)))

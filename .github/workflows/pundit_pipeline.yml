@@ -61,6 +61,11 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LLM_EXTRACTION_PROVIDER: gemini
           PYTHONPATH: ${{ github.workspace }}/pipeline
+          # CI provenance — written to silver_v2_claims.extraction_run by run_extraction()
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           cd pipeline
           python -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched

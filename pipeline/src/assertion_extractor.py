@@ -609,6 +609,71 @@ def write_raw_utterances(
     return len(rows)
 
 
+def _write_extraction_run(
+    run_id: str,
+    started_at: datetime,
+    finished_at: Optional[datetime],
+    provider: str,
+    model: str,
+    prompt_version: Optional[str],
+    articles_processed: int,
+    utterances_written: int,
+    claims_promoted: int,
+    suppressed: int,
+    errors: int,
+    mean_testability_score: Optional[float],
+    metadata_completeness_pct: Optional[float],
+    db: "DBManager",
+) -> None:
+    """Write one row to silver_v2_claims.extraction_run for observability / alerting."""
+    git_sha = os.environ.get("GITHUB_SHA")
+    server_url = os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+    repository = os.environ.get("GITHUB_REPOSITORY", "")
+    gh_run_id = os.environ.get("GITHUB_RUN_ID")
+    workflow_run_url = (
+        f"{server_url}/{repository}/actions/runs/{gh_run_id}"
+        if gh_run_id and repository
+        else None
+    )
+
+    row = {
+        "run_id": run_id,
+        "started_at": started_at,
+        "finished_at": finished_at,
+        "provider": provider,
+        "model": model,
+        "prompt_version": prompt_version,
+        "articles_processed": articles_processed,
+        "utterances_written": utterances_written,
+        "claims_promoted": claims_promoted,
+        "suppressed": suppressed,
+        "errors": errors,
+        "mean_testability_score": mean_testability_score,
+        "metadata_completeness_pct": metadata_completeness_pct,
+        "git_sha": git_sha,
+        "workflow_run_url": workflow_run_url,
+    }
+
+    try:
+        df = pd.DataFrame([row])
+        project_id = os.environ.get("GCP_PROJECT_ID", "")
+        table_ref = f"{project_id}.silver_v2_claims.extraction_run"
+        job_config = __import__(
+            "google.cloud.bigquery", fromlist=["LoadJobConfig"]
+        ).LoadJobConfig(write_disposition="WRITE_APPEND")
+        df_clean = df.copy()
+        for col in df_clean.columns:
+            if df_clean[col].dtype == object:
+                df_clean[col] = df_clean[col].astype(str)
+        job = db.client.load_table_from_dataframe(
+            df_clean, table_ref, job_config=job_config
+        )
+        job.result()
+        logger.info(f"Wrote extraction_run row: run_id={run_id}")
+    except Exception as exc:
+        logger.warning(f"Failed to write extraction_run row (non-fatal): {exc}")
+
+
 def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
     """
     Remove near-duplicate claims from a single article's extraction.
@@ -994,6 +1059,19 @@ def run_extraction(
 
     threshold = get_testability_threshold()
 
+    # Extraction run provenance — recorded in extraction_run table via try/finally
+    _run_id = str(uuid.uuid4())
+    _run_started_at = datetime.now(timezone.utc)
+    _run_provider = (
+        type(provider).__name__.replace("Provider", "").lower()
+        if provider
+        else "dry-run"
+    )
+    _run_model = getattr(provider, "model", "unknown") if provider else "dry-run"
+    _run_testability_scores: list[float] = []
+    _run_metadata_complete = 0
+    _run_metadata_total = 0
+
     summary = {
         "total_processed": 0,
         "predictions_extracted": 0,
@@ -1139,6 +1217,20 @@ def run_extraction(
                 suppressed_here = len(result.utterances) - len(result.predictions)
                 summary["suppressed"] += max(0, suppressed_here)
 
+                # Accumulate per-run metrics for extraction_run table
+                for u in result.utterances:
+                    _run_metadata_total += 1
+                    ts = u.get("testability_score")
+                    ec = u.get("extraction_confidence")
+                    sat = u.get("speech_act_type") or ""
+                    if ts is not None:
+                        try:
+                            _run_testability_scores.append(float(ts))
+                        except (TypeError, ValueError):
+                            pass
+                    if bool(sat) and ts is not None and ec is not None:
+                        _run_metadata_complete += 1
+
             if not result.predictions:
                 summary["skipped_no_predictions"] += 1
                 processed_hashes.append(content_hash)
@@ -1219,6 +1311,35 @@ def run_extraction(
         )
         return summary
     finally:
+        # Write extraction_run row regardless of success/failure (not in dry_run mode)
+        if not dry_run:
+            _finished_at = datetime.now(timezone.utc)
+            _mean_ts = (
+                sum(_run_testability_scores) / len(_run_testability_scores)
+                if _run_testability_scores
+                else None
+            )
+            _meta_pct = (
+                100.0 * _run_metadata_complete / _run_metadata_total
+                if _run_metadata_total > 0
+                else None
+            )
+            _write_extraction_run(
+                run_id=_run_id,
+                started_at=_run_started_at,
+                finished_at=_finished_at,
+                provider=_run_provider,
+                model=_run_model,
+                prompt_version=PROMPT_VERSION,
+                articles_processed=summary["total_processed"],
+                utterances_written=summary["utterances_written"],
+                claims_promoted=summary["predictions_ingested"],
+                suppressed=summary["suppressed"],
+                errors=summary["errors"],
+                mean_testability_score=_mean_ts,
+                metadata_completeness_pct=_meta_pct,
+                db=db,
+            )
         if close_db:
             db.close()
 

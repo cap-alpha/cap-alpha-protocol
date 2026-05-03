@@ -10,7 +10,7 @@ cd "$(git rev-parse --show-toplevel)"
 
 git worktree prune -v
 
-CUTOFF=$(($(date +%s) - 7*86400))
+CUTOFF=$(($(date +%s) - 2*86400))
 git worktree list --porcelain | awk '/^worktree / {print $2}' | while read -r wt; do
   case "$wt" in
     *.claude/worktrees/*) ;;

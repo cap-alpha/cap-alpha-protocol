@@ -392,6 +392,32 @@ dispatch_pr_copilot() {
         --env "AGENT_ID=${AGENT_ID}"
 }
 
+dispatch_pr_threads() {
+    local pr_number="$1" thread_count="$2"
+    local worktree_path="${REPO_ROOT}/.claude/worktrees/auto-pr-threads-${pr_number}"
+
+    if $DRY_RUN; then
+        log "would dispatch: PR #${pr_number} resolve-threads (${thread_count} unresolved) via Sonnet"
+        return
+    fi
+
+    log "Dispatching thread resolution for PR #${pr_number} (${thread_count} unresolved threads)"
+    [[ -d "$worktree_path" ]] && { log "  Threads worktree already exists, skipping"; return; }
+
+    git -C "$REPO_ROOT" worktree add --detach "$worktree_path" 2>/dev/null || {
+        log "  Could not create worktree for thread resolution on PR #${pr_number}"
+        return
+    }
+
+    spawn_background "$DISPATCH" \
+        --model "claude-sonnet-4-6" \
+        --prompt-file "${PROMPTS_DIR}/resolve-threads.md" \
+        --worktree "$worktree_path" \
+        --label "pr-threads-${pr_number}" \
+        --env "PR_NUMBER=${pr_number}" \
+        --env "AGENT_ID=${AGENT_ID}"
+}
+
 dispatch_pr_lint() {
     local pr_number="$1"
     local worktree_path="${REPO_ROOT}/.claude/worktrees/auto-pr-lint-${pr_number}"
@@ -445,6 +471,46 @@ dispatch_pr_ci() {
         --env "AGENT_ID=${AGENT_ID}"
 }
 
+check_pr_unresolved_threads() {
+    local pr_number="$1"
+    local owner repo
+
+    # Derive owner/repo from gh remote
+    owner=$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null \
+        | python3 -c "import sys,re; m=re.search(r'[:/]([^/]+)/([^/]+?)(?:\.git)?$', sys.stdin.read()); print(m.group(1) if m else '')" 2>/dev/null)
+    repo=$(git -C "$REPO_ROOT" remote get-url origin 2>/dev/null \
+        | python3 -c "import sys,re; m=re.search(r'[:/]([^/]+)/([^/]+?)(?:\.git)?$', sys.stdin.read()); print(m.group(2) if m else '')" 2>/dev/null)
+
+    [[ -z "$owner" || -z "$repo" ]] && echo "0" && return
+
+    local response
+    response=$("$GH_LARS" api graphql \
+        -f query='query($owner: String!, $repo: String!, $pr: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      reviewThreads(first: 50) {
+        nodes { isResolved id }
+      }
+    }
+  }
+}' \
+        -f owner="$owner" \
+        -f repo="$repo" \
+        -F pr="$pr_number" \
+        2>/dev/null) || { echo "0"; return; }
+
+    printf '%s' "$response" | python3 -c '
+import sys, json
+data = json.load(sys.stdin)
+try:
+    nodes = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+    count = sum(1 for n in nodes if not n.get("isResolved", True))
+    print(count)
+except Exception:
+    print(0)
+' 2>/dev/null || echo "0"
+}
+
 triage_prs() {
     local prs
     log "PRS"
@@ -463,6 +529,7 @@ triage_prs() {
     log "prs found=${pr_count}"
 
     # Process each PR via python — output tab-separated action lines
+    # Order: COPILOT → THREADS → LINT → CI
     while IFS=$'\t' read -r action pr_number extra; do
         [[ -z "$pr_number" ]] && continue
 
@@ -473,6 +540,15 @@ triage_prs() {
                         dispatch_pr_copilot "$pr_number"
                     else
                         log "  Could not claim pr:${pr_number}-copilot (race), skipping"
+                    fi
+                fi
+                ;;
+            THREADS)
+                if ! is_pr_claimed "${pr_number}-threads"; then
+                    if claim_resource "pr:${pr_number}-threads"; then
+                        dispatch_pr_threads "$pr_number" "$extra"
+                    else
+                        log "  Could not claim pr:${pr_number}-threads (race), skipping"
                     fi
                 fi
                 ;;
@@ -496,7 +572,9 @@ triage_prs() {
                 ;;
         esac
 
-    done < <(printf '%s' "$prs" | python3 -c '
+    done < <(
+        # Step 1: emit COPILOT lines for CHANGES_REQUESTED PRs (highest priority)
+        printf '%s' "$prs" | python3 -c '
 import sys, json
 
 data = json.load(sys.stdin)
@@ -509,7 +587,38 @@ for pr in data:
     has_changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
     if has_changes_requested:
         print(f"COPILOT\t{number}\t")
-        continue  # prioritize copilot fix; lint/CI can wait
+'
+        # Step 2: check unresolved GraphQL threads for each open PR (second priority)
+        while IFS=$'\t' read -r pr_number; do
+            [[ -z "$pr_number" ]] && continue
+            local thread_count
+            thread_count=$(check_pr_unresolved_threads "$pr_number")
+            if [[ "${thread_count:-0}" -gt 0 ]]; then
+                printf "THREADS\t%s\t%s\n" "$pr_number" "$thread_count"
+            fi
+        done < <(printf '%s' "$prs" | python3 -c '
+import sys, json
+data = json.load(sys.stdin)
+for pr in data:
+    reviews = pr.get("reviews") or []
+    has_changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
+    if not has_changes_requested:
+        print(pr.get("number",""))
+')
+        # Step 3: emit LINT/CI lines for remaining PRs
+        printf '%s' "$prs" | python3 -c '
+import sys, json
+
+data = json.load(sys.stdin)
+
+for pr in data:
+    number = pr.get("number","")
+
+    # Skip CHANGES_REQUESTED — already handled above
+    reviews = pr.get("reviews") or []
+    has_changes_requested = any(r.get("state") == "CHANGES_REQUESTED" for r in reviews)
+    if has_changes_requested:
+        continue
 
     # CI status
     checks = pr.get("statusCheckRollup") or []
@@ -528,7 +637,8 @@ for pr in data:
         print(f"LINT\t{number}\t")
     elif ci_failing_name:
         print(f"CI\t{number}\t{ci_failing_name}")
-')
+'
+    )
 }
 
 # ── Main ──────────────────────────────────────────────────────────────────────

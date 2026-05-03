@@ -54,3 +54,95 @@ jobs:
         name: coverage-report-${{ matrix.python-version }}
         path: coverage.xml
         retention-days: 30
+
+  # ---------------------------------------------------------------------------
+  # extraction-smoke — real Gemini call + BQ write for extraction-touching PRs
+  # Budget: < 3 min (one Gemini call on a 2-paragraph fixture ≈ 10-20s; the
+  # rest is dataset setup, BQ write, and verification query).
+  # Cost: ~$0.001 per PR — acceptable.
+  # ---------------------------------------------------------------------------
+  extraction-smoke:
+    name: Extraction smoke test (real Gemini + BQ write)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Skip fork PRs — they don't have access to repo secrets
+    if: >
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect extraction-path changes
+        id: paths
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            HEAD="${{ github.event.pull_request.head.sha }}"
+            git fetch origin "$BASE" --depth=1 2>/dev/null || true
+            CHANGED=$(git diff --name-only "$BASE" "$HEAD")
+          elif [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            BASE="${{ github.event.merge_group.base_sha }}"
+            CHANGED=$(git diff --name-only "$BASE" HEAD 2>/dev/null || echo "")
+          else
+            CHANGED=$(git diff --name-only HEAD~1 HEAD 2>/dev/null || echo "")
+          fi
+
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          TOUCHED=false
+          while IFS= read -r f; do
+            case "$f" in
+              pipeline/src/assertion_extractor.py|\
+              pipeline/src/llm_provider.py|\
+              pipeline/config/llm_config.yaml|\
+              .github/workflows/pundit_pipeline.yml)
+                TOUCHED=true
+                echo "  → extraction path touched: $f"
+                ;;
+            esac
+            if echo "$f" | grep -qE '^pipeline/migrations/01[5-9]_.*\.sql$'; then
+              TOUCHED=true
+              echo "  → extraction migration touched: $f"
+            fi
+          done <<< "$CHANGED"
+
+          echo "touched=$TOUCHED" >> "$GITHUB_OUTPUT"
+
+      - name: Skip — extraction paths not touched
+        if: steps.paths.outputs.touched != 'true'
+        run: echo "No extraction paths touched — smoke test skipped (status: passing)."
+
+      - name: Set up Python
+        if: steps.paths.outputs.touched == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+
+      - name: Install dependencies
+        if: steps.paths.outputs.touched == 'true'
+        run: pip install -r pipeline/requirements-dev.txt
+
+      - name: Authenticate to GCP
+        if: steps.paths.outputs.touched == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Run extraction smoke test
+        if: steps.paths.outputs.touched == 'true'
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          LLM_EXTRACTION_PROVIDER: gemini
+          LLM_EXTRACTION_MODEL: gemini-2.5-flash
+        run: |
+          export PYTHONPATH=$(pwd)/pipeline:$(pwd)/pipeline/src:$(pwd)/pipeline/libs
+          python pipeline/scripts/run_extraction_smoke.py \
+            --fixture pipeline/tests/fixtures/smoke_transcript.txt \
+            --dataset silver_v2_claims_ci_smoke

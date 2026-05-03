@@ -581,6 +581,25 @@ def write_raw_utterances(
             }
         )
 
+    # NOT-NULL invariant — fail fast before any BQ I/O (#595)
+    _NULL_CHECKED_COLS = (
+        "speech_act_type",
+        "testability_score",
+        "domain",
+        "extraction_confidence",
+    )
+    _null_violations: list[str] = []
+    for _row in rows:
+        for _col in _NULL_CHECKED_COLS:
+            if _row.get(_col) is None:
+                _null_violations.append(_col)
+    if _null_violations:
+        raise ValueError(
+            f"write_raw_utterances: NOT NULL invariant violated — "
+            f"columns: {sorted(set(_null_violations))}. "
+            "Refusing to write batch with NULL metadata."
+        )
+
     df = pd.DataFrame(rows)
     # Use qualified table name: write to silver_v2_claims dataset
     full_table = f"{RAW_UTTERANCE_DATASET}.{RAW_UTTERANCE_TABLE}"

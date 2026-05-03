@@ -1,0 +1,10 @@
+# CODEOWNERS — extraction-risk paths require review before merge.
+# Note: activate CODEOWNERS branch protection only after the extraction
+# smoke test job has been green for 2+ consecutive days (see issue #597).
+
+# Extraction pipeline — every PR touching these paths needs a code owner review.
+pipeline/src/assertion_extractor.py        @andrewsmith
+pipeline/src/llm_provider.py               @andrewsmith
+pipeline/config/llm_config.yaml            @andrewsmith
+pipeline/migrations/                       @andrewsmith
+pipeline/scripts/check_extraction_health.py @andrewsmith

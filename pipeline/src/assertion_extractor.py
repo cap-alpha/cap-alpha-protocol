@@ -539,24 +539,42 @@ def write_raw_utterances(
     now = datetime.now(timezone.utc)
     rows = []
     for u in utterances:
-        # Ensure testability_score is the recomputed value if subscores present
+        # Backward compat: LLM may return Phase B schema ("extracted_claim") or
+        # Phase C schema ("text" + "speech_act_type" + "testability_score").
+        # Phase C fields are preferred; Phase B values are used as fallbacks.
+
+        # text: Phase C → "text"; Phase B → "extracted_claim"
+        text_val = (u.get("text") or u.get("extracted_claim") or "")[:4000]
+
+        # testability_score: Phase C → explicit float; Phase B → absent (treat as 1.0
+        # for backward compat, same as _is_promotable).
         subscores = u.get("testability_subscores") or {}
         if subscores:
             score = compute_testability_score(subscores)
         else:
-            raw_score = u.get("testability_score", 0.0)
-            try:
-                score = float(raw_score)
-            except (TypeError, ValueError):
-                score = 0.0
+            raw_score = u.get("testability_score")
+            if raw_score is None:
+                # Legacy Phase B response — no score field; default to 1.0 so
+                # existing rows are not silently assigned zero testability.
+                score = 1.0
+            else:
+                try:
+                    score = float(raw_score)
+                except (TypeError, ValueError):
+                    score = 0.0
 
-        sat = u.get("speech_act_type", "commentary")
-        if sat not in VALID_SPEECH_ACT_TYPES:
-            sat = "commentary"
+        # speech_act_type: Phase C → explicit value (invalid → "commentary");
+        # Phase B (absent entirely) → "assertion" for backward compat.
+        sat_raw = u.get("speech_act_type")
+        if sat_raw is None:
+            sat = "assertion"  # Phase B: no field present, assume testable assertion
+        elif sat_raw not in VALID_SPEECH_ACT_TYPES:
+            sat = "commentary"  # Phase C: LLM returned unrecognised type
+        else:
+            sat = sat_raw
 
-        # resolution_horizon: BQ column type is TIMESTAMP (nullable).
-        # Keep as string/None here; pd.to_datetime below does the final coercion.
-        # Flatten dicts/lists to None — they can't represent a datetime.
+        # resolution_horizon: Phase C only; Phase B used "prediction_horizon_days"
+        # (an int) which cannot map to TIMESTAMP — leave as None for Phase B rows.
         rh = u.get("resolution_horizon")
         if isinstance(rh, (dict, list, bool)):
             rh = None
@@ -567,7 +585,7 @@ def write_raw_utterances(
                 "source_doc_id": source_doc_id,
                 "speaker_entity_id": speaker_entity_id,
                 "uttered_at": uttered_at,
-                "text": str(u.get("text", ""))[:4000],
+                "text": text_val,
                 "speech_act_type": sat,
                 "testability_score": score,
                 "resolution_horizon": rh,

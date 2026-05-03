@@ -1420,6 +1420,49 @@ def _get_void_predictions_by_note(
     return db.fetch_df(query)
 
 
+def expire_stale_predictions(db: DBManager, dry_run: bool = False) -> int:
+    """
+    Void PENDING predictions that have passed their resolution horizon.
+
+    A prediction is considered stale if any of the following is true:
+      - resolution_deadline < CURRENT_DATE() (if that column exists on the ledger), OR
+      - season_year <= EXTRACT(YEAR FROM CURRENT_DATE()) - 2  (more than 2 seasons old)
+
+    Each stale prediction is voided with reason 'past_resolution_horizon'.
+    Returns the count of predictions expired.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    query = f"""
+        SELECT prediction_hash
+        FROM `{project_id}.gold_layer.prediction_ledger`
+        WHERE resolution_status = 'PENDING'
+          AND (
+            (resolution_deadline IS NOT NULL AND resolution_deadline < CURRENT_DATE())
+            OR season_year <= EXTRACT(YEAR FROM CURRENT_DATE()) - 2
+          )
+    """
+    try:
+        stale = db.fetch_df(query)
+    except Exception as e:
+        logger.warning(f"expire_stale_predictions: could not query ledger: {e}")
+        return 0
+
+    count = len(stale)
+    if count == 0:
+        logger.info("expire_stale_predictions: no stale predictions found")
+        return 0
+
+    logger.info(f"expire_stale_predictions: expiring {count} stale prediction(s)")
+    for _, row in stale.iterrows():
+        phash = row["prediction_hash"]
+        logger.info(f"  VOID {phash[:12]}… — past_resolution_horizon")
+        if not dry_run:
+            void_prediction(phash, "past_resolution_horizon", db=db)
+
+    logger.info(f"expire_stale_predictions: expired {count} prediction(s)")
+    return count
+
+
 def resolve_all(
     category: Optional[str] = None,
     dry_run: bool = False,
@@ -1481,6 +1524,9 @@ def resolve_all(
 
         if not category or category == "fa_signing":
             summaries["fa_signing"] = resolve_fa_signings(db, dry_run=dry_run)
+
+        # Expire predictions past their resolution horizon (runs on every full pass)
+        expired = expire_stale_predictions(db, dry_run=dry_run)
 
         # Combined summary
         total = {

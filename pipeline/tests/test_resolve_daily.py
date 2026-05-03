@@ -16,6 +16,7 @@ from src.resolve_daily import (
     _normalize_name,
     _normalize_team,
     _resolve_team_claim,
+    expire_stale_predictions,
     resolve_draft_picks,
     resolve_game_outcomes,
     resolve_player_performance,
@@ -1161,3 +1162,57 @@ class TestResolveTeamClaim:
         """'No. 5 in the' — pattern without overall/pick."""
         result = _extract_draft_claim("Player selected No. 5 in the 2026 draft")
         assert result.get("pick_number") == 5
+
+
+# ---------------------------------------------------------------------------
+# expire_stale_predictions
+# ---------------------------------------------------------------------------
+
+
+class TestExpireStale:
+    @patch("src.resolve_daily.void_prediction")
+    def test_voids_all_stale_predictions(self, mock_void, mock_db):
+        """3 stale predictions returned by DB are all voided with past_resolution_horizon."""
+        stale_hashes = [f"{'c' * 60}{i:04d}" for i in range(3)]
+        mock_db.fetch_df.return_value = pd.DataFrame({"prediction_hash": stale_hashes})
+
+        count = expire_stale_predictions(mock_db, dry_run=False)
+
+        assert count == 3
+        assert mock_void.call_count == 3
+        for call, phash in zip(mock_void.call_args_list, stale_hashes):
+            args, kwargs = call
+            assert args[0] == phash
+            assert args[1] == "past_resolution_horizon"
+
+    @patch("src.resolve_daily.void_prediction")
+    def test_dry_run_does_not_void(self, mock_void, mock_db):
+        """dry_run=True counts stale predictions but does not call void_prediction."""
+        mock_db.fetch_df.return_value = pd.DataFrame(
+            {"prediction_hash": ["a" * 64, "b" * 64]}
+        )
+
+        count = expire_stale_predictions(mock_db, dry_run=True)
+
+        assert count == 2
+        mock_void.assert_not_called()
+
+    @patch("src.resolve_daily.void_prediction")
+    def test_returns_zero_when_no_stale(self, mock_void, mock_db):
+        """Returns 0 and calls no voids when DB returns empty DataFrame."""
+        mock_db.fetch_df.return_value = pd.DataFrame(columns=["prediction_hash"])
+
+        count = expire_stale_predictions(mock_db, dry_run=False)
+
+        assert count == 0
+        mock_void.assert_not_called()
+
+    @patch("src.resolve_daily.void_prediction")
+    def test_returns_zero_on_db_error(self, mock_void, mock_db):
+        """Returns 0 gracefully when the DB query raises an exception."""
+        mock_db.fetch_df.side_effect = Exception("BQ unavailable")
+
+        count = expire_stale_predictions(mock_db, dry_run=False)
+
+        assert count == 0
+        mock_void.assert_not_called()

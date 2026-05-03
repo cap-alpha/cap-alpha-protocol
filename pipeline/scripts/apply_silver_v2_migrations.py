@@ -36,12 +36,55 @@ MIGRATIONS_DIR = pathlib.Path(__file__).parent.parent / "migrations"
 def _split_statements(sql: str) -> list[str]:
     """
     Split a SQL file into individual statements on semicolons, preserving
-    statement bodies.  Empty/whitespace-only results are skipped.
+    statement bodies. Quote-aware: tracks single and double quotes, handles
+    escape sequences (\' and \"), and only splits on ; when NOT in a string.
+    Empty/whitespace-only results are skipped.
     """
     # Strip SQL line comments so we don't split on semicolons inside comments.
     stripped = re.sub(r"--[^\n]*", "", sql)
-    parts = stripped.split(";")
-    return [p.strip() for p in parts if p.strip()]
+
+    statements = []
+    current = []
+    in_single_quote = False
+    in_double_quote = False
+    i = 0
+
+    while i < len(stripped):
+        char = stripped[i]
+
+        # Handle escape sequences
+        if i + 1 < len(stripped) and char == "\\":
+            next_char = stripped[i + 1]
+            if next_char in ("'", '"', "\\"):
+                current.append(char)
+                current.append(next_char)
+                i += 2
+                continue
+
+        # Track quote state
+        if char == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+            current.append(char)
+        elif char == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+            current.append(char)
+        # Split on semicolon only when not in quotes
+        elif char == ";" and not in_single_quote and not in_double_quote:
+            stmt = "".join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+        else:
+            current.append(char)
+
+        i += 1
+
+    # Append any remaining statement
+    stmt = "".join(current).strip()
+    if stmt:
+        statements.append(stmt)
+
+    return statements
 
 
 def _load_migration(filename: str, project_id: str) -> str:

@@ -58,8 +58,8 @@ export function TestabilityTrendChart({
                             borderRadius: 8,
                             fontSize: 12,
                         }}
-                        formatter={(v: number, name: string) => [
-                            `${v}%`,
+                        formatter={(v, name) => [
+                            `${v as number}%`,
                             name === "avg7d" ? "7-day avg" : "Daily",
                         ]}
                     />
@@ -122,7 +122,7 @@ export function ClaimPromotionChart({ data }: { data: DailyTrendRow[] }) {
                             borderRadius: 8,
                             fontSize: 12,
                         }}
-                        formatter={(v: number) => [`${v}%`, "Claim rate"]}
+                        formatter={(v) => [`${v as number}%`, "Claim rate"]}
                     />
                     <Line
                         type="monotone"
@@ -187,8 +187,8 @@ export function ResolutionAccuracyChart({
                             borderRadius: 8,
                             fontSize: 12,
                         }}
-                        formatter={(v: number) => [
-                            `${v}%`,
+                        formatter={(v) => [
+                            `${v as number}%`,
                             "Accuracy",
                         ]}
                     />

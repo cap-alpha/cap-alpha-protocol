@@ -9,7 +9,7 @@
 --   envsubst < pipeline/migrations/010_create_player_timeline_events_view.sql | \
 --     bq query --use_legacy_sql=false --project_id=$PROJECT_ID
 
-CREATE OR REPLACE VIEW `${PROJECT_ID}.gold_layer.player_timeline_events`
+CREATE OR REPLACE VIEW `{project_id}.gold_layer.player_timeline_events`
 OPTIONS (
   description = "Unified chronological player event feed. Sources: silver_spotrac_contracts, gold_layer.prediction_ledger, gold_layer.prediction_resolutions."
 )
@@ -34,7 +34,7 @@ SELECT
   NULL                                                                             AS source_url,
   c.team
 
-FROM `${PROJECT_ID}.nfl_dead_money.silver_spotrac_contracts` c
+FROM `{project_id}.nfl_dead_money.silver_spotrac_contracts` c
 WHERE c.player_name IS NOT NULL
 
 UNION ALL
@@ -60,7 +60,7 @@ SELECT
   pl.source_url,
   pl.target_team                                                                   AS team
 
-FROM `${PROJECT_ID}.gold_layer.prediction_ledger` pl
+FROM `{project_id}.gold_layer.prediction_ledger` pl
 WHERE COALESCE(pl.target_player_name, pl.target_player_id) IS NOT NULL
 
 UNION ALL
@@ -82,8 +82,8 @@ SELECT
   pl.source_url,
   pl.target_team                                                                   AS team
 
-FROM `${PROJECT_ID}.gold_layer.prediction_resolutions` pr
-JOIN  `${PROJECT_ID}.gold_layer.prediction_ledger`     pl
+FROM `{project_id}.gold_layer.prediction_resolutions` pr
+JOIN  `{project_id}.gold_layer.prediction_ledger`     pl
   ON  pr.prediction_hash = pl.prediction_hash
 WHERE COALESCE(pl.target_player_name, pl.target_player_id) IS NOT NULL
   AND pr.resolution_status IN ('CORRECT', 'INCORRECT')
@@ -94,6 +94,6 @@ WHERE COALESCE(pl.target_player_name, pl.target_player_id) IS NOT NULL
 -- POST-APPLY: smoke test
 -- ============================================================
 -- SELECT event_type, COUNT(*) AS cnt
--- FROM `${PROJECT_ID}.gold_layer.player_timeline_events`
+-- FROM `{project_id}.gold_layer.player_timeline_events`
 -- GROUP BY 1
 -- ORDER BY 2 DESC;

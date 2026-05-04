@@ -1,0 +1,56 @@
+name: Weekly Backup Verification
+
+on:
+  schedule:
+    # Every Sunday at 06:00 UTC
+    - cron: '0 6 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (no writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  verify-backup:
+    name: Ledger Backup & Chain Integrity
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r pipeline/requirements.txt
+
+      - name: Run backup verification
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GCP_CLIENT_EMAIL: ${{ secrets.GCP_CLIENT_EMAIL }}
+          GCP_PRIVATE_KEY: ${{ secrets.GCP_PRIVATE_KEY }}
+          GCS_BACKUP_BUCKET: ${{ secrets.GCS_BACKUP_BUCKET }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          DRY_RUN_FLAG=""
+          if [[ "${{ inputs.dry_run }}" == "true" ]]; then
+            DRY_RUN_FLAG="--dry-run"
+          fi
+          python pipeline/scripts/verify_backup.py $DRY_RUN_FLAG
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -sS -X POST "$SLACK_WEBHOOK_URL" \
+            -H 'Content-Type: application/json' \
+            -d '{"text": ":rotating_light: *Cap Alpha backup verification workflow FAILED*. Check GitHub Actions for details."}'

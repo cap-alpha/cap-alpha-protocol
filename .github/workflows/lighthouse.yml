@@ -32,6 +32,7 @@ jobs:
         run: npm run build
         env:
           NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_Y2xlcmsuZXhhbXBsZS5jb20k' }}
 
       - name: Run Lighthouse CI
         working-directory: web

@@ -1,5 +1,5 @@
 /**
- * POST /api/webhooks/stripe
+ * POST /api/webhooks/stripe — replay attack hardening (#484)
  *
  * Receives Stripe webhook events, verifies the signature, and keeps
  * subscription state in sync across:

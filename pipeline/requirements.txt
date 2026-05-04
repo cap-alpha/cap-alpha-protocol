@@ -1,6 +1,6 @@
 pandas
 pandas-gbq
-nfl-data-py>=0.3.0
+nfl-data-py>=0.3.3
 db-dtypes
 xgboost
 shap>=0.40.0

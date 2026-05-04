@@ -422,7 +422,7 @@ def test_fa_resolution_golden(
         f"Claim: {claim!r}\n"
         f"Real-world: {resolution_source}"
     )
-    actual_correct = mock_resolve.call_args[0][1]
+    actual_correct = mock_resolve.call_args.args[1]
     assert actual_correct is expected_correct, (
         f"Expected correct={expected_correct}, got {actual_correct}\n"
         f"Claim: {claim!r}\n"
@@ -962,7 +962,7 @@ def test_award_resolution_golden(
         f"Claim: {claim!r}\n"
         f"Real-world: {resolution_source}"
     )
-    actual_correct = mock_resolve.call_args[0][1]
+    actual_correct = mock_resolve.call_args.args[1]
     assert actual_correct is expected_correct, (
         f"Expected correct={expected_correct}, got {actual_correct}\n"
         f"Claim: {claim!r}\n"

@@ -20,6 +20,7 @@ import { BigQuery } from "@google-cloud/bigquery";
 const PROJECT_ID = process.env.GCP_PROJECT_ID || "cap-alpha-protocol";
 const UTTERANCE_TABLE = `\`${PROJECT_ID}.silver_v2_claims.raw_utterance\``;
 const LEDGER_TABLE = `\`${PROJECT_ID}.gold_layer.prediction_ledger\``;
+const RESOLUTION_TABLE = `\`${PROJECT_ID}.silver_v2_claims.resolution\``;
 
 // Waitlist-removal criteria thresholds (configurable via env)
 const TESTABILITY_THRESHOLD = parseFloat(
@@ -74,6 +75,10 @@ export interface DataQuality {
     pct_rows_with_complete_metadata: number;
     zero_output_runs_7d: number;
     provider_mix: Record<string, number>;
+    /** Fraction of silver_v2_claims.resolution rows with outcome='true' over all
+     *  resolved (true|false) rows. Sourced from silver_v2_claims.resolution (Issue #615).
+     *  null when the table has no resolved rows yet. */
+    resolution_accuracy: number | null;
 }
 
 export interface WaitlistGate {
@@ -102,6 +107,7 @@ const EMPTY_RESPONSE: QualityResponse = {
         pct_rows_with_complete_metadata: 1,
         zero_output_runs_7d: 0,
         provider_mix: {},
+        resolution_accuracy: null,
     },
     waitlistGates: [
         {
@@ -360,6 +366,33 @@ export async function GET() {
         // A proper count requires the extraction_run table (Issue 4); stub to 0 until then.
         const zeroOutputRuns7d = 0;
 
+        // Query 4: resolution_accuracy from silver_v2_claims.resolution (Issue #615)
+        // Best-effort: errors produce null rather than failing the entire response.
+        let resolutionAccuracy: number | null = null;
+        try {
+            const [resRows] = await bq.query({
+                query: `
+                    SELECT
+                        SAFE_DIVIDE(
+                            COUNTIF(outcome = 'true'),
+                            COUNTIF(outcome IN ('true', 'false'))
+                        ) AS resolution_accuracy
+                    FROM ${RESOLUTION_TABLE}
+                    WHERE resolved_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 90 DAY)
+                `,
+                jobTimeoutMs: 10000,
+            });
+            const resRow = (resRows as Array<Record<string, unknown>>)[0] ?? null;
+            if (resRow?.resolution_accuracy != null) {
+                resolutionAccuracy = Number(resRow.resolution_accuracy);
+            }
+        } catch (resErr) {
+            console.warn(
+                "[Quality API] resolution_accuracy query failed (silver_v2_claims.resolution may not exist yet):",
+                resErr
+            );
+        }
+
         const dataQuality: DataQuality = {
             null_metadata_pct: nullMetadataPct,
             pct_rows_with_complete_metadata: pctRowsWithCompleteMetadata,
@@ -370,6 +403,7 @@ export async function GET() {
                     Number(qRow?.total_7d ?? 0) -
                     Number(qRow?.nfl_count_7d ?? 0),
             },
+            resolution_accuracy: resolutionAccuracy,
         };
 
         const waitlistGates: WaitlistGate[] = [

@@ -1261,16 +1261,14 @@ def _load_current_rosters(db: DBManager) -> pd.DataFrame:
     """Load current player team assignments from bronze_sportsdataio_players."""
     project_id = os.environ.get("GCP_PROJECT_ID", "cap-alpha-protocol")
     try:
-        df = db.fetch_df(
-            f"""
+        df = db.fetch_df(f"""
             SELECT
                 Name,
                 LOWER(Name) AS name_lower,
                 Team AS current_team
             FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
             WHERE Team IS NOT NULL AND Team != ''
-            """
-        )
+            """)
         return df
     except NotFound:
         logger.warning("bronze_sportsdataio_players table not found")
@@ -1524,6 +1522,22 @@ def resolve_all(
 
         if not category or category == "fa_signing":
             summaries["fa_signing"] = resolve_fa_signings(db, dry_run=dry_run)
+
+        # LLM judge fallback pass — runs last, after all rule-based resolvers.
+        # Only fires when no category filter is active (full pass only).
+        if not category:
+            try:
+                from src.resolvers.llm_judge import run_llm_judge_pass
+
+                summaries["llm_judge"] = run_llm_judge_pass(db=db, dry_run=dry_run)
+            except Exception as exc:
+                logger.warning(f"llm_judge pass failed (non-fatal): {exc}")
+                summaries["llm_judge"] = {
+                    "checked": 0,
+                    "resolved": 0,
+                    "skipped": 0,
+                    "errors": 1,
+                }
 
         # Expire predictions past their resolution horizon (runs on every full pass)
         expired = expire_stale_predictions(db, dry_run=dry_run)

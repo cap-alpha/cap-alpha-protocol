@@ -10,7 +10,11 @@ import os
 sys.path.append(str(Path(__file__).parent.parent))
 from src.db_manager import DBManager
 from src.config_loader import get_db_path, get_bronze_dir
-from src.financial_ingestion import load_team_financials, load_player_merch
+try:
+    from src.financial_ingestion import load_team_financials, load_player_merch
+except ImportError:
+    load_team_financials = None
+    load_player_merch = None
 from src.spotrac_scraper_v2 import scrape_and_save_player_contracts, scrape_and_save_player_rankings
 from src.overthecap_scraper import OverTheCapScraper
 
@@ -254,11 +258,11 @@ class SilverLayer:
     def ingest_others(self):
         logger.info("SilverLayer: Ingesting other static datasets")
         fin_path = BRONZE_DIR / "other" / "finance" / "team_valuations_2024.csv"
-        if fin_path.exists():
+        if fin_path.exists() and load_team_financials:
             load_team_financials(self.db.con, fin_path)
-        
+
         merch_path = BRONZE_DIR / "other" / "merch" / "nflpa_player_sales_2024.csv"
-        if merch_path.exists():
+        if merch_path.exists() and load_player_merch:
             load_player_merch(self.db.con, merch_path)
 
         draft_file = Path("data/raw/pfr/draft_history.csv")

@@ -1,3 +1,4 @@
+// Footer with correction policy link — issue #482
 import React from 'react';
 import Link from 'next/link';
 import { DebugReset } from './debug-reset';

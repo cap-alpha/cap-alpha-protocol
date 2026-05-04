@@ -30,10 +30,10 @@ CREATE TABLE IF NOT EXISTS `{project_id}.gold_layer.prediction_ledger`
   target_team         STRING    OPTIONS(description="Team abbreviation if claim targets a specific team"),
 
   -- Sport context (multi-sport expansion)
-  sport               STRING    OPTIONS(description="Sport: NFL|MLB|NBA|NHL|NCAAF|NCAAB. Default NFL.") DEFAULT 'NFL',
+  sport               STRING    DEFAULT 'NFL' OPTIONS(description="Sport: NFL|MLB|NBA|NHL|NCAAF|NCAAB. Default NFL."),
 
   -- Resolution (populated by Prediction Resolution Engine, issue #112)
-  resolution_status   STRING    OPTIONS(description="PENDING|CORRECT|INCORRECT|VOID") DEFAULT 'PENDING',
+  resolution_status   STRING    DEFAULT 'PENDING' OPTIONS(description="PENDING|CORRECT|INCORRECT|VOID"),
   resolved_at         TIMESTAMP OPTIONS(description="When the prediction was scored against real-world outcomes"),
   resolution_notes    STRING    OPTIONS(description="Human-readable explanation of the scoring decision")
 )

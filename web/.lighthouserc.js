@@ -1,3 +1,4 @@
+// Lighthouse CI config — accessibility and best-practices are hard errors
 module.exports = {
   ci: {
     collect: {

@@ -16,6 +16,8 @@
 --   envsubst < pipeline/migrations/015_create_silver_v2_core.sql | \
 --     bq query --use_legacy_sql=false --project_id=$PROJECT_ID
 
+CREATE SCHEMA IF NOT EXISTS `{project_id}.silver_v2_core`;
+
 -- ============================================================
 -- 1. entity — stable root, never mutates primary key
 -- ============================================================

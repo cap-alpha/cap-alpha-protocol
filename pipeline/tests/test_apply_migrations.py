@@ -62,6 +62,25 @@ class TestSplitStatements:
         assert len(parts) == 1
         assert parts[0] == "SELECT 1"
 
+    def test_semicolons_inside_string_literals_not_split(self):
+        # BigQuery OPTIONS(description="...") clauses frequently contain semicolons
+        sql = (
+            'CREATE TABLE t (a STRING OPTIONS(description="x; y"), '
+            'b BOOL OPTIONS(description="p; q"));'
+        )
+        parts = _split_statements(sql)
+        assert len(parts) == 1, f"Expected 1 statement, got {len(parts)}: {parts}"
+
+    def test_semicolons_inside_double_quotes_not_split(self):
+        sql = 'INSERT INTO t VALUES ("a;b;c");'
+        parts = _split_statements(sql)
+        assert len(parts) == 1
+
+    def test_real_statement_boundary_after_quoted_semicolons(self):
+        sql = 'ALTER TABLE t ADD COLUMN a STRING OPTIONS(description="x; y"); ALTER TABLE t ADD COLUMN b INT64;'
+        parts = _split_statements(sql)
+        assert len(parts) == 2
+
 
 class TestSha256:
     def test_deterministic(self):

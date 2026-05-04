@@ -67,12 +67,37 @@ def _split_statements(sql: str) -> list[str]:
     """
     Split a SQL file into individual statements on semicolons.
 
-    Strips line comments first so semicolons inside comment lines don't
-    cause spurious splits. Empty/whitespace-only results are skipped.
+    Strips line comments first, then splits on semicolons that are NOT inside
+    single-quoted or double-quoted string literals. BigQuery OPTIONS(description="...")
+    clauses commonly contain semicolons which must not be treated as statement
+    delimiters.
     """
+    # Strip line comments. Safe because our migration descriptions don't contain --.
     stripped = re.sub(r"--[^\n]*", "", sql)
-    parts = stripped.split(";")
-    return [p.strip() for p in parts if p.strip()]
+
+    parts: list[str] = []
+    current: list[str] = []
+    in_single = False
+    in_double = False
+
+    for ch in stripped:
+        if ch == "'" and not in_double:
+            in_single = not in_single
+        elif ch == '"' and not in_single:
+            in_double = not in_double
+        elif ch == ";" and not in_single and not in_double:
+            stmt = "".join(current).strip()
+            if stmt:
+                parts.append(stmt)
+            current = []
+            continue
+        current.append(ch)
+
+    remainder = "".join(current).strip()
+    if remainder:
+        parts.append(remainder)
+
+    return parts
 
 
 def _sha256(content: str) -> str:

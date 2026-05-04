@@ -78,7 +78,7 @@ SELECT
     pr.resolution_status,
     IF(pl.pundit_name IS NOT NULL, CONCAT(' — ', pl.pundit_name), '')
   )                                                                                AS title,
-  COALESCE(pr.resolution_notes, pl.extracted_claim, pl.raw_assertion_text)        AS description,
+  COALESCE(pr.outcome_notes, pl.extracted_claim, pl.raw_assertion_text)           AS description,
   pl.source_url,
   pl.target_team                                                                   AS team
 

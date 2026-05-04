@@ -1,5 +1,5 @@
 /**
- * WCAG AA accessibility tests (axe-core)
+ * WCAG AA accessibility tests (axe-core) — issue #505
  *
  * Verifies that key routes pass WCAG 2.0 Level A and AA rules via axe-core.
  *

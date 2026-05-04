@@ -1215,12 +1215,26 @@ class TestSourceConfig:
         assert len(cfg) > 0
 
     def test_known_tier1_sources_have_correct_tier(self):
-        """pat_mcafee_show and espn_nfl should be tier 1 per media_sources.yaml."""
+        """pat_mcafee_show and theathletic_nfl should be tier 1 per media_sources.yaml."""
         import src.assertion_extractor as ae
 
         ae._SOURCE_CONFIG_CACHE = None
         assert get_source_priority_tier("pat_mcafee_show") == 1
-        assert get_source_priority_tier("espn_nfl") == 1
+        assert get_source_priority_tier("theathletic_nfl") == 1
+
+    def test_known_tier2_sources_have_correct_tier(self):
+        """espn_nfl should be tier 2 per media_sources.yaml (issue #381)."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert get_source_priority_tier("espn_nfl") == 2
+
+    def test_known_tier3_sources_have_correct_tier(self):
+        """pft_nbc should be tier 3 per media_sources.yaml (issue #381)."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert get_source_priority_tier("pft_nbc") == 3
 
     def test_skip_extraction_sources(self):
         """club_shay_shay and nfl_official should have skip_extraction=True."""
@@ -1260,6 +1274,34 @@ class TestPriorityInGetUnprocessedMedia:
         assert "club_shay_shay" in query
         assert "NOT IN" in query
 
+    def test_query_orders_by_priority_tier_then_ingested_at(self, mock_db):
+        """Main query should ORDER BY priority_tier ASC, ingested_at DESC (issue #381)."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db)
+        query = mock_db.fetch_df.call_args[0][0]
+        assert "ORDER BY" in query
+        assert "ASC" in query
+        assert "ingested_at DESC" in query
+
+    def test_fallback_query_orders_by_priority_tier_then_ingested_at(self, mock_db):
+        """Fallback query (no tracking table) also ORDER BY priority_tier ASC, ingested_at DESC."""
+        import src.assertion_extractor as ae
+        from google.api_core.exceptions import NotFound
+
+        ae._SOURCE_CONFIG_CACHE = None
+        mock_db.fetch_df.side_effect = [
+            NotFound("processed_media_hashes"),
+            pd.DataFrame(),
+        ]
+        get_unprocessed_media(mock_db)
+        fallback_query = mock_db.fetch_df.call_args_list[1][0][0]
+        assert "ORDER BY" in fallback_query
+        assert "ASC" in fallback_query
+        assert "ingested_at DESC" in fallback_query
+
     def test_priority_sort_applied_to_results(self, mock_db):
         """Results returned from DB should be re-sorted by tier before returning."""
         import src.assertion_extractor as ae
@@ -1272,7 +1314,7 @@ class TestPriorityInGetUnprocessedMedia:
             [
                 {
                     "content_hash": "hash_tier3",
-                    "source_id": "rotoballer_nfl",  # tier 3
+                    "source_id": "rotoballer_nfl",  # unknown source → DEFAULT_PRIORITY_TIER (2)
                     "title": "Low yield",
                     "raw_text": "text",
                     "source_url": "https://example.com/a",
@@ -1284,7 +1326,7 @@ class TestPriorityInGetUnprocessedMedia:
                 },
                 {
                     "content_hash": "hash_tier1",
-                    "source_id": "espn_nfl",  # tier 1
+                    "source_id": "pat_mcafee_show",  # tier 1 (McAfee transcripts)
                     "title": "High yield",
                     "raw_text": "text",
                     "source_url": "https://example.com/b",
@@ -1298,8 +1340,8 @@ class TestPriorityInGetUnprocessedMedia:
         )
         mock_db.fetch_df.return_value = raw
         result = get_unprocessed_media(mock_db, limit=10)
-        # espn_nfl (tier 1) should come before rotoballer_nfl (tier 3)
-        assert result.iloc[0]["source_id"] == "espn_nfl"
+        # pat_mcafee_show (tier 1) should come before rotoballer_nfl (unknown → tier 2)
+        assert result.iloc[0]["source_id"] == "pat_mcafee_show"
         assert result.iloc[1]["source_id"] == "rotoballer_nfl"
 
     def test_run_extraction_skips_low_yield_source(self, mock_db, mock_provider):

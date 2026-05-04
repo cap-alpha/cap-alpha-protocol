@@ -1,5 +1,5 @@
 
-import { pgTable, serial, integer, text, timestamp, jsonb, uuid, boolean } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, jsonb, uuid, boolean, index } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
     id: serial("id").primaryKey(),
@@ -64,3 +64,18 @@ export const waitlist = pgTable("waitlist", {
     persona: text("persona"), // e.g., 'Agent', 'Fan', 'Bettor', 'Front_Office'
     createdAt: timestamp("created_at").defaultNow(),
 });
+
+// Idempotency table for Stripe webhook events.
+// Before processing any event, the handler inserts the event ID here.
+// A UNIQUE constraint on stripe_event_id prevents duplicate processing
+// even under concurrent delivery or replay attacks.
+export const stripeProcessedEvents = pgTable(
+    "stripe_processed_events",
+    {
+        id: serial("id").primaryKey(),
+        stripeEventId: text("stripe_event_id").unique().notNull(),
+        eventType: text("event_type").notNull(),
+        processedAt: timestamp("processed_at").defaultNow().notNull(),
+    },
+    (table) => [index("stripe_processed_events_event_id_idx").on(table.stripeEventId)]
+);

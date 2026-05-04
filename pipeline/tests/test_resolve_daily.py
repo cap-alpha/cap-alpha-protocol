@@ -10,12 +10,16 @@ import pandas as pd
 import pytest
 
 from src.resolve_daily import (
+    _dual_write_silver_v2_resolution,
     _extract_draft_claim,
     _extract_game_claim,
     _extract_player_stat_claim,
     _normalize_name,
     _normalize_team,
+    _resolve_binary_with_dual_write,
     _resolve_team_claim,
+    _silver_v2_resolution_method_id,
+    _void_prediction_with_dual_write,
     expire_stale_predictions,
     resolve_draft_picks,
     resolve_game_outcomes,
@@ -243,7 +247,7 @@ _BEARS_PLAYOFF_2024 = pd.DataFrame(
 class TestResolveGameOutcomes:
     @patch("src.resolve_daily._load_game_scores")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_correct_win_prediction(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -263,7 +267,7 @@ class TestResolveGameOutcomes:
 
     @patch("src.resolve_daily._load_game_scores")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_incorrect_win_prediction(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -318,7 +322,7 @@ class TestResolveGameOutcomes:
 
     @patch("src.resolve_daily._load_game_scores")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.void_prediction")
+    @patch("src.resolve_daily._void_prediction_with_dual_write")
     def test_voids_unparseable_claim(self, mock_void, mock_pending, mock_load, mock_db):
         """Claims that can't be parsed are voided."""
         preds = _make_pending_df(
@@ -334,7 +338,7 @@ class TestResolveGameOutcomes:
 
     @patch("src.resolve_daily._load_game_scores")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_playoff_make_correct(self, mock_resolve, mock_pending, mock_load, mock_db):
         """Bears making playoffs correctly resolved when Bears appear in playoff games."""
         preds = _make_pending_df(
@@ -409,7 +413,7 @@ _MAHOMES_LOW_STATS_2024 = pd.DataFrame(
 class TestResolvePlayerPerformance:
     @patch("src.resolve_daily._load_player_season_stats")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_correct_stat_prediction(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -435,7 +439,7 @@ class TestResolvePlayerPerformance:
 
     @patch("src.resolve_daily._load_player_season_stats")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_incorrect_stat_prediction(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -502,7 +506,7 @@ class TestResolvePlayerPerformance:
 
     @patch("src.resolve_daily._load_player_season_stats")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.void_prediction")
+    @patch("src.resolve_daily._void_prediction_with_dual_write")
     def test_voids_unparseable_stat_claim(
         self, mock_void, mock_pending, mock_load, mock_db
     ):
@@ -676,7 +680,7 @@ _DRAFT_DATA_2024 = pd.DataFrame(
 class TestResolveDraftPicks:
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_correct_pick_number(self, mock_resolve, mock_pending, mock_load, mock_db):
         """Caleb Williams predicted as #1 pick — correct when he was actually pick #1."""
         preds = _make_pending_df(
@@ -701,7 +705,7 @@ class TestResolveDraftPicks:
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_incorrect_pick_number(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -727,7 +731,7 @@ class TestResolveDraftPicks:
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_correct_top_n_prediction(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -753,7 +757,7 @@ class TestResolveDraftPicks:
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_correct_round_prediction(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -803,7 +807,7 @@ class TestResolveDraftPicks:
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_season_year_used_as_draft_year_fallback(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -887,7 +891,7 @@ class TestResolveDraftPicks:
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.void_prediction")
+    @patch("src.resolve_daily._void_prediction_with_dual_write")
     def test_void_when_claim_has_no_pick_structure(
         self, mock_void, mock_pending, mock_load, mock_db
     ):
@@ -912,7 +916,7 @@ class TestResolveDraftPicks:
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_zero_indexed_picks_normalized(
         self, mock_resolve, mock_pending, mock_load, mock_db
     ):
@@ -1046,7 +1050,7 @@ class TestResolveTeamClaim:
         )
         assert result is None
 
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_two_top_picks_correct(self, mock_resolve, mock_db):
         """Team with two picks in top-10 resolves as CORRECT."""
         result = _resolve_team_claim(
@@ -1058,10 +1062,10 @@ class TestResolveTeamClaim:
             dry_run=False,
         )
         assert result == "resolved"
-        # resolve_binary(phash, correct, ...) — correct is positional arg [1]
+        # _resolve_binary_with_dual_write(phash, correct, ...) — correct is positional arg [1]
         assert mock_resolve.call_args[0][1] is True
 
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_two_top_picks_incorrect(self, mock_resolve, mock_db):
         """Team with only one top-10 pick resolves as INCORRECT when two expected."""
         result = _resolve_team_claim(
@@ -1073,10 +1077,10 @@ class TestResolveTeamClaim:
             dry_run=False,
         )
         assert result == "resolved"
-        # resolve_binary(phash, correct, ...) — correct is positional arg [1]
+        # _resolve_binary_with_dual_write(phash, correct, ...) — correct is positional arg [1]
         assert mock_resolve.call_args[0][1] is False
 
-    @patch("src.resolve_daily.resolve_binary")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_dry_run_does_not_call_resolve_binary(self, mock_resolve, mock_db):
         """dry_run=True suppresses the resolve_binary write."""
         _resolve_team_claim(
@@ -1216,3 +1220,214 @@ class TestExpireStale:
 
         assert count == 0
         mock_void.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Dual-write helpers (Issue #615)
+# ---------------------------------------------------------------------------
+
+
+class TestSilverV2ResolutionMethodId:
+    """_silver_v2_resolution_method_id maps outcome_source → resolution_method_id."""
+
+    def test_sportsdataio_maps_to_draft_pick(self):
+        assert (
+            _silver_v2_resolution_method_id("sportsdataio")
+            == "nfl_draft_pick_sportsdataio"
+        )
+
+    def test_draft_board_maps_to_draft_pick(self):
+        assert (
+            _silver_v2_resolution_method_id("draft_board")
+            == "nfl_draft_pick_sportsdataio"
+        )
+
+    def test_scores_maps_to_game_outcome(self):
+        assert (
+            _silver_v2_resolution_method_id("sportsdataio_scores")
+            == "nfl_game_outcome_scores"
+        )
+
+    def test_nflverse_maps_to_player_perf(self):
+        assert (
+            _silver_v2_resolution_method_id("nflverse_player_stats")
+            == "nfl_player_perf_nflverse"
+        )
+
+    def test_awards_config_maps_to_award(self):
+        assert (
+            _silver_v2_resolution_method_id("nfl_awards_config") == "nfl_award_config"
+        )
+
+    def test_rosters_maps_to_fa_signing(self):
+        assert (
+            _silver_v2_resolution_method_id("sportsdataio_rosters")
+            == "nfl_fa_signing_rosters"
+        )
+
+    def test_unknown_source_returns_default(self):
+        assert _silver_v2_resolution_method_id("unknown_source").startswith("nfl_")
+
+    def test_none_returns_default(self):
+        assert _silver_v2_resolution_method_id(None).startswith("nfl_")
+
+
+class TestDualWriteSilverV2Resolution:
+    """_dual_write_silver_v2_resolution writes to silver_v2_claims.resolution."""
+
+    def _make_mock_db(self):
+        db = MagicMock()
+        # chain query returns empty (first resolution in chain)
+        db.fetch_df.return_value = pd.DataFrame()
+        db.execute.return_value = None
+        return db
+
+    def test_writes_true_outcome(self, monkeypatch):
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_mock_db()
+        _dual_write_silver_v2_resolution(
+            prediction_hash="a" * 64,
+            outcome="true",
+            outcome_confidence=1.0,
+            evidence={"source": "sportsdataio"},
+            resolution_method_id="nfl_draft_pick_sportsdataio",
+            db=db,
+        )
+        db.execute.assert_called_once()
+        # Verify the INSERT statement was constructed
+        call_sql = db.execute.call_args[0][0]
+        assert "INSERT INTO" in call_sql
+        assert "silver_v2_claims.resolution" in call_sql
+
+    def test_writes_false_outcome(self, monkeypatch):
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_mock_db()
+        _dual_write_silver_v2_resolution(
+            prediction_hash="b" * 64,
+            outcome="false",
+            outcome_confidence=0.9,
+            evidence={"source": "nflverse_player_stats"},
+            resolution_method_id="nfl_player_perf_nflverse",
+            db=db,
+        )
+        db.execute.assert_called_once()
+
+    def test_does_not_raise_on_db_error(self, monkeypatch):
+        """v2 failure must not raise — issue #615 AC #4."""
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_mock_db()
+        db.execute.side_effect = RuntimeError("BigQuery unavailable")
+        # Should NOT raise
+        _dual_write_silver_v2_resolution(
+            prediction_hash="c" * 64,
+            outcome="true",
+            outcome_confidence=1.0,
+            evidence={},
+            resolution_method_id="nfl_draft_pick_sportsdataio",
+            db=db,
+        )
+
+    def test_skips_when_no_project_id(self, monkeypatch):
+        """When GCP_PROJECT_ID is unset, skip silently."""
+        monkeypatch.delenv("GCP_PROJECT_ID", raising=False)
+        db = self._make_mock_db()
+        _dual_write_silver_v2_resolution(
+            prediction_hash="d" * 64,
+            outcome="unresolvable",
+            outcome_confidence=1.0,
+            evidence={},
+            resolution_method_id="nfl_draft_pick_sportsdataio",
+            db=db,
+        )
+        db.execute.assert_not_called()
+
+    def test_uses_prev_hash_from_chain(self, monkeypatch):
+        """When a prior resolution exists, prev_hash must be set from that row."""
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_mock_db()
+        db.fetch_df.return_value = pd.DataFrame({"this_hash": ["abc123"]})
+        _dual_write_silver_v2_resolution(
+            prediction_hash="e" * 64,
+            outcome="true",
+            outcome_confidence=1.0,
+            evidence={},
+            resolution_method_id="nfl_draft_pick_sportsdataio",
+            db=db,
+        )
+        # The query_parameters passed to execute should include prev_hash=abc123
+        call_kwargs = db.execute.call_args[1]
+        params = call_kwargs.get("query_parameters", [])
+        prev_hash_param = next((p for p in params if p.name == "prev_hash"), None)
+        assert prev_hash_param is not None
+        assert prev_hash_param.value == "abc123"
+
+
+class TestResolveBinaryWithDualWrite:
+    """_resolve_binary_with_dual_write calls v1 then dual-writes v2."""
+
+    def test_calls_resolve_binary(self, monkeypatch):
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = MagicMock()
+        db.fetch_df.return_value = pd.DataFrame()
+        db.execute.return_value = None
+
+        with patch("src.resolve_daily.resolve_binary") as mock_rb:
+            _resolve_binary_with_dual_write(
+                prediction_hash="f" * 64,
+                correct=True,
+                outcome_source="sportsdataio",
+                db=db,
+            )
+            mock_rb.assert_called_once()
+
+    def test_dual_write_called_after_v1(self, monkeypatch):
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = MagicMock()
+        db.fetch_df.return_value = pd.DataFrame()
+        db.execute.return_value = None
+
+        with patch("src.resolve_daily.resolve_binary"):
+            with patch("src.resolve_daily._dual_write_silver_v2_resolution") as mock_dw:
+                _resolve_binary_with_dual_write(
+                    prediction_hash="g" * 64,
+                    correct=False,
+                    outcome_source="sportsdataio_scores",
+                    db=db,
+                )
+                mock_dw.assert_called_once()
+                call_kwargs = mock_dw.call_args[1]
+                assert call_kwargs["outcome"] == "false"
+                assert call_kwargs["resolution_method_id"] == "nfl_game_outcome_scores"
+
+
+class TestVoidPredictionWithDualWrite:
+    """_void_prediction_with_dual_write calls v1 then dual-writes v2 unresolvable."""
+
+    def test_calls_void_prediction(self, monkeypatch):
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = MagicMock()
+        db.fetch_df.return_value = pd.DataFrame()
+
+        with patch("src.resolve_daily.void_prediction") as mock_vp:
+            _void_prediction_with_dual_write(
+                prediction_hash="h" * 64,
+                reason="unparseable_draft_claim",
+                db=db,
+            )
+            mock_vp.assert_called_once()
+
+    def test_dual_write_outcome_is_unresolvable(self, monkeypatch):
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = MagicMock()
+        db.fetch_df.return_value = pd.DataFrame()
+
+        with patch("src.resolve_daily.void_prediction"):
+            with patch("src.resolve_daily._dual_write_silver_v2_resolution") as mock_dw:
+                _void_prediction_with_dual_write(
+                    prediction_hash="i" * 64,
+                    reason="no_player_name",
+                    db=db,
+                )
+                mock_dw.assert_called_once()
+                call_kwargs = mock_dw.call_args[1]
+                assert call_kwargs["outcome"] == "unresolvable"

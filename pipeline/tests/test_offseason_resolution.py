@@ -232,7 +232,7 @@ class TestResolveAwardPredictions:
                     "dpoy": "Micah Parsons",
                 },
             ),
-            patch("src.resolve_daily.resolve_binary") as mock_resolve,
+            patch("src.resolve_daily._resolve_binary_with_dual_write") as mock_resolve,
         ):
             result = resolve_award_predictions(mock_db, dry_run=False)
 
@@ -260,7 +260,7 @@ class TestResolveAwardPredictions:
                 "src.resolve_daily._load_awards_config",
                 return_value={"mvp": "Josh Allen"},
             ),
-            patch("src.resolve_daily.resolve_binary") as mock_resolve,
+            patch("src.resolve_daily._resolve_binary_with_dual_write") as mock_resolve,
         ):
             result = resolve_award_predictions(mock_db, dry_run=False)
 
@@ -308,7 +308,7 @@ class TestResolveAwardPredictions:
                 "src.resolve_daily._load_awards_config",
                 return_value={"mvp": "Josh Allen"},
             ),
-            patch("src.resolve_daily.resolve_binary") as mock_resolve,
+            patch("src.resolve_daily._resolve_binary_with_dual_write") as mock_resolve,
         ):
             result = resolve_award_predictions(mock_db, dry_run=True)
 
@@ -430,7 +430,7 @@ class TestResolveFaSignings:
         with (
             patch("src.resolve_daily.get_pending_predictions", return_value=pending),
             patch("src.resolve_daily._load_current_rosters", return_value=roster_df),
-            patch("src.resolve_daily.resolve_binary") as mock_resolve,
+            patch("src.resolve_daily._resolve_binary_with_dual_write") as mock_resolve,
         ):
             result = resolve_fa_signings(mock_db, dry_run=False)
 
@@ -459,7 +459,7 @@ class TestResolveFaSignings:
         with (
             patch("src.resolve_daily.get_pending_predictions", return_value=pending),
             patch("src.resolve_daily._load_current_rosters", return_value=roster_df),
-            patch("src.resolve_daily.resolve_binary") as mock_resolve,
+            patch("src.resolve_daily._resolve_binary_with_dual_write") as mock_resolve,
         ):
             result = resolve_fa_signings(mock_db, dry_run=False)
 
@@ -488,7 +488,7 @@ class TestResolveFaSignings:
         with (
             patch("src.resolve_daily.get_pending_predictions", return_value=pending),
             patch("src.resolve_daily._load_current_rosters", return_value=roster_df),
-            patch("src.resolve_daily.void_prediction") as mock_void,
+            patch("src.resolve_daily._void_prediction_with_dual_write") as mock_void,
         ):
             result = resolve_fa_signings(mock_db, dry_run=False)
 
@@ -517,7 +517,7 @@ class TestResolveFaSignings:
         with (
             patch("src.resolve_daily.get_pending_predictions", return_value=pending),
             patch("src.resolve_daily._load_current_rosters", return_value=roster_df),
-            patch("src.resolve_daily.resolve_binary") as mock_resolve,
+            patch("src.resolve_daily._resolve_binary_with_dual_write") as mock_resolve,
         ):
             result = resolve_fa_signings(mock_db, dry_run=True)
 

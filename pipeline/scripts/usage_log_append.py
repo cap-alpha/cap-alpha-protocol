@@ -63,18 +63,27 @@ def model_family(model_id: str) -> str | None:
 
 
 def load_last_cumulative() -> tuple[float, str | None]:
+    """Return (cumulative_usd, last_ts) from the most recent cost-tracking row.
+
+    Scans backward so that tool-call events written by log-usage.sh (which lack
+    cumulative_usd) don't reset the baseline to 0.0 and trigger a full re-sum.
+    """
     if not USAGE_LOG.exists():
         return 0.0, None
-    last = None
+    rows = []
     with USAGE_LOG.open() as fh:
         for line in fh:
             line = line.strip()
             if line:
-                last = line
-    if not last:
-        return 0.0, None
-    row = json.loads(last)
-    return float(row.get("cumulative_usd", 0.0)), row.get("last_ts")
+                rows.append(line)
+    for raw in reversed(rows):
+        try:
+            row = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if "cumulative_usd" in row:
+            return float(row["cumulative_usd"]), row.get("last_ts")
+    return 0.0, None
 
 
 def iter_assistant_turns(since_ts: str | None):

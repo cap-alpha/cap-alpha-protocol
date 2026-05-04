@@ -42,8 +42,14 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "llm_config.ya
 # support native schema enforcement (Ollama, OpenAI function_calling workaround).
 PREDICTION_SCHEMA_DESCRIPTION = """
 Return a JSON array of objects. Each object must have:
-- "extracted_claim": string — concise, testable statement (REQUIRED)
-- "claim_category": string — one of: player_performance, game_outcome, trade, draft_pick, injury, contract (REQUIRED)
+- "text": string — verbatim quote or close paraphrase of the speech act (REQUIRED)
+- "speech_act_type": string — one of: assertion, conditional, recall, rhetorical_question, hedge, commentary, opinion, analogy, joke (REQUIRED)
+- "testability_subscores": object — five float sub-scores each 0.0–1.0: subject_specificity, predicate_falsifiability, threshold_concreteness, resolution_horizon_defined, evidence_accessibility (REQUIRED)
+- "testability_score": float — average of the five sub-scores (0.0–1.0) (REQUIRED)
+- "resolution_horizon": string or null — ISO8601 datetime when the claim resolves; null if unresolvable or not applicable (REQUIRED)
+- "extraction_confidence": float — confidence in extraction quality (0.0–1.0) (REQUIRED)
+- "extracted_claim": string — concise, testable statement for the ledger; empty string if not testable (REQUIRED)
+- "claim_category": string — one of: player_performance, game_outcome, trade, draft_pick, injury, contract, award_prediction, fa_signing (REQUIRED)
 - "stance": string — directional sentiment: "bullish" (positive outcome predicted), "bearish" (negative outcome predicted), or "neutral" (no clear directional bias) (REQUIRED)
 - "season_year": integer or null — season year the prediction applies to (CRITICAL for draft_pick: must be the draft year, e.g. 2025, 2026)
 - "draft_year": integer or null — for draft pick predictions, set to the year of the draft (e.g. 2026). Otherwise null.
@@ -54,7 +60,7 @@ Return a JSON array of objects. Each object must have:
 
 For draft_pick category: season_year MUST be populated with the draft year (infer if not explicitly stated).
 
-If no testable predictions exist, return an empty array: []
+If no speech acts exist, return an empty array: []
 """
 
 
@@ -86,21 +92,26 @@ class LLMProvider(ABC):
             lines = [ln for ln in lines if not ln.strip().startswith("```")]
             text = "\n".join(lines).strip()
 
+        def _has_content(p: dict) -> bool:
+            # Accept Phase C items (text field) or Phase B items (extracted_claim field)
+            return bool(
+                (p.get("text") or "").strip()
+                or (p.get("extracted_claim") or "").strip()
+            )
+
         try:
             result = json.loads(text)
             if isinstance(result, list):
-                return [p for p in result if p.get("extracted_claim", "").strip()]
+                return [p for p in result if _has_content(p)]
             if isinstance(result, dict):
                 # Handle {"predictions": [...]} wrapper
                 if "predictions" in result:
                     preds = result["predictions"]
                     if isinstance(preds, list):
-                        return [
-                            p for p in preds if p.get("extracted_claim", "").strip()
-                        ]
+                        return [p for p in preds if _has_content(p)]
                 # Handle single prediction dict (common with smaller models)
-                if "extracted_claim" in result:
-                    return [result] if result["extracted_claim"].strip() else []
+                if "text" in result or "extracted_claim" in result:
+                    return [result] if _has_content(result) else []
             logger.warning(f"Unexpected JSON structure: {type(result)}")
             return []
         except json.JSONDecodeError as e:
@@ -132,14 +143,62 @@ class GeminiProvider(LLMProvider):
 
     def _build_schema(self):
         types = self.types
+        subscore_props = {
+            k: types.Schema(type=types.Type.NUMBER)
+            for k in (
+                "subject_specificity",
+                "predicate_falsifiability",
+                "threshold_concreteness",
+                "resolution_horizon_defined",
+                "evidence_accessibility",
+            )
+        }
         return types.Schema(
             type=types.Type.ARRAY,
             items=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
+                    # Phase C fields
+                    "text": types.Schema(
+                        type=types.Type.STRING,
+                        description="Verbatim quote or close paraphrase of the speech act",
+                    ),
+                    "speech_act_type": types.Schema(
+                        type=types.Type.STRING,
+                        enum=[
+                            "assertion",
+                            "conditional",
+                            "recall",
+                            "rhetorical_question",
+                            "hedge",
+                            "commentary",
+                            "opinion",
+                            "analogy",
+                            "joke",
+                        ],
+                    ),
+                    "testability_subscores": types.Schema(
+                        type=types.Type.OBJECT,
+                        properties=subscore_props,
+                    ),
+                    "testability_score": types.Schema(
+                        type=types.Type.NUMBER,
+                        description="Average of 5 sub-scores (0.0–1.0)",
+                    ),
+                    "resolution_horizon": types.Schema(
+                        type=types.Type.STRING,
+                        nullable=True,
+                        description="ISO8601 datetime when the claim resolves, or null",
+                    ),
+                    "extraction_confidence": types.Schema(
+                        type=types.Type.NUMBER,
+                        nullable=True,
+                        description="Confidence in extraction quality (0.0–1.0)",
+                    ),
+                    # Phase B fields (kept for ledger promotion path)
                     "extracted_claim": types.Schema(
                         type=types.Type.STRING,
-                        description="Concise, testable statement",
+                        description="Concise, testable statement for ledger; empty string if not testable",
                     ),
                     "claim_category": types.Schema(
                         type=types.Type.STRING,
@@ -150,12 +209,14 @@ class GeminiProvider(LLMProvider):
                             "draft_pick",
                             "injury",
                             "contract",
+                            "award_prediction",
+                            "fa_signing",
                         ],
                     ),
                     "stance": types.Schema(
                         type=types.Type.STRING,
                         enum=["bullish", "bearish", "neutral"],
-                        description="Directional sentiment: bullish=positive outcome predicted, bearish=negative, neutral=no clear bias",
+                        description="Directional sentiment",
                     ),
                     "season_year": types.Schema(type=types.Type.INTEGER, nullable=True),
                     "draft_year": types.Schema(
@@ -177,6 +238,10 @@ class GeminiProvider(LLMProvider):
                     ),
                 },
                 required=[
+                    "text",
+                    "speech_act_type",
+                    "testability_subscores",
+                    "testability_score",
                     "extracted_claim",
                     "claim_category",
                     "stance",
@@ -305,15 +370,62 @@ class AsyncGeminiProvider:
         self._semaphore: Optional[asyncio.Semaphore] = None
 
     def _build_schema(self):
+        # Identical to GeminiProvider._build_schema — Phase C + Phase B fields
         types = self.types
+        subscore_props = {
+            k: types.Schema(type=types.Type.NUMBER)
+            for k in (
+                "subject_specificity",
+                "predicate_falsifiability",
+                "threshold_concreteness",
+                "resolution_horizon_defined",
+                "evidence_accessibility",
+            )
+        }
         return types.Schema(
             type=types.Type.ARRAY,
             items=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
+                    "text": types.Schema(
+                        type=types.Type.STRING,
+                        description="Verbatim quote or close paraphrase of the speech act",
+                    ),
+                    "speech_act_type": types.Schema(
+                        type=types.Type.STRING,
+                        enum=[
+                            "assertion",
+                            "conditional",
+                            "recall",
+                            "rhetorical_question",
+                            "hedge",
+                            "commentary",
+                            "opinion",
+                            "analogy",
+                            "joke",
+                        ],
+                    ),
+                    "testability_subscores": types.Schema(
+                        type=types.Type.OBJECT,
+                        properties=subscore_props,
+                    ),
+                    "testability_score": types.Schema(
+                        type=types.Type.NUMBER,
+                        description="Average of 5 sub-scores (0.0–1.0)",
+                    ),
+                    "resolution_horizon": types.Schema(
+                        type=types.Type.STRING,
+                        nullable=True,
+                        description="ISO8601 datetime when the claim resolves, or null",
+                    ),
+                    "extraction_confidence": types.Schema(
+                        type=types.Type.NUMBER,
+                        nullable=True,
+                        description="Confidence in extraction quality (0.0–1.0)",
+                    ),
                     "extracted_claim": types.Schema(
                         type=types.Type.STRING,
-                        description="Concise, testable statement",
+                        description="Concise, testable statement for ledger; empty string if not testable",
                     ),
                     "claim_category": types.Schema(
                         type=types.Type.STRING,
@@ -324,6 +436,8 @@ class AsyncGeminiProvider:
                             "draft_pick",
                             "injury",
                             "contract",
+                            "award_prediction",
+                            "fa_signing",
                         ],
                     ),
                     "stance": types.Schema(
@@ -332,6 +446,10 @@ class AsyncGeminiProvider:
                         description="Directional sentiment",
                     ),
                     "season_year": types.Schema(type=types.Type.INTEGER, nullable=True),
+                    "draft_year": types.Schema(
+                        type=types.Type.INTEGER,
+                        nullable=True,
+                    ),
                     "target_player": types.Schema(
                         type=types.Type.STRING, nullable=True
                     ),
@@ -340,12 +458,20 @@ class AsyncGeminiProvider:
                         type=types.Type.STRING,
                         description="How explicit/confident the prediction is",
                     ),
+                    "prediction_horizon_days": types.Schema(
+                        type=types.Type.INTEGER,
+                    ),
                 },
                 required=[
+                    "text",
+                    "speech_act_type",
+                    "testability_subscores",
+                    "testability_score",
                     "extracted_claim",
                     "claim_category",
                     "stance",
                     "confidence_note",
+                    "prediction_horizon_days",
                 ],
             ),
         )
@@ -363,19 +489,24 @@ class AsyncGeminiProvider:
             lines = text.split("\n")
             lines = [ln for ln in lines if not ln.strip().startswith("```")]
             text = "\n".join(lines).strip()
+
+        def _has_content(p: dict) -> bool:
+            return bool(
+                (p.get("text") or "").strip()
+                or (p.get("extracted_claim") or "").strip()
+            )
+
         try:
             result = json.loads(text)
             if isinstance(result, list):
-                return [p for p in result if p.get("extracted_claim", "").strip()]
+                return [p for p in result if _has_content(p)]
             if isinstance(result, dict):
                 if "predictions" in result:
                     preds = result["predictions"]
                     if isinstance(preds, list):
-                        return [
-                            p for p in preds if p.get("extracted_claim", "").strip()
-                        ]
-                if "extracted_claim" in result:
-                    return [result] if result["extracted_claim"].strip() else []
+                        return [p for p in preds if _has_content(p)]
+                if "text" in result or "extracted_claim" in result:
+                    return [result] if _has_content(result) else []
             return []
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse failed: {e}. Response: {text[:200]}")

@@ -91,6 +91,41 @@ class TestParseJsonResponse:
         result = self.provider._parse_json_response('"just a string"')
         assert result == []
 
+    def test_phase_c_text_field_accepted(self):
+        # Phase C responses use "text" as the primary field
+        data = [
+            {
+                "text": "Mahomes wins MVP",
+                "speech_act_type": "assertion",
+                "testability_score": 0.9,
+            },
+            {"text": "", "speech_act_type": "commentary", "testability_score": 0.1},
+        ]
+        result = self.provider._parse_json_response(json.dumps(data))
+        assert len(result) == 1
+        assert result[0]["text"] == "Mahomes wins MVP"
+
+    def test_phase_c_text_takes_priority_over_extracted_claim(self):
+        # When both fields present, item is accepted
+        data = [
+            {
+                "text": "Eagles win NFC",
+                "extracted_claim": "Eagles win NFC East",
+                "speech_act_type": "assertion",
+            }
+        ]
+        result = self.provider._parse_json_response(json.dumps(data))
+        assert len(result) == 1
+
+    def test_phase_c_single_dict_with_text_field(self):
+        data = {
+            "text": "Brady returns",
+            "speech_act_type": "assertion",
+            "testability_score": 0.8,
+        }
+        result = self.provider._parse_json_response(json.dumps(data))
+        assert len(result) == 1
+
 
 # ---------------------------------------------------------------------------
 # OllamaProvider

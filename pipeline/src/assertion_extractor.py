@@ -921,9 +921,36 @@ def get_unprocessed_media(
             skip_filter = f"\n              AND r.source_id NOT IN ({skip_ids})"
             fallback_skip_filter = f"\n              AND source_id NOT IN ({skip_ids})"
 
+    # Build a BQ CASE expression for priority_tier so the query pre-sorts by tier
+    # before Python re-sorts. This pushes tier-1 rows to the front of the BQ result
+    # set, reducing how many rows we need to fetch.
+    # Source IDs from YAML are validated by _validate_source_id before embedding.
+    priority_case_parts = []
+    for sid, cfg in source_cfg.items():
+        tier = cfg["priority_tier"]
+        if tier != DEFAULT_PRIORITY_TIER:
+            try:
+                vsid = _validate_source_id(sid)
+                priority_case_parts.append(f"WHEN '{vsid}' THEN {tier}")
+            except ValueError:
+                pass  # skip invalid ids — they won't appear in BQ anyway
+    if priority_case_parts:
+        when_clauses = "\n                   ".join(priority_case_parts)
+        priority_case_expr = (
+            f"CASE r.source_id\n                   {when_clauses}"
+            f"\n                   ELSE {DEFAULT_PRIORITY_TIER} END"
+        )
+        fallback_priority_case_expr = (
+            f"CASE source_id\n                   {when_clauses}"
+            f"\n                   ELSE {DEFAULT_PRIORITY_TIER} END"
+        )
+    else:
+        priority_case_expr = str(DEFAULT_PRIORITY_TIER)
+        fallback_priority_case_expr = str(DEFAULT_PRIORITY_TIER)
+
     try:
         # Fetch more rows than needed so we can re-sort by tier in Python
-        # (BQ doesn't have the YAML config; fetching 3× limit then trimming is safe)
+        # (BQ CASE ORDER BY pre-sorts by tier; Python _apply_priority_sort then trims)
         fetch_limit = max(limit * 3, 300)
         query = f"""
             SELECT r.content_hash, r.source_id, r.title, r.raw_text,
@@ -936,7 +963,7 @@ def get_unprocessed_media(
             WHERE p.content_hash IS NULL
               AND r.raw_text IS NOT NULL
               AND LENGTH(r.raw_text) > 50{pundit_filter}{skip_filter}
-            ORDER BY r.published_at DESC
+            ORDER BY {priority_case_expr} ASC, r.ingested_at DESC
             LIMIT {fetch_limit}
         """
         df = db.fetch_df(query)
@@ -951,7 +978,7 @@ def get_unprocessed_media(
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
             WHERE raw_text IS NOT NULL
               AND LENGTH(raw_text) > 50{fallback_pundit_filter}{fallback_skip_filter}
-            ORDER BY ingested_at DESC
+            ORDER BY {fallback_priority_case_expr} ASC, ingested_at DESC
             LIMIT {fetch_limit}
         """
         df = db.fetch_df(query)

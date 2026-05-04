@@ -4,8 +4,8 @@ import Link from "next/link";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 
 export const metadata: Metadata = {
-    title: "Terms of Service | Pundit Ledger",
-    description: "Terms of service for Pundit Ledger.",
+    title: "Terms of Service | Cap Alpha",
+    description: "Terms of service for Cap Alpha.",
 };
 
 export default function TermsOfService() {
@@ -18,7 +18,7 @@ export default function TermsOfService() {
                     className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    Back to Pundit Ledger
+                    Back to Cap Alpha
                 </Link>
 
                 {/* Header */}
@@ -35,7 +35,7 @@ export default function TermsOfService() {
                             1. For Entertainment and Informational Purposes Only
                         </h2>
                         <p>
-                            Pundit Ledger (&quot;The Service&quot;) — including its prediction
+                            Cap Alpha (&quot;The Service&quot;) — including its prediction
                             tracking, accuracy scores, Brier scores, and Pundit Credit Scores —
                             is provided for <strong>entertainment and informational purposes
                             only.</strong>
@@ -71,7 +71,7 @@ export default function TermsOfService() {
                         </h2>
                         <p>
                             The scoring methodology, source code, and branding
-                            (&quot;Pundit Ledger&quot;) are proprietary intellectual property.
+                            (&quot;Cap Alpha&quot;) are proprietary intellectual property.
                             You may not scrape, reverse-engineer, redistribute, or commercially
                             syndicate data from this platform without an explicit written license.
                         </p>

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Phone, Heart, AlertTriangle, ExternalLink } from "lucide-react";
 
 export const metadata: Metadata = {
-    title: "Responsible Gambling | Pundit Ledger",
+    title: "Responsible Gambling | Cap Alpha",
     description: "Responsible gambling resources, helplines, and information. If you or someone you know has a gambling problem, call 1-800-GAMBLER.",
 };
 
@@ -62,7 +62,7 @@ export default function ResponsibleGamblingPage() {
                     className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    Back to Pundit Ledger
+                    Back to Cap Alpha
                 </Link>
 
                 <div className="flex items-center gap-3 mb-2">
@@ -103,7 +103,7 @@ export default function ResponsibleGamblingPage() {
                 <section className="mb-10">
                     <h2 className="text-xl font-bold mb-3">About This Site</h2>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                        Pundit Ledger is an entertainment and analytics platform that tracks sports pundits&apos; prediction
+                        Cap Alpha is an entertainment and analytics platform that tracks sports pundits&apos; prediction
                         accuracy. This site contains affiliate links to sportsbook platforms. We are committed to responsible
                         gambling practices and require all users to be of legal gambling age in their jurisdiction.
                     </p>
@@ -177,7 +177,7 @@ export default function ResponsibleGamblingPage() {
                 <section className="mb-10 bg-zinc-900 border border-zinc-800 rounded-xl p-5">
                     <h2 className="text-lg font-bold mb-2">Affiliate Disclosure</h2>
                     <p className="text-zinc-400 text-sm leading-relaxed">
-                        Pundit Ledger may earn commissions through affiliate links to sportsbook platforms. These
+                        Cap Alpha may earn commissions through affiliate links to sportsbook platforms. These
                         partnerships do not influence our editorial content or prediction accuracy scoring. We only link
                         to regulated, licensed operators. All affiliate partners require that we display responsible
                         gambling messaging and maintain compliance with their program terms.

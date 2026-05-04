@@ -14,6 +14,8 @@
 --   envsubst < pipeline/migrations/017_create_silver_v2_sports.sql | \
 --     bq query --use_legacy_sql=false --project_id=$PROJECT_ID
 
+CREATE SCHEMA IF NOT EXISTS `{project_id}.silver_v2_sports`;
+
 -- ============================================================
 -- 1. franchise_lineage — continuity graph for sports franchises
 -- ============================================================

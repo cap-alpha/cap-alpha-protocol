@@ -1,10 +1,16 @@
--- Migration: 002_add_provenance_to_media.sql
--- Enforces intelligence provenance by treating media scraps as immutable ledger snapshots.
-
-ALTER TABLE raw_media_mentions ADD COLUMN IF NOT EXISTS provenance_hash VARCHAR;
-ALTER TABLE raw_media_mentions ADD COLUMN IF NOT EXISTS snapshot_type VARCHAR DEFAULT 'TEXT_SCRAPE';
-
--- For existing ledgers, generate a fast hash from source + content + timestamp to backfill the immutable proof.
-UPDATE raw_media_mentions
-SET provenance_hash = md5(COALESCE(source, '') || COALESCE(content, '') || COALESCE(timestamp::VARCHAR, ''))
-WHERE provenance_hash IS NULL;
+-- Migration: 002_add_provenance_to_media
+-- Description: No-op (originally DuckDB/MotherDuck table alteration — not applicable to BigQuery)
+--
+-- The original migration targeted `raw_media_mentions`, a DuckDB-era table that
+-- does not exist in BigQuery. The schema it attempted to add (provenance_hash,
+-- snapshot_type) was superseded by `nfl_dead_money.raw_pundit_media` which was
+-- created with those columns already present in migration 005.
+--
+-- DuckDB-specific issues:
+--   - Unqualified table name (BigQuery requires dataset.table or project.dataset.table)
+--   - VARCHAR type (BigQuery uses STRING)
+--   - ::VARCHAR cast syntax (BigQuery uses CAST(x AS STRING))
+--   - md5() function (BigQuery uses TO_HEX(MD5(...)))
+--
+-- This file is intentionally a no-op so the idempotent migration runner can record
+-- it as applied and stop retrying.

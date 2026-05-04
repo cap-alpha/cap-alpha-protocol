@@ -4,8 +4,8 @@ import Link from "next/link";
 import { ArrowLeft, DollarSign } from "lucide-react";
 
 export const metadata: Metadata = {
-    title: "Affiliate Disclosure | Pundit Ledger",
-    description: "FTC-compliant affiliate disclosure for Cap Alpha / Pundit Ledger.",
+    title: "Affiliate Disclosure | Cap Alpha",
+    description: "FTC-compliant affiliate disclosure for Cap Alpha / Cap Alpha.",
 };
 
 export default function DisclosurePage() {
@@ -32,7 +32,7 @@ export default function DisclosurePage() {
                         <p>
                             In accordance with the Federal Trade Commission&apos;s guidelines on endorsements and
                             testimonials (<a href="https://www.ftc.gov/business-guidance/resources/ftc-endorsement-guides-what-people-are-asking" target="_blank" rel="noopener noreferrer" className="text-emerald-500 underline hover:text-emerald-400">16 CFR Part 255</a>),
-                            Cap Alpha / Pundit Ledger discloses the following: this site contains affiliate links.
+                            Cap Alpha / Cap Alpha discloses the following: this site contains affiliate links.
                         </p>
                     </section>
 

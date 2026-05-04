@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-    title: "Acceptable Use Policy | Pundit Ledger",
-    description: "Acceptable Use Policy for the Pundit Ledger prediction tracking platform.",
+    title: "Acceptable Use Policy | Cap Alpha",
+    description: "Acceptable Use Policy for the Cap Alpha prediction tracking platform.",
 };
 
 export default function AcceptableUsePolicy() {
@@ -18,7 +18,7 @@ export default function AcceptableUsePolicy() {
                 <section className="space-y-4 text-zinc-300 leading-relaxed">
                     <p>
                         This Acceptable Use Policy (&quot;AUP&quot;) defines the boundaries of
-                        permitted behavior on the Pundit Ledger platform (&quot;Service&quot;). It
+                        permitted behavior on the Cap Alpha platform (&quot;Service&quot;). It
                         applies to all users regardless of subscription tier. Violations may result
                         in enforcement action up to and including permanent termination of your
                         account.
@@ -46,10 +46,10 @@ export default function AcceptableUsePolicy() {
                     <p className="text-zinc-300 leading-relaxed">
                         Data obtained through the Free or Pro tiers is licensed for personal,
                         non-commercial use only. You may not resell, sublicense, or redistribute
-                        Pundit Ledger data, scores, or derived insights from these tiers.
+                        Cap Alpha data, scores, or derived insights from these tiers.
                     </p>
                     <p className="text-zinc-300 leading-relaxed">
-                        API tier users may incorporate Pundit Ledger data into commercial applications,
+                        API tier users may incorporate Cap Alpha data into commercial applications,
                         subject to the terms of their subscription and applicable rate limits.
                         Enterprise agreements may grant broader redistribution rights.
                     </p>
@@ -78,7 +78,7 @@ export default function AcceptableUsePolicy() {
                 <section className="space-y-3">
                     <h2 className="text-xl font-bold text-white">4. Conduct Toward Tracked Pundits</h2>
                     <p className="text-zinc-300 leading-relaxed">
-                        Pundit Ledger exists to promote accountability in sports media through
+                        Cap Alpha exists to promote accountability in sports media through
                         objective, data-driven scoring. It is not a vehicle for personal attacks. You
                         may not use the Service or its data to:
                     </p>

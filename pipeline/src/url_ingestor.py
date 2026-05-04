@@ -6,6 +6,7 @@ fetches and ingests them, then runs extraction.
 
 Usage:
     python -m src.url_ingestor --search [--dry-run] [--max-results 100]
+    python -m src.url_ingestor --search --search-provider google   # requires GOOGLE_SEARCH_API_KEY + GOOGLE_SEARCH_ENGINE_ID
     python -m src.url_ingestor --config config/draft_seed_urls.yaml [--dry-run]
     python -m src.url_ingestor --urls "https://..." --source espn_nfl --pundit "Mel Kiper"
 """
@@ -16,6 +17,8 @@ import logging
 import time
 from datetime import datetime, timezone
 from urllib.parse import urlparse
+
+import os
 
 import pandas as pd
 import requests
@@ -119,13 +122,43 @@ def fetch_article_text(url: str) -> dict:
     }
 
 
+def _search_with_google(query: str, max_results: int) -> list[dict]:
+    """Call Google Custom Search API. Returns list of {href, title} dicts."""
+    try:
+        from googleapiclient.discovery import build  # type: ignore
+    except ImportError:
+        raise ImportError(
+            "google-api-python-client is required for Google search. "
+            "Run: pip install google-api-python-client"
+        )
+
+    api_key = os.environ["GOOGLE_SEARCH_API_KEY"]
+    cx = os.environ["GOOGLE_SEARCH_ENGINE_ID"]
+    service = build("customsearch", "v1", developerKey=api_key)
+
+    results = []
+    # Google CSE returns max 10 per page; paginate up to max_results
+    for start in range(1, max_results + 1, 10):
+        num = min(10, max_results - len(results))
+        resp = service.cse().list(q=query, cx=cx, num=num, start=start).execute()
+        items = resp.get("items", [])
+        results.extend({"href": i["link"], "title": i.get("title", "")} for i in items)
+        if len(items) < num:
+            break
+        time.sleep(0.5)
+
+    return results
+
+
 def discover_articles(
     config_path: str = "config/draft_seed_urls.yaml",
     max_results_per_query: int = 30,
+    search_provider: str = "auto",
 ) -> list[dict]:
     """
     Search the web for NFL draft prediction articles and return URL configs.
-    Uses DuckDuckGo search (no API key needed).
+
+    search_provider: "google" | "duckduckgo" | "auto" (Google if creds present, else DDG)
     """
     with open(config_path) as f:
         config = yaml.safe_load(f) or {}
@@ -138,14 +171,25 @@ def discover_articles(
     source_mapping = config.get("source_mapping", {})
     skip_domains = set(config.get("skip_domains", []))
 
+    use_google = search_provider == "google" or (
+        search_provider == "auto"
+        and os.environ.get("GOOGLE_SEARCH_API_KEY")
+        and os.environ.get("GOOGLE_SEARCH_ENGINE_ID")
+    )
+    provider_name = "Google" if use_google else "DuckDuckGo"
+    logger.info(f"Using {provider_name} for search")
+
     seen_urls = set()
     url_configs = []
 
     for query in queries:
         logger.info(f"Searching: {query}")
         try:
-            with DDGS() as ddgs:
-                results = list(ddgs.text(query, max_results=max_results_per_query))
+            if use_google:
+                results = _search_with_google(query, max_results_per_query)
+            else:
+                with DDGS() as ddgs:
+                    results = list(ddgs.text(query, max_results=max_results_per_query))
         except Exception as e:
             logger.warning(f"Search failed for '{query}': {e}")
             continue
@@ -345,6 +389,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--max-results", type=int, default=30, help="Max results per search query"
     )
+    parser.add_argument(
+        "--search-provider",
+        choices=["auto", "google", "duckduckgo"],
+        default="auto",
+        help="Search backend: 'auto' uses Google if GOOGLE_SEARCH_API_KEY+ENGINE_ID are set",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -355,6 +405,7 @@ if __name__ == "__main__":
         url_configs = discover_articles(
             config_path=args.config,
             max_results_per_query=args.max_results,
+            search_provider=args.search_provider,
         )
     elif args.urls:
         url_configs = [

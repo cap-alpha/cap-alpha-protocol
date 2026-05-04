@@ -24,7 +24,7 @@ SELECT
   COUNTIF(Name IS NULL)       AS null_name,
   COUNTIF(Team IS NULL)       AS null_team,
   COUNTIF(Status IS NULL)     AS null_status
-FROM `${PROJECT_ID}.nfl_dead_money.bronze_sportsdataio_players`;
+FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_players`;
 
 -- 2. fact_player_efficiency — analytical layer
 SELECT
@@ -33,7 +33,7 @@ SELECT
   COUNTIF(team IS NULL)               AS null_team,
   COUNTIF(position IS NULL)           AS null_position,
   COUNTIF(cap_hit_millions IS NULL)   AS null_cap_hit
-FROM `${PROJECT_ID}.nfl_dead_money.fact_player_efficiency`;
+FROM `{project_id}.nfl_dead_money.fact_player_efficiency`;
 
 -- 3. silver_spotrac_contracts — contracts
 SELECT
@@ -41,7 +41,7 @@ SELECT
   COUNTIF(player_name IS NULL)       AS null_player_name,
   COUNTIF(year IS NULL)              AS null_year,
   COUNTIF(cap_hit_millions IS NULL)  AS null_cap_hit
-FROM `${PROJECT_ID}.nfl_dead_money.silver_spotrac_contracts`;
+FROM `{project_id}.nfl_dead_money.silver_spotrac_contracts`;
 
 
 -- ============================================================
@@ -49,13 +49,13 @@ FROM `${PROJECT_ID}.nfl_dead_money.silver_spotrac_contracts`;
 -- ============================================================
 -- Run only after validation above shows 0 NULLs.
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.bronze_sportsdataio_players`
+ALTER TABLE `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
   ALTER COLUMN PlayerID SET NOT NULL;
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.bronze_sportsdataio_players`
+ALTER TABLE `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
   ALTER COLUMN Name SET NOT NULL;
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.bronze_sportsdataio_players`
+ALTER TABLE `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
   ALTER COLUMN Team SET NOT NULL;
 
 
@@ -64,13 +64,13 @@ ALTER TABLE `${PROJECT_ID}.nfl_dead_money.bronze_sportsdataio_players`
 -- ============================================================
 -- Run only after validation shows 0 NULLs in these columns.
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.fact_player_efficiency`
+ALTER TABLE `{project_id}.nfl_dead_money.fact_player_efficiency`
   ALTER COLUMN player_name SET NOT NULL;
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.fact_player_efficiency`
+ALTER TABLE `{project_id}.nfl_dead_money.fact_player_efficiency`
   ALTER COLUMN team SET NOT NULL;
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.fact_player_efficiency`
+ALTER TABLE `{project_id}.nfl_dead_money.fact_player_efficiency`
   ALTER COLUMN position SET NOT NULL;
 
 
@@ -79,10 +79,10 @@ ALTER TABLE `${PROJECT_ID}.nfl_dead_money.fact_player_efficiency`
 -- ============================================================
 -- Run only after validation shows 0 NULLs.
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.silver_spotrac_contracts`
+ALTER TABLE `{project_id}.nfl_dead_money.silver_spotrac_contracts`
   ALTER COLUMN player_name SET NOT NULL;
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.silver_spotrac_contracts`
+ALTER TABLE `{project_id}.nfl_dead_money.silver_spotrac_contracts`
   ALTER COLUMN year SET NOT NULL;
 
 
@@ -91,10 +91,10 @@ ALTER TABLE `${PROJECT_ID}.nfl_dead_money.silver_spotrac_contracts`
 -- ============================================================
 -- content_type and fetch_source_type should always be set by the ingestor.
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.raw_pundit_media`
+ALTER TABLE `{project_id}.nfl_dead_money.raw_pundit_media`
   ALTER COLUMN content_type SET NOT NULL;
 
-ALTER TABLE `${PROJECT_ID}.nfl_dead_money.raw_pundit_media`
+ALTER TABLE `{project_id}.nfl_dead_money.raw_pundit_media`
   ALTER COLUMN fetch_source_type SET NOT NULL;
 
 
@@ -107,7 +107,7 @@ SELECT
   table_name,
   column_name,
   is_nullable
-FROM `${PROJECT_ID}.nfl_dead_money.INFORMATION_SCHEMA.COLUMNS`
+FROM `{project_id}.nfl_dead_money.INFORMATION_SCHEMA.COLUMNS`
 WHERE table_name IN (
     'bronze_sportsdataio_players',
     'fact_player_efficiency',

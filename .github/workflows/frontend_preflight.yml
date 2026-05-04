@@ -36,10 +36,14 @@ jobs:
       - name: Static Build Schema Validation
         working-directory: ./web
         env:
-          # Clerk SDK throws Missing publishableKey at static-generation time when
-          # this env var is empty. A non-empty placeholder suppresses that error;
-          # real auth is never exercised during a build-only run.
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_placeholder_for_ci_build' }}
+          # Clerk SDK validates publishableKey format at build time (changed in v5.7+).
+          # The key must be pk_test_<base64url(domain$)> — the old freeform placeholder
+          # no longer passes format validation. The fallback below is structurally
+          # valid (decodes to clerk.example.com$) and suppresses the format error;
+          # real auth is never exercised during a build-only CI run.
+          # Dependabot PRs run with "Secret source: Dependabot" and cannot access
+          # repo secrets — the fallback is always used on Dependabot PRs.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_Y2xlcmsuZXhhbXBsZS5jb20k' }}
           # Stripe SDK initialises at module load time in billing API routes.
           # A non-empty placeholder is required so `next build` can import those
           # modules without throwing "Neither apiKey nor config.authenticator

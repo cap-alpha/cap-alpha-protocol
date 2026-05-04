@@ -115,7 +115,8 @@ jobs:
 
       - name: Skip — extraction paths not touched
         if: steps.paths.outputs.touched != 'true'
-        run: echo "No extraction paths touched — smoke test skipped (status: passing)."
+        run: |
+          echo "No extraction paths touched — smoke test skipped (passing)."
 
       - name: Set up Python
         if: steps.paths.outputs.touched == 'true'

@@ -1,6 +1,6 @@
 "use client";
 
-import { useReducer, useEffect, useRef } from "react";
+import { useReducer, useEffect, useRef, useState } from "react";
 import { UpgradeButton } from "@/components/upgrade-button";
 import Link from "next/link";
 
@@ -89,6 +89,55 @@ export const TIERS: Tier[] = [
         highlight: false,
     },
 ];
+
+// ---------------------------------------------------------------------------
+// USDC payment button (Coinbase Commerce)
+// ---------------------------------------------------------------------------
+
+function CryptoUpgradeButton({ plan, className }: { plan: string; className?: string }) {
+    const [loading, setLoading] = useState(false);
+
+    async function handleCrypto() {
+        setLoading(true);
+        try {
+            const res = await fetch("/api/billing/coinbase", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plan }),
+            });
+            const data = await res.json();
+            if (data.url) {
+                window.location.href = data.url;
+            } else {
+                console.error("No Coinbase checkout URL returned", data);
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error("Coinbase checkout failed", err);
+            setLoading(false);
+        }
+    }
+
+    return (
+        <button
+            onClick={handleCrypto}
+            disabled={loading}
+            className={
+                className ??
+                "w-full py-2 rounded-lg text-xs font-medium border border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+            }
+        >
+            {loading ? (
+                "Redirecting…"
+            ) : (
+                <>
+                    <span className="text-blue-400 font-semibold">USDC</span>
+                    Pay with crypto
+                </>
+            )}
+        </button>
+    );
+}
 
 // ---------------------------------------------------------------------------
 // Feature matrix definition
@@ -575,15 +624,20 @@ export function PricingClient() {
                             </ul>
 
                             {tier.cta ? (
-                                <UpgradeButton
-                                    plan={tier.cta.plan}
-                                    label={tier.cta.label}
-                                    className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-                                        tier.highlight
-                                            ? "bg-emerald-500 hover:bg-emerald-400 text-black"
-                                            : "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
-                                    }`}
-                                />
+                                <div className="space-y-2">
+                                    <UpgradeButton
+                                        plan={tier.cta.plan}
+                                        label={tier.cta.label}
+                                        className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+                                            tier.highlight
+                                                ? "bg-emerald-500 hover:bg-emerald-400 text-black"
+                                                : "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
+                                        }`}
+                                    />
+                                    {tier.key === "pro" && (
+                                        <CryptoUpgradeButton plan="pro" />
+                                    )}
+                                </div>
                             ) : (
                                 <Link
                                     href="/ledger"

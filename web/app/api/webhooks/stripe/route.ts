@@ -174,21 +174,29 @@ async function handleSubscriptionUpdated(
     const priceId = sub.items.data[0]?.price?.id ?? null;
     const currentPeriodEnd = new Date((sub.items.data[0]?.current_period_end ?? 0) * 1000);
     const status = sub.status;
+    // Treat cancel_at_period_end as an immediate downgrade so the customer
+    // portal cancellation path satisfies the <10s downgrade acceptance criterion
+    // (#150). Users who cancel receive free-tier access immediately rather than
+    // keeping paid access until the period ends.
+    const cancelAtPeriodEnd = sub.cancel_at_period_end ?? false;
+    const isPro = (status === "active" || status === "trialing") && !cancelAtPeriodEnd;
 
     await db
         .update(users)
         .set({
-            stripeSubscriptionStatus: status,
-            stripePriceId: priceId,
+            stripeSubscriptionStatus: cancelAtPeriodEnd ? "canceled" : status,
+            stripePriceId: cancelAtPeriodEnd ? null : priceId,
             stripeCurrentPeriodEnd: currentPeriodEnd,
-            isPro: status === "active" || status === "trialing",
+            isPro,
         })
         .where(eq(users.clerkId, clerkUserId));
 
-    const tier = tierFromPriceId(priceId);
+    const tier = isPro ? tierFromPriceId(priceId) : "free";
     await setUserTier(clerkUserId, tier);
 
-    console.log(`[Stripe Webhook] subscription updated: ${clerkUserId} → ${tier} (${status})`);
+    console.log(
+        `[Stripe Webhook] subscription updated: ${clerkUserId} → ${tier} (${status}, cancel_at_period_end=${cancelAtPeriodEnd})`
+    );
     return clerkUserId;
 }
 

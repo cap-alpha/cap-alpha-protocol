@@ -119,6 +119,16 @@ web/app/layout.tsx
 - Commit messages: `type(scope): description`
 - All SQL must compile natively for BigQuery (`STRING` not `VARCHAR`, `FLOAT64`/`INT64`, `SAFE_CAST` not `TRY_CAST`, `MOD()` not `%`).
 
+## Frontend shipping checklist (mandatory, closes #672)
+
+Before marking any UI/frontend task done, an agent MUST verify all three:
+
+1. **Deploy pipeline fired** — confirm `production.yml` triggered on the merge (check `gh run list --workflow=production.yml --limit=3`). If it didn't fire, run `cd web && vercel --prod` manually.
+2. **Change is live at cap-alpha.co** — fetch the changed route and confirm it returns 200 and the feature is present. Use `curl -I https://cap-alpha.co/<route>` or the Vercel MCP `web_fetch_vercel_url` tool.
+3. **E2E coverage** — if Playwright tests exist for the changed route, confirm they passed in CI. If no tests exist, file a follow-up issue for coverage (do not block the PR, but do not skip this step).
+
+Skipping this checklist and reporting a frontend task "done" is a process violation.
+
 ## Workflows
 
 ### /preflight — Run before any PR

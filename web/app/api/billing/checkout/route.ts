@@ -1,66 +1,59 @@
+/**
+ * POST /api/billing/checkout
+ *
+ * Processor-agnostic checkout router. Delegates to the active payment
+ * processor based on the PAYMENT_PROCESSOR environment variable.
+ *
+ * Supported values:
+ *   lemonsqueezy  (default) — LemonSqueezy hosted checkout
+ *   stripe                  — Stripe Checkout session
+ *
+ * Switching processors = one env var change + redeploy. No code changes.
+ *
+ * Processor helpers are lazy-imported so that environments missing one
+ * processor's env vars don't blow up at module init time (only the active
+ * processor's env vars are required to be present).
+ */
+
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
-function getStripeClient() {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-    return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
+async function handleStripe(userId: string, plan: string, email: string | undefined): Promise<string> {
+    const { createStripeCheckout } = await import("@/lib/stripe-checkout");
+    return createStripeCheckout({ userId, plan, email });
 }
 
-const PRICE_IDS: Record<string, string | undefined> = {
-    pro: process.env.STRIPE_PRO_PRICE_ID,
-    api_starter: process.env.STRIPE_API_STARTER_PRICE_ID,
-    api_growth: process.env.STRIPE_API_GROWTH_PRICE_ID,
-};
+async function handleLemonSqueezy(userId: string, plan: string, email: string | undefined): Promise<string> {
+    const { createLSCheckout } = await import("@/lib/ls-checkout");
+    return createLSCheckout({ userId, plan, email });
+}
 
 export async function POST(req: NextRequest) {
     const { userId } = auth();
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const stripe = getStripeClient();
-
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({})) as { plan?: string };
     const plan: string = body.plan ?? "pro";
-    const priceId = PRICE_IDS[plan];
 
-    if (!priceId) {
-        return NextResponse.json({ error: `Unknown plan: ${plan}` }, { status: 400 });
-    }
+    const processor = process.env.PAYMENT_PROCESSOR ?? "lemonsqueezy";
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://cap-alpha.co";
-
-    // Look up existing Stripe customer or create one
     const user = await clerkClient.users.getUser(userId);
-    let customerId = user.publicMetadata?.stripe_customer_id as string | undefined;
+    const email = user.emailAddresses[0]?.emailAddress;
 
-    if (!customerId) {
-        const email = user.emailAddresses[0]?.emailAddress;
-        const customer = await stripe.customers.create({
-            email,
-            metadata: { clerk_user_id: userId },
-        });
-        customerId = customer.id;
-
-        await clerkClient.users.updateUserMetadata(userId, {
-            publicMetadata: { stripe_customer_id: customerId },
-        });
+    try {
+        let url: string;
+        switch (processor) {
+            case "stripe":
+                url = await handleStripe(userId, plan, email);
+                break;
+            case "lemonsqueezy":
+            default:
+                url = await handleLemonSqueezy(userId, plan, email);
+                break;
+        }
+        return NextResponse.json({ url });
+    } catch (err) {
+        console.error(`[Billing] ${processor} checkout failed:`, err);
+        return NextResponse.json({ error: "Checkout creation failed" }, { status: 500 });
     }
-
-    const session = await stripe.checkout.sessions.create({
-        customer: customerId,
-        client_reference_id: userId,
-        mode: "subscription",
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${appUrl}/dashboard?checkout=success`,
-        cancel_url: `${appUrl}/pricing?checkout=cancelled`,
-        allow_promotion_codes: true,
-        subscription_data: {
-            metadata: { clerk_user_id: userId },
-        },
-    });
-
-    return NextResponse.json({ url: session.url });
 }

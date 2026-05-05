@@ -52,6 +52,7 @@ from src.llm_provider import (
     get_provider,
     get_provider_with_fallback,
     load_llm_config,
+    verify_utterance,
 )
 from tenacity import (
     retry,
@@ -327,7 +328,9 @@ For EACH utterance, classify it and score its testability. Return a JSON array w
   "confidence_note": "how explicit/confident the prediction is",
   "prediction_horizon_days": -1,
   "speech_act": "authored|quoted|commentary",
-  "originating_speaker": null
+  "originating_speaker": null,
+  "resolution_condition": "plain-English statement of what makes this claim true, or empty string",
+  "hedge_level": "strong|moderate|weak"
 }}
 
 speech_act_type definitions:
@@ -658,25 +661,46 @@ def write_raw_utterances(
         if isinstance(originating_speaker_val, str):
             originating_speaker_val = originating_speaker_val.strip() or None
 
-        rows.append(
-            {
-                "utterance_id": str(uuid.uuid4()),
-                "source_doc_id": source_doc_id,
-                "speaker_entity_id": speaker_entity_id,
-                "uttered_at": uttered_at,
-                "text": text_val,
-                "speech_act_type": sat,
-                "testability_score": score,
-                "resolution_horizon": rh,
-                "domain": domain,
-                "extraction_confidence": max(
-                    0.0, min(1.0, float(u.get("extraction_confidence") or score or 0.0))
-                ),
-                "created_at": now,
-                "speech_act": speech_act,
-                "originating_speaker": originating_speaker_val,
-            }
-        )
+        row = {
+            "utterance_id": str(uuid.uuid4()),
+            "source_doc_id": source_doc_id,
+            "speaker_entity_id": speaker_entity_id,
+            "uttered_at": uttered_at,
+            "text": text_val,
+            "speech_act_type": sat,
+            "testability_score": score,
+            "resolution_horizon": rh,
+            "domain": domain,
+            "extraction_confidence": max(
+                0.0, min(1.0, float(u.get("extraction_confidence") or score or 0.0))
+            ),
+            "created_at": now,
+            "speech_act": speech_act,
+            "originating_speaker": originating_speaker_val,
+            # --- Part A: subscore fields (#674) ---
+            "subscore_subject_specificity": subscores.get("subject_specificity"),
+            "subscore_predicate_falsifiability": subscores.get(
+                "predicate_falsifiability"
+            ),
+            "subscore_threshold_concreteness": subscores.get("threshold_concreteness"),
+            "subscore_resolution_horizon_defined": subscores.get(
+                "resolution_horizon_defined"
+            ),
+            "subscore_evidence_accessibility": subscores.get("evidence_accessibility"),
+            "stance": u.get("stance"),
+            "prediction_horizon_days": u.get("prediction_horizon_days"),
+            "confidence_note": u.get("confidence_note"),
+            # --- Part B: new extraction fields (#675) ---
+            "resolution_condition": u.get("resolution_condition"),
+            "hedge_level": u.get("hedge_level"),
+            # Verification fields populated separately after 7B pass
+            "claim_text_alignment": u.get("claim_text_alignment"),
+            "hallucination_risk": u.get("hallucination_risk"),
+            "verification_flags": u.get("verification_flags"),
+            "quality_score": u.get("quality_score"),
+            "needs_review": u.get("needs_review"),
+        }
+        rows.append(row)
 
     # NOT-NULL invariant — fail fast before any BQ I/O (#595)
     _NULL_CHECKED_COLS = (
@@ -722,7 +746,12 @@ def write_raw_utterances(
         # Cast remaining object-dtype cols to str for BQ Parquet compatibility.
         # datetime64 columns (uttered_at, created_at, resolution_horizon) are
         # not "object" dtype and are skipped automatically.
+        # verification_flags is ARRAY<STRING> — skip it so pyarrow can
+        # serialize the list values directly without coercing to a plain string.
+        _ARRAY_COLS = {"verification_flags"}
         for col in df_clean.columns:
+            if col in _ARRAY_COLS:
+                continue
             if df_clean[col].dtype == object:
                 df_clean[col] = df_clean[col].astype(str)
         job = db.client.load_table_from_dataframe(
@@ -1179,6 +1208,58 @@ def should_filter_article(
         return False
 
 
+# ---------------------------------------------------------------------------
+# Triage pass (self-hosted runner / Ollama — Issue #621)
+# ---------------------------------------------------------------------------
+
+TRIAGE_PROMPT = """You are a triage filter. Answer only YES or NO.
+
+Does this text contain a specific, testable prediction about an NFL player, trade, draft pick, contract, or game outcome?
+
+A testable prediction: "Player X will be traded", "Team Y will draft Z in round 1", "Player A will be cut before June 1"
+NOT a prediction: opinions, analysis, historical facts, game recaps
+
+Text: {first_500_chars}
+
+Answer YES or NO only."""
+
+
+def should_triage_skip_article(
+    text: str,
+    triage_provider=None,
+    source: str = "",
+) -> bool:
+    """Return True if the article should be skipped (triage says no predictions).
+
+    Runs the triage prompt on qwen2.5:7b before committing to the full 32B
+    extraction model. If the triage call fails for any reason, defaults to
+    False (keep the article — fail-open so we never silently drop content).
+
+    Args:
+        text: Article text (only first 500 chars are sent to the triage model).
+        triage_provider: LLM provider configured for the 'triage' role. If None,
+            triage is skipped and the article is always kept.
+        source: Source identifier for logging.
+    """
+    if triage_provider is None:
+        return False
+    try:
+        first_500 = text[:500].strip()
+        prompt = TRIAGE_PROMPT.format(first_500_chars=first_500)
+        answer = triage_provider.classify(prompt)
+        result = answer.strip().upper()
+        if result.startswith("NO"):
+            logger.debug(f"Triage filtered: {source or 'unknown'}")
+            return True
+        # YES or any non-NO response → keep (fail-open)
+        return False
+    except Exception as exc:
+        logger.warning(
+            f"Triage error for {source!r} (fail-open, keeping article): {exc}"
+        )
+        return False
+
+
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
@@ -1188,6 +1269,7 @@ def run_extraction(
     provider: Optional[LLMProvider] = None,
     provider_name: Optional[str] = None,
     disable_filter: bool = False,
+    disable_triage: bool = False,
     # Legacy parameter — ignored if provider is set
     gemini_client=None,
 ) -> dict:
@@ -1195,11 +1277,12 @@ def run_extraction(
     Main extraction entry point (Phase C).
 
     1. Fetch unprocessed raw media from BQ
-    2. Send each to LLM for speech-act + testability extraction
-    3. Write ALL utterances to silver_v2_claims.raw_utterance (Phase C)
-    4. Promote qualifying utterances to PunditPredictions for ledger
-    5. Ingest into the cryptographic ledger
-    6. Mark as processed
+    2. Fast triage pass (qwen2.5:7b) — skip articles with no predictions
+    3. Send each to LLM for speech-act + testability extraction (qwen2.5:32b)
+    4. Write ALL utterances to silver_v2_claims.raw_utterance (Phase C)
+    5. Promote qualifying utterances to PunditPredictions for ledger
+    6. Ingest into the cryptographic ledger
+    7. Mark as processed
 
     Returns a summary dict for observability.
     """
@@ -1237,6 +1320,7 @@ def run_extraction(
         "errors": 0,
         "skipped_no_predictions": 0,
         "filtered_out": 0,
+        "triage_filtered_out": 0,
         "skipped_low_yield": 0,
         "testability_threshold": threshold,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
@@ -1252,6 +1336,27 @@ def run_extraction(
                 filter_provider = get_provider("filter", config)
             except Exception as exc:
                 logger.warning(f"Pre-filter provider init failed (disabled): {exc}")
+
+    # Set up triage provider if enabled (fast 7B pass before full 32B extraction)
+    triage_provider = None
+    if not disable_triage and not dry_run:
+        _triage_config = load_llm_config()
+        _triage_cfg = _triage_config.get("triage", {})
+        if _triage_cfg.get("enabled", True):  # enabled by default
+            try:
+                triage_provider = get_provider("triage", _triage_config)
+                logger.info(
+                    f"Triage provider initialized: {getattr(triage_provider, 'model', '?')}"
+                )
+            except Exception as exc:
+                logger.warning(f"Triage provider init failed (disabled): {exc}")
+
+    # Read 7B verification config from triage block (same model, reuses settings)
+    _llm_cfg_for_verify = load_llm_config()
+    _verify_cfg = _llm_cfg_for_verify.get("triage", {})
+    _verify_base_url = _verify_cfg.get("base_url", "http://localhost:11434")
+    _verify_model = _verify_cfg.get("model", "qwen2.5:7b")
+    _verify_timeout = int(_verify_cfg.get("timeout", 30))
 
     try:
         media_df = get_unprocessed_media(
@@ -1314,6 +1419,17 @@ def run_extraction(
                     processed_hashes.append(content_hash)
                     continue
 
+            # Triage pass: fast 7B relevance check before committing to full 32B extraction
+            if triage_provider is not None:
+                if should_triage_skip_article(
+                    str(row.get("raw_text", "")),
+                    triage_provider=triage_provider,
+                    source=source_id,
+                ):
+                    summary["triage_filtered_out"] += 1
+                    processed_hashes.append(content_hash)
+                    continue
+
             # Format publish date for the prompt
             pub_date = ""
             if pd.notna(row.get("published_at")):
@@ -1361,8 +1477,25 @@ def run_extraction(
                 # Resolve speaker entity_id (best-effort; placeholder on miss)
                 speaker_entity_id = _resolve_speaker_entity_id(str(pundit_id), db=db)
                 article_sport = str(row.get("sport", sport))
+
+                # 7B verification pass — non-blocking; enriches utterances with
+                # quality signals before writing to raw_utterance (#675)
+                raw_text_for_verify = str(row.get("raw_text", ""))
+                verified_utterances = []
+                for _u in result.utterances:
+                    _verification = verify_utterance(
+                        utterance=_u,
+                        source_text=raw_text_for_verify,
+                        base_url=_verify_base_url,
+                        model=_verify_model,
+                        timeout=_verify_timeout,
+                    )
+                    if _verification:
+                        _u = {**_u, **_verification}
+                    verified_utterances.append(_u)
+
                 written = write_raw_utterances(
-                    utterances=result.utterances,
+                    utterances=verified_utterances,
                     source_doc_id=content_hash,
                     speaker_entity_id=speaker_entity_id,
                     uttered_at=uttered_at,
@@ -1370,11 +1503,11 @@ def run_extraction(
                     db=db,
                 )
                 summary["utterances_written"] += written
-                suppressed_here = len(result.utterances) - len(result.predictions)
+                suppressed_here = len(verified_utterances) - len(result.predictions)
                 summary["suppressed"] += max(0, suppressed_here)
 
                 # Accumulate per-run metrics for extraction_run table
-                for u in result.utterances:
+                for u in verified_utterances:
                     _run_metadata_total += 1
                     ts = u.get("testability_score")
                     ec = u.get("extraction_confidence")
@@ -1474,6 +1607,7 @@ def run_extraction(
 
         logger.info(
             f"Extraction complete: {summary['total_processed']} processed, "
+            f"{summary['triage_filtered_out']} triage-filtered, "
             f"{summary['utterances_written']} utterances → raw_utterance, "
             f"{summary['predictions_extracted']} promoted to ledger "
             f"(testability_score >= {threshold}), "

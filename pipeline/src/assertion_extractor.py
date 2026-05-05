@@ -591,7 +591,7 @@ def write_raw_utterances(
                 "resolution_horizon": rh,
                 "domain": domain,
                 "extraction_confidence": max(
-                    0.0, min(1.0, float(u.get("extraction_confidence", score)))
+                    0.0, min(1.0, float(u.get("extraction_confidence") or score or 0.0))
                 ),
                 "created_at": now,
             }

@@ -65,20 +65,7 @@ sources:
         name: "Matt Bowen"
         match_authors: ["Matt Bowen"]
 
-  - id: theringer_nfl
-    name: "The Ringer NFL"
-    sport: "NFL"
-    type: rss
-    url: "https://www.theringer.com/rss/nfl/index.xml"
-    enabled: true
-    priority_tier: 2  # yield_rate=unknown (no data yet) — opinion/analysis outlet, estimated medium yield
-    pundits:
-      - id: bill_simmons
-        name: "Bill Simmons"
-        match_authors: ["Bill Simmons"]
-      - id: kevin_clark
-        name: "Kevin Clark"
-        match_authors: ["Kevin Clark"]
+  # theringer_nfl removed: returns HTML not XML (permanently dead — 2026-05)
 
   - id: theathletic_nfl
     name: "The Athletic NFL"
@@ -115,37 +102,13 @@ sources:
         name: "Jeff Howe"
         match_authors: ["Jeff Howe"]
 
-  - id: nfl_official
-    name: "NFL.com News"
-    sport: "NFL"
-    type: rss
-    scrape_full_text: true
-    url: "https://www.nfl.com/rss/rsslanding?searchString=home"
-    enabled: true
-    priority_tier: 3  # yield_rate=0.00 (0/1 articles) — near-zero yield; skip LLM extraction
-    skip_extraction: true
-    pundits:
-      - id: ian_rapoport
-        name: "Ian Rapoport"
-        match_authors: ["Ian Rapoport", "Rapoport"]
-      - id: tom_pelissero
-        name: "Tom Pelissero"
-        match_authors: ["Tom Pelissero"]
-
-  - id: si_nfl
-    name: "Sports Illustrated NFL"
-    sport: "NFL"
-    type: rss
-    scrape_full_text: true
-    url: "https://www.si.com/rss/si_nfl.rss"
-    enabled: true
-    priority_tier: 2  # yield_rate=unknown (no data yet) — analytical outlet, estimated medium yield
-    pundits:
-      - id: albert_breer
-        name: "Albert Breer"
-        match_authors: ["Albert Breer"]
+  # nfl_official removed: malformed XML from ad injection (permanently dead — 2026-05)
+  # si_nfl removed: malformed XML (permanently dead — 2026-05)
 
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
+  # On self-hosted runner with home IP, YouTube transcript fetching works without
+  # the rate-limiting that blocks GitHub-hosted ubuntu-latest runners.
+  # Requires yt-dlp (brew install yt-dlp) — works on self-hosted home IP runner
   - id: pat_mcafee_show
     name: "The Pat McAfee Show"
     sport: "NFL"
@@ -158,6 +121,7 @@ sources:
         name: "Pat McAfee"
         match_authors: ["Pat McAfee"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: undisputed
     name: "Undisputed"
     sport: "NFL"
@@ -172,6 +136,7 @@ sources:
         name: "Skip Bayless"
         match_authors: ["Skip Bayless"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: first_take
     name: "First Take"
     sport: "NFL"
@@ -188,6 +153,7 @@ sources:
         match_authors: ["Stephen A. Smith", "Stephen A"]
 
   # ── Tier 1 YouTube Expansion (issue #129) ──────────────────────────────────
+  # Requires yt-dlp (brew install yt-dlp)
   - id: the_herd
     name: "The Herd with Colin Cowherd"
     sport: "NFL"
@@ -203,6 +169,7 @@ sources:
         name: "Colin Cowherd"
         match_authors: ["Colin Cowherd", "Cowherd"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: club_shay_shay
     name: "Club Shay Shay"
     sport: "NFL"
@@ -216,6 +183,7 @@ sources:
         name: "Shannon Sharpe"
         match_authors: ["Shannon Sharpe", "Sharpe"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: whats_wright
     name: "What's Wright? with Nick Wright"
     sport: "NFL"
@@ -229,6 +197,7 @@ sources:
         name: "Nick Wright"
         match_authors: ["Nick Wright", "Wright"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: dan_patrick_show
     name: "The Dan Patrick Show"
     sport: "NFL"
@@ -241,6 +210,7 @@ sources:
         name: "Dan Patrick"
         match_authors: ["Dan Patrick"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: rich_eisen_show
     name: "The Rich Eisen Show"
     sport: "NFL"

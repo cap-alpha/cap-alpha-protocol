@@ -1,9 +1,11 @@
-name: Production Deployment (Tagged Release)
+name: Production Deployment
 
 on:
   push:
+    branches:
+      - main
     tags:
-      - 'v*' # Trigger only when semantic version tags are pushed (e.g., v1.0.0)
+      - 'v*' # Also trigger on semantic version tags for manual versioned releases
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}

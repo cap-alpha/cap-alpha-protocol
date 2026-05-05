@@ -14,6 +14,12 @@ export const users = pgTable("users", {
     tosAgreedAt: timestamp("tos_agreed_at"),
     tosVersion: text("tos_version"),
     createdAt: timestamp("created_at").defaultNow(),
+    // LemonSqueezy billing columns
+    lsCustomerId: text("ls_customer_id"),
+    lsSubscriptionId: text("ls_subscription_id"),
+    lsSubscriptionStatus: text("ls_subscription_status"),
+    lsVariantId: text("ls_variant_id"),
+    lsCurrentPeriodEnd: timestamp("ls_current_period_end"),
     // Email onboarding sequence tracking (0=none, 1=welcome sent, 2=day3 sent, 3=day7 sent)
     onboardingStep: integer("onboarding_step").default(0).notNull(),
     emailUnsubscribedAt: timestamp("email_unsubscribed_at"),
@@ -89,4 +95,19 @@ export const coinbaseProcessedCharges = pgTable(
         processedAt: timestamp("processed_at").defaultNow().notNull(),
     },
     (table) => [index("coinbase_processed_charges_event_id_idx").on(table.coinbaseEventId)]
+);
+
+// Idempotency table for LemonSqueezy webhook events.
+// Before processing any event, the handler inserts the composite event key here.
+// A UNIQUE constraint prevents duplicate processing even under concurrent
+// delivery or replay attacks.
+export const lsProcessedEvents = pgTable(
+    "ls_processed_events",
+    {
+        id: serial("id").primaryKey(),
+        lsEventId: text("ls_event_id").unique().notNull(),
+        eventType: text("event_type").notNull(),
+        processedAt: timestamp("processed_at").defaultNow().notNull(),
+    },
+    (table) => [index("ls_processed_events_event_id_idx").on(table.lsEventId)]
 );

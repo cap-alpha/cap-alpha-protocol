@@ -79,3 +79,14 @@ export const stripeProcessedEvents = pgTable(
     },
     (table) => [index("stripe_processed_events_event_id_idx").on(table.stripeEventId)]
 );
+
+export const coinbaseProcessedCharges = pgTable(
+    "coinbase_processed_charges",
+    {
+        id: serial("id").primaryKey(),
+        coinbaseEventId: text("coinbase_event_id").unique().notNull(),
+        eventType: text("event_type").notNull(),
+        processedAt: timestamp("processed_at").defaultNow().notNull(),
+    },
+    (table) => [index("coinbase_processed_charges_event_id_idx").on(table.coinbaseEventId)]
+);

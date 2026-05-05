@@ -273,8 +273,10 @@ class TestExtractAssertions:
 
         call_args = mock_provider.extract_predictions.call_args
         prompt_text = call_args[0][0]  # first positional arg
-        # Text should be truncated to 4000 chars
-        assert len(prompt_text) < len(long_text) + 1000
+        # The raw long_text is 10000 chars but extract_assertions truncates to 4000.
+        # Verify truncation by checking the un-truncated tail is absent from the prompt.
+        assert "x" * 5000 not in prompt_text  # tail of long_text should be absent
+        assert "x" * 4000 in prompt_text  # first 4000 chars should be present
 
     def test_deduplicates_near_identical_claims(self):
         """Semantic dedup removes near-duplicate claims."""

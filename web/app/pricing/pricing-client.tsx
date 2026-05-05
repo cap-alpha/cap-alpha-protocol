@@ -1,6 +1,7 @@
 "use client";
 
 import { useReducer, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { UpgradeButton } from "@/components/upgrade-button";
 import Link from "next/link";
 
@@ -135,6 +136,57 @@ function CryptoUpgradeButton({ plan, className }: { plan: string; className?: st
                     Pay with crypto
                 </>
             )}
+        </button>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// LemonSqueezy upgrade button (primary checkout flow — no LLC needed)
+// ---------------------------------------------------------------------------
+
+function LemonSqueezyUpgradeButton({
+    plan,
+    label,
+    className,
+}: {
+    plan: string;
+    label: string;
+    className?: string;
+}) {
+    const [loading, setLoading] = useState(false);
+    const router = useRouter();
+
+    async function handleLS() {
+        setLoading(true);
+        try {
+            const res = await fetch("/api/billing/lemon-squeezy", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ plan }),
+            });
+            const data = (await res.json()) as { url?: string; error?: string };
+            if (data.url) {
+                router.push(data.url);
+            } else {
+                console.error("[LemonSqueezy] No checkout URL returned", data);
+                setLoading(false);
+            }
+        } catch (err) {
+            console.error("[LemonSqueezy] Checkout failed", err);
+            setLoading(false);
+        }
+    }
+
+    return (
+        <button
+            onClick={handleLS}
+            disabled={loading}
+            className={
+                className ??
+                "w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-sm font-semibold text-black transition-colors"
+            }
+        >
+            {loading ? "Redirecting…" : label}
         </button>
     );
 }
@@ -625,7 +677,8 @@ export function PricingClient() {
 
                             {tier.cta ? (
                                 <div className="space-y-2">
-                                    <UpgradeButton
+                                    {/* Primary CTA: LemonSqueezy (MoR — no LLC needed) */}
+                                    <LemonSqueezyUpgradeButton
                                         plan={tier.cta.plan}
                                         label={tier.cta.label}
                                         className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
@@ -634,9 +687,13 @@ export function PricingClient() {
                                                 : "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
                                         }`}
                                     />
-                                    {tier.key === "pro" && (
-                                        <CryptoUpgradeButton plan="pro" />
+                                    {/* USDC alternative (Coinbase Commerce) */}
+                                    {(tier.key === "pro" || tier.key === "api_starter") && (
+                                        <CryptoUpgradeButton plan={tier.cta.plan} />
                                     )}
+                                    {/* Stripe checkout kept in codebase for future use.
+                                        Swap LemonSqueezyUpgradeButton → UpgradeButton above
+                                        to re-enable Stripe checkout once LLC is in place. */}
                                 </div>
                             ) : (
                                 <Link

@@ -95,6 +95,15 @@ VALID_SPEECH_ACT_TYPES = frozenset(
     }
 )
 
+# ---------------------------------------------------------------------------
+# Issue #366 — speech-act authorship classification
+# ---------------------------------------------------------------------------
+
+# Authorship dimension: who *owns* the claim.
+# Distinct from speech_act_type (utterance shape).
+VALID_SPEECH_ACTS = frozenset({"authored", "quoted", "commentary"})
+DEFAULT_SPEECH_ACT = "authored"
+
 # Default testability threshold.  Override via env var TESTABILITY_THRESHOLD.
 _DEFAULT_TESTABILITY_THRESHOLD = 0.6
 
@@ -316,7 +325,9 @@ For EACH utterance, classify it and score its testability. Return a JSON array w
   "target_player": null,
   "target_team": null,
   "confidence_note": "how explicit/confident the prediction is",
-  "prediction_horizon_days": -1
+  "prediction_horizon_days": -1,
+  "speech_act": "authored|quoted|commentary",
+  "originating_speaker": null
 }}
 
 speech_act_type definitions:
@@ -336,6 +347,13 @@ testability_score = average of 5 sub-scores (each 0.0–1.0):
 - threshold_concreteness: "below 3%"=1.0, "low"=0.3, "some"=0.0
 - resolution_horizon_defined: "by Q4 2025"=1.0, "soon"=0.3, "eventually"=0.0
 - evidence_accessibility: Is there a data source that can answer this? "Eagles wins >= 11"=1.0, "most exciting team"=0.0
+
+speech_act authorship classification (NEW — issue #366):
+- authored: the speaker is directly making this claim themselves
+- quoted: the speaker is transmitting someone else's claim ("Schefter just reported X") — set originating_speaker to the reported speaker's name
+- commentary: the speaker is reacting to / agreeing or disagreeing with a claim they did not author — this IS itself an authored claim of agreement/disagreement. Set originating_speaker to the name of the speaker whose claim is being commented on.
+
+originating_speaker: name of the entity whose claim is being transmitted (quoted) or commented on (commentary). Null for authored speech acts.
 
 Stance rules (for promoted claims):
 - bullish: prediction is positive/optimistic about the subject
@@ -408,6 +426,54 @@ Output:
   "target_team": "BAL",
   "confidence_note": "conditional on OL health",
   "prediction_horizon_days": 120
+}}
+
+Example 4 — Quoted claim (speech_act=quoted, score routed to originating_speaker):
+Input: "Adam Schefter is reporting that the Cowboys will cut Dak Prescott before the season."
+Output:
+{{
+  "text": "Adam Schefter is reporting that the Cowboys will cut Dak Prescott before the season.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.7, "evidence_accessibility": 0.9}},
+  "testability_score": 0.88,
+  "resolution_horizon": "2026-09-01T00:00:00Z",
+  "predicate": "will_cut",
+  "subject": "Dallas Cowboys",
+  "predicate_args": {{"player": "Dak Prescott", "timing": "before season"}},
+  "extracted_claim": "Cowboys will cut Dak Prescott before the season (per Schefter)",
+  "claim_category": "contract",
+  "stance": "bearish",
+  "season_year": 2026,
+  "target_player": "Dak Prescott",
+  "target_team": "DAL",
+  "confidence_note": "attributed report from named insider",
+  "prediction_horizon_days": 90,
+  "speech_act": "quoted",
+  "originating_speaker": "Adam Schefter"
+}}
+
+Example 5 — Commentary (speech_act=commentary, speaker authors an agree/disagree claim):
+Input: "I completely agree with Cowherd — Mahomes will win a fourth Super Bowl before he retires."
+Output:
+{{
+  "text": "I completely agree with Cowherd — Mahomes will win a fourth Super Bowl before he retires.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.5, "evidence_accessibility": 0.9}},
+  "testability_score": 0.82,
+  "resolution_horizon": null,
+  "predicate": "will_win",
+  "subject": "Patrick Mahomes",
+  "predicate_args": {{"milestone": "4th Super Bowl", "threshold": 4}},
+  "extracted_claim": "agree: Mahomes will win a fourth Super Bowl before retiring",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": null,
+  "target_player": "Patrick Mahomes",
+  "target_team": "KC",
+  "confidence_note": "explicit agreement with named pundit's claim",
+  "prediction_horizon_days": -1,
+  "speech_act": "commentary",
+  "originating_speaker": "Colin Cowherd"
 }}
 
 --- END EXAMPLES ---
@@ -579,6 +645,19 @@ def write_raw_utterances(
         if isinstance(rh, (dict, list, bool)):
             rh = None
 
+        # speech_act (authored|quoted|commentary): Issue #366 authorship dimension.
+        # Absent in pre-366 responses → default "authored" for backward compat.
+        sa_raw = u.get("speech_act")
+        if sa_raw in VALID_SPEECH_ACTS:
+            speech_act = sa_raw
+        else:
+            speech_act = DEFAULT_SPEECH_ACT
+
+        # originating_speaker: only meaningful for quoted/commentary speech acts.
+        originating_speaker_val = u.get("originating_speaker") or None
+        if isinstance(originating_speaker_val, str):
+            originating_speaker_val = originating_speaker_val.strip() or None
+
         rows.append(
             {
                 "utterance_id": str(uuid.uuid4()),
@@ -594,6 +673,8 @@ def write_raw_utterances(
                     0.0, min(1.0, float(u.get("extraction_confidence") or score or 0.0))
                 ),
                 "created_at": now,
+                "speech_act": speech_act,
+                "originating_speaker": originating_speaker_val,
             }
         )
 
@@ -1328,10 +1409,27 @@ def run_extraction(
                     if raw_stance in ("bullish", "bearish", "neutral")
                     else "neutral"
                 )
+
+                # Issue #366 — speech-act routing:
+                # quoted → score credited to originating_speaker, not the transmitter.
+                # commentary → current speaker authors an agree/disagree claim;
+                #              attribution stays with them (they own the opinion).
+                pred_speech_act = pred.get("speech_act", DEFAULT_SPEECH_ACT)
+                orig_speaker = (pred.get("originating_speaker") or "").strip()
+
+                if pred_speech_act == "quoted" and orig_speaker:
+                    effective_pundit_id = (
+                        f"quoted:{orig_speaker.lower().replace(' ', '_')}"
+                    )
+                    effective_pundit_name = orig_speaker
+                else:
+                    effective_pundit_id = str(pundit_id)
+                    effective_pundit_name = str(pundit_name)
+
                 all_predictions.append(
                     PunditPrediction(
-                        pundit_id=str(pundit_id),
-                        pundit_name=str(pundit_name),
+                        pundit_id=effective_pundit_id,
+                        pundit_name=effective_pundit_name,
                         source_url=source_url,
                         raw_assertion_text=str(row.get("raw_text", ""))[:2000],
                         extracted_claim=pred["extracted_claim"],

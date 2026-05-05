@@ -14,6 +14,7 @@ import {
     TrendingDown,
     Minus,
     ExternalLink,
+    X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AffiliateCTA } from "@/components/affiliate-cta";
@@ -338,6 +339,15 @@ export default function PunditAccountabilityPage() {
     const [page, setPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
+    // Search/filter for prediction history
+    const [searchQuery, setSearchQuery] = useState("");
+    const [debouncedQuery, setDebouncedQuery] = useState("");
+
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedQuery(searchQuery), 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+
     // Load pundit detail
     useEffect(() => {
         if (!punditId) return;
@@ -541,6 +551,47 @@ export default function PunditAccountabilityPage() {
                         </div>
                     </div>
 
+                    {/* Search input for prediction history */}
+                    <div className="relative mb-3">
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search this pundit's predictions…"
+                            className="w-full bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-600 font-mono focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20 transition-colors pr-20"
+                        />
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                            {debouncedQuery.trim() && preds && (
+                                <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
+                                    {preds.predictions.filter((p) => {
+                                        const q = debouncedQuery.toLowerCase();
+                                        return (
+                                            (p.extracted_claim ?? "").toLowerCase().includes(q) ||
+                                            (p.claim_category ?? "").toLowerCase().includes(q) ||
+                                            (p.target_team ?? "").toLowerCase().includes(q)
+                                        );
+                                    }).length} result{preds.predictions.filter((p) => {
+                                        const q = debouncedQuery.toLowerCase();
+                                        return (
+                                            (p.extracted_claim ?? "").toLowerCase().includes(q) ||
+                                            (p.claim_category ?? "").toLowerCase().includes(q) ||
+                                            (p.target_team ?? "").toLowerCase().includes(q)
+                                        );
+                                    }).length !== 1 ? "s" : ""}
+                                </span>
+                            )}
+                            {searchQuery && (
+                                <button
+                                    onClick={() => setSearchQuery("")}
+                                    className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                                    aria-label="Clear search"
+                                >
+                                    <X className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     {predsLoading ? (
                         <div className="flex items-center justify-center h-24 text-zinc-600">
                             <Activity className="w-3.5 h-3.5 animate-pulse mr-2" />
@@ -549,7 +600,17 @@ export default function PunditAccountabilityPage() {
                     ) : preds && preds.predictions.length > 0 ? (
                         <>
                             <div className="space-y-2">
-                                {preds.predictions.map((p) => (
+                                {(debouncedQuery.trim()
+                                    ? preds.predictions.filter((p) => {
+                                          const q = debouncedQuery.toLowerCase();
+                                          return (
+                                              (p.extracted_claim ?? "").toLowerCase().includes(q) ||
+                                              (p.claim_category ?? "").toLowerCase().includes(q) ||
+                                              (p.target_team ?? "").toLowerCase().includes(q)
+                                          );
+                                      })
+                                    : preds.predictions
+                                ).map((p) => (
                                     <PredictionCard key={p.prediction_hash} p={p} />
                                 ))}
                             </div>

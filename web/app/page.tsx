@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Shield, TrendingUp, BarChart3, Lock, ArrowRight, Zap } from "lucide-react";
 import { WaitlistForm } from "@/components/waitlist-form";
+import { SignUpCta } from "@/components/sign-up-cta";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
 import { UpgradeButton } from "@/components/upgrade-button";
 import { AffiliateCTA } from "@/components/affiliate-cta";
@@ -38,6 +39,7 @@ export default function LandingPage() {
                         <p className="text-xs text-zinc-600">
                             Free tier available at launch. No credit card required.
                         </p>
+                        <SignUpCta />
                     </div>
                 </div>
             </section>

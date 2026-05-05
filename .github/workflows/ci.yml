@@ -130,13 +130,15 @@ jobs:
         run: pip install -r pipeline/requirements-dev.txt
 
       - name: Authenticate to GCP
+        id: auth
         if: steps.paths.outputs.touched == 'true'
+        continue-on-error: true
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Run extraction smoke test
-        if: steps.paths.outputs.touched == 'true'
+        if: steps.paths.outputs.touched == 'true' && steps.auth.outcome == 'success'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}

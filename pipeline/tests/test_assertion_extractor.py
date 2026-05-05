@@ -811,7 +811,11 @@ class TestPreFilterIntegration:
         )
 
         summary = run_extraction(
-            limit=10, db=mock_db, provider=mock_provider, disable_filter=True
+            limit=10,
+            db=mock_db,
+            provider=mock_provider,
+            disable_filter=True,
+            disable_triage=True,
         )
 
         assert summary["filtered_out"] == 0
@@ -1240,12 +1244,16 @@ class TestSourceConfig:
         assert get_source_priority_tier("pft_nbc") == 3
 
     def test_skip_extraction_sources(self):
-        """club_shay_shay and nfl_official should have skip_extraction=True."""
+        """club_shay_shay should have skip_extraction=True.
+        nfl_official was removed from media_sources.yaml (permanently dead — 2026-05),
+        so it falls through to the default (False).
+        """
         import src.assertion_extractor as ae
 
         ae._SOURCE_CONFIG_CACHE = None
         assert is_skip_extraction("club_shay_shay") is True
-        assert is_skip_extraction("nfl_official") is True
+        # nfl_official removed from config; unknown source → default False
+        assert is_skip_extraction("nfl_official") is False
 
     def test_non_skip_source(self):
         """pat_mcafee_show should NOT be skip_extraction."""
@@ -1652,3 +1660,157 @@ class TestWriteRawUtterancesResolutionHorizon:
         assert rows[1]["resolution_horizon"].year == 2026
         # None → NaT
         assert rows[2]["resolution_horizon"] is pd.NaT
+
+
+# ---------------------------------------------------------------------------
+# write_raw_utterances — new metadata fields (#674, #675)
+# ---------------------------------------------------------------------------
+
+
+class TestWriteRawUtterancesMetadata:
+    """
+    Tests that subscore, stance, horizon, and 7B verification fields
+    are persisted in the BQ row rather than discarded (#674, #675).
+    """
+
+    _UTTERED_AT = datetime(2025, 9, 1, tzinfo=timezone.utc)
+
+    def _write_utterance(self, utterance: dict) -> dict:
+        """Write a single utterance and return the first captured BQ row."""
+        import os
+
+        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+        db = _make_mock_db_for_bq_write()
+        write_raw_utterances(
+            utterances=[utterance],
+            source_doc_id="doc_meta",
+            speaker_entity_id="entity_meta",
+            uttered_at=self._UTTERED_AT,
+            domain="nfl",
+            db=db,
+        )
+        rows = _capture_load_args(db)
+        assert len(rows) == 1
+        return rows[0]
+
+    def test_subscore_fields_persisted(self):
+        """All five testability sub-scores from #674 are written to BQ."""
+        utterance = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extraction_confidence": 0.9,
+            "testability_subscores": {
+                "subject_specificity": 1.0,
+                "predicate_falsifiability": 0.9,
+                "threshold_concreteness": 0.8,
+                "resolution_horizon_defined": 0.7,
+                "evidence_accessibility": 1.0,
+            },
+        }
+        row = self._write_utterance(utterance)
+        assert float(row["subscore_subject_specificity"]) == pytest.approx(1.0)
+        assert float(row["subscore_predicate_falsifiability"]) == pytest.approx(0.9)
+        assert float(row["subscore_threshold_concreteness"]) == pytest.approx(0.8)
+        assert float(row["subscore_resolution_horizon_defined"]) == pytest.approx(0.7)
+        assert float(row["subscore_evidence_accessibility"]) == pytest.approx(1.0)
+
+    def test_stance_field_persisted(self):
+        """stance value from LLM is written to BQ (#674)."""
+        utterance = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extraction_confidence": 0.9,
+            "stance": "bullish",
+        }
+        row = self._write_utterance(utterance)
+        assert row["stance"] == "bullish"
+
+    def test_prediction_horizon_days_persisted(self):
+        """prediction_horizon_days from LLM is written to BQ (#674)."""
+        utterance = {
+            "text": "Eagles win NFC East",
+            "speech_act_type": "assertion",
+            "testability_score": 0.85,
+            "extraction_confidence": 0.85,
+            "prediction_horizon_days": 120,
+        }
+        row = self._write_utterance(utterance)
+        # DataFrame int → str after astype(str), so compare as string or int
+        assert str(row["prediction_horizon_days"]) == "120"
+
+    def test_confidence_note_persisted(self):
+        """confidence_note from LLM is written to BQ (#674)."""
+        utterance = {
+            "text": "Kelce retires",
+            "speech_act_type": "assertion",
+            "testability_score": 0.7,
+            "extraction_confidence": 0.7,
+            "confidence_note": "explicit numeric threshold",
+        }
+        row = self._write_utterance(utterance)
+        assert row["confidence_note"] == "explicit numeric threshold"
+
+    def test_resolution_condition_persisted(self):
+        """resolution_condition from #675 is written to BQ."""
+        utterance = {
+            "text": "Hill traded before June",
+            "speech_act_type": "assertion",
+            "testability_score": 0.8,
+            "extraction_confidence": 0.8,
+            "resolution_condition": "Reported by major outlet as traded before 2026-06-01",
+        }
+        row = self._write_utterance(utterance)
+        assert "traded before" in row["resolution_condition"]
+
+    def test_hedge_level_persisted(self):
+        """hedge_level from #675 is written to BQ."""
+        utterance = {
+            "text": "I think the Eagles might win",
+            "speech_act_type": "hedge",
+            "testability_score": 0.4,
+            "extraction_confidence": 0.6,
+            "hedge_level": "weak",
+        }
+        row = self._write_utterance(utterance)
+        assert row["hedge_level"] == "weak"
+
+    def test_verification_fields_persisted(self):
+        """7B verification fields from #675 are written to BQ."""
+        utterance = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extraction_confidence": 0.9,
+            "claim_text_alignment": 0.95,
+            "hallucination_risk": "low",
+            "verification_flags": ["team_inferred"],
+            "quality_score": 0.88,
+            "needs_review": False,
+        }
+        row = self._write_utterance(utterance)
+        assert float(row["claim_text_alignment"]) == pytest.approx(0.95)
+        assert row["hallucination_risk"] == "low"
+        assert row["quality_score"] is not None
+        # verification_flags is ARRAY<STRING> — serialized as list
+        assert "team_inferred" in row["verification_flags"]
+        # needs_review is BOOL — not coerced to str by the object-dtype loop
+        assert row["needs_review"] is False
+
+    def test_missing_metadata_fields_default_to_none(self):
+        """When LLM doesn't return optional fields, they are None (not KeyError)."""
+        utterance = {
+            "text": "Some claim",
+            "speech_act_type": "commentary",
+            "testability_score": 0.2,
+            "extraction_confidence": 0.5,
+        }
+        row = self._write_utterance(utterance)
+        # All new fields should exist as None/"nan" (not missing from dict)
+        assert "subscore_subject_specificity" in row
+        assert "resolution_condition" in row
+        assert "hedge_level" in row
+        assert "claim_text_alignment" in row
+        assert "hallucination_risk" in row
+        assert "quality_score" in row

@@ -13,8 +13,11 @@ from src.llm_provider import (
     GeminiProvider,
     OllamaProvider,
     _FallbackProvider,
+    _call_ollama_raw,
+    _extract_json_from_response,
     get_provider,
     load_llm_config,
+    verify_utterance,
 )
 
 # ---------------------------------------------------------------------------
@@ -285,7 +288,8 @@ class TestGetProvider:
 
         missing = tmp_path / "no_config.yaml"
         config = load_llm_config(missing)
-        assert config["extraction"]["provider"] == "gemini"
+        # Default provider is ollama (Ollama-first, zero cloud cost strategy)
+        assert config["extraction"]["provider"] == "ollama"
 
 
 # ---------------------------------------------------------------------------
@@ -408,3 +412,213 @@ class TestStanceField:
         ]
         result = self.provider._parse_json_response(json.dumps(data))
         assert "stance" not in result[0]
+
+
+# ---------------------------------------------------------------------------
+# PREDICTION_SCHEMA_DESCRIPTION — new fields (#675)
+# ---------------------------------------------------------------------------
+
+
+class TestSchemaDescriptionNewFields:
+    """resolution_condition and hedge_level must appear in the schema description
+    so Ollama/Claude providers include them in prompts."""
+
+    def test_resolution_condition_in_schema(self):
+        assert "resolution_condition" in PREDICTION_SCHEMA_DESCRIPTION
+
+    def test_hedge_level_in_schema(self):
+        assert "hedge_level" in PREDICTION_SCHEMA_DESCRIPTION
+
+    def test_hedge_level_values_in_schema(self):
+        assert "strong" in PREDICTION_SCHEMA_DESCRIPTION
+        assert "moderate" in PREDICTION_SCHEMA_DESCRIPTION
+        assert "weak" in PREDICTION_SCHEMA_DESCRIPTION
+
+
+# ---------------------------------------------------------------------------
+# verify_utterance — 7B post-extraction verification pass (#675)
+# ---------------------------------------------------------------------------
+
+
+class TestVerifyUtterance:
+    """Unit tests for the 7B model verification helper in llm_provider."""
+
+    _UTTERANCE = {
+        "extracted_claim": "Patrick Mahomes will win MVP",
+        "target_player": "Patrick Mahomes",
+        "target_team": "KC",
+        "testability_score": 0.85,
+    }
+
+    _SOURCE_TEXT = (
+        "Patrick Mahomes of the Kansas City Chiefs is the favorite for MVP this year."
+    )
+
+    def _mock_response(self, payload: dict) -> MagicMock:
+        resp = MagicMock()
+        resp.json.return_value = {"response": json.dumps(payload)}
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    def test_returns_all_verification_fields(self):
+        """Happy path: 7B returns valid JSON → all fields present in result."""
+        payload = {
+            "claim_text_alignment": 0.95,
+            "player_mentioned_in_source": True,
+            "team_mentioned_in_source": True,
+            "hallucination_risk": "low",
+            "verification_flags": [],
+        }
+        with patch("requests.post", return_value=self._mock_response(payload)):
+            result = verify_utterance(self._UTTERANCE, self._SOURCE_TEXT)
+
+        assert "claim_text_alignment" in result
+        assert "hallucination_risk" in result
+        assert "verification_flags" in result
+        assert "quality_score" in result
+        assert "needs_review" in result
+
+    def test_quality_score_formula(self):
+        """quality_score = 0.6 * testability + 0.4 * alignment."""
+        payload = {
+            "claim_text_alignment": 1.0,
+            "player_mentioned_in_source": True,
+            "team_mentioned_in_source": True,
+            "hallucination_risk": "low",
+            "verification_flags": [],
+        }
+        with patch("requests.post", return_value=self._mock_response(payload)):
+            result = verify_utterance(self._UTTERANCE, self._SOURCE_TEXT)
+
+        expected = round(0.6 * 0.85 + 0.4 * 1.0, 3)
+        assert result["quality_score"] == pytest.approx(expected, abs=1e-3)
+
+    def test_needs_review_when_quality_low(self):
+        """needs_review=True when quality_score < 0.5."""
+        low_testability_utterance = dict(self._UTTERANCE, testability_score=0.1)
+        payload = {
+            "claim_text_alignment": 0.1,
+            "player_mentioned_in_source": False,
+            "team_mentioned_in_source": False,
+            "hallucination_risk": "low",
+            "verification_flags": ["player_name_uncertain"],
+        }
+        with patch("requests.post", return_value=self._mock_response(payload)):
+            result = verify_utterance(low_testability_utterance, self._SOURCE_TEXT)
+
+        assert result["needs_review"] is True
+
+    def test_needs_review_when_high_hallucination_risk(self):
+        """needs_review=True when hallucination_risk == 'high', even if quality is OK."""
+        payload = {
+            "claim_text_alignment": 0.9,
+            "player_mentioned_in_source": True,
+            "team_mentioned_in_source": True,
+            "hallucination_risk": "high",
+            "verification_flags": ["claim_overstated"],
+        }
+        with patch("requests.post", return_value=self._mock_response(payload)):
+            result = verify_utterance(self._UTTERANCE, self._SOURCE_TEXT)
+
+        assert result["needs_review"] is True
+
+    def test_returns_empty_dict_on_request_failure(self):
+        """Non-blocking: connection errors return empty dict, not an exception."""
+        with patch("requests.post", side_effect=Exception("connection refused")):
+            result = verify_utterance(self._UTTERANCE, self._SOURCE_TEXT)
+
+        assert result == {}
+
+    def test_returns_empty_dict_on_bad_json(self):
+        """Non-blocking: malformed JSON response returns empty dict."""
+        bad_resp = MagicMock()
+        bad_resp.json.return_value = {"response": "not json at all"}
+        bad_resp.raise_for_status = MagicMock()
+
+        with patch("requests.post", return_value=bad_resp):
+            result = verify_utterance(self._UTTERANCE, self._SOURCE_TEXT)
+
+        assert result == {}
+
+    def test_verification_flags_preserved(self):
+        """Flags returned by the 7B model are passed through unchanged."""
+        payload = {
+            "claim_text_alignment": 0.6,
+            "player_mentioned_in_source": True,
+            "team_mentioned_in_source": False,
+            "hallucination_risk": "medium",
+            "verification_flags": ["team_inferred", "date_not_in_source"],
+        }
+        with patch("requests.post", return_value=self._mock_response(payload)):
+            result = verify_utterance(self._UTTERANCE, self._SOURCE_TEXT)
+
+        assert result["verification_flags"] == ["team_inferred", "date_not_in_source"]
+
+    def test_uses_first_800_chars_of_source(self):
+        """Only the first 800 chars of source_text are included in the prompt."""
+        long_source = "A" * 1600
+        payload_holder = {}
+
+        def capturing_post(url, json=None, timeout=None):
+            payload_holder["prompt"] = json.get("prompt", "")
+            resp = MagicMock()
+            resp.json.return_value = {
+                "response": '{"claim_text_alignment": 0.8, "player_mentioned_in_source": true, "team_mentioned_in_source": true, "hallucination_risk": "low", "verification_flags": []}'
+            }
+            resp.raise_for_status = MagicMock()
+            return resp
+
+        with patch("requests.post", side_effect=capturing_post):
+            verify_utterance(self._UTTERANCE, long_source)
+
+        prompt = payload_holder["prompt"]
+        # 800 "A"s must be present but the next chunk of As must NOT be
+        assert "A" * 800 in prompt
+        assert "A" * 801 not in prompt
+
+    def test_missing_testability_score_defaults_to_0_5(self):
+        """utterances without testability_score use 0.5 for quality formula."""
+        utterance_no_score = {
+            "extracted_claim": "Eagles win NFC",
+            "target_player": None,
+            "target_team": "PHI",
+        }
+        payload = {
+            "claim_text_alignment": 1.0,
+            "player_mentioned_in_source": False,
+            "team_mentioned_in_source": True,
+            "hallucination_risk": "low",
+            "verification_flags": [],
+        }
+        with patch("requests.post", return_value=self._mock_response(payload)):
+            result = verify_utterance(utterance_no_score, "Eagles beat Cowboys")
+
+        # quality = 0.6 * 0.5 + 0.4 * 1.0 = 0.7
+        assert result["quality_score"] == pytest.approx(0.7, abs=1e-3)
+
+
+# ---------------------------------------------------------------------------
+# _extract_json_from_response — JSON extraction helper (#675)
+# ---------------------------------------------------------------------------
+
+
+class TestExtractJsonFromResponse:
+    def test_passes_through_plain_json_object(self):
+        text = '{"key": "value"}'
+        assert _extract_json_from_response(text) == '{"key": "value"}'
+
+    def test_strips_markdown_fences(self):
+        text = '```json\n{"key": "value"}\n```'
+        result = _extract_json_from_response(text)
+        assert "{" in result
+        assert "key" in result
+
+    def test_extracts_json_from_surrounding_text(self):
+        text = 'Here is the result: {"hallucination_risk": "low"} end'
+        result = _extract_json_from_response(text)
+        assert result == '{"hallucination_risk": "low"}'
+
+    def test_extracts_array(self):
+        text = "Result: [1, 2, 3] done"
+        result = _extract_json_from_response(text)
+        assert result == "[1, 2, 3]"

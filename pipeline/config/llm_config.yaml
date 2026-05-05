@@ -10,26 +10,45 @@
 #   claude:  ANTHROPIC_API_KEY
 #   openai:  OPENAI_API_KEY
 #   ollama:  none (local, optionally OLLAMA_BASE_URL)
+#
+# Self-hosted runner strategy (2026-05):
+#   Pipeline runs on M4 Pro mac-mini via self-hosted GitHub Actions runner.
+#   Local Ollama (qwen2.5:32b) handles all extraction — zero cloud LLM cost.
+#   Home IP bypasses YouTube/RSS rate limits that block GitHub-hosted runners.
+#   Prerequisites: ollama pull qwen2.5:32b && ollama pull qwen2.5:7b
 
+# Primary extraction (full claim extraction via 32B model)
 extraction:
   provider: ollama              # gemini | claude | openai | ollama
-  model: llama3.1:8b            # provider-specific model ID; overridden by LLM_EXTRACTION_MODEL env var
-  rate_limit_seconds: 1.0       # inter-request delay; gemini=1.0, ollama=0.0, claude=0.5; overridden by LLM_EXTRACTION_RATE_LIMIT env var
+  model: qwen2.5:32b            # provider-specific model ID; overridden by LLM_EXTRACTION_MODEL env var
+  base_url: http://localhost:11434
+  timeout: 120
+  temperature: 0.1
+  rate_limit_seconds: 0.0       # no rate limiting needed for local inference; overridden by LLM_EXTRACTION_RATE_LIMIT env var
   # ollama models: qwen2.5:32b (recommended, 20GB, excellent structured output),
-  #   llama3.1:8b (fast/cheap), llama3.1:70b (needs 48GB+ free RAM)
+  #   qwen2.5:7b (fast triage pass), llama3.1:70b (needs 48GB+ free RAM)
   # claude models: claude-sonnet-4-20250514, claude-haiku-4-5-20251001
   # openai models: gpt-4o, gpt-4o-mini
   # gemini models: gemini-2.5-flash
 
-filter:
-  enabled: false                # set true to enable pre-filter stage (#180)
+# Triage pass (fast relevance filter before extraction, uses 7B model)
+triage:
   provider: ollama
-  model: llama3.1:8b
+  model: qwen2.5:7b
+  base_url: http://localhost:11434
+  timeout: 30
+  temperature: 0.0
+  enabled: true                 # set false to disable triage pre-filter
 
+# Legacy filter config — kept for backward compat with existing tests
+filter:
+  enabled: false                # use triage block above instead
+  provider: ollama
+  model: qwen2.5:7b
+
+# Fallback — disabled (no paid APIs)
 fallback:
-  enabled: true                 # Claude fallback for hard cases; requires ANTHROPIC_API_KEY
-  provider: claude
-  model: claude-sonnet-4-20250514
+  enabled: false                # no cloud fallback; keep pipeline offline
 
 # Team batching (#181)
 batching:

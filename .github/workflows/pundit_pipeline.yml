@@ -24,12 +24,41 @@ concurrency:
 
 jobs:
   ingest-extract-resolve:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 30
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v6
+
+      - name: Verify Ollama + models
+        run: |
+          curl -sf http://localhost:11434/api/tags | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          models = [m['name'] for m in data.get('models', [])]
+          needed = 'qwen2.5:32b'
+          if not any(needed in m for m in models):
+              print(f'ERROR: {needed} not found. Run: ollama pull qwen2.5:32b')
+              sys.exit(1)
+          print(f'Ollama ready. Models: {models}')
+          "
+
+      - name: Check AC power
+        id: power
+        run: |
+          STATUS=$(system_profiler SPPowerDataType 2>/dev/null | grep "Currently in Use" | head -1 || true)
+          if echo "$STATUS" | grep -q "No"; then
+            echo "on_battery=true" >> $GITHUB_OUTPUT
+          else
+            echo "on_battery=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Skip on battery
+        if: steps.power.outputs.on_battery == 'true'
+        run: |
+          echo "On battery — skipping extraction to preserve battery life"
+          exit 0
 
       - name: Setup Python
         uses: actions/setup-python@v6
@@ -65,13 +94,9 @@ jobs:
           python -m src.media_ingestor
 
       - name: Extract predictions
+        if: steps.power.outputs.on_battery != 'true'
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          LLM_EXTRACTION_PROVIDER: gemini
-          LLM_EXTRACTION_MODEL: gemini-2.5-flash
-          LLM_EXTRACTION_RATE_LIMIT: "1.0"
           PYTHONPATH: ${{ github.workspace }}/pipeline
           # CI provenance — written to silver_v2_claims.extraction_run by run_extraction()
           GITHUB_SHA: ${{ github.sha }}

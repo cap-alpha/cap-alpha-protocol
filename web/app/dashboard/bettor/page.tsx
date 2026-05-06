@@ -14,11 +14,23 @@ export default async function BettorDashboard() {
         getWarRoomData()
     ]);
 
-    // Bettors care about the delta between ML Alert and Media Consensus
-    const alphaAlerts = [
-        { player_name: "Travis Kelce", team: "KC", issue: "Athletic decline projected to exceed guaranteed money." },
-        { player_name: "Von Miller", team: "BUF", issue: "Severe snap reduction projected despite CAP structure." }
-    ];
+    // Bettors care about the delta between ML Alert and Media Consensus.
+    // Build a lookup from rosterData so we can enrich redAlerts with cap/risk context.
+    const rosterLookup = new Map(rosterData.map((p) => [p.player_name, p]));
+
+    const alphaAlerts = warRoomData.redAlerts.map((alert) => {
+        const roster = rosterLookup.get(alert.player_name);
+        const capHit = roster ? `$${roster.cap_hit_millions.toFixed(1)}M cap hit` : null;
+        const riskPct = roster ? `${(roster.risk_score * 100).toFixed(0)}% ML risk score` : null;
+        const detail = [capHit, riskPct].filter(Boolean).join(", ");
+        return {
+            player_name: alert.player_name,
+            team: alert.team,
+            issue: detail
+                ? `ML model flags high bust probability. ${detail}.`
+                : "ML model flags high bust probability — production decline projected to exceed contract guarantees.",
+        };
+    });
 
     return (
         <main className="min-h-[100dvh] bg-background p-8 font-sans text-foreground">
@@ -54,25 +66,29 @@ export default async function BettorDashboard() {
                         <CardDescription>Identified assets where current performance significantly lags multi-year guarantees before public repricing.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {alphaAlerts.map((alert: any, i: number) => (
-                            <div key={i} className="flex flex-col p-4 rounded-lg bg-zinc-950/50 border border-zinc-900 group">
-                                <div className="flex justify-between items-center mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20 uppercase tracking-widest text-[10px]">
-                                            Short Prop
-                                        </Badge>
-                                        <Link href={`/player/${encodeURIComponent(slugify(alert.player_name))}`} className="font-bold text-slate-200 hover:text-white hover:underline transition-colors">{alert.player_name}</Link>
+                        {alphaAlerts.length === 0 ? (
+                            <p className="text-sm text-muted-foreground py-4 text-center">No active ML alerts — data pipeline syncing.</p>
+                        ) : (
+                            alphaAlerts.map((alert, i) => (
+                                <div key={i} className="flex flex-col p-4 rounded-lg bg-zinc-950/50 border border-zinc-900 group">
+                                    <div className="flex justify-between items-center mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Badge variant="outline" className="bg-rose-500/10 text-rose-500 border-rose-500/20 uppercase tracking-widest text-[10px]">
+                                                Short Prop
+                                            </Badge>
+                                            <Link href={`/player/${encodeURIComponent(slugify(alert.player_name))}`} className="font-bold text-slate-200 hover:text-white hover:underline transition-colors">{alert.player_name}</Link>
+                                        </div>
+                                        <span className="text-xs font-mono text-slate-500">{alert.team}</span>
                                     </div>
-                                    <span className="text-xs font-mono text-slate-500">{alert.team}</span>
+                                    <p className="text-sm text-slate-400">
+                                        {alert.issue}
+                                    </p>
+                                    <div className="mt-3 text-xs text-rose-400 font-mono">
+                                        Alpha Window: Open (Public consensus unadjusted)
+                                    </div>
                                 </div>
-                                <p className="text-sm text-slate-400">
-                                    {alert.issue}
-                                </p>
-                                <div className="mt-3 text-xs text-rose-400 font-mono">
-                                    Alpha Window: Open (Public consensus unadjusted)
-                                </div>
-                            </div>
-                        ))}
+                            ))
+                        )}
                     </CardContent>
                 </Card>
 

@@ -1,0 +1,47 @@
+Return a JSON array where each element has:
+{
+  "text": "verbatim quote or close paraphrase",
+  "speech_act_type": "assertion|conditional|recall|rhetorical_question|hedge|commentary|opinion|analogy|joke",
+  "testability_subscores": {
+    "subject_specificity": 0.0,
+    "predicate_falsifiability": 0.0,
+    "threshold_concreteness": 0.0,
+    "resolution_horizon_defined": 0.0,
+    "evidence_accessibility": 0.0
+  },
+  "testability_score": 0.0,
+  "resolution_horizon": "ISO8601 datetime or null",
+  "predicate": "will_win|will_be_below|will_retire|will_sign|will_miss_playoffs|...",
+  "subject": "entity name string",
+  "predicate_args": {},
+  "extracted_claim": "concise testable statement for ledger (or empty string if not testable)",
+  "claim_category": "{{ claim_categories | join('|') }}",
+  "stance": "bullish|bearish|neutral",
+  "season_year": null,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "how explicit/confident the prediction is",
+  "prediction_horizon_days": -1,
+  "speech_act": "authored|quoted|commentary",
+  "originating_speaker": null,
+  "resolution_condition": "plain-English statement of what makes this claim true, or empty string",
+  "hedge_level": "strong|moderate|weak"
+}
+
+speech_act_type definitions:
+- assertion: declarative claim about a future outcome ("Mahomes will win MVP")
+- conditional: claim contingent on a condition ("IF they stay healthy, Eagles win the Super Bowl")
+- recall: speaker recalls a past prediction or fact as evidence ("I said three months ago that...")
+- rhetorical_question: question used for emphasis, not an assertion ("Can anyone stop this offense?")
+- hedge: statement explicitly marked as uncertain ("I think he might...", "wouldn't surprise me if")
+- commentary: analysis/explanation without a testable outcome ("This offense runs through the slot")
+- opinion: subjective evaluation without falsifiable outcome ("He's the best QB in the league")
+- analogy: comparison to illustrate a point, not a direct claim
+- joke: humor, sarcasm
+
+speech_act authorship classification (NEW — issue #366):
+- authored: the speaker is directly making this claim themselves
+- quoted: the speaker is transmitting someone else's claim ("Schefter just reported X") — set originating_speaker to the reported speaker's name
+- commentary: the speaker is reacting to / agreeing or disagreeing with a claim they did not author — this IS itself an authored claim of agreement/disagreement. Set originating_speaker to the name of the speaker whose claim is being commented on.
+
+originating_speaker: name of the entity whose claim is being transmitted (quoted) or commented on (commentary). Null for authored speech acts.

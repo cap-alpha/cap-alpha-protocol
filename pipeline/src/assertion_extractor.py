@@ -54,6 +54,7 @@ from src.llm_provider import (
     load_llm_config,
     verify_utterance,
 )
+from src.prompt_renderer import render_extraction_prompt, get_prompt_version
 from tenacity import (
     retry,
     retry_if_exception,
@@ -487,7 +488,25 @@ TITLE: {title}
 TEXT:
 {text}"""
 
+# Legacy fallback version — computed from the hardcoded string.
+# The canonical version for new pipeline runs comes from get_prompt_version("nfl")
+# (SHA-256 of the rendered Jinja template with sentinel values).
 PROMPT_VERSION = hashlib.sha256(EXTRACTION_PROMPT.encode("utf-8")).hexdigest()[:8]
+
+# Domain used when sport maps to NFL (the only domain with templates so far).
+_NFL_DOMAIN = "nfl"
+
+
+def _get_nfl_prompt_version() -> str:
+    """Return the Jinja-template-based prompt version for the NFL domain.
+
+    Falls back to the legacy PROMPT_VERSION if the templates are missing
+    (e.g. in unit tests that stub the filesystem).
+    """
+    try:
+        return get_prompt_version(_NFL_DOMAIN)
+    except Exception:
+        return PROMPT_VERSION
 
 
 @dataclass
@@ -891,14 +910,32 @@ def extract_assertions(
 
         provider = GeminiProvider()
 
-    prompt = EXTRACTION_PROMPT.format(
-        sport=sport,
-        published_date=published_date or "Unknown",
-        source_name=source_name or "Unknown",
-        author=author or "Unknown",
-        title=title or "Untitled",
-        text=text[:4000],
-    )
+    # Render the prompt from Jinja2 templates for the NFL domain.
+    # Falls back to the legacy hardcoded string if templates are unavailable
+    # (so existing unit tests that don't care about templates still pass).
+    try:
+        prompt, _tpl_version = render_extraction_prompt(
+            domain=_NFL_DOMAIN,
+            sport=sport,
+            published_date=published_date or "Unknown",
+            source_name=source_name or "Unknown",
+            author=author or "Unknown",
+            title=title or "Untitled",
+            text=text,
+            max_text_chars=4000,
+        )
+    except Exception as exc:
+        logger.warning(
+            f"Template render failed ({exc}), falling back to hardcoded EXTRACTION_PROMPT"
+        )
+        prompt = EXTRACTION_PROMPT.format(
+            sport=sport,
+            published_date=published_date or "Unknown",
+            source_name=source_name or "Unknown",
+            author=author or "Unknown",
+            title=title or "Untitled",
+            text=text[:4000],
+        )
 
     @retry(
         retry=retry_if_exception(_is_transient_llm_error),
@@ -1573,7 +1610,7 @@ def run_extraction(
                         target_team=pred.get("target_team"),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
-                        prompt_version=PROMPT_VERSION,
+                        prompt_version=_get_nfl_prompt_version(),
                         llm_provider=provider_type,
                         llm_model=str(llm_model) if llm_model else None,
                     )
@@ -1637,7 +1674,7 @@ def run_extraction(
                 finished_at=_finished_at,
                 provider=_run_provider,
                 model=_run_model,
-                prompt_version=PROMPT_VERSION,
+                prompt_version=_get_nfl_prompt_version(),
                 articles_processed=summary["total_processed"],
                 utterances_written=summary["utterances_written"],
                 claims_promoted=summary["predictions_ingested"],

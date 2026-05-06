@@ -21,6 +21,7 @@ from src.assertion_extractor import (
     ExtractionResult,
     run_extraction,
 )
+from src.prompt_renderer import get_prompt_version as _get_template_prompt_version
 from src.cryptographic_ledger import PunditPrediction, ingest_batch
 from src.local_rag_pipeline import _build_pundit_predictions
 from src.team_batcher import BATCH_PROMPT_VERSION, ArticleRecord
@@ -153,7 +154,8 @@ class TestRunExtractionProvenance:
         assert len(predictions_arg) == 1
         pred = predictions_arg[0]
 
-        assert pred.prompt_version == PROMPT_VERSION
+        # The runtime now uses the Jinja template hash, not the legacy hardcoded string hash.
+        assert pred.prompt_version == _get_template_prompt_version("nfl")
         assert (
             pred.llm_provider
             == type(mock_provider).__name__.replace("Provider", "").lower()

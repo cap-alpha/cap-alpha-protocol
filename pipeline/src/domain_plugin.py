@@ -62,6 +62,7 @@ from __future__ import annotations
 import functools
 import logging
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -154,7 +155,7 @@ class DomainPlugin(ABC):
 
     # Class-level LRU cache shared across all plugin instances in the process.
     # Key: (domain_key: str, raw_name: str) → EntityResolutionResult
-    _entity_cache: dict[tuple[str, str], EntityResolutionResult] = {}
+    _entity_cache: OrderedDict[tuple[str, str], EntityResolutionResult] = OrderedDict()
 
     # --- Abstract properties -------------------------------------------------
 
@@ -251,29 +252,33 @@ class DomainPlugin(ABC):
 
     def _cache_get(self, raw_name: str) -> Optional[EntityResolutionResult]:
         """Return cached result for (domain_key, raw_name), or None if not cached."""
-        return self._entity_cache.get((self.domain_key, raw_name))
+        key = (self.domain_key, raw_name)
+        result = self._entity_cache.get(key)
+        if result is not None:
+            # Move to most-recently-used end so LRU eviction is accurate.
+            self._entity_cache.move_to_end(key)
+        return result
 
     def _cache_put(self, raw_name: str, result: EntityResolutionResult) -> None:
         """
-        Store result in the class-level cache, evicting oldest entry if full.
+        Store result in the class-level OrderedDict cache, evicting the
+        least-recently-used entry when the cache is at capacity.
 
-        Eviction is LRU-approximate: when the cache is at capacity we remove
-        an arbitrary entry (first key).  A proper LRU via ``functools.lru_cache``
-        cannot be used here because the cache is shared state and keyed
-        dynamically.  At 1 024 entries and modest article volume the eviction
-        policy barely matters.
+        Uses ``OrderedDict.move_to_end`` (in ``_cache_get``) to track access
+        recency and ``popitem(last=False)`` to remove the LRU entry — giving
+        true LRU semantics rather than the previous FIFO approximation.
         """
         key = (self.domain_key, raw_name)
         if key in self._entity_cache:
-            # Refresh: move to most-recent by delete-and-reinsert
-            del self._entity_cache[key]
-        elif len(self._entity_cache) >= MAX_ENTITY_CACHE_SIZE:
-            # Evict oldest entry (insertion-order guaranteed in Python 3.7+)
-            oldest = next(iter(self._entity_cache))
-            del self._entity_cache[oldest]
-            logger.debug(
-                f"Entity cache evicted {oldest!r} (size={MAX_ENTITY_CACHE_SIZE})"
-            )
+            # Refresh position to most-recently-used.
+            self._entity_cache.move_to_end(key)
+        else:
+            if len(self._entity_cache) >= MAX_ENTITY_CACHE_SIZE:
+                # Evict least-recently-used entry (oldest = last=False).
+                evicted, _ = self._entity_cache.popitem(last=False)
+                logger.debug(
+                    f"Entity cache evicted {evicted!r} (size={MAX_ENTITY_CACHE_SIZE})"
+                )
         self._entity_cache[key] = result
 
     def cache_stats(self) -> dict[str, int]:

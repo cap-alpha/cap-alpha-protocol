@@ -14,11 +14,25 @@ export default async function BettorDashboard() {
         getWarRoomData()
     ]);
 
-    // Bettors care about the delta between ML Alert and Media Consensus
-    const alphaAlerts = [
-        { player_name: "Travis Kelce", team: "KC", issue: "Athletic decline projected to exceed guaranteed money." },
-        { player_name: "Von Miller", team: "BUF", issue: "Severe snap reduction projected despite CAP structure." }
-    ];
+    // Bettors care about the delta between ML Alert and Media Consensus.
+    // Build a lookup from rosterData for cap/risk enrichment of each alert.
+    const rosterMap = new Map(rosterData.map((p) => [p.player_name, p]));
+
+    const alphaAlerts = warRoomData.redAlerts.map((alert) => {
+        const player = rosterMap.get(alert.player_name);
+        const parts: string[] = ["ML model flags high bust probability."];
+        if (player?.cap_hit_millions && player.cap_hit_millions > 0) {
+            parts.push(`$${player.cap_hit_millions.toFixed(1)}M cap hit.`);
+        }
+        if (player?.risk_score && player.risk_score > 0) {
+            parts.push(`Risk score: ${(player.risk_score * 100).toFixed(0)}%.`);
+        }
+        return {
+            player_name: alert.player_name,
+            team: alert.team,
+            issue: parts.join(" "),
+        };
+    });
 
     return (
         <main className="min-h-[100dvh] bg-background p-8 font-sans text-foreground">
@@ -54,7 +68,10 @@ export default async function BettorDashboard() {
                         <CardDescription>Identified assets where current performance significantly lags multi-year guarantees before public repricing.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        {alphaAlerts.map((alert: any, i: number) => (
+                        {alphaAlerts.length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center py-6">No active ML alerts.</p>
+                        )}
+                        {alphaAlerts.map((alert, i: number) => (
                             <div key={i} className="flex flex-col p-4 rounded-lg bg-zinc-950/50 border border-zinc-900 group">
                                 <div className="flex justify-between items-center mb-2">
                                     <div className="flex items-center gap-2">

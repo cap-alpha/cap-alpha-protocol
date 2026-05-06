@@ -409,89 +409,84 @@ export type IntelligenceEvent = {
 };
 
 async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
-  try {
-    const feed: IntelligenceEvent[] = [];
+  const feed: IntelligenceEvent[] = [];
 
-    // 1. Predictions
-    const [predJob] = await bigquery.createQueryJob({
-      query: `
-        SELECT year, 0 as week, predicted_risk_score, 0 as high_uncertainty_flag 
-        FROM \`nfl_dead_money.prediction_results\` 
-        WHERE player_name = @playerName 
-        ORDER BY year DESC LIMIT 5
-      `,
-      params: { playerName }
-    });
-    const [preds] = await predJob.getQueryResults();
+  // 1. Predictions
+  const [predJob] = await bigquery.createQueryJob({
+    query: `
+      SELECT year, 0 as week, predicted_risk_score, 0 as high_uncertainty_flag
+      FROM \`nfl_dead_money.prediction_results\`
+      WHERE player_name = @playerName
+      ORDER BY year DESC LIMIT 5
+    `,
+    params: { playerName }
+  });
+  const [preds] = await predJob.getQueryResults();
 
-    if (preds && preds.length > 0) {
-      const latest = preds[0] as any;
-      if (latest.predicted_risk_score == 1) {
-        feed.push({ type: "Warning", text: "Alpha Protocol model alerts high bust probability for current production trends.", icon: 'TrendingDown', color: 'text-rose-400' });
-      } else {
-        feed.push({ type: "Stable", text: "Alpha Protocol modeling shows stable production aligning with contract expectations.", icon: 'TrendingUp', color: 'text-emerald-400' });
-      }
+  if (preds && preds.length > 0) {
+    const latest = preds[0] as any;
+    if (latest.predicted_risk_score == 1) {
+      feed.push({ type: "Warning", text: "Alpha Protocol model alerts high bust probability for current production trends.", icon: 'TrendingDown', color: 'text-rose-400' });
+    } else {
+      feed.push({ type: "Stable", text: "Alpha Protocol modeling shows stable production aligning with contract expectations.", icon: 'TrendingUp', color: 'text-emerald-400' });
     }
+  }
 
-    // 2. Media Consensus
-    const [mediaJob] = await bigquery.createQueryJob({
+  // 2. Media Consensus
+  const [mediaJob] = await bigquery.createQueryJob({
+    query: `
+      SELECT media_date_approx as date_of_event, rationale, source_url
+      FROM \`nfl_dead_money.media_lag_metrics\`
+      WHERE player_name = @playerName
+      ORDER BY year DESC LIMIT 3
+    `,
+    params: { playerName }
+  });
+  const [media] = await mediaJob.getQueryResults();
+
+  if (media && media.length > 0) {
+    for (const m of media) {
+      feed.push({
+        type: "Media",
+        text: `Consensus shift: ${(m as any).rationale}`,
+        icon: 'AlertCircle',
+        color: 'text-amber-400',
+        url: (m as any).source_url || undefined,
+      });
+    }
+  }
+
+  // 3. Raw News / Tweets — raw_media_mentions may not exist yet; swallow only this error.
+  try {
+    const [rawNewsJob] = await bigquery.createQueryJob({
       query: `
-        SELECT media_date_approx as date_of_event, rationale, source_url
-        FROM \`nfl_dead_money.media_lag_metrics\`
+        SELECT headline as rationale, published_at as date_of_event, url as source_url, source_type, provenance_hash
+        FROM \`nfl_dead_money.raw_media_mentions\`
         WHERE player_name = @playerName
-        ORDER BY year DESC LIMIT 3
+        ORDER BY published_at DESC LIMIT 5
       `,
       params: { playerName }
     });
-    const [media] = await mediaJob.getQueryResults();
+    const [rawNews] = await rawNewsJob.getQueryResults();
 
-    if (media && media.length > 0) {
-      for (const m of media) {
+    if (rawNews && rawNews.length > 0) {
+      for (const n of rawNews) {
+        const isTwitter = (n as any).source_type === 'twitter';
         feed.push({
-          type: "Media",
-          text: `Consensus shift: ${(m as any).rationale}`,
-          icon: 'AlertCircle',
-          color: 'text-amber-400',
-          url: (m as any).source_url || undefined,
+          type: isTwitter ? "X_POST" : "WEB_ARCHIVE",
+          text: (n as any).rationale,
+          icon: 'FileText',
+          color: 'text-zinc-300',
+          url: (n as any).source_url || undefined,
+          provenanceHash: (n as any).provenance_hash || undefined,
+          timestamp: (n as any).date_of_event || new Date().toISOString(),
         });
       }
     }
+  } catch (e) { /* raw_media_mentions may not exist yet */ }
 
-    // 3. Raw News / Tweets (Guarantees every player has a feed)
-    try {
-      const [rawNewsJob] = await bigquery.createQueryJob({
-        query: `
-          SELECT headline as rationale, published_at as date_of_event, url as source_url, source_type, provenance_hash
-          FROM \`nfl_dead_money.raw_media_mentions\`
-          WHERE player_name = @playerName
-          ORDER BY published_at DESC LIMIT 5
-        `,
-        params: { playerName }
-      });
-      const [rawNews] = await rawNewsJob.getQueryResults();
-
-      if (rawNews && rawNews.length > 0) {
-        for (const n of rawNews) {
-          const isTwitter = (n as any).source_type === 'twitter';
-          feed.push({
-            type: isTwitter ? "X_POST" : "WEB_ARCHIVE",
-            text: (n as any).rationale,
-            icon: 'FileText',
-            color: 'text-zinc-300',
-            url: (n as any).source_url || undefined,
-            provenanceHash: (n as any).provenance_hash || undefined,
-            timestamp: (n as any).date_of_event || new Date().toISOString(),
-          });
-        }
-      }
-    } catch (e) { /* Might not exist yet */ }
-
-    // No, we let the UI handle empty state. No filler.
-    return feed;
-  } catch (error) {
-    console.error("[Data] Error loading intelligence feed:", error);
-    return []; // ZERO MOCKS.
-  }
+  // No, we let the UI handle empty state. No filler.
+  return feed;
 }
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {

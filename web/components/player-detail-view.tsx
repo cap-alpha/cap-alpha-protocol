@@ -26,19 +26,24 @@ import { CutCalculator } from './cut-calculator';
 import { IntelligenceFeed } from './intelligence-feed';
 import { VisualTimeline } from './visual-timeline';
 import { VerifiableAudit } from './verifiable-audit';
-import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath } from "@/app/actions";
+import { FmvTimelineChart } from './fmv-timeline-chart';
+import { PositionalCompsTable } from './positional-comps-table';
+import { ContractEfficiencyGauge } from './contract-efficiency-gauge';
+import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath, FmvHistoryPoint, PositionalComp } from "@/app/actions";
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
-    distributionData?: any[]; 
+    distributionData?: any[];
     timeline?: TimelineEvent[];
     feed?: IntelligenceEvent[];
     ledger?: AuditEntry[];
     deadMoneyMath?: DeadMoneyMath;
     hasHeadshot?: boolean;
+    fmvHistory?: FmvHistoryPoint[];
+    positionalComps?: PositionalComp[];
 }
 
-export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false, fmvHistory = [], positionalComps = [] }: PlayerDetailViewProps) {
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -363,8 +368,9 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                             {/* Tabbed Intelligence & Ledger */}
                             <Tabs defaultValue="intelligence" className="w-full">
-                                <TabsList className="grid w-full grid-cols-2 bg-zinc-900 border border-zinc-800">
+                                <TabsList className="grid w-full grid-cols-3 bg-zinc-900 border border-zinc-800">
                                     <TabsTrigger value="intelligence" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Health Feed</TabsTrigger>
+                                    <TabsTrigger value="fmv" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">FMV</TabsTrigger>
                                     <TabsTrigger value="ledger" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Ledger</TabsTrigger>
                                 </TabsList>
 
@@ -372,6 +378,32 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                     <div className="h-[450px]">
                                         <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} feedEvents={feed} />
                                     </div>
+                                </TabsContent>
+
+                                <TabsContent value="fmv" className="mt-4 space-y-6">
+                                    {/* Contract Efficiency Gauge + FMV Timeline */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="md:col-span-1">
+                                            <ContractEfficiencyGauge
+                                                fairMarketValue={player.fair_market_value}
+                                                capHit={player.cap_hit_millions}
+                                                playerName={player.player_name}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <FmvTimelineChart
+                                                data={fmvHistory}
+                                                playerName={player.player_name}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Positional Comps */}
+                                    <PositionalCompsTable
+                                        data={positionalComps}
+                                        currentPlayerName={player.player_name}
+                                        position={player.position}
+                                    />
                                 </TabsContent>
 
                                 <TabsContent value="ledger" className="mt-4">

@@ -648,6 +648,111 @@ export async function getPlayerAuditLedger(playerName: string): Promise<AuditEnt
   return await cachedFn();
 }
 
+// --- FMV DASHBOARD ACTIONS ---
+
+export type FmvHistoryPoint = {
+  week: string;
+  fmv: number;
+  cap_hit: number;
+};
+
+async function fetchPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    // fact_player_efficiency has year + week + fair_market_value + cap_hit_millions
+    const query = `
+      SELECT
+        CONCAT(CAST(year AS STRING), ' W', LPAD(CAST(SAFE_CAST(week AS INT64) AS STRING), 2, '0')) AS week,
+        SAFE_CAST(fair_market_value AS FLOAT64) AS fmv,
+        SAFE_CAST(cap_hit_millions AS FLOAT64) AS cap_hit
+      FROM \`${projectId}.nfl_dead_money.fact_player_efficiency\`
+      WHERE LOWER(player_name) = LOWER(@playerName)
+        AND fair_market_value IS NOT NULL
+        AND cap_hit_millions IS NOT NULL
+      ORDER BY year ASC, week ASC
+    `;
+    const [job] = await bigquery.createQueryJob({ query, params: { playerName } });
+    const [rows] = await job.getQueryResults();
+    return rows.map((r: any) => ({
+      week: String(r.week ?? ''),
+      fmv: Number(r.fmv ?? 0),
+      cap_hit: Number(r.cap_hit ?? 0),
+    }));
+  } catch (error) {
+    console.error(`[Data] Error loading FMV history for ${playerName}:`, error);
+    return [];
+  }
+}
+
+export async function getPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPlayerFMVHistory(playerName),
+    [`player-fmv-history-v1-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
+export type PositionalComp = {
+  name: string;
+  team: string;
+  fmv: number;
+  cap_hit: number;
+  efficiency: number;
+};
+
+async function fetchPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    const query = `
+      WITH RankedByYear AS (
+        SELECT
+          player_name,
+          team,
+          SAFE_CAST(fair_market_value AS FLOAT64) AS fmv,
+          SAFE_CAST(cap_hit_millions AS FLOAT64) AS cap_hit,
+          ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY year DESC) AS rn
+        FROM \`${projectId}.nfl_dead_money.fact_player_efficiency\`
+        WHERE UPPER(position) = UPPER(@position)
+          AND cap_hit_millions IS NOT NULL
+          AND cap_hit_millions > 0
+          AND fair_market_value IS NOT NULL
+      )
+      SELECT
+        player_name AS name,
+        team,
+        fmv,
+        cap_hit,
+        SAFE_DIVIDE(fmv, cap_hit) AS efficiency
+      FROM RankedByYear
+      WHERE rn = 1
+      ORDER BY SAFE_DIVIDE(fmv, cap_hit) DESC
+      LIMIT 10
+    `;
+    const [job] = await bigquery.createQueryJob({ query, params: { position } });
+    const [rows] = await job.getQueryResults();
+    return rows.map((r: any) => ({
+      name: String(r.name ?? ''),
+      team: String(r.team ?? ''),
+      fmv: Number(r.fmv ?? 0),
+      cap_hit: Number(r.cap_hit ?? 0),
+      efficiency: Number(r.efficiency ?? 0),
+    }));
+  } catch (error) {
+    console.error(`[Data] Error loading positional comps for ${position}:`, error);
+    return [];
+  }
+}
+
+export async function getPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPositionalComps(playerName, position),
+    [`positional-comps-v1-${position}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
 // --- EXACT MATH CAP CALCULATOR ---
 export type DeadMoneyMath = {
   pre_june1_dead_cap: number;

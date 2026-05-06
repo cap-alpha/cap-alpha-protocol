@@ -20,8 +20,8 @@ export default async function BettorDashboard() {
 
     const alphaAlerts = warRoomData.redAlerts.map((alert) => {
         const roster = rosterLookup.get(alert.player_name);
-        const capHit = roster ? `$${roster.cap_hit_millions.toFixed(1)}M cap hit` : null;
-        const riskPct = roster ? `${(roster.risk_score * 100).toFixed(0)}% ML risk score` : null;
+        const capHit = roster?.cap_hit_millions > 0 ? `$${roster.cap_hit_millions.toFixed(1)}M cap hit` : null;
+        const riskPct = roster?.risk_score > 0 ? `${(roster.risk_score * 100).toFixed(0)}% ML risk score` : null;
         const detail = [capHit, riskPct].filter(Boolean).join(", ");
         return {
             player_name: alert.player_name,

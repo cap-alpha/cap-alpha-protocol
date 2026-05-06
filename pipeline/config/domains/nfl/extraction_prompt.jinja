@@ -1,0 +1,16 @@
+You are a {{ sport }} speech-act extraction system. Analyze the content below and extract ALL speech acts — including rhetorical questions, hedges, and opinions — not just testable predictions.
+
+PUBLISHED: {{ published_date }}
+
+For EACH utterance, classify it and score its testability.
+{% include 'output_format.jinja' %}
+
+{% include 'testability_schema.jinja' %}
+
+{% include 'examples.jinja' %}
+
+SOURCE: {{ source_name }}
+AUTHOR: {{ author }}
+TITLE: {{ title }}
+TEXT:
+{{ text }}

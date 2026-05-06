@@ -479,6 +479,111 @@ def recent_predictions(
 
 
 # ---------------------------------------------------------------------------
+# GET /v1/predictions/similar  — Similar predictions by player/team + category
+# ---------------------------------------------------------------------------
+
+
+@router.get("/predictions/similar", summary="Similar predictions by player or team in same category")
+def similar_predictions(
+    utterance_id: str = Query(..., description="prediction_hash of the reference prediction"),
+    limit: int = Query(default=10, ge=1, le=50),
+    db: DBManager = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Returns other predictions that share the same claim category AND overlap on
+    player or team with the reference prediction (utterance_id = prediction_hash).
+
+    Similarity criteria:
+      - (target_player_id matches OR target_team matches) AND claim_category matches
+      - utterance_id != reference
+      - testability_score proxy: weighted_score IS NOT NULL (resolved predictions) OR
+        always included for unresolved — filtered by brier_score availability
+
+    Results ordered by ingestion_timestamp DESC, limited to `limit`.
+    """
+    try:
+        # Step 1: fetch the reference prediction's player/team/category
+        ref_query = f"""
+            SELECT
+                target_player_id,
+                target_team,
+                claim_category
+            FROM {_full(LEDGER_TABLE)}
+            WHERE prediction_hash = @utterance_id
+            LIMIT 1
+        """
+        ref_params = [ScalarQueryParameter("utterance_id", "STRING", utterance_id)]
+        ref_df = _parameterized_query(db, ref_query, ref_params)
+
+        if ref_df.empty:
+            raise HTTPException(status_code=404, detail=f"Prediction '{utterance_id}' not found")
+
+        ref = ref_df.iloc[0]
+        target_player_id: str | None = ref["target_player_id"] if ref["target_player_id"] else None
+        target_team: str | None = ref["target_team"] if ref["target_team"] else None
+        claim_category: str | None = ref["claim_category"] if ref["claim_category"] else None
+
+        # If neither player nor team is set, return empty — nothing to match on
+        if not target_player_id and not target_team:
+            return {"similar": [], "count": 0, "utterance_id": utterance_id}
+
+        # Step 2: build the similarity WHERE clause
+        # (same player OR same team) AND same category AND not the same prediction
+        params: List[ScalarQueryParameter] = [
+            ScalarQueryParameter("utterance_id", "STRING", utterance_id),
+            ScalarQueryParameter("lim", "INT64", limit),
+        ]
+        overlap_clauses: List[str] = []
+        if target_player_id:
+            overlap_clauses.append("l.target_player_id = @target_player_id")
+            params.append(ScalarQueryParameter("target_player_id", "STRING", target_player_id))
+        if target_team:
+            overlap_clauses.append("l.target_team = @target_team")
+            params.append(ScalarQueryParameter("target_team", "STRING", target_team))
+
+        overlap_sql = " OR ".join(overlap_clauses)
+        category_clause = ""
+        if claim_category:
+            category_clause = "AND l.claim_category = @claim_category"
+            params.append(ScalarQueryParameter("claim_category", "STRING", claim_category))
+
+        query = f"""
+            SELECT
+                l.prediction_hash       AS utterance_id,
+                l.pundit_id             AS speaker_entity_id,
+                l.pundit_name,
+                l.extracted_claim,
+                l.ingestion_timestamp   AS uttered_at,
+                l.claim_category,
+                l.target_player_id,
+                l.target_team,
+                COALESCE(r.brier_score, NULL)        AS brier_score,
+                COALESCE(r.weighted_score, NULL)     AS testability_score,
+                COALESCE(r.resolution_status, 'PENDING') AS outcome,
+                l.sport
+            FROM {_full(LEDGER_TABLE)} l
+            LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
+                ON l.prediction_hash = r.prediction_hash
+            WHERE ({overlap_sql})
+              {category_clause}
+              AND l.prediction_hash != @utterance_id
+            ORDER BY l.ingestion_timestamp DESC
+            LIMIT @lim
+        """
+        df = _parameterized_query(db, query, params)
+        return {
+            "similar": df.where(df.notna(), None).to_dict(orient="records"),
+            "count": len(df),
+            "utterance_id": utterance_id,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Similar predictions error for {utterance_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch similar predictions")
+
+
+# ---------------------------------------------------------------------------
 # GET /v1/predictions/  (filterable search with parameterized queries)
 # ---------------------------------------------------------------------------
 

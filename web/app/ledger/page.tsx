@@ -25,6 +25,18 @@ import { PunditCard, type PunditCardProps } from "@/components/pundit-card";
 // Types
 // ---------------------------------------------------------------------------
 
+interface SimilarPrediction {
+    utterance_id: string;
+    speaker_entity_id: string;
+    pundit_name: string;
+    extracted_claim: string;
+    uttered_at: string;
+    claim_category: string;
+    testability_score: number | null;
+    outcome: string | null;
+    sport?: string | null;
+}
+
 interface PunditStat {
     pundit_name: string;
     pundit_id: string;
@@ -231,6 +243,29 @@ function PredictionDrawer({
     const receivedDate = fmtDateTime(prediction.ingestion_timestamp);
     const saidDate = fmtDate(prediction.source_published_at);
 
+    const [similar, setSimilar] = useState<SimilarPrediction[]>([]);
+
+    // Fetch similar predictions — keyed on the prediction hash so it re-fires
+    // whenever the drawer opens with a different prediction.
+    useEffect(() => {
+        setSimilar([]);
+        const id = prediction.prediction_hash_short;
+        if (!id) return;
+        fetch(`/api/ledger/similar?utterance_id=${encodeURIComponent(id)}&limit=5`)
+            .then((r) => {
+                if (!r.ok) return null;
+                return r.json() as Promise<{ similar?: SimilarPrediction[] }>;
+            })
+            .then((data) => {
+                if (data?.similar && data.similar.length > 0) {
+                    setSimilar(data.similar.slice(0, 5));
+                }
+            })
+            .catch(() => {
+                // Silently suppress — similar section just won't render
+            });
+    }, [prediction.prediction_hash_short]);
+
     // Close on Escape
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
@@ -367,6 +402,42 @@ function PredictionDrawer({
                                             <ExternalLink className="w-2.5 h-2.5" />
                                         </a>
                                     ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Similar calls */}
+                    {similar.length > 0 && (
+                        <div>
+                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] font-mono mb-2">
+                                Similar calls
+                            </div>
+                            <div className="space-y-2">
+                                {similar.map((s) => (
+                                    <div
+                                        key={s.utterance_id}
+                                        className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2"
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <Link
+                                                href={`/ledger/${encodeURIComponent(s.speaker_entity_id)}`}
+                                                className="text-[10px] font-semibold text-zinc-400 hover:text-emerald-400 transition-colors shrink-0"
+                                                onClick={onClose}
+                                            >
+                                                {s.pundit_name}
+                                            </Link>
+                                            <StatusBadge status={s.outcome ?? null} />
+                                        </div>
+                                        <p className="text-xs text-zinc-300 leading-snug mt-1 line-clamp-2">
+                                            {s.extracted_claim}
+                                        </p>
+                                        {s.uttered_at && (
+                                            <span className="text-[10px] font-mono text-zinc-600 mt-1 block">
+                                                {fmtDate(s.uttered_at)}
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}

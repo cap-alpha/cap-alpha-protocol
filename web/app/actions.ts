@@ -753,6 +753,76 @@ export async function getPositionalComps(playerName: string, position: string): 
   return await cachedFn();
 }
 
+// --- PUNDIT RESOLUTION STATS ---
+
+export type ResolutionOutcomeStat = {
+  resolution_status: string;
+  count: number;
+  avg_brier_score: number | null;
+};
+
+export type PunditResolutionStats = {
+  outcomes: ResolutionOutcomeStat[];
+  total_resolved: number;
+  overall_avg_brier: number | null;
+};
+
+async function fetchPunditResolutionStats(): Promise<PunditResolutionStats> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    const query = `
+      SELECT
+        resolution_status,
+        COUNT(*) AS count,
+        AVG(brier_score) AS avg_brier_score
+      FROM \`${projectId}.gold_layer.prediction_resolutions\`
+      WHERE resolution_status IN ('CORRECT', 'INCORRECT', 'VOID')
+      GROUP BY resolution_status
+      ORDER BY resolution_status
+    `;
+
+    const [job] = await bigquery.createQueryJob({ query, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults();
+
+    const outcomes: ResolutionOutcomeStat[] = (rows as Array<Record<string, unknown>>).map((row) => ({
+      resolution_status: String(row.resolution_status ?? ''),
+      count: Number(row.count ?? 0),
+      avg_brier_score: row.avg_brier_score != null ? Number(row.avg_brier_score) : null,
+    }));
+
+    const total_resolved = outcomes
+      .filter((o) => o.resolution_status === 'CORRECT' || o.resolution_status === 'INCORRECT')
+      .reduce((sum, o) => sum + o.count, 0);
+
+    // Weighted average Brier across CORRECT + INCORRECT outcomes
+    const brierOutcomes = outcomes.filter(
+      (o) => o.avg_brier_score !== null && (o.resolution_status === 'CORRECT' || o.resolution_status === 'INCORRECT')
+    );
+    let overall_avg_brier: number | null = null;
+    if (brierOutcomes.length > 0) {
+      const totalCount = brierOutcomes.reduce((s, o) => s + o.count, 0);
+      if (totalCount > 0) {
+        overall_avg_brier =
+          brierOutcomes.reduce((s, o) => s + (o.avg_brier_score ?? 0) * o.count, 0) / totalCount;
+      }
+    }
+
+    return { outcomes, total_resolved, overall_avg_brier };
+  } catch (error) {
+    console.error('[Data] Error loading pundit resolution stats:', error);
+    return { outcomes: [], total_resolved: 0, overall_avg_brier: null };
+  }
+}
+
+export async function getPunditResolutionStats(): Promise<PunditResolutionStats> {
+  const cachedFn = unstable_cache(
+    async () => fetchPunditResolutionStats(),
+    ['pundit-resolution-stats-v1'],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
 // --- EXACT MATH CAP CALCULATOR ---
 export type DeadMoneyMath = {
   pre_june1_dead_cap: number;

@@ -12,6 +12,7 @@ import pytest
 
 from src.resolution_engine import (
     ResolutionResult,
+    VoidReason,
     _compute_brier_score,
     _compute_timeliness_weight,
     _compute_weighted_score,
@@ -254,6 +255,87 @@ class TestVoidPrediction:
         assert result.brier_score is None
         assert result.binary_correct is None
         assert result.weighted_score is None
+
+    def test_void_with_void_reason_enum(self, mock_db):
+        result = void_prediction(FAKE_HASH, VoidReason.CANDIDATE_WITHDREW, db=mock_db)
+        assert result.resolution_status == "VOID"
+        assert result.outcome_notes == "candidate_withdrew"
+        assert result.resolver == "manual"
+
+    def test_retroactive_void_sets_resolver(self, mock_db):
+        result = void_prediction(
+            FAKE_HASH, VoidReason.COMPANY_DELISTED, db=mock_db, retroactive=True
+        )
+        assert result.resolution_status == "VOID"
+        assert result.resolver == "retroactive_void"
+        assert result.outcome_notes == "company_delisted"
+
+    def test_void_reason_player_retired(self, mock_db):
+        result = void_prediction(
+            FAKE_HASH, VoidReason.PLAYER_RETIRED_MID_SEASON, db=mock_db
+        )
+        assert result.outcome_notes == "player_retired_mid_season"
+
+
+# ---------------------------------------------------------------------------
+# VoidReason enum
+# ---------------------------------------------------------------------------
+
+
+class TestVoidReason:
+    def test_str_enum_values_are_snake_case(self):
+        # VoidReason values must be strings so they can be stored in BQ outcome_notes
+        assert VoidReason.CANDIDATE_WITHDREW == "candidate_withdrew"
+        assert VoidReason.COMPANY_DELISTED == "company_delisted"
+        assert VoidReason.PLAYER_RETIRED_MID_SEASON == "player_retired_mid_season"
+
+    def test_pipeline_artifact_flag(self):
+        assert VoidReason.UNPARSEABLE_CLAIM.is_pipeline_artifact is True
+        assert VoidReason.PAST_RESOLUTION_HORIZON.is_pipeline_artifact is True
+        assert VoidReason.UNRESOLVABLE_AMBIGUOUS.is_pipeline_artifact is True
+
+    def test_domain_voids_are_not_pipeline_artifacts(self):
+        assert VoidReason.CANDIDATE_WITHDREW.is_pipeline_artifact is False
+        assert VoidReason.COMPANY_DELISTED.is_pipeline_artifact is False
+        assert VoidReason.PLAYER_RETIRED_MID_SEASON.is_pipeline_artifact is False
+        assert VoidReason.GAME_CANCELLED.is_pipeline_artifact is False
+        assert VoidReason.REDISTRICTING_REMOVED_DISTRICT.is_pipeline_artifact is False
+
+    def test_human_label_returns_non_empty_string(self):
+        for reason in VoidReason:
+            label = reason.human_label
+            assert isinstance(label, str)
+            assert len(label) > 0
+
+    def test_all_nfl_triggers_defined(self):
+        nfl_reasons = {
+            VoidReason.PLAYER_RETIRED_MID_SEASON,
+            VoidReason.PLAYER_CAREER_ENDING_INJURY,
+            VoidReason.PLAYER_SUSPENDED_FULL_SEASON,
+            VoidReason.GAME_CANCELLED,
+            VoidReason.RULE_CHANGE_INVALIDATES_CLAIM,
+            VoidReason.TRADE_MAKES_CLAIM_AMBIGUOUS,
+        }
+        assert len(nfl_reasons) == 6
+
+    def test_all_politics_triggers_defined(self):
+        politics_reasons = {
+            VoidReason.CANDIDATE_WITHDREW,
+            VoidReason.ELECTION_CANCELLED,
+            VoidReason.REDISTRICTING_REMOVED_DISTRICT,
+            VoidReason.TERM_LIMIT_DISQUALIFICATION,
+            VoidReason.CANDIDATE_DECEASED,
+        }
+        assert len(politics_reasons) == 5
+
+    def test_all_finance_triggers_defined(self):
+        finance_reasons = {
+            VoidReason.COMPANY_DELISTED,
+            VoidReason.COMPANY_ACQUIRED_BEFORE_EVENT,
+            VoidReason.REGULATORY_INTERVENTION,
+            VoidReason.BANKRUPTCY_BEFORE_EARNINGS,
+        }
+        assert len(finance_reasons) == 4
 
 
 # ---------------------------------------------------------------------------

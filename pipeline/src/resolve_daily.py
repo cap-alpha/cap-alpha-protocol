@@ -35,6 +35,7 @@ from google.cloud import bigquery
 
 from src.db_manager import DBManager
 from src.resolution_engine import (
+    VoidReason,
     get_pending_predictions,
     resolve_binary,
     void_prediction,
@@ -212,7 +213,7 @@ def _resolve_binary_with_dual_write(
 
 def _void_prediction_with_dual_write(
     prediction_hash: str,
-    reason: str,
+    reason: "str | VoidReason",
     db: Optional[DBManager] = None,
 ) -> None:
     """
@@ -647,7 +648,7 @@ def resolve_draft_picks(
             )
             if not dry_run:
                 _void_prediction_with_dual_write(
-                    phash, "unparseable_draft_claim", db=db
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
                 )
             summary["voided"] += 1
             continue
@@ -991,7 +992,9 @@ def resolve_game_outcomes(
                 f"  VOID {phash[:12]}… — can't resolve game claim: {claim[:60]}"
             )
             if not dry_run:
-                _void_prediction_with_dual_write(phash, "unparseable_game_claim", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1197,7 +1200,9 @@ def resolve_player_performance(
         if "stat_column" not in parsed or "threshold" not in parsed:
             logger.info(f"  VOID {phash[:12]}… — can't parse stat claim: {claim[:60]}")
             if not dry_run:
-                _void_prediction_with_dual_write(phash, "unparseable_stat_claim", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1394,7 +1399,7 @@ def resolve_award_predictions(
             logger.info(f"  VOID {phash[:12]}… — unrecognised award type: {claim[:60]}")
             if not dry_run:
                 _void_prediction_with_dual_write(
-                    phash, "unrecognised_award_type", db=db
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
                 )
             summary["voided"] += 1
             continue
@@ -1416,7 +1421,9 @@ def resolve_award_predictions(
                 f"  VOID {phash[:12]}… — no predicted player name: {claim[:60]}"
             )
             if not dry_run:
-                _void_prediction_with_dual_write(phash, "no_predicted_player", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1522,7 +1529,9 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
                 f"  VOID {phash[:12]}… — no player name in fa_signing: {claim[:60]}"
             )
             if not dry_run:
-                _void_prediction_with_dual_write(phash, "no_player_name", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1532,7 +1541,9 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
                 f"  VOID {phash[:12]}… — can't parse destination team: {claim[:60]}"
             )
             if not dry_run:
-                _void_prediction_with_dual_write(phash, "unparseable_fa_team", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1543,7 +1554,7 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
             )
             if not dry_run:
                 _void_prediction_with_dual_write(
-                    phash, f"unknown_team:{predicted_team_raw}", db=db
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
                 )
             summary["voided"] += 1
             continue
@@ -1583,7 +1594,7 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
 
 
 def _get_void_predictions_by_note(
-    note: str, db: DBManager, sport: Optional[str] = "NFL"
+    note: "str | VoidReason", db: DBManager, sport: Optional[str] = "NFL"
 ) -> "pd.DataFrame":
     """
     Fetch predictions that were previously VOID'd with a specific outcome_notes value.
@@ -1652,7 +1663,7 @@ def expire_stale_predictions(db: DBManager, dry_run: bool = False) -> int:
         phash = row["prediction_hash"]
         logger.info(f"  VOID {phash[:12]}… — past_resolution_horizon")
         if not dry_run:
-            void_prediction(phash, "past_resolution_horizon", db=db)
+            void_prediction(phash, VoidReason.PAST_RESOLUTION_HORIZON, db=db)
 
     logger.info(f"expire_stale_predictions: expired {count} prediction(s)")
     return count
@@ -1689,10 +1700,10 @@ def resolve_all(
             if re_resolve_voids:
                 # Re-attempt draft predictions previously VOID'd as unparseable
                 void_drafts = _get_void_predictions_by_note(
-                    "unparseable_draft_claim", db=db
+                    VoidReason.UNPARSEABLE_CLAIM, db=db
                 )
                 logger.info(
-                    f"Re-resolve-voids: {len(void_drafts)} unparseable_draft_claim entries"
+                    f"Re-resolve-voids: {len(void_drafts)} {VoidReason.UNPARSEABLE_CLAIM.value} entries"
                 )
                 if not void_drafts.empty:
                     summaries["draft_pick_voids"] = resolve_draft_picks(

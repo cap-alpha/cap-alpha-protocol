@@ -10,12 +10,26 @@ Scoring:
   - Brier score for probabilistic claims (lower is better; 0 = perfect, 1 = worst)
   - Binary accuracy for yes/no predictions
   - Timeliness weight: predictions made further in advance score higher
+
+Void semantics (Issue #686):
+  - VOID predictions are excluded entirely from Brier and accuracy calculations.
+  - Rationale: void means the claim became unresolvable through no fault of the
+    pundit.  Penalising them (0.5 Brier) or awarding them (any score) both
+    distort the leaderboard.  Full exclusion is the cleanest signal.
+  - Use VoidReason to attach a structured, domain-specific reason to every void.
+  - Retroactive void: if a previously-scored claim must be voided (e.g. an
+    overturned election), call void_prediction() with retroactive=True; the
+    MERGE in record_resolution will overwrite the existing CORRECT/INCORRECT row,
+    nulling out brier_score, binary_correct, and weighted_score.  Downstream
+    aggregations (get_pundit_accuracy_summary, scoring.run_backfill) must
+    re-run to reflect the change.
 """
 
 import logging
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from enum import Enum
 from typing import Optional
 
 import pandas as pd
@@ -27,6 +41,100 @@ logger = logging.getLogger(__name__)
 
 LEDGER_TABLE = "gold_layer.prediction_ledger"
 RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
+
+
+# ---------------------------------------------------------------------------
+# VoidReason — domain-specific trigger catalogue (Issue #686)
+# ---------------------------------------------------------------------------
+
+
+class VoidReason(str, Enum):
+    """
+    Structured reason for voiding a prediction.
+
+    Using str-Enum so values are JSON-serialisable and can be stored directly
+    in the outcome_notes column without extra serialisation.
+
+    Brier score treatment: VOID claims are excluded entirely from all scoring
+    aggregations.  They are excluded from accuracy_rate, avg_brier_score, and
+    avg_weighted_score.  Rationale: the void event was outside the pundit's
+    control, so including them as 0.5 would unfairly penalise high-volume
+    pundits in volatile domains (politics, finance) vs. sports-only pundits.
+
+    Dashboard display: voided predictions show a grey "VOID" badge in the
+    ledger table with a tooltip containing the human-readable reason string.
+    They are excluded from the accuracy rate counter but do appear in the
+    "total claims made" count so coverage breadth is not inflated.
+
+    Retroactive void: call void_prediction(retroactive=True) to overwrite an
+    existing CORRECT/INCORRECT row.  Downstream aggregations must re-run.
+    """
+
+    # ---- NFL ----------------------------------------------------------------
+    # Player-level: the subject of the prediction ceased to be relevant
+    PLAYER_RETIRED_MID_SEASON = "player_retired_mid_season"
+    PLAYER_CAREER_ENDING_INJURY = "player_career_ending_injury"
+    PLAYER_SUSPENDED_FULL_SEASON = "player_suspended_full_season"
+    # Team/game-level
+    GAME_CANCELLED = "game_cancelled"
+    RULE_CHANGE_INVALIDATES_CLAIM = "rule_change_invalidates_claim"
+    TRADE_MAKES_CLAIM_AMBIGUOUS = "trade_makes_claim_ambiguous"
+
+    # ---- Politics -----------------------------------------------------------
+    CANDIDATE_WITHDREW = "candidate_withdrew"
+    ELECTION_CANCELLED = "election_cancelled"
+    REDISTRICTING_REMOVED_DISTRICT = "redistricting_removed_district"
+    TERM_LIMIT_DISQUALIFICATION = "term_limit_disqualification"
+    CANDIDATE_DECEASED = "candidate_deceased"
+
+    # ---- Finance / Markets --------------------------------------------------
+    COMPANY_DELISTED = "company_delisted"
+    COMPANY_ACQUIRED_BEFORE_EVENT = "company_acquired_before_event"
+    REGULATORY_INTERVENTION = "regulatory_intervention"
+    BANKRUPTCY_BEFORE_EARNINGS = "bankruptcy_before_earnings"
+
+    # ---- Generic / pipeline -side -------------------------------------------
+    # These are not domain-specific void triggers; they indicate a pipeline
+    # limitation rather than a real-world void event.  Kept here so the full
+    # vocabulary lives in one place.
+    UNPARSEABLE_CLAIM = "unparseable_claim"
+    PAST_RESOLUTION_HORIZON = "past_resolution_horizon"
+    UNRESOLVABLE_AMBIGUOUS = "unresolvable_ambiguous"
+
+    @property
+    def human_label(self) -> str:
+        """Short human-readable label for dashboard tooltips."""
+        _labels = {
+            "player_retired_mid_season": "Player retired mid-season",
+            "player_career_ending_injury": "Career-ending injury",
+            "player_suspended_full_season": "Player suspended full season",
+            "game_cancelled": "Game cancelled",
+            "rule_change_invalidates_claim": "Rule change invalidated claim",
+            "trade_makes_claim_ambiguous": "Trade made claim ambiguous",
+            "candidate_withdrew": "Candidate withdrew",
+            "election_cancelled": "Election cancelled",
+            "redistricting_removed_district": "District removed by redistricting",
+            "term_limit_disqualification": "Term limit disqualification",
+            "candidate_deceased": "Candidate deceased",
+            "company_delisted": "Company delisted",
+            "company_acquired_before_event": "Company acquired before event",
+            "regulatory_intervention": "Regulatory intervention",
+            "bankruptcy_before_earnings": "Bankruptcy before earnings",
+            "unparseable_claim": "Claim could not be parsed",
+            "past_resolution_horizon": "Resolution deadline passed",
+            "unresolvable_ambiguous": "Claim too ambiguous to resolve",
+        }
+        return _labels.get(self.value, self.value.replace("_", " ").title())
+
+    @property
+    def is_pipeline_artifact(self) -> bool:
+        """True for voids caused by pipeline limitations, not real-world events."""
+        return self in {
+            VoidReason.UNPARSEABLE_CLAIM,
+            VoidReason.PAST_RESOLUTION_HORIZON,
+            VoidReason.UNRESOLVABLE_AMBIGUOUS,
+        }
+
 
 # Timeliness weight thresholds (days before outcome)
 TIMELINESS_WEIGHTS = [
@@ -270,15 +378,36 @@ def resolve_probabilistic(
 
 def void_prediction(
     prediction_hash: str,
-    reason: str,
+    reason: "str | VoidReason",
     db: Optional[DBManager] = None,
+    retroactive: bool = False,
 ) -> ResolutionResult:
-    """Mark a prediction as VOID (unresolvable — e.g. player injured before outcome)."""
+    """
+    Mark a prediction as VOID (unresolvable — e.g. player injured before outcome).
+
+    Args:
+        prediction_hash: SHA-256 hash of the claim.
+        reason: A VoidReason enum value (preferred) or a plain string reason.
+            Passing a VoidReason gives structured dashboard tooltips and allows
+            is_pipeline_artifact filtering.
+        db: Optional shared DBManager.
+        retroactive: Set True when voiding a claim that was already scored
+            (CORRECT/INCORRECT).  The MERGE in record_resolution will overwrite
+            the existing row, nulling out brier_score, binary_correct, and
+            weighted_score.  Callers should re-run downstream aggregations
+            (get_pundit_accuracy_summary, scoring.run_backfill) after a
+            retroactive void.
+
+    Returns:
+        ResolutionResult with resolution_status="VOID" and no score fields.
+    """
+    reason_str = reason.value if isinstance(reason, VoidReason) else reason
+    resolver = "retroactive_void" if retroactive else "manual"
     result = ResolutionResult(
         prediction_hash=prediction_hash,
         resolution_status="VOID",
-        resolver="manual",
-        outcome_notes=reason,
+        resolver=resolver,
+        outcome_notes=reason_str,
     )
     record_resolution(result, db=db)
     return result
@@ -338,6 +467,12 @@ def get_pundit_accuracy_summary(
     Pass sport='NFL' to filter to a specific sport; omit for cross-sport summary.
     Pass min_quality=0.7 to restrict to high-quality predictions only (requires
     gold_layer.assertion_quality to be populated).
+
+    VOID treatment (Issue #686): VOID predictions are excluded from
+    accuracy_rate and avg_brier_score.  They are counted in total_predictions
+    (so coverage breadth is not inflated) but not in resolved_count.  BigQuery
+    AVG() ignores NULL rows, and VOID rows always have brier_score = NULL, so
+    no special filter is required.
     """
     close_db = db is None
     if db is None:

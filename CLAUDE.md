@@ -101,11 +101,43 @@ Inside any agent worktree, run `scripts/configure_agent_identity.sh` (or `make a
 ### Worktree hygiene
 Run `make prune-worktrees` (calls `scripts/prune_worktrees.sh`) periodically to clean up worktrees whose branch has already merged into `main`. Stale worktrees accumulate fast across many agent runs.
 
+### Parallel dispatch protocol (prevent API surface collisions)
+
+Worktrees + merge queue prevent *file edit* conflicts. They do **not** prevent
+two agents independently creating files with the same name in the same package
+— a naming collision at the API surface level that requires a manual semantic
+merge.
+
+**Before fanning out N agents on issues from the same design cluster:**
+
+```bash
+# 1. Run the pre-flight plan check (read-only, from anywhere)
+.agent/claim.sh plan issue:684 issue:685 issue:686 ...
+
+# 2. Claim every namespace the agents will write new files into
+.agent/claim.sh orchestrate namespace:pipeline/src/domain_* orchestrator-<session>
+.agent/claim.sh orchestrate namespace:pipeline/src/plugins/ orchestrator-<session>
+
+# 3. In each agent's prompt, state explicitly what it OWNS and what to avoid
+#    e.g. "OWNS: pipeline/src/domain_plugin.py — do not create domain_protocol.py"
+
+# 4. After all PRs land, release namespace locks
+.agent/claim.sh release namespace:pipeline/src/domain_* orchestrator-<session>
+```
+
+**Rule:** If two issues in a cluster share a parent issue or touch the same
+`pipeline/src/` namespace, claim the namespace before dispatch. One agent per
+new module. Serialize agents that must share a file rather than running them
+in parallel.
+
 ### Shared files (high conflict risk — always claim before editing)
 ```
 pipeline/src/assertion_extractor.py
 pipeline/src/cryptographic_ledger.py
 pipeline/src/db_manager.py
+pipeline/src/domain_plugin.py
+pipeline/src/domain_protocol.py
+pipeline/src/domain_registry.py
 pipeline/config/media_sources.yaml
 web/app/layout.tsx
 ```

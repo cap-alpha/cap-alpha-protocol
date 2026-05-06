@@ -685,9 +685,10 @@ async function fetchPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoin
 }
 
 export async function getPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  const normName = playerName.toLowerCase().trim();
   const cachedFn = unstable_cache(
-    async () => fetchPlayerFMVHistory(playerName),
-    [`player-fmv-history-v1-${playerName}`],
+    async () => fetchPlayerFMVHistory(normName),
+    [`player-fmv-history-v1-${normName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();
@@ -745,9 +746,11 @@ async function fetchPositionalComps(playerName: string, position: string): Promi
 }
 
 export async function getPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
+  const normName = playerName.toLowerCase().trim();
+  const normPos = position.toLowerCase().trim();
   const cachedFn = unstable_cache(
-    async () => fetchPositionalComps(playerName, position),
-    [`positional-comps-v1-${position}`],
+    async () => fetchPositionalComps(normName, normPos),
+    [`positional-comps-v1-${normPos}`],
     { revalidate: 3600 }
   );
   return await cachedFn();

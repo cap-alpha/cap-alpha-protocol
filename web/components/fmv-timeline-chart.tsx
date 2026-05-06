@@ -73,10 +73,10 @@ export function FmvTimelineChart({ data, playerName }: FmvTimelineChartProps) {
                 borderRadius: "8px",
               }}
               itemStyle={{ color: "#fff" }}
-              formatter={(value: number, name: string) => [
-                `$${Number(value).toFixed(2)}M`,
-                name,
-              ]}
+              formatter={(value: number | undefined, name: string): [string, string] => {
+                if (value == null) return ['—', String(name)]
+                return [`$${value.toFixed(1)}M`, String(name)]
+              }}
             />
             <Legend wrapperStyle={{ paddingTop: "12px" }} />
             <Line

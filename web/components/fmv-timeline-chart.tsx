@@ -73,9 +73,9 @@ export function FmvTimelineChart({ data, playerName }: FmvTimelineChartProps) {
                 borderRadius: "8px",
               }}
               itemStyle={{ color: "#fff" }}
-              formatter={(value: number | undefined, name: string): [string, string] => {
-                if (value == null) return ['—', String(name)]
-                return [`$${value.toFixed(1)}M`, String(name)]
+              formatter={(value, name) => {
+                const v = typeof value === 'number' ? value : null;
+                return [v == null ? '—' : `$${v.toFixed(1)}M`, String(name ?? '')];
               }}
             />
             <Legend wrapperStyle={{ paddingTop: "12px" }} />

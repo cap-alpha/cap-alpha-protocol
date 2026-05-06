@@ -14,11 +14,6 @@
 
 import { createCheckout } from "@/lib/lemon-squeezy";
 
-const VARIANT_IDS: Record<string, string | undefined> = {
-    pro: process.env.LEMONSQUEEZY_PRO_VARIANT_ID,
-    agent: process.env.LEMONSQUEEZY_AGENT_VARIANT_ID,
-};
-
 export async function createLSCheckout({
     userId,
     plan,
@@ -28,6 +23,13 @@ export async function createLSCheckout({
     plan: string;
     email: string | undefined;
 }): Promise<string> {
+    // Resolved at call time so tests can mutate process.env and to stay
+    // consistent with the lazy-loading intent of this helper.
+    const VARIANT_IDS: Record<string, string | undefined> = {
+        pro: process.env.LEMONSQUEEZY_PRO_VARIANT_ID,
+        agent: process.env.LEMONSQUEEZY_AGENT_VARIANT_ID,
+    };
+
     const variantId = VARIANT_IDS[plan];
     if (!variantId) {
         throw new Error(

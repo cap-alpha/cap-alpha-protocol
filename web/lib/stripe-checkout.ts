@@ -12,39 +12,41 @@
  *   STRIPE_API_GROWTH_PRICE_ID
  */
 
-import Stripe from "stripe";
 import { clerkClient } from "@clerk/nextjs/server";
 
-const PRICE_IDS: Record<string, string | undefined> = {
-    pro: process.env.STRIPE_PRO_PRICE_ID,
-    api_starter: process.env.STRIPE_API_STARTER_PRICE_ID,
-    api_growth: process.env.STRIPE_API_GROWTH_PRICE_ID,
-};
-
-function getStripeClient(): Stripe {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error("[Stripe] STRIPE_SECRET_KEY is not set. Configure it in your environment.");
-    return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
-}
+import { getStripe } from "@/lib/stripe";
 
 export async function createStripeCheckout({
     userId,
     plan,
     email,
+    stripeCustomerId,
 }: {
     userId: string;
     plan: string;
     email: string | undefined;
+    /** Pre-fetched from Clerk publicMetadata to avoid a second getUser round-trip. */
+    stripeCustomerId: string | undefined;
 }): Promise<string> {
+    // Resolve PRICE_IDS at call time so tests can mutate process.env without
+    // module-level snapshot issues, and to stay consistent with the lazy-loading
+    // intent of this helper (only accessed when PAYMENT_PROCESSOR=stripe).
+    const PRICE_IDS: Record<string, string | undefined> = {
+        pro: process.env.STRIPE_PRO_PRICE_ID,
+        api_starter: process.env.STRIPE_API_STARTER_PRICE_ID,
+        api_growth: process.env.STRIPE_API_GROWTH_PRICE_ID,
+    };
+
     const priceId = PRICE_IDS[plan];
     if (!priceId) throw new Error(`[Stripe] Unknown plan: "${plan}". Check STRIPE_*_PRICE_ID env vars.`);
 
-    const stripe = getStripeClient();
+    const stripe = getStripe();
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://cap-alpha.co";
 
-    // Look up or create Stripe customer — preserve customerId across sessions
-    const user = await clerkClient.users.getUser(userId);
-    let customerId = user.publicMetadata?.stripe_customer_id as string | undefined;
+    // Look up or create Stripe customer — preserve customerId across sessions.
+    // stripeCustomerId is passed in from route.ts (already fetched) to avoid
+    // a redundant Clerk API call.
+    let customerId = stripeCustomerId;
     if (!customerId) {
         const customer = await stripe.customers.create({
             email,

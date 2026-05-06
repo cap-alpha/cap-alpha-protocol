@@ -72,8 +72,8 @@ test.describe("Pricing page", () => {
         const upgradeBtn = proCard.getByRole("button", { name: /Upgrade to Pro/i });
         await expect(upgradeBtn).toBeVisible();
 
-        // Clicking it should either open Stripe checkout or redirect to sign-in
-        // We intercept the fetch to /api/billing/checkout to avoid actual Stripe calls
+        // Clicking it should either open checkout or redirect to sign-in
+        // We intercept the fetch to /api/billing/checkout to avoid actual processor calls
         await page.route("/api/billing/checkout", async (route) => {
             await route.fulfill({
                 status: 200,

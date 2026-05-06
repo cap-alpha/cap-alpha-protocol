@@ -1,66 +1,72 @@
+/**
+ * POST /api/billing/checkout
+ *
+ * Processor-agnostic checkout router. Delegates to the active payment
+ * processor based on the PAYMENT_PROCESSOR environment variable.
+ *
+ * Supported values:
+ *   lemonsqueezy  (default) — LemonSqueezy hosted checkout
+ *   stripe                  — Stripe Checkout session
+ *
+ * Switching processors = one env var change + redeploy. No code changes.
+ *
+ * Processor helpers are lazy-imported so that environments missing one
+ * processor's env vars don't blow up at module init time (only the active
+ * processor's env vars are required to be present).
+ */
+
 import { NextRequest, NextResponse } from "next/server";
-import Stripe from "stripe";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
-function getStripeClient() {
-    const key = process.env.STRIPE_SECRET_KEY;
-    if (!key) throw new Error("STRIPE_SECRET_KEY is not set");
-    return new Stripe(key, { apiVersion: "2026-04-22.dahlia" });
-}
-
-const PRICE_IDS: Record<string, string | undefined> = {
-    pro: process.env.STRIPE_PRO_PRICE_ID,
-    api_starter: process.env.STRIPE_API_STARTER_PRICE_ID,
-    api_growth: process.env.STRIPE_API_GROWTH_PRICE_ID,
-};
+/** Known plans — validated before dispatching to avoid processor-specific 500s. */
+const KNOWN_PLANS = new Set(["pro", "api_starter", "api_growth", "agent"]);
 
 export async function POST(req: NextRequest) {
     const { userId } = auth();
-    if (!userId) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const stripe = getStripeClient();
-
-    const body = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({})) as { plan?: string };
     const plan: string = body.plan ?? "pro";
-    const priceId = PRICE_IDS[plan];
 
-    if (!priceId) {
-        return NextResponse.json({ error: `Unknown plan: ${plan}` }, { status: 400 });
+    // Validate plan before touching any payment provider to keep 4xx/5xx clean.
+    if (!KNOWN_PLANS.has(plan)) {
+        return NextResponse.json({ error: `Unknown plan: "${plan}"` }, { status: 400 });
     }
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://cap-alpha.co";
+    const processor = process.env.PAYMENT_PROCESSOR ?? "lemonsqueezy";
 
-    // Look up existing Stripe customer or create one
+    // Warn early if PAYMENT_PROCESSOR has a typo — the default fallback is
+    // silent, so without this a misconfiguration is invisible in logs.
+    if (processor !== "stripe" && processor !== "lemonsqueezy") {
+        console.warn(
+            `[Billing] Unknown PAYMENT_PROCESSOR="${processor}", falling back to lemonsqueezy`
+        );
+    }
+
+    // Fetch the Clerk user once here so processor helpers don't need to make
+    // their own redundant round-trips.
     const user = await clerkClient.users.getUser(userId);
-    let customerId = user.publicMetadata?.stripe_customer_id as string | undefined;
+    const email = user.emailAddresses[0]?.emailAddress;
 
-    if (!customerId) {
-        const email = user.emailAddresses[0]?.emailAddress;
-        const customer = await stripe.customers.create({
-            email,
-            metadata: { clerk_user_id: userId },
-        });
-        customerId = customer.id;
-
-        await clerkClient.users.updateUserMetadata(userId, {
-            publicMetadata: { stripe_customer_id: customerId },
-        });
+    try {
+        let url: string;
+        switch (processor) {
+            case "stripe": {
+                const stripeCustomerId = user.publicMetadata?.stripe_customer_id as string | undefined;
+                const { createStripeCheckout } = await import("@/lib/stripe-checkout");
+                url = await createStripeCheckout({ userId, plan, email, stripeCustomerId });
+                break;
+            }
+            case "lemonsqueezy":
+            default: {
+                const { createLSCheckout } = await import("@/lib/ls-checkout");
+                url = await createLSCheckout({ userId, plan, email });
+                break;
+            }
+        }
+        return NextResponse.json({ url });
+    } catch (err) {
+        console.error(`[Billing] ${processor} checkout failed:`, err);
+        return NextResponse.json({ error: "Checkout creation failed" }, { status: 500 });
     }
-
-    const session = await stripe.checkout.sessions.create({
-        customer: customerId,
-        client_reference_id: userId,
-        mode: "subscription",
-        line_items: [{ price: priceId, quantity: 1 }],
-        success_url: `${appUrl}/dashboard?checkout=success`,
-        cancel_url: `${appUrl}/pricing?checkout=cancelled`,
-        allow_promotion_codes: true,
-        subscription_data: {
-            metadata: { clerk_user_id: userId },
-        },
-    });
-
-    return NextResponse.json({ url: session.url });
 }

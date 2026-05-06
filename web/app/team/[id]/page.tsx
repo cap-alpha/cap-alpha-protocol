@@ -1,4 +1,4 @@
-import { getTeamRoster, getTeamCapSummary, getTeams, getRosterData } from '@/app/actions';
+import { getTeamRoster, getTeamCapSummary, getTeams, getRosterData, getIntelligenceFeed } from '@/app/actions';
 import { RosterGrid } from '@/components/roster-grid';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { notFound } from 'next/navigation';
@@ -20,9 +20,12 @@ export async function generateStaticParams() {
 
 export default async function TeamPage({ params }: { params: { id: string } }) {
     const teamName = decodeURIComponent(params.id);
-    const teamRoster = await getTeamRoster(teamName);
-    const allTeamsSummary = await getTeamCapSummary();
-    const fullRoster = await getRosterData(); // Still needed for league pos averages
+    const [teamRoster, allTeamsSummary, fullRoster, feedEvents] = await Promise.all([
+        getTeamRoster(teamName),
+        getTeamCapSummary(),
+        getRosterData(), // Still needed for league pos averages
+        getIntelligenceFeed(`${teamName} Franchise`),
+    ]);
     
     const teamSummary = allTeamsSummary.find((t) => t.team === teamName);
 
@@ -149,7 +152,7 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
 
                     <div className="lg:col-span-1 h-[600px] lg:h-auto">
                         {/* RAG Risk Explainer (Use Case A placeholder) */}
-                        <IntelligenceFeed playerName={`${teamName} Franchise`} riskScore={riskPercentage / 100} />
+                        <IntelligenceFeed playerName={`${teamName} Franchise`} riskScore={riskPercentage / 100} feedEvents={feedEvents} />
                     </div>
                 </div>
             </div>

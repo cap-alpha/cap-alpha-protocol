@@ -1,4 +1,4 @@
--- Migration 021: add metadata fields to silver_v2_claims.raw_utterance
+-- Migration 023: add metadata fields to silver_v2_claims.raw_utterance
 -- Issues: #674 (persist existing metadata), #675 (resolution_condition, hedge_level, 7B verification)
 --
 -- All new columns are NULLABLE for full backward compatibility.

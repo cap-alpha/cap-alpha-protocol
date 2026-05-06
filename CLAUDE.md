@@ -4,11 +4,11 @@
 >
 > **All agent work on this repo MUST happen in a git worktree, and all PRs MUST land via the GitHub merge queue.**
 >
+> - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 > - **Never edit files in the main checkout.** A PreToolUse hook (`.claude/hooks/require-worktree.sh`) blocks Edit/Write/MultiEdit when CWD is the main repo. If you see that error, switch to a worktree.
 > - **Use `EnterWorktree` first**, or run `git worktree add .claude/worktrees/<name> -b <branch>` and `cd` into it before any edit.
 > - **Land PRs with `gh pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits). Squash and merge-commit are disabled at the repo level; `main` requires linear history.
 > - **All `gh` issue/PR/comment operations MUST use `scripts/gh-lars`** instead of bare `gh`. Identity is the **`cap-alpha-workflow-automation` GitHub App**. Tokens are minted automatically by `scripts/gh-app-token.sh` using `GH_APP_ID` and `GH_INSTALLATION_ID` from `.env.personas` (gitignored). PEM at `~/.ghconfig/triage-app.pem` on each dev machine (never committed).
-> - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 >
 > Established 2026-04-07 after multi-agent coordination failures.
 

@@ -102,6 +102,7 @@ jobs:
           python3 -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
 
       - name: Verify extraction produced output
+        if: steps.power.outputs.on_battery != 'true'
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json

@@ -38,15 +38,15 @@ export function MarketTicker({
             
             <div className="flex-1 flex items-center overflow-x-auto no-scrollbar gap-8 px-6 text-sm font-mono whitespace-nowrap">
                 <div className="flex items-center gap-3">
-                    <span className="text-zinc-500 uppercase text-xs">League Total Liabilities</span>
+                    <span className="text-zinc-400 uppercase text-xs">League Total Liabilities</span>
                     <span className="text-white font-medium">{formatCurrency(totalCap)}</span>
-                    <span className={`flex items-center text-xs ${tick === 0 ? 'text-emerald-500' : 'text-zinc-500'}`}>
+                    <span className={`flex items-center text-xs ${tick === 0 ? 'text-emerald-500' : 'text-zinc-400'}`}>
                         <ArrowUpRight className="w-3 h-3" /> 0.2%
                     </span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <span className="text-zinc-500 uppercase text-xs">League Risk Exposure</span>
+                    <span className="text-zinc-400 uppercase text-xs">League Risk Exposure</span>
                     <span className="text-white font-medium">{formatCurrency(riskCap)}</span>
                     <span className={`flex items-center text-xs text-rose-500`}>
                         <ArrowDownRight className="w-3 h-3" /> 1.4%
@@ -54,12 +54,12 @@ export function MarketTicker({
                 </div>
                 
                 <div className="flex items-center gap-3">
-                    <span className="text-zinc-500 uppercase text-xs">Active Contracts</span>
+                    <span className="text-zinc-400 uppercase text-xs">Active Contracts</span>
                     <span className="text-white font-medium text-xs flex items-center gap-1"><Users className="w-3 h-3 text-zinc-400"/> 2,048</span>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    <span className="text-zinc-500 uppercase text-xs">Avg Dead Cap Yield</span>
+                    <span className="text-zinc-400 uppercase text-xs">Avg Dead Cap Yield</span>
                     <span className="text-white font-medium text-xs flex items-center gap-1"><DollarSign className="w-3 h-3 text-zinc-400"/> 4.2%</span>
                 </div>
             </div>

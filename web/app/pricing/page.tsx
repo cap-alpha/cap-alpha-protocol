@@ -19,7 +19,7 @@ export default function PricingPage() {
 
                 <PricingClient />
 
-                <p className="text-center text-xs text-zinc-600">
+                <p className="text-center text-xs text-zinc-400">
                     Enterprise pricing available for teams and media organizations.{" "}
                     <a href="mailto:hello@cap-alpha.co" className="underline hover:text-zinc-400">
                         Contact us.

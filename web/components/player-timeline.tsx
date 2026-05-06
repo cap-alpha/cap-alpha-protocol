@@ -13,9 +13,9 @@ export function PlayerTimeline({ timeline }: PlayerTimelineProps) {
     if (!timeline || timeline.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-center border border-dashed border-zinc-800 rounded-lg bg-zinc-900/50">
-                <Clock className="w-8 h-8 text-zinc-600 mb-3" />
+                <Clock className="w-8 h-8 text-zinc-400 mb-3" />
                 <h4 className="text-sm font-semibold text-zinc-300">Awaiting Telemetry</h4>
-                <p className="text-xs text-zinc-500 mt-1 max-w-[250px]">
+                <p className="text-xs text-zinc-400 mt-1 max-w-[250px]">
                     No critical timeline events or chronological intelligence available for this asset.
                 </p>
             </div>
@@ -151,7 +151,7 @@ export function PlayerTimeline({ timeline }: PlayerTimelineProps) {
                                         {item.year}
                                     </span>
                                     {((item.week && item.week > 0) || zoomLevel === 0) && (
-                                        <span className="font-mono text-xs text-zinc-500 border-l border-zinc-800 pl-2">
+                                        <span className="font-mono text-xs text-zinc-400 border-l border-zinc-800 pl-2">
                                             WK {item.week || '-'}
                                         </span>
                                     )}
@@ -189,7 +189,7 @@ export function PlayerTimeline({ timeline }: PlayerTimelineProps) {
                     </div>
                 ))}
             </div>
-            <p className="text-center text-xs text-zinc-600 mt-6 font-mono tracking-widest uppercase md:hidden flex justify-center items-center gap-2 opacity-50">
+            <p className="text-center text-xs text-zinc-400 mt-6 font-mono tracking-widest uppercase md:hidden flex justify-center items-center gap-2 opacity-50">
                 <ZoomIn className="w-3 h-3" /> Pinch to Semantic Zoom
             </p>
         </div>

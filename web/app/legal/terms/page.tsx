@@ -15,7 +15,7 @@ export default function TermsOfService() {
                 {/* Back link */}
                 <Link
                     href="/"
-                    className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
+                    className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     Back to Cap Alpha
@@ -26,7 +26,7 @@ export default function TermsOfService() {
                     <ShieldAlert className="w-7 h-7 text-emerald-400 shrink-0" />
                     <h1 className="text-3xl font-extrabold tracking-tight">Terms of Service</h1>
                 </div>
-                <p className="text-sm text-zinc-500 mb-12">Last Updated: April 27, 2026</p>
+                <p className="text-sm text-zinc-400 mb-12">Last Updated: April 27, 2026</p>
 
                 {/* Body */}
                 <div className="space-y-10 text-zinc-300 leading-relaxed">
@@ -106,7 +106,7 @@ export default function TermsOfService() {
                             Questions?{" "}
                             <a
                                 href="mailto:support@cap-alpha.co"
-                                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                                className="text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2"
                             >
                                 support@cap-alpha.co
                             </a>
@@ -115,7 +115,7 @@ export default function TermsOfService() {
                 </div>
 
                 {/* Footer nav */}
-                <div className="mt-16 pt-8 border-t border-zinc-900 flex items-center gap-6 text-xs text-zinc-600">
+                <div className="mt-16 pt-8 border-t border-zinc-900 flex items-center gap-6 text-xs text-zinc-400">
                     <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">
                         Privacy Policy
                     </Link>

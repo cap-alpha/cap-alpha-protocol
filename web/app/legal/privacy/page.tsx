@@ -15,7 +15,7 @@ export default function PrivacyPolicy() {
                 {/* Back link */}
                 <Link
                     href="/"
-                    className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
+                    className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     Back to Cap Alpha
@@ -26,7 +26,7 @@ export default function PrivacyPolicy() {
                     <ShieldCheck className="w-7 h-7 text-emerald-400 shrink-0" />
                     <h1 className="text-3xl font-extrabold tracking-tight">Privacy Policy</h1>
                 </div>
-                <p className="text-sm text-zinc-500 mb-12">Last updated: April 27, 2026</p>
+                <p className="text-sm text-zinc-400 mb-12">Last updated: April 27, 2026</p>
 
                 {/* Body */}
                 <div className="space-y-10 text-zinc-300 leading-relaxed">
@@ -146,7 +146,7 @@ export default function PrivacyPolicy() {
                 </div>
 
                 {/* Footer nav */}
-                <div className="mt-16 pt-8 border-t border-zinc-900 flex items-center gap-6 text-xs text-zinc-600">
+                <div className="mt-16 pt-8 border-t border-zinc-900 flex items-center gap-6 text-xs text-zinc-400">
                     <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">
                         Terms of Service
                     </Link>

@@ -15,7 +15,7 @@ export default function CorrectionsPolicy() {
             <div className="max-w-3xl mx-auto">
                 <Link
                     href="/"
-                    className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
+                    className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     Back to Cap Alpha
@@ -27,7 +27,7 @@ export default function CorrectionsPolicy() {
                         Correction & Retraction Policy
                     </h1>
                 </div>
-                <p className="text-sm text-zinc-500 mb-12">Last Updated: May 4, 2026</p>
+                <p className="text-sm text-zinc-400 mb-12">Last Updated: May 4, 2026</p>
 
                 <div className="space-y-10 text-zinc-300 leading-relaxed">
                     <section className="space-y-3">

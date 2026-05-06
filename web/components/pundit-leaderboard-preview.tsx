@@ -18,7 +18,7 @@ interface PunditStat {
 }
 
 function AccuracyBar({ rate }: { rate: number | null }) {
-    if (rate === null) return <span className="text-xs text-zinc-600 font-mono">—</span>;
+    if (rate === null) return <span className="text-xs text-zinc-400 font-mono">—</span>;
     const pct = Math.round(rate * 100);
     const color = pct >= 60 ? "bg-emerald-500" : pct >= 45 ? "bg-yellow-500" : "bg-red-500";
     return (
@@ -68,7 +68,7 @@ export function PunditLeaderboardPreview() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-40">
-                <div className="flex items-center gap-2 text-zinc-600">
+                <div className="flex items-center gap-2 text-zinc-400">
                     <Activity className="w-4 h-4 animate-pulse" />
                     <span className="text-sm font-mono">Loading ledger…</span>
                 </div>
@@ -78,7 +78,7 @@ export function PunditLeaderboardPreview() {
 
     if (pundits.length === 0) {
         return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-600 text-sm">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-400 text-sm">
                 No pundit data yet — pipeline populating soon.
             </div>
         );
@@ -87,7 +87,7 @@ export function PunditLeaderboardPreview() {
     return (
         <div className="space-y-3">
             {/* Stats bar */}
-            <div className="flex gap-6 text-xs font-mono text-zinc-500 pb-2 border-b border-zinc-900">
+            <div className="flex gap-6 text-xs font-mono text-zinc-400 pb-2 border-b border-zinc-900">
                 <span>
                     <AnimatedCounter value={pundits.length} suffix="+" duration={600} className="text-white font-semibold" /> pundits tracked
                 </span>
@@ -110,7 +110,7 @@ export function PunditLeaderboardPreview() {
                         idx === 0 ? "text-yellow-400"
                         : idx === 1 ? "text-zinc-300"
                         : idx === 2 ? "text-orange-400"
-                        : "text-zinc-600"
+                        : "text-zinc-400"
                     )}>
                         {idx + 1}
                     </span>
@@ -138,7 +138,7 @@ export function PunditLeaderboardPreview() {
                     )}
 
                     {/* Total */}
-                    <span className="text-xs font-mono text-zinc-600 shrink-0 w-20 text-right">
+                    <span className="text-xs font-mono text-zinc-400 shrink-0 w-20 text-right">
                         {p.total_predictions} picks
                     </span>
                 </HoverableRow>

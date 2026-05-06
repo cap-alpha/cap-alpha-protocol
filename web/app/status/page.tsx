@@ -167,7 +167,7 @@ export default async function StatusPage() {
         <div className="max-w-2xl mx-auto px-4 py-12 space-y-8">
             {/* Header */}
             <div className="space-y-2">
-                <div className="flex items-center gap-2 text-zinc-500 text-sm uppercase tracking-widest font-medium">
+                <div className="flex items-center gap-2 text-zinc-400 text-sm uppercase tracking-widest font-medium">
                     <Activity className="h-4 w-4" />
                     System Status
                 </div>
@@ -177,7 +177,7 @@ export default async function StatusPage() {
                         {overallLabel}
                     </h1>
                 </div>
-                <p className="text-zinc-500 text-xs">
+                <p className="text-zinc-400 text-xs">
                     Last checked: {new Date(checkedAt).toLocaleString("en-US", { timeZoneName: "short" })}
                 </p>
             </div>
@@ -193,7 +193,7 @@ export default async function StatusPage() {
                             <StatusIcon status={check.status} />
                             <div className="min-w-0">
                                 <p className="font-bold text-white text-sm">{check.name}</p>
-                                <p className="text-zinc-500 text-xs truncate">{check.description}</p>
+                                <p className="text-zinc-400 text-xs truncate">{check.description}</p>
                                 {check.detail && (
                                     <p className="text-rose-400 text-xs truncate">{check.detail}</p>
                                 )}
@@ -204,7 +204,7 @@ export default async function StatusPage() {
                                 {statusLabel(check.status)}
                             </p>
                             {check.latencyMs != null && check.latencyMs > 0 && (
-                                <p className="text-zinc-600 text-xs">{check.latencyMs}ms</p>
+                                <p className="text-zinc-400 text-xs">{check.latencyMs}ms</p>
                             )}
                         </div>
                     </div>
@@ -212,7 +212,7 @@ export default async function StatusPage() {
             </div>
 
             {/* External links */}
-            <div className="text-zinc-500 text-xs space-y-1">
+            <div className="text-zinc-400 text-xs space-y-1">
                 <p>
                     Third-party provider status:{" "}
                     <a

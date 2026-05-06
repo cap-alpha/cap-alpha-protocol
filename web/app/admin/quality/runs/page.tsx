@@ -95,7 +95,7 @@ export default async function AdminQualityRunsPage() {
         <div className="bg-black text-white min-h-[100dvh]">
             <section className="border-b border-zinc-900 px-6 py-10">
                 <div className="max-w-6xl mx-auto space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
+                    <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
                         <a href="/quality" className="hover:text-zinc-300">
                             Quality Dashboard
                         </a>
@@ -161,11 +161,11 @@ export default async function AdminQualityRunsPage() {
 
                 {tableExists && !error && rows.length === 0 && (
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-10 text-center space-y-3">
-                        <Database className="w-8 h-8 text-zinc-600 mx-auto" />
+                        <Database className="w-8 h-8 text-zinc-400 mx-auto" />
                         <p className="text-zinc-400 font-medium">
                             No run records yet
                         </p>
-                        <p className="text-sm text-zinc-600">
+                        <p className="text-sm text-zinc-400">
                             Extraction runs will appear here as they complete.
                         </p>
                     </div>
@@ -176,7 +176,7 @@ export default async function AdminQualityRunsPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs text-left">
                                 <thead>
-                                    <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                                    <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-400 font-mono uppercase tracking-wider">
                                         <th className="px-4 py-3">Run ID</th>
                                         <th className="px-4 py-3">Started</th>
                                         <th className="px-4 py-3">Provider</th>
@@ -198,7 +198,7 @@ export default async function AdminQualityRunsPage() {
                                             key={row.run_id}
                                             className="text-zinc-300 hover:bg-zinc-900/40"
                                         >
-                                            <td className="px-4 py-2.5 font-mono text-zinc-500 max-w-[120px] truncate">
+                                            <td className="px-4 py-2.5 font-mono text-zinc-400 max-w-[120px] truncate">
                                                 {row.run_id.slice(0, 8)}…
                                             </td>
                                             <td className="px-4 py-2.5 whitespace-nowrap">
@@ -234,7 +234,7 @@ export default async function AdminQualityRunsPage() {
                                                     className={
                                                         row.errors > 0
                                                             ? "text-amber-400"
-                                                            : "text-zinc-600"
+                                                            : "text-zinc-400"
                                                     }
                                                 >
                                                     {row.errors}
@@ -260,7 +260,7 @@ export default async function AdminQualityRunsPage() {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="px-4 py-3 border-t border-zinc-800 text-xs text-zinc-600">
+                        <div className="px-4 py-3 border-t border-zinc-800 text-xs text-zinc-400">
                             Showing last {rows.length} runs. Page cached 1
                             hour.
                         </div>

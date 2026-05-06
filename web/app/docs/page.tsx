@@ -26,8 +26,8 @@ function CodeBlock({ children, language = "bash" }: { children: string; language
     return (
         <div className="relative rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 bg-zinc-900/60">
-                <Code2 className="w-3.5 h-3.5 text-zinc-500" />
-                <span className="text-xs font-mono text-zinc-500">{language}</span>
+                <Code2 className="w-3.5 h-3.5 text-zinc-400" />
+                <span className="text-xs font-mono text-zinc-400">{language}</span>
             </div>
             <pre className="overflow-x-auto p-4 text-sm text-zinc-300 leading-relaxed">
                 <code>{children}</code>
@@ -62,11 +62,11 @@ function ParamTable({
                                 {p.required ? (
                                     <span className="text-emerald-400 font-mono text-xs">yes</span>
                                 ) : (
-                                    <span className="text-zinc-600 font-mono text-xs">no</span>
+                                    <span className="text-zinc-400 font-mono text-xs">no</span>
                                 )}
                             </td>
                             <td className="px-4 py-3 text-zinc-400">{p.description}</td>
-                            <td className="px-4 py-3 font-mono text-zinc-500 text-xs">{p.example ?? "—"}</td>
+                            <td className="px-4 py-3 font-mono text-zinc-400 text-xs">{p.example ?? "—"}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -116,7 +116,7 @@ function EndpointCard({
                     {method}
                 </span>
                 <code className="text-zinc-200 font-mono text-sm">{path}</code>
-                <span className="text-zinc-500 text-sm">{description}</span>
+                <span className="text-zinc-400 text-sm">{description}</span>
             </div>
             <div className="p-6 space-y-6">{children}</div>
         </div>
@@ -159,7 +159,7 @@ export default function ApiDocsPage() {
             {/* Navigation */}
             <nav className="sticky top-0 z-20 w-full border-y border-zinc-800 bg-black/80 backdrop-blur-sm">
                 <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-6 overflow-x-auto text-sm">
-                    <span className="text-zinc-600 text-xs font-mono uppercase tracking-widest shrink-0">Jump to:</span>
+                    <span className="text-zinc-400 text-xs font-mono uppercase tracking-widest shrink-0">Jump to:</span>
                     {[
                         ["Quick start", "#quick-start"],
                         ["Auth", "#auth"],
@@ -249,7 +249,7 @@ x-api-key: capk_live_your_key`}</CodeBlock>
                         </p>
                     </div>
                     <div>
-                        <p className="text-sm text-zinc-500 mb-3">Error response when key is missing or invalid:</p>
+                        <p className="text-sm text-zinc-400 mb-3">Error response when key is missing or invalid:</p>
                         <CodeBlock language="json">{`HTTP 401
 { "detail": "Invalid or missing API key" }`}</CodeBlock>
                     </div>
@@ -290,7 +290,7 @@ x-api-key: capk_live_your_key`}</CodeBlock>
                             </tbody>
                         </table>
                     </div>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm text-zinc-400">
                         Rate-limited requests receive <code className="font-mono text-zinc-400">HTTP 429</code>.
                         Contact <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300">support@cap-alpha.co</a> to upgrade.
                     </p>
@@ -677,7 +677,7 @@ x-api-key: capk_live_your_key`}</CodeBlock>
 
             {/* Footer */}
             <footer className="border-t border-zinc-900 px-6 py-8 mt-auto">
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
+                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
                     <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
                         Pundit Ledger
                     </span>

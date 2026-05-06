@@ -119,37 +119,37 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
                             <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
-                                <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-500 uppercase">Cap Hit</CardTitle>
+                                <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-400 uppercase">Cap Hit</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-mono font-bold text-white">
                                     ${player.cap_hit_millions.toLocaleString()}M
                                 </div>
-                                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Current Season Charge</p>
+                                <p className="text-[10px] uppercase tracking-wider text-zinc-400 mt-2">Current Season Charge</p>
                             </CardContent>
                         </Card>
 
                         <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
                             <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
-                                <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-500 uppercase">Efficiency Gap</CardTitle>
+                                <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-400 uppercase">Efficiency Gap</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-mono font-bold text-emerald-400">
                                     {(player.risk_score * 100).toFixed(0)}
                                 </div>
-                                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Percentile Rank vs Position</p>
+                                <p className="text-[10px] uppercase tracking-wider text-zinc-400 mt-2">Percentile Rank vs Position</p>
                             </CardContent>
                         </Card>
 
                         <Card className="bg-zinc-900 border-zinc-800 shadow-sm">
                             <CardHeader className="pb-3 border-b border-zinc-800/50 mb-3">
-                                <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-500 uppercase">Model Variance</CardTitle>
+                                <CardTitle className="text-xs font-mono font-bold tracking-widest text-zinc-400 uppercase">Model Variance</CardTitle>
                             </CardHeader>
                             <CardContent>
                                 <div className="text-3xl font-mono font-bold text-amber-400">
                                     ±${avgError.toFixed(1)}M
                                 </div>
-                                <p className="text-[10px] uppercase tracking-wider text-zinc-500 mt-2">Avg. Prediction Error</p>
+                                <p className="text-[10px] uppercase tracking-wider text-zinc-400 mt-2">Avg. Prediction Error</p>
                             </CardContent>
                         </Card>
                     </div>
@@ -178,28 +178,28 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className="w-2.5 h-2.5 rounded-full bg-blue-500"/> 
-                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Base Salary</span>
+                                        <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Base Salary</span>
                                     </div>
                                     <div className="font-mono text-lg text-zinc-200">${player.base_salary_millions.toFixed(1)}M</div>
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className="w-2.5 h-2.5 rounded-full bg-indigo-500"/> 
-                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Prorated Bonus</span>
+                                        <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Prorated Bonus</span>
                                     </div>
                                     <div className="font-mono text-lg text-zinc-200">${player.prorated_bonus_millions.toFixed(1)}M</div>
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className="w-2.5 h-2.5 rounded-full bg-violet-500"/> 
-                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Roster Bonus</span>
+                                        <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Roster Bonus</span>
                                     </div>
                                     <div className="font-mono text-lg text-zinc-200">${player.roster_bonus_millions.toFixed(1)}M</div>
                                 </div>
                                 <div>
                                     <div className="flex items-center gap-2 mb-1">
                                         <div className="w-2.5 h-2.5 rounded-full bg-emerald-500"/> 
-                                        <span className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Guaranteed At Sign</span>
+                                        <span className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider">Guaranteed At Sign</span>
                                     </div>
                                     <div className="font-mono text-lg text-zinc-200">${player.guaranteed_salary_millions.toFixed(1)}M</div>
                                 </div>
@@ -233,7 +233,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                     </div>
                                     <Separator className="bg-zinc-800" />
                                     <div className="pt-2">
-                                        <div className="text-xs text-zinc-500 mb-2">INTELLIGENCE NOTE</div>
+                                        <div className="text-xs text-zinc-400 mb-2">INTELLIGENCE NOTE</div>
                                         <p className="text-sm text-zinc-300 leading-relaxed">
                                             {player.risk_score > 0.7
                                                 ? "Critical Efficiency Gap. Model indicates significant overpayment relative to expected production. Recommended action: Restructure or cut post-June 1."
@@ -243,9 +243,9 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                                     <div className="pt-4 border-t border-zinc-800">
                                         <details className="group cursor-pointer">
-                                            <summary className="text-xs text-zinc-500 mb-3 font-semibold uppercase list-none [&::-webkit-details-marker]:hidden flex justify-between items-center">
+                                            <summary className="text-xs text-zinc-400 mb-3 font-semibold uppercase list-none [&::-webkit-details-marker]:hidden flex justify-between items-center">
                                                 KEY DRIVERS (SHAP)
-                                                <span className="text-zinc-600 group-open:rotate-180 transition-transform">▼</span>
+                                                <span className="text-zinc-400 group-open:rotate-180 transition-transform">▼</span>
                                             </summary>
                                             <div className="space-y-2 text-sm mt-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                                 <div className="flex justify-between items-center">
@@ -279,7 +279,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                         <div className="grid grid-cols-2 gap-4">
                                             {(player.total_pass_yds > 0 || player.total_rush_yds > 0 || player.total_rec_yds > 0) && (
                                                 <div className="space-y-1">
-                                                    <p className="text-xs text-zinc-500 font-semibold uppercase">Total Scrimmage Yds</p>
+                                                    <p className="text-xs text-zinc-400 font-semibold uppercase">Total Scrimmage Yds</p>
                                                     <p className="text-2xl font-mono text-zinc-200">
                                                         {(player.total_pass_yds + player.total_rush_yds + player.total_rec_yds).toLocaleString()}
                                                     </p>
@@ -287,7 +287,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                             )}
                                             {player.total_tds > 0 && (
                                                 <div className="space-y-1">
-                                                    <p className="text-xs text-zinc-500 font-semibold uppercase">Touchdowns</p>
+                                                    <p className="text-xs text-zinc-400 font-semibold uppercase">Touchdowns</p>
                                                     <p className="text-2xl font-mono text-emerald-400">
                                                         {player.total_tds.toLocaleString()}
                                                     </p>
@@ -295,7 +295,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                             )}
                                             {player.total_sacks > 0 && (
                                                 <div className="space-y-1">
-                                                    <p className="text-xs text-zinc-500 font-semibold uppercase">Defensive Sacks</p>
+                                                    <p className="text-xs text-zinc-400 font-semibold uppercase">Defensive Sacks</p>
                                                     <p className="text-2xl font-mono text-rose-400">
                                                         {player.total_sacks.toFixed(1)}
                                                     </p>
@@ -303,7 +303,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                             )}
                                             {player.total_int > 0 && (
                                                 <div className="space-y-1">
-                                                    <p className="text-xs text-zinc-500 font-semibold uppercase">Interceptions</p>
+                                                    <p className="text-xs text-zinc-400 font-semibold uppercase">Interceptions</p>
                                                     <p className="text-2xl font-mono text-blue-400">
                                                         {player.total_int.toLocaleString()}
                                                     </p>
@@ -311,7 +311,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                             )}
                                             {player.games_played > 0 && (
                                                 <div className="space-y-1">
-                                                    <p className="text-xs text-zinc-500 font-semibold uppercase">Games Played</p>
+                                                    <p className="text-xs text-zinc-400 font-semibold uppercase">Games Played</p>
                                                     <p className="text-2xl font-mono text-zinc-400">
                                                         {player.games_played}
                                                     </p>
@@ -327,7 +327,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                         <div className="xl:col-span-2 space-y-6">
                             <Card className="bg-zinc-900 border-zinc-800 h-[500px] shadow-sm flex flex-col">
                                 <CardHeader className="border-b border-zinc-800/50 mb-4 pb-4">
-                                    <CardTitle className="uppercase font-mono tracking-widest text-sm text-zinc-500">Value Trajectory (2022-{player.year})</CardTitle>
+                                    <CardTitle className="uppercase font-mono tracking-widest text-sm text-zinc-400">Value Trajectory (2022-{player.year})</CardTitle>
                                     <CardDescription>Actual Pay vs. Predicted Market Value</CardDescription>
                                 </CardHeader>
                                 <CardContent className="flex-1 min-h-[300px]">
@@ -383,7 +383,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                             <div className="space-y-2">
                                                 {history.slice().reverse().slice(0, 5).map((h) => (
                                                     <div key={h.year} className="flex justify-between items-center text-sm p-2 hover:bg-white/5 rounded">
-                                                        <span className="font-mono text-zinc-500">{h.year} • {h.team}</span>
+                                                        <span className="font-mono text-zinc-400">{h.year} • {h.team}</span>
                                                         <div className="flex space-x-4">
                                                             <span className="text-zinc-300">${h.actual.toFixed(1)}M</span>
                                                             <span className={h.actual > h.predicted ? "text-red-500" : "text-emerald-500"}>

@@ -40,7 +40,7 @@ function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(Math.min(1, Math.max(0, value)) * 100);
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[10px] font-mono text-zinc-500 uppercase tracking-wider w-20">
+      <span className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider w-20">
         Confidence
       </span>
       <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
@@ -81,7 +81,7 @@ export function PredictionCard({
       >
         <div className="flex-1 min-w-0">
           <p className="text-sm text-zinc-200 truncate">{text}</p>
-          <p className="text-[10px] font-mono text-zinc-500 mt-0.5">
+          <p className="text-[10px] font-mono text-zinc-400 mt-0.5">
             <Link
               href={`/pundit/${pundidSlug}`}
               className="hover:text-emerald-400 transition-colors"
@@ -136,7 +136,7 @@ export function PredictionCard({
 
         {/* Date footer */}
         <div className="flex items-center justify-between border-t border-zinc-800/60 pt-3 mt-3">
-          <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">
+          <div className="flex items-center gap-4 text-[10px] font-mono text-zinc-400 uppercase tracking-wider">
             <span>Made {formatDate(madeAt)}</span>
             {resolvedAt && <span>Resolved {formatDate(resolvedAt)}</span>}
           </div>

@@ -137,7 +137,7 @@ export function UsageDashboard() {
 
     if (loading) {
         return (
-            <div className="flex items-center justify-center h-48 text-zinc-600">
+            <div className="flex items-center justify-center h-48 text-zinc-400">
                 <Activity className="w-4 h-4 animate-pulse mr-2" />
                 <span className="font-mono text-sm">Loading usage data…</span>
             </div>
@@ -146,7 +146,7 @@ export function UsageDashboard() {
 
     if (!data) {
         return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-400 text-sm">
                 Could not load usage metrics. Please try again later.
             </div>
         );
@@ -208,31 +208,31 @@ export function UsageDashboard() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                     <div>
-                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-1">
+                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-400 mb-1">
                             Monthly Quota
                         </p>
                         <p className="text-2xl font-black font-mono text-white tabular-nums">
                             {formatNumber(data.monthlyQuota)}
                         </p>
-                        <p className="text-xs text-zinc-600 font-mono mt-0.5">
+                        <p className="text-xs text-zinc-400 font-mono mt-0.5">
                             {totalRequests > 0
                                 ? `${formatNumber(totalRequests)} used (30d)`
                                 : "No requests yet"}
                         </p>
                     </div>
                     <div>
-                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-1">
+                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-400 mb-1">
                             Success Rate
                         </p>
                         <p className="text-2xl font-black font-mono text-emerald-400 tabular-nums">
                             {successRate}%
                         </p>
-                        <p className="text-xs text-zinc-600 font-mono mt-0.5">
+                        <p className="text-xs text-zinc-400 font-mono mt-0.5">
                             2xx responses
                         </p>
                     </div>
                     <div>
-                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-1">
+                        <p className="text-xs font-mono uppercase tracking-widest text-zinc-400 mb-1">
                             Resets On
                         </p>
                         <p className="text-2xl font-black font-mono text-white tabular-nums">
@@ -243,7 +243,7 @@ export function UsageDashboard() {
                                   )
                                 : "Next month"}
                         </p>
-                        <p className="text-xs text-zinc-600 font-mono mt-0.5">
+                        <p className="text-xs text-zinc-400 font-mono mt-0.5">
                             Quota cycle
                         </p>
                     </div>
@@ -282,7 +282,7 @@ export function UsageDashboard() {
                         <p className="text-sm font-semibold text-white">
                             You&apos;re on the Free tier
                         </p>
-                        <p className="text-xs text-zinc-500 mt-0.5">
+                        <p className="text-xs text-zinc-400 mt-0.5">
                             Upgrade to Pro for higher rate limits, more
                             endpoints, and priority support.
                         </p>
@@ -331,7 +331,7 @@ export function UsageDashboard() {
                     <h3 className="text-lg font-black tracking-tight text-white mb-1">
                         Last 30 Days
                     </h3>
-                    <p className="text-xs text-zinc-500 font-mono mb-5">
+                    <p className="text-xs text-zinc-400 font-mono mb-5">
                         Stacked by response status — 2xx / 4xx / 5xx
                     </p>
 
@@ -395,7 +395,7 @@ export function UsageDashboard() {
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="h-40 flex items-center justify-center text-zinc-600 text-sm font-mono">
+                        <div className="h-40 flex items-center justify-center text-zinc-400 text-sm font-mono">
                             No request data in the last 30 days
                         </div>
                     )}
@@ -443,7 +443,7 @@ export function UsageDashboard() {
                     </h3>
 
                     {/* Column headers */}
-                    <div className="grid grid-cols-[1fr_80px_60px] gap-3 px-2 pb-2 text-[10px] font-mono uppercase tracking-widest text-zinc-600">
+                    <div className="grid grid-cols-[1fr_80px_60px] gap-3 px-2 pb-2 text-[10px] font-mono uppercase tracking-widest text-zinc-400">
                         <span>Endpoint</span>
                         <span className="text-right">Requests</span>
                         <span className="text-right">%</span>
@@ -461,7 +461,7 @@ export function UsageDashboard() {
                                 <span className="text-xs font-mono text-white text-right tabular-nums">
                                     {formatNumber(ep.count)}
                                 </span>
-                                <span className="text-xs font-mono text-zinc-500 text-right tabular-nums">
+                                <span className="text-xs font-mono text-zinc-400 text-right tabular-nums">
                                     {ep.pct}%
                                 </span>
                             </div>

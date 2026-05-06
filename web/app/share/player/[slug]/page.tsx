@@ -71,7 +71,7 @@ export default async function SharePlayerPage({ params }: Props) {
       </div>
 
       {/* Back-link — shown below the card so it doesn't clutter the shareable area */}
-      <p className="mt-6 text-xs text-zinc-600 font-mono">
+      <p className="mt-6 text-xs text-zinc-400 font-mono">
         <a
           href={`/player/${playerSlug}`}
           className="hover:text-zinc-400 transition-colors"

@@ -14,7 +14,7 @@ export default function DisclosurePage() {
             <div className="max-w-3xl mx-auto">
                 <Link
                     href="/"
-                    className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
+                    className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     Back to home
@@ -24,7 +24,7 @@ export default function DisclosurePage() {
                     <DollarSign className="w-7 h-7 text-emerald-500" />
                     <h1 className="text-3xl font-extrabold tracking-tight">Affiliate Disclosure</h1>
                 </div>
-                <p className="text-zinc-500 text-sm mb-10">Last Updated: April 29, 2026</p>
+                <p className="text-zinc-400 text-sm mb-10">Last Updated: April 29, 2026</p>
 
                 <div className="space-y-8 text-zinc-300 leading-relaxed">
                     <section>

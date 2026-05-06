@@ -82,7 +82,7 @@ interface RecentPrediction {
 
 function AccuracyBar({ rate }: { rate: number | null }) {
     if (rate === null)
-        return <span className="text-xs text-zinc-600 font-mono tabular-nums">—</span>;
+        return <span className="text-xs text-zinc-400 font-mono tabular-nums">—</span>;
     const pct = Math.round(rate * 100);
     const color =
         pct >= 60 ? "bg-emerald-500" : pct >= 45 ? "bg-yellow-500" : "bg-red-500";
@@ -109,7 +109,7 @@ function AccuracyBar({ rate }: { rate: number | null }) {
 
 function BrierBadge({ score }: { score: number | null }) {
     if (score === null)
-        return <span className="text-xs text-zinc-600 font-mono">—</span>;
+        return <span className="text-xs text-zinc-400 font-mono">—</span>;
     const color =
         score <= 0.1
             ? "text-emerald-400"
@@ -153,7 +153,7 @@ function CategoryPill({ category }: { category: string }) {
         contract: "Contract",
     };
     return (
-        <span className="text-[10px] font-mono uppercase tracking-wide text-zinc-500 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5">
+        <span className="text-[10px] font-mono uppercase tracking-wide text-zinc-400 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5">
             {label[category] ?? category}
         </span>
     );
@@ -167,7 +167,7 @@ function RankBadge({ rank }: { rank: number }) {
             ? "text-zinc-300"
             : rank === 3
             ? "text-orange-400"
-            : "text-zinc-600";
+            : "text-zinc-400";
     return (
         <span className={cn("font-mono text-sm font-black w-5 shrink-0 tabular-nums", color)}>
             {rank}
@@ -219,7 +219,7 @@ function ClaimTimestamps({
     const received = fmtDate(ingestion_timestamp);
     const said = fmtDate(source_published_at);
     return (
-        <span className="text-[10px] font-mono text-zinc-600 flex flex-wrap gap-2">
+        <span className="text-[10px] font-mono text-zinc-400 flex flex-wrap gap-2">
             {received && <span>received {received}</span>}
             {said && said !== received && <span>said ~{said}</span>}
         </span>
@@ -301,7 +301,7 @@ function PredictionDrawer({
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                        className="text-zinc-400 hover:text-zinc-300 transition-colors"
                         aria-label="Close details"
                     >
                         <X className="w-4 h-4" />
@@ -317,7 +317,7 @@ function PredictionDrawer({
                         </p>
                         {prediction.raw_assertion_text &&
                             prediction.raw_assertion_text !== prediction.extracted_claim && (
-                                <p className="mt-2 text-xs text-zinc-500 italic leading-snug">
+                                <p className="mt-2 text-xs text-zinc-400 italic leading-snug">
                                     Original: &ldquo;{prediction.raw_assertion_text}&rdquo;
                                 </p>
                             )}
@@ -327,7 +327,7 @@ function PredictionDrawer({
                     <div className="flex items-center gap-3">
                         <StatusBadge status={prediction.resolution_status} />
                         {prediction.brier_score !== null && (
-                            <span className="text-xs font-mono text-zinc-500">
+                            <span className="text-xs font-mono text-zinc-400">
                                 Brier: <BrierBadge score={prediction.brier_score} />
                             </span>
                         )}
@@ -335,7 +335,7 @@ function PredictionDrawer({
 
                     {/* 3. Pundit name — prominent + clickable */}
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono uppercase tracking-wide text-zinc-600">By</span>
+                        <span className="text-[10px] font-mono uppercase tracking-wide text-zinc-400">By</span>
                         <Link
                             href={`/ledger/${encodeURIComponent(prediction.pundit_id)}`}
                             className="text-sm font-semibold text-zinc-200 hover:text-emerald-400 transition-colors inline-flex items-center gap-1"
@@ -349,33 +349,33 @@ function PredictionDrawer({
                     {/* Metadata grid — category, sport, season, timestamps */}
                     <div className="grid grid-cols-2 gap-3 text-xs font-mono">
                         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
-                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Category</div>
+                            <div className="text-zinc-400 uppercase tracking-wide text-[9px] mb-0.5">Category</div>
                             <CategoryPill category={prediction.claim_category} />
                         </div>
                         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
-                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Sport</div>
+                            <div className="text-zinc-400 uppercase tracking-wide text-[9px] mb-0.5">Sport</div>
                             <span className="text-zinc-300">{prediction.sport || "—"}</span>
                         </div>
                         {prediction.season_year && (
                             <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2">
-                                <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-0.5">Season</div>
+                                <div className="text-zinc-400 uppercase tracking-wide text-[9px] mb-0.5">Season</div>
                                 <span className="text-zinc-300">{prediction.season_year}</span>
                             </div>
                         )}
 
                         {/* Dual timestamps */}
                         <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 px-3 py-2 col-span-2">
-                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] mb-1">Timestamps</div>
+                            <div className="text-zinc-400 uppercase tracking-wide text-[9px] mb-1">Timestamps</div>
                             <div className="space-y-1">
                                 {receivedDate && (
                                     <div>
-                                        <span className="text-zinc-600">received </span>
+                                        <span className="text-zinc-400">received </span>
                                         <span className="text-zinc-300">{receivedDate}</span>
                                     </div>
                                 )}
                                 {saidDate && (
                                     <div>
-                                        <span className="text-zinc-600">said ~</span>
+                                        <span className="text-zinc-400">said ~</span>
                                         <span className="text-zinc-300">{saidDate}</span>
                                     </div>
                                 )}
@@ -386,7 +386,7 @@ function PredictionDrawer({
                     {/* All source links side-by-side */}
                     {allSources.some((m) => m.source_url) && (
                         <div>
-                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] font-mono mb-2">Sources</div>
+                            <div className="text-zinc-400 uppercase tracking-wide text-[9px] font-mono mb-2">Sources</div>
                             <div className="flex flex-wrap gap-2">
                                 {allSources
                                     .filter((m) => m.source_url)
@@ -409,7 +409,7 @@ function PredictionDrawer({
                     {/* Similar calls */}
                     {similar.length > 0 && (
                         <div>
-                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] font-mono mb-2">
+                            <div className="text-zinc-400 uppercase tracking-wide text-[9px] font-mono mb-2">
                                 Similar calls
                             </div>
                             <div className="space-y-2">
@@ -432,7 +432,7 @@ function PredictionDrawer({
                                             {s.extracted_claim}
                                         </p>
                                         {s.uttered_at && (
-                                            <span className="text-[10px] font-mono text-zinc-600 mt-1 block">
+                                            <span className="text-[10px] font-mono text-zinc-400 mt-1 block">
                                                 {fmtDate(s.uttered_at)}
                                             </span>
                                         )}
@@ -648,7 +648,7 @@ function HofHosGrid({
 }) {
     if (pundits.length === 0) {
         return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-400 text-sm">
                 {variant === "hof"
                     ? "No pundits with resolved predictions yet."
                     : "Not enough pundits with 10+ resolved predictions yet."}
@@ -880,19 +880,19 @@ export default function LedgerPage() {
                                 <div className="text-2xl font-black font-mono text-white tabular-nums">
                                     {pundits.length}
                                 </div>
-                                <div className="text-xs text-zinc-500 font-mono">Pundits</div>
+                                <div className="text-xs text-zinc-400 font-mono">Pundits</div>
                             </div>
                             <div>
                                 <div className="text-2xl font-black font-mono text-white tabular-nums">
                                     {totalPredictions.toLocaleString()}
                                 </div>
-                                <div className="text-xs text-zinc-500 font-mono">Predictions</div>
+                                <div className="text-xs text-zinc-400 font-mono">Predictions</div>
                             </div>
                             <div>
                                 <div className="text-2xl font-black font-mono text-emerald-400 tabular-nums">
                                     {totalResolved.toLocaleString()}
                                 </div>
-                                <div className="text-xs text-zinc-500 font-mono">Resolved</div>
+                                <div className="text-xs text-zinc-400 font-mono">Resolved</div>
                             </div>
                         </div>
                     </div>
@@ -904,7 +904,7 @@ export default function LedgerPage() {
 
                     {/* Sport filter — applies to all views */}
                     <div className="flex items-center gap-2 mt-4">
-                        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1">
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-400 mr-1">
                             Sport:
                         </span>
                         {SPORTS.map((s) => (
@@ -915,14 +915,14 @@ export default function LedgerPage() {
                                     "px-3 py-1 rounded text-xs font-mono font-semibold uppercase tracking-wide transition-colors border",
                                     sportFilter === s
                                         ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
-                                        : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                                        : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-300 hover:border-zinc-700"
                                 )}
                             >
                                 {s}
                             </button>
                         ))}
                         {sportFilter !== "ALL" && (
-                            <span className="text-[10px] font-mono text-zinc-600 ml-1">
+                            <span className="text-[10px] font-mono text-zinc-400 ml-1">
                                 — filtering leaderboard &amp; recent predictions
                             </span>
                         )}
@@ -953,7 +953,7 @@ export default function LedgerPage() {
                                         ? id === "hos"
                                             ? "border-red-500 text-red-400"
                                             : "border-emerald-500 text-emerald-400"
-                                        : "border-transparent text-zinc-500 hover:text-zinc-300"
+                                        : "border-transparent text-zinc-400 hover:text-zinc-300"
                                 )}
                             >
                                 {label}
@@ -976,12 +976,12 @@ export default function LedgerPage() {
                                         "px-5 py-3 text-sm font-semibold uppercase tracking-wide transition-colors border-b-2 flex items-center gap-2",
                                         activeTab === tab
                                             ? "border-emerald-500 text-emerald-400"
-                                            : "border-transparent text-zinc-500 hover:text-zinc-300"
+                                            : "border-transparent text-zinc-400 hover:text-zinc-300"
                                     )}
                                 >
                                     {tab === "leaderboard" ? "Leaderboard" : `Recent (${resolvedFeed.length})`}
                                     {tab === "recent" && lastRefreshed && (
-                                        <span className="text-[9px] font-mono font-normal normal-case tracking-normal text-zinc-600">
+                                        <span className="text-[9px] font-mono font-normal normal-case tracking-normal text-zinc-400">
                                             {secondsSinceRefresh < 5
                                                 ? "Updated just now"
                                                 : `${secondsSinceRefresh}s ago`}
@@ -997,20 +997,20 @@ export default function LedgerPage() {
             {/* Content */}
             <div className="max-w-6xl mx-auto px-4 py-8">
                 {loading ? (
-                    <div className="flex items-center justify-center h-48 text-zinc-600">
+                    <div className="flex items-center justify-center h-48 text-zinc-400">
                         <Activity className="w-4 h-4 animate-pulse mr-2" />
                         <span className="font-mono text-sm">Loading ledger…</span>
                     </div>
                 ) : topView === "hof" ? (
                     <div>
-                        <p className="text-xs font-mono text-zinc-500 mb-6 uppercase tracking-widest">
+                        <p className="text-xs font-mono text-zinc-400 mb-6 uppercase tracking-widest">
                             Top 10 by accuracy — all-time
                         </p>
                         <HofHosGrid pundits={hofPundits} variant="hof" recent={recent} />
                     </div>
                 ) : topView === "hos" ? (
                     <div>
-                        <p className="text-xs font-mono text-zinc-500 mb-6 uppercase tracking-widest">
+                        <p className="text-xs font-mono text-zinc-400 mb-6 uppercase tracking-widest">
                             Bottom 10 by accuracy — min 10 predictions
                         </p>
                         <HofHosGrid pundits={hosPundits} variant="hos" recent={recent} />
@@ -1108,14 +1108,14 @@ function TabContent({
                             />
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                                 {debouncedQuery.trim() && (
-                                    <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
+                                    <span className="text-[10px] font-mono text-zinc-400 tabular-nums">
                                         {filteredRecent.length} result{filteredRecent.length !== 1 ? "s" : ""}
                                     </span>
                                 )}
                                 {searchQuery && (
                                     <button
                                         onClick={() => setSearchQuery("")}
-                                        className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                                        className="text-zinc-400 hover:text-zinc-300 transition-colors"
                                         aria-label="Clear search"
                                     >
                                         <X className="w-3.5 h-3.5" />
@@ -1138,7 +1138,7 @@ function TabContent({
 function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
     if (pundits.length === 0) {
         return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-400 text-sm">
                 No pundit data yet — pipeline populating soon.
             </div>
         );
@@ -1147,7 +1147,7 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
     return (
         <div className="space-y-2">
             {/* Column headers */}
-            <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px_80px] gap-3 px-4 pb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-600">
+            <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px_80px] gap-3 px-4 pb-1 text-[10px] font-mono uppercase tracking-widest text-zinc-400">
                 <span>#</span>
                 <span>Pundit</span>
                 <span>Accuracy</span>
@@ -1201,14 +1201,14 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                         <div className="flex justify-end">
                             <BrierBadge score={p.avg_brier_score} />
                         </div>
-                        <span className="text-right text-xs font-mono text-zinc-500 tabular-nums">
+                        <span className="text-right text-xs font-mono text-zinc-400 tabular-nums">
                             {p.total_predictions}
                         </span>
                         <div className="flex justify-end">
                             {p.pundit_id && p.pundit_id !== "None" ? (
                                 <Link
                                     href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
-                                    className="text-[10px] font-mono text-zinc-600 hover:text-emerald-400 transition-colors inline-flex items-center gap-0.5"
+                                    className="text-[10px] font-mono text-zinc-400 hover:text-emerald-400 transition-colors inline-flex items-center gap-0.5"
                                 >
                                     Card <ArrowRight className="w-2.5 h-2.5" />
                                 </Link>
@@ -1253,7 +1253,7 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                             {p.pundit_id && p.pundit_id !== "None" && (
                                 <Link
                                     href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
-                                    className="text-[10px] font-mono text-zinc-600 hover:text-emerald-400 transition-colors inline-flex items-center gap-0.5 mt-1"
+                                    className="text-[10px] font-mono text-zinc-400 hover:text-emerald-400 transition-colors inline-flex items-center gap-0.5 mt-1"
                                 >
                                     Card <ArrowRight className="w-2.5 h-2.5" />
                                 </Link>
@@ -1263,7 +1263,7 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                 </div>
             ))}
 
-            <p className="text-xs text-zinc-600 font-mono text-center pt-4">
+            <p className="text-xs text-zinc-400 font-mono text-center pt-4">
                 Brier score: lower is better (0 = perfect). Ranked by accuracy, then Brier score.
             </p>
         </div>
@@ -1288,7 +1288,7 @@ function CategoryBreakdown({ p }: { p: PunditStat }) {
             {nonZero.map((c) => (
                 <span
                     key={c.key}
-                    className="text-[10px] font-mono text-zinc-600 leading-none"
+                    className="text-[10px] font-mono text-zinc-400 leading-none"
                 >
                     {c.label}:{" "}
                     <span className="text-zinc-400">
@@ -1321,7 +1321,7 @@ function RecentTab({
 
     if (predictions.length === 0) {
         return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-400 text-sm">
                 No recent predictions yet.
             </div>
         );
@@ -1337,7 +1337,7 @@ function RecentTab({
         <div className="space-y-6">
             {resolvedClusters.length > 0 && (
                 <div>
-                    <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
+                    <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-400 mb-3">
                         Recently Resolved
                     </h3>
                     <div className="space-y-3">
@@ -1354,7 +1354,7 @@ function RecentTab({
 
             {pendingClusters.length > 0 && (
                 <div>
-                    <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
+                    <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-400 mb-3">
                         Awaiting Resolution
                     </h3>
                     <div className="space-y-3">
@@ -1419,7 +1419,7 @@ function SemanticClusterSection({
         <div data-testid="prediction-group" className="space-y-1">
             {/* Divider with collapse toggle */}
             <button
-                className="w-full flex items-center gap-2 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors py-1 group"
+                className="w-full flex items-center gap-2 text-[10px] font-mono text-zinc-400 hover:text-zinc-300 transition-colors py-1 group"
                 onClick={() => setCollapsed((v) => !v)}
                 aria-expanded={!collapsed}
                 aria-label={`Toggle ${cluster.label} group`}
@@ -1428,7 +1428,7 @@ function SemanticClusterSection({
                 <span className="uppercase tracking-widest">
                     Similar predictions ({total})
                 </span>
-                <span className="text-zinc-700 group-hover:text-zinc-500">──</span>
+                <span className="text-zinc-700 group-hover:text-zinc-400">──</span>
                 <span className="ml-auto">
                     {collapsed ? (
                         <ChevronDown className="w-3 h-3" />
@@ -1492,7 +1492,7 @@ function PredictionGroupRow({
                         </Link>
                         <CategoryPill category={p.claim_category} />
                         {p.season_year && (
-                            <span className="text-[10px] font-mono text-zinc-600">
+                            <span className="text-[10px] font-mono text-zinc-400">
                                 {p.season_year}
                             </span>
                         )}
@@ -1501,7 +1501,7 @@ function PredictionGroupRow({
                             source_published_at={p.source_published_at}
                         />
                         {p.brier_score !== null && (
-                            <span className="text-[10px] font-mono text-zinc-500">
+                            <span className="text-[10px] font-mono text-zinc-400">
                                 Brier: <BrierBadge score={p.brier_score} />
                             </span>
                         )}
@@ -1514,7 +1514,7 @@ function PredictionGroupRow({
                                     href={m.source_url!}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
+                                    className="text-[10px] font-mono text-zinc-400 hover:text-zinc-400 inline-flex items-center gap-0.5"
                                 >
                                     source <ExternalLink className="w-2.5 h-2.5" />
                                 </a>
@@ -1535,7 +1535,7 @@ function PredictionGroupRow({
                     {/* Expand/collapse for repeat occurrences */}
                     {hasRepeats && (
                         <button
-                            className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
+                            className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-400 hover:text-zinc-300 transition-colors"
                             onClick={() => setExpanded((v) => !v)}
                             aria-label={expanded ? "Collapse repeat occurrences" : "Show repeat occurrences"}
                         >
@@ -1556,7 +1556,7 @@ function PredictionGroupRow({
             {/* Inline expanded summary (one-liner) */}
             {expanded && (
                 <div className="border-t border-zinc-800/60 px-4 py-2.5 bg-zinc-900/20">
-                    <p className="text-[10px] font-mono text-zinc-500 mb-2 uppercase tracking-wide">
+                    <p className="text-[10px] font-mono text-zinc-400 mb-2 uppercase tracking-wide">
                         {p.pundit_name} said this again on different occasions:
                     </p>
                     <div className="space-y-2">
@@ -1581,7 +1581,7 @@ function PredictionGroupRow({
                                                 href={variant.source_url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
+                                                className="text-[10px] font-mono text-zinc-400 hover:text-zinc-400 inline-flex items-center gap-0.5"
                                             >
                                                 source <ExternalLink className="w-2.5 h-2.5" />
                                             </a>

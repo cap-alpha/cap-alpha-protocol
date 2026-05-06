@@ -66,7 +66,7 @@ function GateCard({ gate }: { gate: WaitlistGate }) {
                         {gate.description}
                     </p>
                     {gate.current_value !== null && (
-                        <p className="text-xs font-mono text-zinc-500">
+                        <p className="text-xs font-mono text-zinc-400">
                             Current:{" "}
                             <span className={gate.pass ? "text-emerald-400" : "text-amber-400"}>
                                 {gate.id === "zero_output"
@@ -98,7 +98,7 @@ function StatTile({
 }) {
     return (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-1">
-            <p className="text-xs text-zinc-500 uppercase tracking-widest font-mono">
+            <p className="text-xs text-zinc-400 uppercase tracking-widest font-mono">
                 {label}
             </p>
             <p
@@ -112,7 +112,7 @@ function StatTile({
             >
                 {value}
             </p>
-            {sub && <p className="text-xs text-zinc-600">{sub}</p>}
+            {sub && <p className="text-xs text-zinc-400">{sub}</p>}
         </div>
     );
 }
@@ -126,7 +126,7 @@ function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementTyp
             <div>
                 <h2 className="text-base font-bold text-white">{title}</h2>
                 {subtitle && (
-                    <p className="text-xs text-zinc-500">{subtitle}</p>
+                    <p className="text-xs text-zinc-400">{subtitle}</p>
                 )}
             </div>
         </div>
@@ -165,7 +165,7 @@ export default async function QualityPage() {
                         criteria that gate waitlist removal.
                     </p>
                     {data.generatedAt && (
-                        <p className="text-xs text-zinc-600 font-mono">
+                        <p className="text-xs text-zinc-400 font-mono">
                             Updated{" "}
                             {new Date(data.generatedAt).toLocaleString(
                                 "en-US",
@@ -262,11 +262,11 @@ export default async function QualityPage() {
 
                 {!data.hasData && (
                     <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-10 text-center space-y-3">
-                        <Database className="w-8 h-8 text-zinc-600 mx-auto" />
+                        <Database className="w-8 h-8 text-zinc-400 mx-auto" />
                         <p className="text-zinc-400 font-medium">
                             No extraction data yet
                         </p>
-                        <p className="text-sm text-zinc-600">
+                        <p className="text-sm text-zinc-400">
                             Data will appear here once the pipeline has run.
                             Check back soon.
                         </p>
@@ -338,7 +338,7 @@ export default async function QualityPage() {
                     . Page cached for 1 hour. Admin drill-down at{" "}
                     <a
                         href="/admin/quality/runs"
-                        className="text-zinc-500 hover:text-zinc-400 underline"
+                        className="text-zinc-400 hover:text-zinc-400 underline"
                     >
                         /admin/quality/runs
                     </a>

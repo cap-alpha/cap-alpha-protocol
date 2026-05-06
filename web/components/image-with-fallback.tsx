@@ -17,7 +17,7 @@ export function ImageWithFallback({ src, alt, className = "", fallbackText }: Im
         return (
             <div className={`flex flex-col items-center justify-center bg-zinc-900 border border-zinc-800 ${className}`}>
                 <User className="w-12 h-12 text-zinc-700 mb-2" />
-                <span className="text-zinc-600 font-bold tracking-widest uppercase text-xs">
+                <span className="text-zinc-400 font-bold tracking-widest uppercase text-xs">
                     {fallbackText || "NO IMAGE"}
                 </span>
             </div>

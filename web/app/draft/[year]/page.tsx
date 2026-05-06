@@ -120,7 +120,7 @@ export default function DraftScoreboard() {
             <div>
               <Link
                 href="/"
-                className="text-xs font-mono text-zinc-500 hover:text-zinc-300 uppercase tracking-wider"
+                className="text-xs font-mono text-zinc-400 hover:text-zinc-300 uppercase tracking-wider"
               >
                 ← Pundit Ledger
               </Link>
@@ -128,11 +128,11 @@ export default function DraftScoreboard() {
                 {year} NFL Draft
                 <span className="ml-3 text-emerald-500">Scoreboard</span>
               </h1>
-              <p className="mt-1 text-sm text-zinc-500">
+              <p className="mt-1 text-sm text-zinc-400">
                 Tracking which pundits actually know what they&apos;re talking about
               </p>
             </div>
-            <div className="flex items-center gap-3 text-xs text-zinc-500">
+            <div className="flex items-center gap-3 text-xs text-zinc-400">
               <span className="flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 Auto-refreshes every 60s
@@ -156,25 +156,25 @@ export default function DraftScoreboard() {
                 <span className="font-mono text-xl font-bold text-zinc-100">
                   {data.total_predictions}
                 </span>
-                <span className="ml-1.5 text-zinc-500">predictions</span>
+                <span className="ml-1.5 text-zinc-400">predictions</span>
               </div>
               <div>
                 <span className="font-mono text-xl font-bold text-emerald-400">
                   {resolved.filter((p) => p.status === "CORRECT").length}
                 </span>
-                <span className="ml-1.5 text-zinc-500">correct</span>
+                <span className="ml-1.5 text-zinc-400">correct</span>
               </div>
               <div>
                 <span className="font-mono text-xl font-bold text-red-400">
                   {resolved.filter((p) => p.status === "INCORRECT").length}
                 </span>
-                <span className="ml-1.5 text-zinc-500">wrong</span>
+                <span className="ml-1.5 text-zinc-400">wrong</span>
               </div>
               <div>
                 <span className="font-mono text-xl font-bold text-zinc-400">
                   {pending.length}
                 </span>
-                <span className="ml-1.5 text-zinc-500">pending</span>
+                <span className="ml-1.5 text-zinc-400">pending</span>
               </div>
             </div>
           )}
@@ -187,7 +187,7 @@ export default function DraftScoreboard() {
             <p className="text-lg text-zinc-400">
               Scoreboard loading...
             </p>
-            <p className="mt-2 text-sm text-zinc-600">
+            <p className="mt-2 text-sm text-zinc-400">
               The prediction engine is warming up. Retrying automatically.
             </p>
           </div>
@@ -198,7 +198,7 @@ export default function DraftScoreboard() {
             <p className="text-lg text-zinc-400">
               No draft predictions captured yet
             </p>
-            <p className="mt-2 text-sm text-zinc-600">
+            <p className="mt-2 text-sm text-zinc-400">
               Check back soon — we&apos;re ingesting pundit predictions now.
             </p>
           </div>
@@ -218,13 +218,13 @@ export default function DraftScoreboard() {
                     <table className="w-full text-sm">
                       <thead className="border-b border-zinc-800 bg-zinc-900/50">
                         <tr>
-                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-500">
+                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-400">
                             Pundit
                           </th>
-                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-500">
+                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-400">
                             Prediction
                           </th>
-                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-500">
+                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-400">
                             Result
                           </th>
                         </tr>
@@ -241,7 +241,7 @@ export default function DraftScoreboard() {
                             <td className="px-4 py-3 text-zinc-300">
                               <div>{p.extracted_claim}</div>
                               {p.outcome_notes && (
-                                <div className="mt-1 text-xs text-zinc-500">
+                                <div className="mt-1 text-xs text-zinc-400">
                                   {p.outcome_notes}
                                 </div>
                               )}
@@ -260,20 +260,20 @@ export default function DraftScoreboard() {
               {/* Pending predictions */}
               {pending.length > 0 && (
                 <div>
-                  <h2 className="mb-3 font-mono text-xs uppercase tracking-wider text-zinc-500">
+                  <h2 className="mb-3 font-mono text-xs uppercase tracking-wider text-zinc-400">
                     Awaiting Results ({pending.length})
                   </h2>
                   <div className="overflow-x-auto rounded-lg border border-zinc-800">
                     <table className="w-full text-sm">
                       <thead className="border-b border-zinc-800 bg-zinc-900/50">
                         <tr>
-                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-500">
+                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-400">
                             Pundit
                           </th>
-                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-500">
+                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-400">
                             Prediction
                           </th>
-                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-500">
+                          <th className="px-4 py-3 text-left font-mono text-xs uppercase tracking-wider text-zinc-400">
                             Player
                           </th>
                         </tr>
@@ -328,7 +328,7 @@ export default function DraftScoreboard() {
                           <span className="text-red-400">{s.incorrect}❌</span>
                         )}
                         {s.pending > 0 && (
-                          <span className="text-zinc-500">{s.pending}⏳</span>
+                          <span className="text-zinc-400">{s.pending}⏳</span>
                         )}
                         {s.accuracy !== null && (
                           <span
@@ -348,7 +348,7 @@ export default function DraftScoreboard() {
                   ))}
                 </div>
                 {leaderboard.length === 0 && (
-                  <p className="text-center text-sm text-zinc-600">
+                  <p className="text-center text-sm text-zinc-400">
                     No pundits scored yet
                   </p>
                 )}

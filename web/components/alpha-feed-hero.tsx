@@ -154,7 +154,7 @@ export function AlphaFeedHero() {
                         SYS: ONLINE | T-0.1ms
                     </Badge>
                 </div>
-                <p className="text-sm font-mono text-zinc-500 max-w-4xl leading-relaxed">
+                <p className="text-sm font-mono text-zinc-400 max-w-4xl leading-relaxed">
                     MARKET INEFFICIENCY SENSORS ACTIVE. Synthesizing real-time telemetry against ledger constraints.
                 </p>
             </div>
@@ -183,7 +183,7 @@ export function AlphaFeedHero() {
                                                 {asset.name}
                                             </Link>
                                         </td>
-                                        <td className="p-3 text-zinc-500 hidden sm:table-cell">{asset.team}</td>
+                                        <td className="p-3 text-zinc-400 hidden sm:table-cell">{asset.team}</td>
                                         <td className="p-3">
                                             <div className="flex items-center gap-2">
                                                 <Icon className={`w-3 h-3 ${asset.color}`} />

@@ -42,7 +42,7 @@ export default async function BillingPage() {
                             </div>
                             <div className="flex items-baseline gap-0.5">
                                 <span className="text-2xl font-black text-white">$14.99</span>
-                                <span className="text-zinc-500 text-sm">/mo</span>
+                                <span className="text-zinc-400 text-sm">/mo</span>
                             </div>
                         </div>
                         <ul className="space-y-2 text-sm text-zinc-400">
@@ -57,7 +57,7 @@ export default async function BillingPage() {
                             </li>
                         </ul>
                         <UpgradeButton plan="pro" />
-                        <p className="text-xs text-zinc-600 text-center">
+                        <p className="text-xs text-zinc-400 text-center">
                             Need API access?{" "}
                             <Link href="/pricing" className="underline hover:text-zinc-400">
                                 View all plans

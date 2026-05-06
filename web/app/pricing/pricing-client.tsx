@@ -375,7 +375,7 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
                 </p>
                 <button
                     onClick={() => dispatch({ type: "RESET" })}
-                    className="text-xs text-zinc-500 hover:text-zinc-300 underline transition-colors"
+                    className="text-xs text-zinc-400 hover:text-zinc-300 underline transition-colors"
                 >
                     Start over
                 </button>
@@ -385,14 +385,14 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
 
     return (
         <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-5">
-            <p className="text-xs font-mono uppercase tracking-widest text-zinc-500">
+            <p className="text-xs font-mono uppercase tracking-widest text-zinc-400">
                 Help me choose
             </p>
 
             {/* Step 1 */}
             <div>
                 <p className="text-sm text-zinc-300 mb-3">
-                    <span className="text-zinc-500 mr-2">1 of {state.step === 3 ? "3" : "2+"}.</span>
+                    <span className="text-zinc-400 mr-2">1 of {state.step === 3 ? "3" : "2+"}.</span>
                     I am a…
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -420,7 +420,7 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
             {(state.step === 2 || state.step === 3) && (
                 <div>
                     <p className="text-sm text-zinc-300 mb-3">
-                        <span className="text-zinc-500 mr-2">2.</span>
+                        <span className="text-zinc-400 mr-2">2.</span>
                         I care most about…
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -448,7 +448,7 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
             {state.step === 3 && (
                 <div>
                     <p className="text-sm text-zinc-300 mb-3">
-                        <span className="text-zinc-500 mr-2">3.</span>
+                        <span className="text-zinc-400 mr-2">3.</span>
                         How many API calls per month?
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -509,10 +509,10 @@ function FeatureMatrix({ annual, recommendedTier }: FeatureMatrixProps) {
                                 >
                                     <div className="flex flex-col items-center gap-1">
                                         <span>{tier.name}</span>
-                                        <span className="text-xs font-mono font-normal text-zinc-500">
+                                        <span className="text-xs font-mono font-normal text-zinc-400">
                                             {formatPrice(tier.monthlyPrice, annual)}
                                             {tier.monthlyPrice > 0 && (
-                                                <span className="text-zinc-600">/mo</span>
+                                                <span className="text-zinc-400">/mo</span>
                                             )}
                                         </span>
                                         {isRecommended && (
@@ -594,7 +594,7 @@ export function PricingClient() {
             {/* ── Annual / Monthly toggle ── */}
             <div className="flex items-center justify-center gap-3">
                 <span
-                    className={`text-sm ${!annual ? "text-white font-medium" : "text-zinc-500"}`}
+                    className={`text-sm ${!annual ? "text-white font-medium" : "text-zinc-400"}`}
                 >
                     Monthly
                 </span>
@@ -613,7 +613,7 @@ export function PricingClient() {
                     />
                 </button>
                 <span
-                    className={`text-sm ${annual ? "text-white font-medium" : "text-zinc-500"}`}
+                    className={`text-sm ${annual ? "text-white font-medium" : "text-zinc-400"}`}
                 >
                     Annual{" "}
                     <span className="text-emerald-400 text-xs font-mono">(save 20%)</span>
@@ -641,7 +641,7 @@ export function PricingClient() {
                             <div>
                                 <div
                                     className={`text-xs font-mono uppercase tracking-widest mb-1 ${
-                                        tier.highlight ? "text-emerald-400" : "text-zinc-500"
+                                        tier.highlight ? "text-emerald-400" : "text-zinc-400"
                                     }`}
                                 >
                                     {tier.name}
@@ -656,11 +656,11 @@ export function PricingClient() {
                                         {formatPrice(tier.monthlyPrice, annual)}
                                     </span>
                                     {tier.monthlyPrice > 0 && (
-                                        <span className="text-zinc-500 text-sm">/mo</span>
+                                        <span className="text-zinc-400 text-sm">/mo</span>
                                     )}
                                 </div>
                                 {annual && tier.monthlyPrice > 0 && (
-                                    <p className="text-xs text-zinc-600 mt-0.5">
+                                    <p className="text-xs text-zinc-400 mt-0.5">
                                         billed ${Math.round(tier.monthlyPrice * ANNUAL_DISCOUNT * 12)}/yr
                                     </p>
                                 )}

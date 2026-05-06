@@ -60,7 +60,7 @@ export function PositionDistributionChart({ data, playerCapHit, position }: Posi
                                         <div className="bg-zinc-900 border border-zinc-800 p-2 rounded shadow-xl">
                                             <p className="font-bold text-white">{data.range}</p>
                                             <p className="text-emerald-400">{data.count} Players</p>
-                                            <p className="text-xs text-zinc-500 mt-1 truncate max-w-[200px]">
+                                            <p className="text-xs text-zinc-400 mt-1 truncate max-w-[200px]">
                                                 {data.players.slice(0, 3).join(', ')}{data.players.length > 3 ? '...' : ''}
                                             </p>
                                         </div>

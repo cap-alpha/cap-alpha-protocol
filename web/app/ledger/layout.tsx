@@ -17,7 +17,7 @@ export default function LedgerLayout({
         <>
             {children}
             <footer className="border-t border-zinc-900 px-6 py-8">
-                <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
+                <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
                     <Link
                         href="/"
                         className="font-black text-sm text-emerald-500 tracking-tight uppercase"

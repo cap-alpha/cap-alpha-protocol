@@ -99,7 +99,7 @@ const CATEGORY_COLORS: Record<string, string> = {
 };
 
 function AccuracyGrade({ rate }: { rate: number | null }) {
-    if (rate === null) return <span className="text-zinc-500 text-5xl font-black">—</span>;
+    if (rate === null) return <span className="text-zinc-400 text-5xl font-black">—</span>;
     const pct = Math.round(rate * 100);
     const grade =
         pct >= 75 ? { letter: "A", color: "text-emerald-400" } :
@@ -121,7 +121,7 @@ function AccuracyGrade({ rate }: { rate: number | null }) {
 
 function AccuracyBar({ rate, size = "md" }: { rate: number | null; size?: "sm" | "md" }) {
     if (rate === null)
-        return <span className="text-xs text-zinc-600 font-mono">—</span>;
+        return <span className="text-xs text-zinc-400 font-mono">—</span>;
     const pct = Math.round(rate * 100);
     const barColor =
         pct >= 60 ? "bg-emerald-500" : pct >= 45 ? "bg-yellow-500" : "bg-red-500";
@@ -185,13 +185,13 @@ function StatCard({
 }) {
     return (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 px-5 py-4">
-            <div className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-1">
+            <div className="text-xs font-mono uppercase tracking-widest text-zinc-400 mb-1">
                 {label}
             </div>
             <div className={cn("text-2xl font-black font-mono tabular-nums", accent ?? "text-white")}>
                 {value}
             </div>
-            {sub && <div className="text-xs text-zinc-600 font-mono mt-0.5">{sub}</div>}
+            {sub && <div className="text-xs text-zinc-400 font-mono mt-0.5">{sub}</div>}
         </div>
     );
 }
@@ -205,7 +205,7 @@ function CategorySection({ breakdown }: { breakdown: CategoryBreakdown[] }) {
 
     return (
         <div>
-            <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
+            <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-400 mb-3">
                 Breakdown by Category
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -216,7 +216,7 @@ function CategorySection({ breakdown }: { breakdown: CategoryBreakdown[] }) {
                     >
                         <div className="flex items-center justify-between mb-2">
                             <CategoryPill category={cat.claim_category} />
-                            <span className="text-xs font-mono text-zinc-500 tabular-nums">
+                            <span className="text-xs font-mono text-zinc-400 tabular-nums">
                                 {cat.total} picks
                             </span>
                         </div>
@@ -226,7 +226,7 @@ function CategorySection({ breakdown }: { breakdown: CategoryBreakdown[] }) {
                                 <span className="text-emerald-400 tabular-nums">
                                     ✓{cat.correct}
                                 </span>
-                                <span className="text-zinc-600">
+                                <span className="text-zinc-400">
                                     /{cat.resolved}
                                 </span>
                             </div>
@@ -285,20 +285,20 @@ function PredictionCard({ p }: { p: Prediction }) {
                 <div className="flex items-center gap-3 mt-2 flex-wrap">
                     <CategoryPill category={p.claim_category} />
                     {p.season_year && (
-                        <span className="text-[10px] font-mono text-zinc-600">
+                        <span className="text-[10px] font-mono text-zinc-400">
                             {p.season_year}
                         </span>
                     )}
                     {p.target_team && (
-                        <span className="text-[10px] font-mono text-zinc-600">
+                        <span className="text-[10px] font-mono text-zinc-400">
                             {p.target_team}
                         </span>
                     )}
                     {date && (
-                        <span className="text-[10px] font-mono text-zinc-600">{date}</span>
+                        <span className="text-[10px] font-mono text-zinc-400">{date}</span>
                     )}
                     {resolvedDate && p.resolution_status !== "PENDING" && (
-                        <span className="text-[10px] font-mono text-zinc-500">
+                        <span className="text-[10px] font-mono text-zinc-400">
                             resolved {resolvedDate}
                         </span>
                     )}
@@ -307,7 +307,7 @@ function PredictionCard({ p }: { p: Prediction }) {
                             href={p.source_url}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[10px] font-mono text-zinc-600 hover:text-zinc-400 inline-flex items-center gap-0.5"
+                            className="text-[10px] font-mono text-zinc-400 hover:text-zinc-400 inline-flex items-center gap-0.5"
                         >
                             source <ExternalLink className="w-2.5 h-2.5" />
                         </a>
@@ -380,8 +380,8 @@ export default function PunditAccountabilityPage() {
     if (loading) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                <Activity className="w-4 h-4 animate-pulse mr-2 text-zinc-600" />
-                <span className="font-mono text-sm text-zinc-600">Loading pundit card…</span>
+                <Activity className="w-4 h-4 animate-pulse mr-2 text-zinc-400" />
+                <span className="font-mono text-sm text-zinc-400">Loading pundit card…</span>
             </div>
         );
     }
@@ -394,7 +394,7 @@ export default function PunditAccountabilityPage() {
                 </p>
                 <Link
                     href="/ledger"
-                    className="text-xs font-mono text-zinc-500 hover:text-zinc-300 inline-flex items-center gap-1"
+                    className="text-xs font-mono text-zinc-400 hover:text-zinc-300 inline-flex items-center gap-1"
                 >
                     <ArrowLeft className="w-3 h-3" /> Back to Ledger
                 </Link>
@@ -423,7 +423,7 @@ export default function PunditAccountabilityPage() {
                     {/* Back link */}
                     <Link
                         href="/ledger"
-                        className="inline-flex items-center gap-1.5 text-xs font-mono text-zinc-500 hover:text-zinc-300 mb-6 transition-colors"
+                        className="inline-flex items-center gap-1.5 text-xs font-mono text-zinc-400 hover:text-zinc-300 mb-6 transition-colors"
                     >
                         <ArrowLeft className="w-3 h-3" /> Pundit Ledger
                     </Link>
@@ -440,7 +440,7 @@ export default function PunditAccountabilityPage() {
                             <h1 className="text-4xl font-black tracking-tight text-white leading-none">
                                 {pundit.pundit_name}
                             </h1>
-                            <p className="mt-1 text-sm text-zinc-500 font-mono">
+                            <p className="mt-1 text-sm text-zinc-400 font-mono">
                                 {pundit.sport} · {pundit.pundit_id}
                             </p>
                         </div>
@@ -449,7 +449,7 @@ export default function PunditAccountabilityPage() {
                         <div className="shrink-0">
                             <AccuracyGrade rate={pundit.accuracy_rate} />
                             {pundit.resolved_count > 0 && (
-                                <p className="text-xs text-zinc-600 font-mono mt-1">
+                                <p className="text-xs text-zinc-400 font-mono mt-1">
                                     {pundit.resolved_count} resolved predictions
                                 </p>
                             )}
@@ -522,8 +522,8 @@ export default function PunditAccountabilityPage() {
                 <div>
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                         <div className="flex items-center gap-2">
-                            <Activity className="w-3.5 h-3.5 text-zinc-500" />
-                            <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-500">
+                            <Activity className="w-3.5 h-3.5 text-zinc-400" />
+                            <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-400">
                                 Prediction History
                                 {preds ? ` (${preds.total})` : ""}
                             </h2>
@@ -542,7 +542,7 @@ export default function PunditAccountabilityPage() {
                                         "px-2.5 py-1 rounded text-[10px] font-mono font-semibold uppercase tracking-wide transition-colors border",
                                         statusFilter === s
                                             ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
-                                            : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                                            : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-300 hover:border-zinc-700"
                                     )}
                                 >
                                     {s}
@@ -562,7 +562,7 @@ export default function PunditAccountabilityPage() {
                         />
                         <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                             {debouncedQuery.trim() && preds && (
-                                <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
+                                <span className="text-[10px] font-mono text-zinc-400 tabular-nums">
                                     {preds.predictions.filter((p) => {
                                         const q = debouncedQuery.toLowerCase();
                                         return (
@@ -583,7 +583,7 @@ export default function PunditAccountabilityPage() {
                             {searchQuery && (
                                 <button
                                     onClick={() => setSearchQuery("")}
-                                    className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                                    className="text-zinc-400 hover:text-zinc-300 transition-colors"
                                     aria-label="Clear search"
                                 >
                                     <X className="w-3.5 h-3.5" />
@@ -593,7 +593,7 @@ export default function PunditAccountabilityPage() {
                     </div>
 
                     {predsLoading ? (
-                        <div className="flex items-center justify-center h-24 text-zinc-600">
+                        <div className="flex items-center justify-center h-24 text-zinc-400">
                             <Activity className="w-3.5 h-3.5 animate-pulse mr-2" />
                             <span className="font-mono text-sm">Loading…</span>
                         </div>
@@ -625,7 +625,7 @@ export default function PunditAccountabilityPage() {
                                     >
                                         ← Prev
                                     </button>
-                                    <span className="text-xs font-mono text-zinc-500 tabular-nums">
+                                    <span className="text-xs font-mono text-zinc-400 tabular-nums">
                                         {page} / {preds.pages}
                                     </span>
                                     <button
@@ -639,7 +639,7 @@ export default function PunditAccountabilityPage() {
                             )}
                         </>
                     ) : (
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center text-zinc-500 text-sm font-mono">
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center text-zinc-400 text-sm font-mono">
                             No predictions found
                             {statusFilter !== "ALL" ? ` with status ${statusFilter}` : ""}.
                         </div>

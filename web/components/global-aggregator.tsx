@@ -59,13 +59,13 @@ export function GlobalAggregator() {
                         <div className="space-y-0">
                             {THE_TAPE.map((news) => (
                                 <div key={news.id} className="flex gap-6 py-6 border-b border-zinc-900 hover:bg-zinc-900/20 transition-colors">
-                                    <div className="w-12 pt-1 font-mono text-[10px] text-zinc-500 uppercase tracking-widest">
+                                    <div className="w-12 pt-1 font-mono text-[10px] text-zinc-400 uppercase tracking-widest">
                                         {news.time}
                                     </div>
                                     <div className="flex-1">
                                         <div className="flex items-center gap-3 mb-2">
                                             <span className="font-mono text-zinc-300 text-sm font-bold">{news.source}</span>
-                                            <span className={`text-[10px] font-mono tracking-widest px-2 py-0.5 border ${news.impact === 'HIGH' ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-500'}`}>
+                                            <span className={`text-[10px] font-mono tracking-widest px-2 py-0.5 border ${news.impact === 'HIGH' ? 'border-zinc-500 text-zinc-300' : 'border-zinc-800 text-zinc-400'}`}>
                                                 {news.type}
                                             </span>
                                         </div>
@@ -109,24 +109,24 @@ export function GlobalAggregator() {
                                         <Activity className="w-4 h-4 text-zinc-400" />
                                         THE PUNDIT INDEX (VERIFIABLE CONSENSUS)
                                     </h4>
-                                    <span className="text-zinc-600 text-[10px] tracking-widest uppercase font-mono bg-zinc-900 px-2 py-1">
+                                    <span className="text-zinc-400 text-[10px] tracking-widest uppercase font-mono bg-zinc-900 px-2 py-1">
                                         Preview
                                     </span>
                                 </div>
                                 <div className="space-y-6">
                                     <div className="flex flex-col gap-2">
                                         <div className="flex justify-between items-end border-b border-zinc-900 pb-2">
-                                            <span className="text-[10px] font-mono text-zinc-500 tracking-widest">MEDIA CONSENSUS</span>
+                                            <span className="text-[10px] font-mono text-zinc-400 tracking-widest">MEDIA CONSENSUS</span>
                                             <span className="text-[10px] font-mono text-zinc-400">84% CONVICTION</span>
                                         </div>
                                         <p className="text-sm text-zinc-400 font-light flex items-start gap-3">
-                                            <XCircle className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
+                                            <XCircle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
                                             &quot;This extension guarantees WR1 production through 2029.&quot;
                                         </p>
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <div className="flex justify-between items-end border-b border-zinc-900 pb-2">
-                                            <span className="text-[10px] font-mono text-zinc-500 tracking-widest">EMPIRICAL REALITY (MODEL)</span>
+                                            <span className="text-[10px] font-mono text-zinc-400 tracking-widest">EMPIRICAL REALITY (MODEL)</span>
                                             <span className="text-[10px] font-mono text-emerald-500">SELL PREDICTION</span>
                                         </div>
                                         <p className="text-sm text-zinc-100 font-light flex items-start gap-3">

@@ -18,7 +18,7 @@ export function VisualTimeline({ timeline }: VisualTimelineProps) {
 
     return (
         <div className="flex flex-col w-full font-sans">
-            <h3 className="text-[10px] font-bold tracking-widest text-zinc-500 uppercase mb-3 border-b border-zinc-800 pb-1">
+            <h3 className="text-[10px] font-bold tracking-widest text-zinc-400 uppercase mb-3 border-b border-zinc-800 pb-1">
                 Chronological Asset Events
             </h3>
             <ScrollArea className="h-[600px] w-full pr-4">
@@ -30,7 +30,7 @@ export function VisualTimeline({ timeline }: VisualTimelineProps) {
                             <div key={idx} className="relative pl-6">
                                 <div className="absolute top-1 left-[-4.5px] w-2 h-2 rounded-full bg-zinc-600 ring-4 ring-zinc-950" />
                                 <div className="flex flex-col gap-0.5 mt-[-2px]">
-                                    <span className="text-xs font-mono text-zinc-500">
+                                    <span className="text-xs font-mono text-zinc-400">
                                         {event.event_date ?? event.event_year}
                                     </span>
                                     <span className="text-sm font-medium text-zinc-200">
@@ -43,7 +43,7 @@ export function VisualTimeline({ timeline }: VisualTimelineProps) {
                                         <Icon className="w-3 h-3" /> {meta.label}
                                         {event.source_url && (
                                             <a href={event.source_url} target="_blank" rel="noopener noreferrer"
-                                               className="ml-2 text-zinc-500 hover:text-zinc-300 normal-case tracking-normal">
+                                               className="ml-2 text-zinc-400 hover:text-zinc-300 normal-case tracking-normal">
                                                 source →
                                             </a>
                                         )}

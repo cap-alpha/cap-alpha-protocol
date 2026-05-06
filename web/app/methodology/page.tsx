@@ -84,7 +84,7 @@ function AxisCard({
                             <span className="font-semibold text-zinc-200">
                                 {level.name}
                             </span>
-                            <span className="text-zinc-500"> — </span>
+                            <span className="text-zinc-400"> — </span>
                             <span className="text-zinc-400">{level.desc}</span>
                         </div>
                     </div>
@@ -126,7 +126,7 @@ function DimensionCard({
             <p className="text-sm text-zinc-400 leading-relaxed">
                 {description}
             </p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-zinc-400">
                 <span className="font-semibold text-zinc-400">Detects:</span>{" "}
                 {detects}
             </p>
@@ -343,10 +343,10 @@ export default function MethodologyPage() {
                     {/* Free Tier */}
                     <div className="mb-8">
                         <div className="flex items-center gap-3 mb-6">
-                            <span className="text-sm font-mono uppercase tracking-widest text-zinc-500">
+                            <span className="text-sm font-mono uppercase tracking-widest text-zinc-400">
                                 Free Tier
                             </span>
-                            <span className="text-xs text-zinc-600">
+                            <span className="text-xs text-zinc-400">
                                 — The Triangle
                             </span>
                         </div>
@@ -384,7 +384,7 @@ export default function MethodologyPage() {
                             <span className="text-sm font-mono uppercase tracking-widest text-emerald-400">
                                 Pro Tier
                             </span>
-                            <span className="text-xs text-zinc-600">
+                            <span className="text-xs text-zinc-400">
                                 — The Full Profile
                             </span>
                         </div>
@@ -638,7 +638,7 @@ export default function MethodologyPage() {
                                 remains visible with an updated resolution.
                             </p>
                         </div>
-                        <p className="text-sm text-zinc-500">
+                        <p className="text-sm text-zinc-400">
                             Questions about methodology?{" "}
                             <a
                                 href="mailto:support@cap-alpha.co"
@@ -672,7 +672,7 @@ export default function MethodologyPage() {
 
             {/* Footer */}
             <footer className="border-t border-zinc-900 px-6 py-8 mt-auto">
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
+                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
                     <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
                         Pundit Ledger
                     </span>

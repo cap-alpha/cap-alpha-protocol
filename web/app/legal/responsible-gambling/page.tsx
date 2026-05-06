@@ -59,7 +59,7 @@ export default function ResponsibleGamblingPage() {
             <div className="max-w-3xl mx-auto">
                 <Link
                     href="/"
-                    className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
+                    className="inline-flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     Back to Cap Alpha
@@ -69,7 +69,7 @@ export default function ResponsibleGamblingPage() {
                     <Heart className="w-7 h-7 text-amber-400 shrink-0" />
                     <h1 className="text-3xl font-extrabold tracking-tight">Responsible Gambling</h1>
                 </div>
-                <p className="text-sm text-zinc-500 mb-10">Last Updated: April 29, 2026</p>
+                <p className="text-sm text-zinc-400 mb-10">Last Updated: April 29, 2026</p>
 
                 {/* Emergency helpline — prominent placement */}
                 <div className="bg-amber-950/50 border border-amber-700/50 rounded-xl p-6 mb-10">
@@ -143,14 +143,14 @@ export default function ResponsibleGamblingPage() {
                                                 {resource.number}
                                             </a>
                                         )}
-                                        <p className="text-zinc-500 text-xs mt-1">{resource.description}</p>
+                                        <p className="text-zinc-400 text-xs mt-1">{resource.description}</p>
                                     </div>
                                     {resource.url && (
                                         <a
                                             href={resource.url}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="shrink-0 text-zinc-500 hover:text-zinc-300 transition-colors"
+                                            className="shrink-0 text-zinc-400 hover:text-zinc-300 transition-colors"
                                             aria-label={`Visit ${resource.name} website`}
                                         >
                                             <ExternalLink className="w-4 h-4" />
@@ -184,7 +184,7 @@ export default function ResponsibleGamblingPage() {
                     </p>
                 </section>
 
-                <div className="flex flex-wrap gap-3 text-xs text-zinc-600">
+                <div className="flex flex-wrap gap-3 text-xs text-zinc-400">
                     <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms of Service</Link>
                     <span>·</span>
                     <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy Policy</Link>

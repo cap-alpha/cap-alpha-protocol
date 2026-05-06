@@ -26,7 +26,7 @@ export default async function GMDashboard() {
                 <div className="flex items-center gap-2">
                     <ShieldCheck className="w-5 h-5 text-emerald-500" />
                     <h2 className="text-sm font-mono tracking-widest text-white uppercase flex items-center gap-2">
-                        Execution Desk <span className="text-zinc-600">/</span> <span className="text-emerald-500 font-bold">GM</span>
+                        Execution Desk <span className="text-zinc-400">/</span> <span className="text-emerald-500 font-bold">GM</span>
                     </h2>
                 </div>
                 <PersonaSwitcher />

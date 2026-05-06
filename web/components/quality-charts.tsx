@@ -30,7 +30,7 @@ export function TestabilityTrendChart({
 
     return (
         <div className="space-y-2">
-            <p className="text-xs text-zinc-500 leading-relaxed">
+            <p className="text-xs text-zinc-400 leading-relaxed">
                 Daily mean testability score (grey) with 7-day moving average
                 (green). Higher is better — scores above 65 indicate claims are
                 specific enough to verify.
@@ -94,7 +94,7 @@ export function ClaimPromotionChart({ data }: { data: DailyTrendRow[] }) {
 
     return (
         <div className="space-y-2">
-            <p className="text-xs text-zinc-500 leading-relaxed">
+            <p className="text-xs text-zinc-400 leading-relaxed">
                 Percentage of extracted utterances that passed the testability
                 threshold and were promoted to the prediction ledger. A rising
                 trend means the extraction quality is improving.
@@ -157,7 +157,7 @@ export function ResolutionAccuracyChart({
 
     return (
         <div className="space-y-2">
-            <p className="text-xs text-zinc-500 leading-relaxed">
+            <p className="text-xs text-zinc-400 leading-relaxed">
                 Accuracy rate for pundits with at least one resolved prediction.
                 Green bars = above 50% accuracy. This reflects real signal
                 quality, not volume.
@@ -213,7 +213,7 @@ export function PunditStatsTable({ data }: { data: PunditStatRow[] }) {
         <div className="overflow-x-auto">
             <table className="w-full text-xs text-left">
                 <thead>
-                    <tr className="border-b border-zinc-800 text-zinc-500 font-mono uppercase tracking-wider">
+                    <tr className="border-b border-zinc-800 text-zinc-400 font-mono uppercase tracking-wider">
                         <th className="pb-2 pr-4">Pundit</th>
                         <th className="pb-2 pr-4 text-right">Utterances</th>
                         <th className="pb-2 pr-4 text-right">Claims</th>

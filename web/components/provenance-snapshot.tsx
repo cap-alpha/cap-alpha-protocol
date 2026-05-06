@@ -42,8 +42,8 @@ export function ProvenanceSnapshot({
               <div className="flex items-center gap-1.5 text-zinc-400">
                 <FileText className="w-3.5 h-3.5" />
                 <span className="text-[10px] font-mono uppercase tracking-wider">{source}</span>
-                <span className="text-zinc-600 px-1">•</span>
-                <span className="text-[10px] font-mono uppercase text-zinc-500">{snapshotType}</span>
+                <span className="text-zinc-400 px-1">•</span>
+                <span className="text-[10px] font-mono uppercase text-zinc-400">{snapshotType}</span>
               </div>
             </div>
             <div className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
@@ -64,13 +64,13 @@ export function ProvenanceSnapshot({
 
         {/* Cryptographic Footer */}
         <div className="mt-4 pt-3 border-t border-zinc-800/50 flex flex-col gap-1.5">
-           <div className="flex items-center gap-1.5 text-zinc-500">
+           <div className="flex items-center gap-1.5 text-zinc-400">
              <Clock className="w-3 h-3" />
              <span className="text-[9px] font-mono">CAPTURED: {new Date(timestamp).toUTCString()}</span>
            </div>
            
            <div className="flex items-center justify-between">
-             <div className="flex items-center gap-1.5 text-zinc-600 font-mono flex-1 overflow-hidden">
+             <div className="flex items-center gap-1.5 text-zinc-400 font-mono flex-1 overflow-hidden">
                <Hash className="w-3 h-3 shrink-0" />
                <span className="text-[9px] tracking-wider truncate" title={displayHash}>
                   PROVENANCE: {displayHash}

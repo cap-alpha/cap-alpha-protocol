@@ -172,9 +172,9 @@ export function PunditSearchBar({
         <div ref={containerRef} className={cn("relative", className)}>
             {/* Input */}
             <div className="relative flex items-center">
-                <Search className="absolute left-3 h-4 w-4 text-zinc-500 pointer-events-none" />
+                <Search className="absolute left-3 h-4 w-4 text-zinc-400 pointer-events-none" />
                 {loading && (
-                    <Loader2 className="absolute right-3 h-4 w-4 text-zinc-500 animate-spin pointer-events-none" />
+                    <Loader2 className="absolute right-3 h-4 w-4 text-zinc-400 animate-spin pointer-events-none" />
                 )}
                 <input
                     ref={inputRef}
@@ -195,7 +195,7 @@ export function PunditSearchBar({
                     onKeyDown={handleKeyDown}
                     className={cn(
                         "w-full rounded-lg border border-zinc-800 bg-zinc-950 pl-9 pr-9 py-2 text-sm text-white",
-                        "placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50",
+                        "placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50",
                         "transition-colors"
                     )}
                 />
@@ -242,7 +242,7 @@ export function PunditSearchBar({
                                     >
                                         {pundit.name}
                                     </div>
-                                    <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
+                                    <div className="text-[10px] font-mono text-zinc-400 mt-0.5">
                                         {pundit.domain}
                                     </div>
                                 </div>
@@ -259,7 +259,7 @@ export function PunditSearchBar({
                                     >
                                         {pundit.predictionCount > 0 ? `${accuracyPct}%` : "—"}
                                     </div>
-                                    <div className="text-[10px] font-mono text-zinc-600">
+                                    <div className="text-[10px] font-mono text-zinc-400">
                                         {pundit.predictionCount} picks
                                     </div>
                                 </div>
@@ -270,7 +270,7 @@ export function PunditSearchBar({
                         <li
                             role="option"
                             aria-selected={false}
-                            className="px-4 py-4 text-sm text-zinc-500 text-center"
+                            className="px-4 py-4 text-sm text-zinc-400 text-center"
                         >
                             No pundits found for &ldquo;{query}&rdquo;
                         </li>

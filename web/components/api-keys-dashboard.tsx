@@ -512,7 +512,7 @@ export function ApiKeysDashboard() {
                                 </Table>
                             ) : keys.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                                    <Shield className="h-12 w-12 text-zinc-600 mb-4" />
+                                    <Shield className="h-12 w-12 text-zinc-400 mb-4" />
                                     <p className="text-lg font-medium text-zinc-400">
                                         No API keys yet
                                     </p>
@@ -596,7 +596,7 @@ export function ApiKeysDashboard() {
                                                             key.status ===
                                                             "active"
                                                                 ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                                                                : "bg-zinc-700/50 text-zinc-500"
+                                                                : "bg-zinc-700/50 text-zinc-400"
                                                         }
                                                     >
                                                         {key.status}
@@ -685,7 +685,7 @@ export function ApiKeysDashboard() {
                                                             </Tooltip>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-xs text-zinc-600">
+                                                        <span className="text-xs text-zinc-400">
                                                             Revoked
                                                         </span>
                                                     )}
@@ -741,7 +741,7 @@ export function ApiKeysDashboard() {
                                         className={`text-xs font-medium ${
                                             newKeyMode === "test"
                                                 ? "text-amber-400"
-                                                : "text-zinc-500"
+                                                : "text-zinc-400"
                                         }`}
                                     >
                                         Test
@@ -763,7 +763,7 @@ export function ApiKeysDashboard() {
                                         className={`text-xs font-medium ${
                                             newKeyMode === "live"
                                                 ? "text-emerald-400"
-                                                : "text-zinc-500"
+                                                : "text-zinc-400"
                                         }`}
                                     >
                                         Live

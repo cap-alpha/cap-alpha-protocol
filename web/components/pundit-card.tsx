@@ -158,9 +158,9 @@ export function PunditCard({
             {/* Correct / total count */}
             <div className="text-xs font-mono text-zinc-400">
                 <span className="text-emerald-400 font-semibold">{correctCount}</span>
-                <span className="text-zinc-600"> correct / </span>
+                <span className="text-zinc-400"> correct / </span>
                 <span className="font-semibold text-zinc-300">{totalCount}</span>
-                <span className="text-zinc-600"> total</span>
+                <span className="text-zinc-400"> total</span>
             </div>
 
             {/* Featured prediction */}
@@ -171,7 +171,7 @@ export function PunditCard({
                     </p>
                     <div className="flex items-center justify-between gap-2">
                         <OutcomeStamp outcome={featuredPrediction.outcome} />
-                        <span className="text-[10px] font-mono text-zinc-600">
+                        <span className="text-[10px] font-mono text-zinc-400">
                             {featuredPrediction.resolvedAt}
                         </span>
                     </div>
@@ -181,7 +181,7 @@ export function PunditCard({
             {/* View full record link */}
             <Link
                 href={`/ledger/${encodeURIComponent(punditId)}`}
-                className="inline-flex items-center gap-1 text-xs font-mono text-zinc-500 hover:text-emerald-400 transition-colors mt-auto pt-1"
+                className="inline-flex items-center gap-1 text-xs font-mono text-zinc-400 hover:text-emerald-400 transition-colors mt-auto pt-1"
             >
                 View full record <ArrowRight className="w-3 h-3" />
             </Link>

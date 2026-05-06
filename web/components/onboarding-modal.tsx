@@ -83,7 +83,7 @@ export default function OnboardingModal() {
                 )}
 
                 <div className="flex justify-center pt-2">
-                    <p className="text-xs text-zinc-600 uppercase tracking-widest">
+                    <p className="text-xs text-zinc-400 uppercase tracking-widest">
                         Cap Alpha • v2.0
                     </p>
                 </div>
@@ -141,7 +141,7 @@ function TeamButton({
             <span
                 className={cn(
                     "text-xs font-medium text-center truncate w-full",
-                    isActive ? "text-emerald-400" : "text-zinc-500 group-hover:text-zinc-300"
+                    isActive ? "text-emerald-400" : "text-zinc-400 group-hover:text-zinc-300"
                 )}
             >
                 {team}

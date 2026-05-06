@@ -49,20 +49,20 @@ export function VerifiableAudit({ entries }: AuditProps) {
                 {entries && entries.length > 0 ? entries.map((entry, idx) => (
                     <div key={idx} className="border-l-2 border-emerald-500/30 pl-3">
                         <div className="flex flex-col gap-1 mb-2">
-                            <span className="text-zinc-500">Append Timestamp:</span>
+                            <span className="text-zinc-400">Append Timestamp:</span>
                             <span className="text-emerald-400 break-all">{entry.timestamp}</span>
                         </div>
                         <div className="flex flex-col gap-1 mb-2">
-                            <span className="text-zinc-500">Prediction Payload:</span>
+                            <span className="text-zinc-400">Prediction Payload:</span>
                             <span className="bg-zinc-900 p-2 rounded break-all">{entry.predictionPayload}</span>
                         </div>
                         <div className="flex flex-col gap-1">
-                            <span className="text-zinc-500">Recorded SHA-256 Hash:</span>
+                            <span className="text-zinc-400">Recorded SHA-256 Hash:</span>
                             <span className="text-amber-500 break-all">{entry.recordedHash}</span>
                         </div>
                     </div>
                 )) : (
-                    <div className="text-zinc-500 italic">No ledger entries found for this asset.</div>
+                    <div className="text-zinc-400 italic">No ledger entries found for this asset.</div>
                 )}
             </div>
 

@@ -491,7 +491,14 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
   const cachedFn = unstable_cache(
-    async () => fetchIntelligenceFeed(playerName),
+    async () => {
+      try {
+        return await fetchIntelligenceFeed(playerName);
+      } catch (error) {
+        console.error('[getIntelligenceFeed] BQ error, returning empty feed:', error);
+        return [];
+      }
+    },
     [`intelligence-feed-v5-${playerName}`],
     { revalidate: 3600 }
   );

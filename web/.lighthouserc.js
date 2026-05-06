@@ -11,6 +11,9 @@ module.exports = {
         // ── Category-level thresholds (enforced) ──────────────────────────────
         'categories:performance': ['warn', {minScore: 0.9}],
         'categories:accessibility': ['error', {minScore: 0.9}],
+        // Best-practices score is dragged down by CI-environment artifacts
+        // (Clerk loads with a placeholder key → console errors + inspector issues).
+        // Tracked for real fixes in issue #503. Downgraded to warn until resolved.
         'categories:best-practices': ['warn', {minScore: 0.9}],
         'categories:seo': ['warn', {minScore: 0.9}],
         // ── Core Web Vitals ───────────────────────────────────────────────────

@@ -1,0 +1,22 @@
+# NFL-specific claim categories used in extraction prompts.
+# Matches the enum enforced by Gemini schema and BigQuery column.
+categories:
+  - player_performance
+  - game_outcome
+  - trade
+  - draft_pick
+  - injury
+  - contract
+  - award_prediction
+  - fa_signing
+
+# Vocabulary hints to improve extraction quality for this domain.
+entity_types:
+  - player: "full name, e.g. 'Patrick Mahomes'"
+  - team: "abbreviation, e.g. 'KC', 'CHI', 'PHI'"
+  - draft_class: "year of the draft, e.g. 2026"
+
+notes:
+  draft_pick: |
+    For draft_pick category: season_year MUST be populated with the draft year
+    (infer if not explicitly stated). draft_year must also be set to that year.

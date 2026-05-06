@@ -5,14 +5,32 @@
 # Two agents racing to claim the same resource cannot both win.
 #
 # Usage:
-#   .agent/claim.sh claim   <resource> <agent-id>   # claim; exits 1 if held
-#   .agent/claim.sh release <resource> <agent-id>   # release your lock
-#   .agent/claim.sh check   <resource>              # print owner or "free"
-#   .agent/claim.sh status                          # list all active locks
-#   .agent/claim.sh cleanup                         # remove locks older than STALE_MINUTES
+#   .agent/claim.sh claim       <resource> <agent-id>   # claim; exits 1 if held
+#   .agent/claim.sh release     <resource> <agent-id>   # release your lock
+#   .agent/claim.sh check       <resource>              # print owner or "free"
+#   .agent/claim.sh status                              # list all active locks
+#   .agent/claim.sh cleanup                             # remove locks older than STALE_MINUTES
+#   .agent/claim.sh orchestrate <resource> <agent-id>   # claim from main checkout (orchestrator use only)
+#   .agent/claim.sh plan        <issue1> [issue2...]    # pre-flight: list namespace collisions before dispatch
 #
 # Resources use a namespace prefix:
-#   issue:<n>   pr:<n>   file:<path>   branch:<name>
+#   issue:<n>       — a GitHub issue
+#   pr:<n>          — a pull request
+#   file:<path>     — a specific source file
+#   branch:<name>   — a git branch
+#   namespace:<dir> — a directory or glob pattern (orchestrator-level, prevents API surface collisions)
+#                     e.g.  namespace:pipeline/src/domain_*
+#                           namespace:pipeline/config/domains/
+#
+# Parallel dispatch protocol (orchestrator):
+#   Before fanning out N agents on issues from the same design cluster, claim
+#   all new-file namespaces with `orchestrate` so no two agents independently
+#   create the same module. Release after all PRs land.
+#
+#   Example:
+#     .agent/claim.sh orchestrate namespace:pipeline/src/domain_* orchestrator-session-abc
+#     # launch agents — include "OWNS: pipeline/src/domain_plugin.py" in each prompt
+#     .agent/claim.sh release namespace:pipeline/src/domain_* orchestrator-session-abc
 #
 # Environment overrides:
 #   STALE_MINUTES   — minutes before a lock is considered stale (default: 60)
@@ -24,7 +42,9 @@ set -euo pipefail
 # claim/release in the main checkout is almost always a mistake — the lock
 # system exists precisely because agents share the main repo, but actual
 # work should happen in worktrees. Refuse unless explicitly overridden.
-if [ "${1:-}" != "status" ] && [ "${1:-}" != "check" ] && [ "${ALLOW_MAIN_CHECKOUT:-0}" != "1" ]; then
+# The `orchestrate` command is exempt: the parent agent legitimately runs from
+# main and needs to claim namespaces before dispatching subagents.
+if [ "${1:-}" != "status" ] && [ "${1:-}" != "check" ] && [ "${1:-}" != "orchestrate" ] && [ "${1:-}" != "plan" ] && [ "${ALLOW_MAIN_CHECKOUT:-0}" != "1" ]; then
     git_dir="$(git rev-parse --git-dir 2>/dev/null || true)"
     git_common_dir="$(git rev-parse --git-common-dir 2>/dev/null || true)"
     if [ -n "$git_dir" ] && [ "$git_dir" = "$git_common_dir" ]; then
@@ -281,16 +301,60 @@ cmd_cleanup() {
     echo "Done. Removed ${removed} stale lock(s)."
 }
 
+# ── orchestrate ───────────────────────────────────────────────────────────────
+# Like cmd_claim but callable from the main checkout by the parent orchestrator.
+# Intended for namespace: resources only — e.g. namespace:pipeline/src/domain_*
+# This bypasses the worktree guard because the orchestrator (parent Claude) runs
+# in the main checkout and needs to reserve namespaces before dispatching agents.
+cmd_orchestrate() {
+    local resource="${1:?resource required}" agent="${2:?agent-id required}"
+    # Enforce namespace: prefix — other resource types must still use worktrees.
+    case "$resource" in
+        namespace:*) ;;
+        *) echo "✗ orchestrate only accepts namespace: resources (got: ${resource})" >&2; return 1 ;;
+    esac
+    cmd_claim "$resource" "$agent"
+}
+
+# ── plan ──────────────────────────────────────────────────────────────────────
+# Pre-flight check: given a list of issues, check all active namespace: locks
+# and warn about potential collisions. Does not modify state.
+# Usage: .agent/claim.sh plan issue:684 issue:685 issue:686 ...
+cmd_plan() {
+    echo "=== Parallel dispatch pre-flight ==="
+    echo "Checking for active namespace locks that might conflict..."
+    echo ""
+    local found=0
+    for lock_dir in "${LOCKS_DIR}"/namespace_*/; do
+        [ -d "$lock_dir" ] || continue
+        [ -f "${lock_dir}/owner" ] || continue
+        found=1
+        local lock_agent resource
+        lock_agent=$(grep '^AGENT=' "${lock_dir}/owner" | cut -d= -f2)
+        resource=$(grep '^RESOURCE=' "${lock_dir}/owner" | cut -d= -f2)
+        echo "  CLAIMED: ${resource} → ${lock_agent}"
+    done
+    [ "$found" -eq 0 ] && echo "  (no active namespace locks — safe to dispatch)"
+    echo ""
+    echo "Issues to dispatch: $*"
+    echo ""
+    echo "Before dispatching, claim each namespace your agents will write to:"
+    echo "  .agent/claim.sh orchestrate namespace:<dir> orchestrator-<session>"
+    echo "Then include 'OWNS: <file>' in each agent prompt to prevent collisions."
+}
+
 # ── dispatch ──────────────────────────────────────────────────────────────────
 case "${1:-status}" in
-    claim)   cmd_claim   "${2:-}" "${3:-}" ;;
-    release) cmd_release "${2:-}" "${3:-}" ;;
-    check)   cmd_check   "${2:-}" ;;
-    status)  cmd_status ;;
-    cleanup) cmd_cleanup ;;
-    rotate)  rotate_log && echo "Log rotation check complete." ;;
+    claim)       cmd_claim      "${2:-}" "${3:-}" ;;
+    release)     cmd_release    "${2:-}" "${3:-}" ;;
+    check)       cmd_check      "${2:-}" ;;
+    status)      cmd_status ;;
+    cleanup)     cmd_cleanup ;;
+    rotate)      rotate_log && echo "Log rotation check complete." ;;
+    orchestrate) cmd_orchestrate "${2:-}" "${3:-}" ;;
+    plan)        shift; cmd_plan "$@" ;;
     *)
-        echo "Usage: $0 {claim|release|check|status|cleanup|rotate} [resource] [agent-id]" >&2
+        echo "Usage: $0 {claim|release|check|status|cleanup|rotate|orchestrate|plan} [resource] [agent-id]" >&2
         exit 1
         ;;
 esac

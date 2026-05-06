@@ -585,6 +585,54 @@ def _resolve_speaker_entity_id(pundit_id: str, db: Optional["DBManager"] = None)
     return f"UNRESOLVED:{pundit_id}"
 
 
+def _build_target_entity(utterance: dict, domain: str) -> Optional[str]:
+    """
+    Build the target_entity JSON string (Issue #688 — polymorphic entity).
+
+    For NFL/sports domains, maps target_player and target_team from the LLM
+    output into the canonical envelope.  For other domains the LLM is
+    expected to return a target_entity dict directly; if present it is
+    serialised and returned as-is.
+
+    Returns a JSON string suitable for BigQuery's JSON column type, or None
+    if there is no entity to record.
+    """
+    # Prefer an explicit target_entity dict returned by the LLM (non-NFL domains
+    # or future NFL prompt versions that emit the full envelope directly).
+    raw_entity = utterance.get("target_entity")
+    if isinstance(raw_entity, dict) and raw_entity:
+        return json.dumps(raw_entity, ensure_ascii=False)
+
+    # NFL / sports: synthesise from the legacy target_player / target_team fields.
+    nfl_like_domains = {"nfl", "mlb", "nba", "nhl", "ncaaf", "ncaab", "sports"}
+    domain_lower = (domain or "").lower()
+    if domain_lower in nfl_like_domains or "sport" in domain_lower:
+        target_player = (utterance.get("target_player") or "").strip()
+        target_team = (utterance.get("target_team") or "").strip()
+        if target_player:
+            entity: dict = {
+                "type": "player",
+                "name": target_player,
+                "sport": domain_lower.upper() if domain_lower != "sports" else "NFL",
+            }
+            if target_team:
+                entity["team"] = target_team
+            return json.dumps(entity, ensure_ascii=False)
+        if target_team:
+            return json.dumps(
+                {
+                    "type": "team",
+                    "abbrev": target_team,
+                    "sport": domain_lower.upper()
+                    if domain_lower != "sports"
+                    else "NFL",
+                },
+                ensure_ascii=False,
+            )
+
+    return None
+
+
 def write_raw_utterances(
     utterances: list[dict],
     source_doc_id: str,
@@ -699,6 +747,8 @@ def write_raw_utterances(
             "verification_flags": u.get("verification_flags"),
             "quality_score": u.get("quality_score"),
             "needs_review": u.get("needs_review"),
+            # Issue #688 — polymorphic entity (Option D: alongside legacy columns)
+            "target_entity": _build_target_entity(u, domain),
         }
         rows.append(row)
 
@@ -1571,6 +1621,10 @@ def run_extraction(
                         target_player_id=None,
                         target_player_name=player_name,
                         target_team=pred.get("target_team"),
+                        # Issue #688 — polymorphic entity alongside legacy columns
+                        target_entity=_build_target_entity(
+                            pred, str(row.get("sport", sport))
+                        ),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
                         prompt_version=PROMPT_VERSION,

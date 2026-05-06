@@ -669,23 +669,24 @@ class TestWriteRawUtterances:
         df_written = mock_db.client.load_table_from_dataframe.call_args[0][0]
         assert df_written.iloc[0]["speech_act_type"] == "commentary"
 
-    def test_continues_on_write_failure(self, mock_db):
-        """write_raw_utterances should NOT raise on BQ write failure — just return 0."""
+    def test_raises_on_write_failure(self, mock_db):
+        """write_raw_utterances must re-raise on BQ write failure so the pipeline is
+        marked failed rather than silently producing zero rows (C4 fix)."""
         mock_db.client.load_table_from_dataframe.side_effect = Exception(
             "BQ unavailable"
         )
         utterances = [make_utterance()]
 
         with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
-            n = write_raw_utterances(
-                utterances=utterances,
-                source_doc_id="h",
-                speaker_entity_id="e",
-                uttered_at=datetime.now(timezone.utc),
-                domain="nfl",
-                db=mock_db,
-            )
-        assert n == 0  # soft failure
+            with pytest.raises(Exception, match="BQ unavailable"):
+                write_raw_utterances(
+                    utterances=utterances,
+                    source_doc_id="h",
+                    speaker_entity_id="e",
+                    uttered_at=datetime.now(timezone.utc),
+                    domain="nfl",
+                    db=mock_db,
+                )
 
     # NOT-NULL invariant tests (#595) -------------------------------------------
 

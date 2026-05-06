@@ -107,7 +107,7 @@ export function AffiliateInlineLink({
             {" · "}
             <Link
                 href="/legal/disclosure"
-                className="text-zinc-400 hover:text-zinc-400 transition-colors text-[11px]"
+                className="text-zinc-400 hover:text-zinc-300 transition-colors text-[11px]"
             >
                 Affiliate disclosure
             </Link>

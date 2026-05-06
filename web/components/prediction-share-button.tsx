@@ -67,7 +67,7 @@ export function PredictionShareButton({
                 rel="noopener noreferrer"
                 aria-label="Open share card"
                 title="Open share card image"
-                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-400 hover:text-zinc-400 transition-colors border border-transparent hover:border-zinc-700 rounded px-1 py-0.5"
+                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-400 hover:text-zinc-300 transition-colors border border-transparent hover:border-zinc-700 rounded px-1 py-0.5"
             >
                 Card <ExternalLink className="w-2.5 h-2.5" />
             </a>

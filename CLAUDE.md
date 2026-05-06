@@ -7,8 +7,8 @@
 > - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 > - **Never edit files in the main checkout.** A PreToolUse hook (`.claude/hooks/require-worktree.sh`) blocks Edit/Write/MultiEdit when CWD is the main repo. If you see that error, switch to a worktree.
 > - **Use `EnterWorktree` first**, or run `git worktree add .claude/worktrees/<name> -b <branch>` and `cd` into it before any edit.
-> - **Land PRs with `scripts/gh-lars pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits). PRs require at least 1 human approval before merge; queue them and let the owner approve.
 > - **All `gh` issue/PR/comment operations MUST use `scripts/gh-lars`** instead of bare `gh`. Identity is the **`cap-alpha-workflow-automation` GitHub App**. Tokens are minted automatically by `scripts/gh-app-token.sh` using `GH_APP_ID` and `GH_INSTALLATION_ID` from `.env.personas` (gitignored). PEM at `~/.ghconfig/triage-app.pem` on each dev machine (never committed).
+> - **Land PRs with `scripts/gh-lars pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits). PRs require at least 1 human approval before merge; queue them and let the owner approve.
 > - **One concern per PR.** A PR may touch multiple files but must address a single logical change. Never bundle an unrelated fix into the same PR even if convenient. If you catch a bug while working on a feature, open a separate PR for the bug fix.
 > - **Repository settings are OFF LIMITS.** Never modify branch protection rules, webhook config, Actions settings, collaborators, or any GitHub repository settings via `gh api` or any other mechanism. This includes `gh api repos/.../branches/.../protection`, `gh repo edit`, and similar. The GitHub App intentionally lacks Administration permission.
 >

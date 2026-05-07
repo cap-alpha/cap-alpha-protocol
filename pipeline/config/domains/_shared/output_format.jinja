@@ -10,6 +10,7 @@ Return a JSON array where each element has:
     "evidence_accessibility": 0.0
   },
   "testability_score": 0.0,
+  "extraction_confidence": 0.0,
   "resolution_horizon": "ISO8601 datetime or null",
   "predicate": "will_win|will_be_below|will_retire|will_sign|will_miss_playoffs|...",
   "subject": "entity name string",
@@ -20,13 +21,24 @@ Return a JSON array where each element has:
   "season_year": null,
   "target_player": null,
   "target_team": null,
-  "confidence_note": "how explicit/confident the prediction is",
+  "confidence_note": "direct quote or paraphrase of how the speaker expressed their confidence level (or null if not stated)",
   "prediction_horizon_days": -1,
   "speech_act": "authored|quoted|commentary",
   "originating_speaker": null,
   "resolution_condition": "plain-English statement of what makes this claim true, or empty string",
-  "hedge_level": "strong|moderate|weak"
+  "hedge_level": "strong|moderate|weak",
+  "hallucination_risk": "low|medium|high",
+  "quality_score": 0.0,
+  "claim_text_alignment": 0.0,
+  "needs_review": false
 }
+
+Field definitions:
+- extraction_confidence: 0.0–1.0 — your confidence that the text, speech_act_type, and extracted_claim are correctly identified. Use 1.0 for clear, explicit statements and lower values for ambiguous or paraphrased content.
+- hallucination_risk: "low" if the claim is a direct, clear statement from the text; "medium" if paraphrased or inferred; "high" if uncertain or speculative extraction.
+- quality_score: overall 0.0–1.0 quality signal. Combine testability_score and extraction_confidence: quality_score = 0.6 * testability_score + 0.4 * extraction_confidence.
+- claim_text_alignment: 0.0–1.0 score for how closely the extracted_claim matches the original text. 1.0 = direct verbatim match; 0.5 = paraphrased but faithful; 0.0 = significantly different.
+- needs_review: true if hallucination_risk is "high" OR claim_text_alignment < 0.5 OR extraction_confidence < 0.6. Set to false otherwise.
 
 speech_act_type definitions:
 - assertion: declarative claim about a future outcome ("Mahomes will win MVP")

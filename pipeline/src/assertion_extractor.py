@@ -316,6 +316,7 @@ For EACH utterance, classify it and score its testability. Return a JSON array w
     "evidence_accessibility": 0.0
   }},
   "testability_score": 0.0,
+  "extraction_confidence": 0.0,
   "resolution_horizon": "ISO8601 datetime or null",
   "predicate": "will_win|will_be_below|will_retire|will_sign|will_miss_playoffs|...",
   "subject": "entity name string",
@@ -326,13 +327,24 @@ For EACH utterance, classify it and score its testability. Return a JSON array w
   "season_year": null,
   "target_player": null,
   "target_team": null,
-  "confidence_note": "how explicit/confident the prediction is",
+  "confidence_note": "direct quote or paraphrase of how the speaker expressed their confidence level (or null if not stated)",
   "prediction_horizon_days": -1,
   "speech_act": "authored|quoted|commentary",
   "originating_speaker": null,
   "resolution_condition": "plain-English statement of what makes this claim true, or empty string",
-  "hedge_level": "strong|moderate|weak"
+  "hedge_level": "strong|moderate|weak",
+  "hallucination_risk": "low|medium|high",
+  "quality_score": 0.0,
+  "claim_text_alignment": 0.0,
+  "needs_review": false
 }}
+
+Field definitions:
+- extraction_confidence: 0.0–1.0 — your confidence that the text, speech_act_type, and extracted_claim are correctly identified. Use 1.0 for clear explicit statements and lower values for ambiguous or paraphrased content.
+- hallucination_risk: "low" if the claim is a direct clear statement from the text; "medium" if paraphrased or inferred; "high" if uncertain or speculative extraction.
+- quality_score: overall 0.0–1.0 quality signal. Compute as: quality_score = 0.6 * testability_score + 0.4 * extraction_confidence.
+- claim_text_alignment: 0.0–1.0 score for how closely the extracted_claim matches the original text. 1.0 = direct verbatim match; 0.5 = paraphrased but faithful; 0.0 = significantly different.
+- needs_review: true if hallucination_risk is "high" OR claim_text_alignment < 0.5 OR extraction_confidence < 0.6. Set to false otherwise.
 
 speech_act_type definitions:
 - assertion: declarative claim about a future outcome ("Mahomes will win MVP")
@@ -374,6 +386,7 @@ Output:
   "speech_act_type": "rhetorical_question",
   "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.2}},
   "testability_score": 0.26,
+  "extraction_confidence": 0.95,
   "resolution_horizon": null,
   "predicate": "",
   "subject": "Patrick Mahomes",
@@ -384,8 +397,16 @@ Output:
   "season_year": null,
   "target_player": "Patrick Mahomes",
   "target_team": "KC",
-  "confidence_note": "rhetorical emphasis",
-  "prediction_horizon_days": -1
+  "confidence_note": null,
+  "prediction_horizon_days": -1,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "",
+  "hedge_level": "weak",
+  "hallucination_risk": "low",
+  "quality_score": 0.54,
+  "claim_text_alignment": 1.0,
+  "needs_review": false
 }}
 
 Example 2 — Genuine assertion (PROMOTED to ledger):
@@ -396,6 +417,7 @@ Output:
   "speech_act_type": "assertion",
   "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0}},
   "testability_score": 0.96,
+  "extraction_confidence": 0.98,
   "resolution_horizon": "2025-12-31T23:59:59Z",
   "predicate": "will_win_at_least",
   "subject": "Philadelphia Eagles",
@@ -407,7 +429,15 @@ Output:
   "target_player": null,
   "target_team": "PHI",
   "confidence_note": "explicit numeric threshold",
-  "prediction_horizon_days": 150
+  "prediction_horizon_days": 150,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Eagles win count at season end is 11 or more",
+  "hedge_level": "strong",
+  "hallucination_risk": "low",
+  "quality_score": 0.97,
+  "claim_text_alignment": 0.95,
+  "needs_review": false
 }}
 
 Example 3 — Conditional (PROMOTED to ledger):
@@ -418,6 +448,7 @@ Output:
   "speech_act_type": "conditional",
   "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.7, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0}},
   "testability_score": 0.88,
+  "extraction_confidence": 0.92,
   "resolution_horizon": "2025-12-31T23:59:59Z",
   "predicate": "will_reach",
   "subject": "Baltimore Ravens",
@@ -429,7 +460,15 @@ Output:
   "target_player": null,
   "target_team": "BAL",
   "confidence_note": "conditional on OL health",
-  "prediction_horizon_days": 120
+  "prediction_horizon_days": 120,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Ravens appear in the AFC Championship game at end of 2025 playoffs",
+  "hedge_level": "moderate",
+  "hallucination_risk": "low",
+  "quality_score": 0.90,
+  "claim_text_alignment": 0.90,
+  "needs_review": false
 }}
 
 Example 4 — Quoted claim (speech_act=quoted, score routed to originating_speaker):
@@ -440,6 +479,7 @@ Output:
   "speech_act_type": "assertion",
   "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.7, "evidence_accessibility": 0.9}},
   "testability_score": 0.88,
+  "extraction_confidence": 0.90,
   "resolution_horizon": "2026-09-01T00:00:00Z",
   "predicate": "will_cut",
   "subject": "Dallas Cowboys",
@@ -453,7 +493,13 @@ Output:
   "confidence_note": "attributed report from named insider",
   "prediction_horizon_days": 90,
   "speech_act": "quoted",
-  "originating_speaker": "Adam Schefter"
+  "originating_speaker": "Adam Schefter",
+  "resolution_condition": "Cowboys officially release Dak Prescott before Week 1 of the 2026 season",
+  "hedge_level": "strong",
+  "hallucination_risk": "low",
+  "quality_score": 0.89,
+  "claim_text_alignment": 0.85,
+  "needs_review": false
 }}
 
 Example 5 — Commentary (speech_act=commentary, speaker authors an agree/disagree claim):
@@ -464,6 +510,7 @@ Output:
   "speech_act_type": "assertion",
   "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.5, "evidence_accessibility": 0.9}},
   "testability_score": 0.82,
+  "extraction_confidence": 0.88,
   "resolution_horizon": null,
   "predicate": "will_win",
   "subject": "Patrick Mahomes",
@@ -474,10 +521,16 @@ Output:
   "season_year": null,
   "target_player": "Patrick Mahomes",
   "target_team": "KC",
-  "confidence_note": "explicit agreement with named pundit's claim",
+  "confidence_note": "I completely agree with Cowherd",
   "prediction_horizon_days": -1,
   "speech_act": "commentary",
-  "originating_speaker": "Colin Cowherd"
+  "originating_speaker": "Colin Cowherd",
+  "resolution_condition": "Mahomes wins his 4th Super Bowl ring at any point before retirement",
+  "hedge_level": "strong",
+  "hallucination_risk": "low",
+  "quality_score": 0.84,
+  "claim_text_alignment": 0.88,
+  "needs_review": false
 }}
 
 --- END EXAMPLES ---
@@ -664,10 +717,18 @@ def write_raw_utterances(
     Write all utterances to silver_v2_claims.raw_utterance.
     Returns the number of rows written.
 
-    Each row maps the Phase C LLM output to the migration 016 schema:
-      utterance_id, source_doc_id, speaker_entity_id, uttered_at, text,
+    Each row maps the Phase C LLM output to the migration 016 + 021 + 022 schema.
+    Core fields: utterance_id, source_doc_id, speaker_entity_id, uttered_at, text,
       speech_act_type, testability_score, resolution_horizon, domain,
-      extraction_confidence, created_at
+      extraction_confidence, created_at, speech_act, originating_speaker.
+    Subscore fields (021 Part A): subscore_subject_specificity,
+      subscore_predicate_falsifiability, subscore_threshold_concreteness,
+      subscore_resolution_horizon_defined, subscore_evidence_accessibility,
+      stance, prediction_horizon_days, confidence_note.
+    New extraction fields (021 Part B): resolution_condition, hedge_level,
+      hallucination_risk, quality_score (LLM-provided; overwritten by 7B pass
+      when Ollama is online), claim_text_alignment, needs_review, verification_flags.
+    Entity field (022): target_entity.
     """
     if not utterances:
         return 0
@@ -760,7 +821,10 @@ def write_raw_utterances(
             # --- Part B: new extraction fields (#675) ---
             "resolution_condition": u.get("resolution_condition"),
             "hedge_level": u.get("hedge_level"),
-            # Verification fields populated separately after 7B pass
+            # Verification fields: LLM-provided values used as fallback when the 7B
+            # verification pass is offline (verify_utterance returns {}).
+            # When 7B verification runs, its results overwrite these values via
+            # {**utterance, **verification} merge in run_extraction.
             "claim_text_alignment": u.get("claim_text_alignment"),
             "hallucination_risk": u.get("hallucination_risk"),
             "verification_flags": u.get("verification_flags"),

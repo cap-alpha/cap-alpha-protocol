@@ -1814,3 +1814,116 @@ class TestWriteRawUtterancesMetadata:
         assert "claim_text_alignment" in row
         assert "hallucination_risk" in row
         assert "quality_score" in row
+
+    def test_llm_provided_hallucination_risk_persisted(self):
+        """hallucination_risk from the main LLM (not 7B) is written to BQ when 7B is offline."""
+        utterance = {
+            "text": "Allen will win the Super Bowl",
+            "speech_act_type": "assertion",
+            "testability_score": 0.88,
+            "extraction_confidence": 0.92,
+            "hallucination_risk": "low",
+            "quality_score": 0.90,
+        }
+        row = self._write_utterance(utterance)
+        assert row["hallucination_risk"] == "low"
+        assert float(row["quality_score"]) == pytest.approx(0.90)
+
+    def test_llm_provided_quality_score_persisted(self):
+        """quality_score from the main LLM is written to BQ when 7B is offline."""
+        utterance = {
+            "text": "The Bills will reach the AFC Championship",
+            "speech_act_type": "assertion",
+            "testability_score": 0.80,
+            "extraction_confidence": 0.85,
+            "quality_score": 0.82,
+        }
+        row = self._write_utterance(utterance)
+        assert float(row["quality_score"]) == pytest.approx(0.82)
+
+    def test_7b_verification_overwrites_llm_values(self):
+        """When 7B verification runs, its values overwrite LLM-provided fallbacks."""
+        # Simulate the {**utterance, **verification} merge pattern from run_extraction
+        utterance_from_llm = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.90,
+            "extraction_confidence": 0.88,
+            "hallucination_risk": "medium",  # LLM said medium
+            "quality_score": 0.77,  # LLM said 0.77
+        }
+        verification_from_7b = {
+            "claim_text_alignment": 0.95,
+            "hallucination_risk": "low",  # 7B says low — should overwrite
+            "verification_flags": [],
+            "quality_score": 0.89,  # 7B says 0.89 — should overwrite
+            "needs_review": False,
+        }
+        merged = {**utterance_from_llm, **verification_from_7b}
+        row = self._write_utterance(merged)
+        assert row["hallucination_risk"] == "low"
+        assert float(row["quality_score"]) == pytest.approx(0.89)
+        assert float(row["claim_text_alignment"]) == pytest.approx(0.95)
+
+    def test_all_18_null_columns_now_populated(self):
+        """
+        Smoke test: a fully-populated LLM response (including claim_text_alignment
+        and needs_review now added to the extraction prompt) should have all 18
+        previously-NULL columns populated in the BQ row.
+        """
+        utterance = {
+            "text": "If the Eagles stay healthy they will win the NFC East",
+            "speech_act_type": "conditional",
+            "testability_subscores": {
+                "subject_specificity": 1.0,
+                "predicate_falsifiability": 0.9,
+                "threshold_concreteness": 0.7,
+                "resolution_horizon_defined": 0.8,
+                "evidence_accessibility": 1.0,
+            },
+            "testability_score": 0.88,
+            "extraction_confidence": 0.92,
+            "stance": "bullish",
+            "hedge_level": "moderate",
+            "confidence_note": "conditional on staying healthy",
+            "resolution_condition": "Eagles have the best record in the NFC East at end of regular season",
+            "prediction_horizon_days": 120,
+            "speech_act": "authored",
+            "originating_speaker": None,
+            "hallucination_risk": "low",
+            "quality_score": 0.90,
+            # claim_text_alignment and needs_review are now requested by the
+            # extraction prompt (added to populate the 2 remaining NULL columns)
+            "claim_text_alignment": 0.93,
+            "needs_review": False,
+            "target_player": None,
+            "target_team": "PHI",
+        }
+        row = self._write_utterance(utterance)
+
+        # All 18 previously-NULL fields — now populated by the main LLM
+        assert row["originating_speaker"] in (
+            None,
+            "None",
+            "nan",
+            "",
+        )  # null, not a spurious value
+        assert row["stance"] == "bullish"
+        assert row["hedge_level"] == "moderate"
+        assert row["confidence_note"] == "conditional on staying healthy"
+        assert "Eagles" in row["resolution_condition"]
+        assert str(row["prediction_horizon_days"]) == "120"
+        assert float(row["subscore_subject_specificity"]) == pytest.approx(1.0)
+        assert float(row["subscore_predicate_falsifiability"]) == pytest.approx(0.9)
+        assert float(row["subscore_threshold_concreteness"]) == pytest.approx(0.7)
+        assert float(row["subscore_resolution_horizon_defined"]) == pytest.approx(0.8)
+        assert float(row["subscore_evidence_accessibility"]) == pytest.approx(1.0)
+        assert row["hallucination_risk"] == "low"
+        assert float(row["quality_score"]) == pytest.approx(0.90)
+        # claim_text_alignment: now returned by main LLM (added to prompt)
+        assert float(row["claim_text_alignment"]) == pytest.approx(0.93)
+        # needs_review: now returned by main LLM (added to prompt)
+        assert row["needs_review"] is False
+        # target_entity built from target_team when target_player is None
+        assert row["target_entity"] is not None
+        assert "PHI" in row["target_entity"]

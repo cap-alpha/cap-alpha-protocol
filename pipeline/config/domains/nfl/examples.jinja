@@ -8,6 +8,7 @@ Output:
   "speech_act_type": "rhetorical_question",
   "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.2},
   "testability_score": 0.26,
+  "extraction_confidence": 0.95,
   "resolution_horizon": null,
   "predicate": "",
   "subject": "Patrick Mahomes",
@@ -18,8 +19,16 @@ Output:
   "season_year": null,
   "target_player": "Patrick Mahomes",
   "target_team": "KC",
-  "confidence_note": "rhetorical emphasis",
-  "prediction_horizon_days": -1
+  "confidence_note": null,
+  "prediction_horizon_days": -1,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "",
+  "hedge_level": "weak",
+  "hallucination_risk": "low",
+  "quality_score": 0.54,
+  "claim_text_alignment": 1.0,
+  "needs_review": false
 }
 
 Example 2 — Genuine assertion (PROMOTED to ledger):
@@ -30,6 +39,7 @@ Output:
   "speech_act_type": "assertion",
   "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0},
   "testability_score": 0.96,
+  "extraction_confidence": 0.98,
   "resolution_horizon": "2025-12-31T23:59:59Z",
   "predicate": "will_win_at_least",
   "subject": "Philadelphia Eagles",
@@ -41,7 +51,15 @@ Output:
   "target_player": null,
   "target_team": "PHI",
   "confidence_note": "explicit numeric threshold",
-  "prediction_horizon_days": 150
+  "prediction_horizon_days": 150,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Eagles win count at season end is 11 or more",
+  "hedge_level": "strong",
+  "hallucination_risk": "low",
+  "quality_score": 0.97,
+  "claim_text_alignment": 0.95,
+  "needs_review": false
 }
 
 Example 3 — Conditional (PROMOTED to ledger):
@@ -52,6 +70,7 @@ Output:
   "speech_act_type": "conditional",
   "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.7, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0},
   "testability_score": 0.88,
+  "extraction_confidence": 0.92,
   "resolution_horizon": "2025-12-31T23:59:59Z",
   "predicate": "will_reach",
   "subject": "Baltimore Ravens",
@@ -63,7 +82,15 @@ Output:
   "target_player": null,
   "target_team": "BAL",
   "confidence_note": "conditional on OL health",
-  "prediction_horizon_days": 120
+  "prediction_horizon_days": 120,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Ravens appear in the AFC Championship game at end of 2025 playoffs",
+  "hedge_level": "moderate",
+  "hallucination_risk": "low",
+  "quality_score": 0.90,
+  "claim_text_alignment": 0.90,
+  "needs_review": false
 }
 
 Example 4 — Quoted claim (speech_act=quoted, score routed to originating_speaker):
@@ -74,6 +101,7 @@ Output:
   "speech_act_type": "assertion",
   "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.7, "evidence_accessibility": 0.9},
   "testability_score": 0.88,
+  "extraction_confidence": 0.90,
   "resolution_horizon": "2026-09-01T00:00:00Z",
   "predicate": "will_cut",
   "subject": "Dallas Cowboys",
@@ -87,7 +115,13 @@ Output:
   "confidence_note": "attributed report from named insider",
   "prediction_horizon_days": 90,
   "speech_act": "quoted",
-  "originating_speaker": "Adam Schefter"
+  "originating_speaker": "Adam Schefter",
+  "resolution_condition": "Cowboys officially release Dak Prescott before Week 1 of the 2026 season",
+  "hedge_level": "strong",
+  "hallucination_risk": "low",
+  "quality_score": 0.89,
+  "claim_text_alignment": 0.85,
+  "needs_review": false
 }
 
 Example 5 — Commentary (speech_act=commentary, speaker authors an agree/disagree claim):
@@ -98,6 +132,7 @@ Output:
   "speech_act_type": "assertion",
   "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.5, "evidence_accessibility": 0.9},
   "testability_score": 0.82,
+  "extraction_confidence": 0.88,
   "resolution_horizon": null,
   "predicate": "will_win",
   "subject": "Patrick Mahomes",
@@ -108,10 +143,16 @@ Output:
   "season_year": null,
   "target_player": "Patrick Mahomes",
   "target_team": "KC",
-  "confidence_note": "explicit agreement with named pundit's claim",
+  "confidence_note": "I completely agree with Cowherd",
   "prediction_horizon_days": -1,
   "speech_act": "commentary",
-  "originating_speaker": "Colin Cowherd"
+  "originating_speaker": "Colin Cowherd",
+  "resolution_condition": "Mahomes wins his 4th Super Bowl ring at any point before retirement",
+  "hedge_level": "strong",
+  "hallucination_risk": "low",
+  "quality_score": 0.84,
+  "claim_text_alignment": 0.88,
+  "needs_review": false
 }
 
 --- END EXAMPLES ---

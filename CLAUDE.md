@@ -183,6 +183,16 @@ Skipping this checklist and reporting a frontend task "done" is a process violat
 make check   # lint + unit tests via local venv
 ```
 
+**Before queuing any PR for merge, confirm CI checks are registered:**
+```bash
+scripts/gh-lars pr view <N> --json statusCheckRollup | jq '.statusCheckRollup | length'
+# Must return > 0. A result of 0 means no CI ran — do NOT merge.
+
+scripts/gh-lars pr view <N> --json statusCheckRollup | jq '[.statusCheckRollup[] | select(.state != "SUCCESS" and .state != "SKIPPED")] | length'
+# Must return 0. Any non-SUCCESS/non-SKIPPED check blocks the merge.
+```
+A PR that runs no CI has no safety net. `pr_sanity.yml` fires unconditionally on every PR to guarantee `statusCheckRollup` is never empty (see issue #735).
+
 ### /test — Run the test suite
 ```
 make test

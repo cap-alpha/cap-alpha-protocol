@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { auth } from "@clerk/nextjs/server";
 import { Metadata } from "next";
 import { AlertTriangle, Database, ExternalLink } from "lucide-react";
 import { BigQuery } from "@google-cloud/bigquery";
@@ -89,6 +91,12 @@ async function getRunData(): Promise<{
 }
 
 export default async function AdminQualityRunsPage() {
+    const { userId } = auth();
+
+    if (!userId) {
+        redirect("/sign-in");
+    }
+
     const { rows, tableExists, error } = await getRunData();
 
     return (

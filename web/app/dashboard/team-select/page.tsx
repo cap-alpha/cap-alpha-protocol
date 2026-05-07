@@ -74,7 +74,7 @@ export default async function TeamSelection() {
                 <CardContent className="pt-8">
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                         {NFL_TEAMS.map((team) => (
-                            <Link key={team.id} href={`/dashboard?active_team=${team.id}`}>
+                            <Link key={team.id} href={`/team/${team.id}`}>
                                 <Button
                                     className={`w-full h-20 text-md font-bold hover:opacity-80 transition-opacity ${team.color}`}
                                 >

@@ -19,8 +19,14 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
       - name: Install BigQuery client
-        run: pip install --break-system-packages google-cloud-bigquery
+        run: pip install google-cloud-bigquery
 
       - name: Authenticate to GCP
         run: |

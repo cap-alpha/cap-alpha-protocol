@@ -32,7 +32,7 @@ jobs:
           cache: 'pip'
 
       - name: Install BigQuery client
-        run: pip install --break-system-packages google-cloud-bigquery pyarrow
+        run: pip install google-cloud-bigquery pyarrow
 
       - name: Authenticate to GCP
         run: |

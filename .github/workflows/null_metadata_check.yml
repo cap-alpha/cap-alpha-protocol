@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install BigQuery client
-        run: pip install google-cloud-bigquery
+        run: pip install --break-system-packages google-cloud-bigquery
 
       - name: Authenticate to GCP
         run: |

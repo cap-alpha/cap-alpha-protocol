@@ -62,8 +62,8 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r pipeline/requirements.txt
+          [ -d .venv ] || python3 -m venv .venv
+          .venv/bin/pip install --quiet -r pipeline/requirements.txt
 
       - name: Authenticate to GCP
         run: |
@@ -77,7 +77,7 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
         run: |
           cd pipeline
-          python3 scripts/apply_migrations.py
+          ${{ github.workspace }}/.venv/bin/python scripts/apply_migrations.py
 
       - name: Ingest new articles
         env:
@@ -85,7 +85,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python3 -m src.media_ingestor
+          ${{ github.workspace }}/.venv/bin/python -m src.media_ingestor
 
       - name: Seed pundit registry
         env:
@@ -94,7 +94,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python -m scripts.seed_pundit_registry
+          ${{ github.workspace }}/.venv/bin/python -m scripts.seed_pundit_registry
 
       - name: Extract predictions
         if: steps.power.outputs.on_battery != 'true'
@@ -108,7 +108,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           cd pipeline
-          python3 -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
+          ${{ github.workspace }}/.venv/bin/python -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
 
       - name: Verify extraction produced output
         if: steps.power.outputs.on_battery != 'true'
@@ -118,7 +118,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python3 scripts/check_extraction_health.py --window-minutes 120 --min-count 1
+          ${{ github.workspace }}/.venv/bin/python scripts/check_extraction_health.py --window-minutes 120 --min-count 1
 
       - name: Refresh SportsDataIO draft data
         env:
@@ -127,7 +127,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python3 -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()"
+          ${{ github.workspace }}/.venv/bin/python -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()"
 
       - name: Resolve predictions
         env:
@@ -135,7 +135,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python3 -m src.resolve_daily
+          ${{ github.workspace }}/.venv/bin/python -m src.resolve_daily
 
       - name: Report status
         if: always()
@@ -144,7 +144,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline
-          python3 - <<'PY'
+          ${{ github.workspace }}/.venv/bin/python - <<'PY'
           from src.db_manager import DBManager
           db = DBManager()
           total = db.fetch_df('SELECT COUNT(*) as n FROM gold_layer.prediction_ledger')

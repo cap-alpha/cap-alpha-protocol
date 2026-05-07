@@ -84,12 +84,15 @@ def _make_utterance(
 @pytest.fixture
 def sample_utterances() -> list[dict]:
     """
-    20 realistic utterances: 15 well-formed, 5 intentionally imperfect.
+    22 realistic utterances: 15 well-formed, 5 intentionally imperfect, 2 attributed.
 
     The intentionally-imperfect entries stay within the thresholds so the
     well-formed fixture passes all quality checks.  They are realistic
     degradations (one missing hedge_level, one low-but-non-bimodal
     testability_score, etc.) rather than catastrophic failures.
+
+    The 2 attributed entries use speech_act_type "quoted" / "commentary" so that
+    TestSpeakerAttribution actually runs rather than always skipping.
     """
     good = [
         _make_utterance(
@@ -541,4 +544,27 @@ class TestThresholdsSensitivity:
         assert rate > 0.0, (
             "Expected missing originating_speaker in broken_quoted_utterances, "
             "but all were populated.  Adjust the fixture."
+        )
+
+    def test_resolution_horizon_fails_on_broken_data(self):
+        """High-testability claims all missing resolution_horizon must exceed the 30% tolerance."""
+        broken = [
+            {
+                **_make_utterance(text=f"testable claim {i}", testability_score=0.85),
+                "resolution_horizon": None,
+            }
+            for i in range(10)
+        ]
+        testable = [u for u in broken if (u.get("testability_score") or 0) >= 0.7]
+        assert len(testable) > 0
+
+        missing_horizon = [
+            u
+            for u in testable
+            if not u.get("resolution_horizon") or u.get("resolution_horizon") == "None"
+        ]
+        rate = len(missing_horizon) / len(testable)
+        assert rate > 0.30, (
+            f"Expected >30% of high-testability claims to be missing resolution_horizon "
+            f"in this broken fixture, but got {rate:.0%}.  Adjust the fixture."
         )

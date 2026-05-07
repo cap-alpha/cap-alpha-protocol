@@ -40,25 +40,26 @@ const Footer = () => {
                             Affiliate Disclosure
                         </Link>
                     </p>
-                    <div className="flex flex-wrap items-center justify-center gap-4 text-slate-500 text-xs">
-                        <Link href="/legal/terms" className="hover:text-slate-300 transition-colors">Terms</Link>
-                        <Link href="/legal/privacy" className="hover:text-slate-300 transition-colors">Privacy</Link>
-                        <Link href="/legal/acceptable-use" className="hover:text-slate-300 transition-colors">Acceptable Use</Link>
-                        <Link href="/legal/responsible-gambling" className="hover:text-amber-400 transition-colors text-amber-600">Responsible Gambling</Link>
-                        <Link href="/legal/disclosure" className="hover:text-slate-300 transition-colors">Affiliate Disclosure</Link>
-                        <Link href="/legal/corrections" className="hover:text-slate-300 transition-colors">Corrections</Link>
+                    <div className="flex flex-wrap items-center justify-center gap-4 text-slate-400 text-xs">
+                        <Link href="/legal/terms" className="hover:text-white transition-colors">Terms</Link>
+                        <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy</Link>
+                        <Link href="/legal/acceptable-use" className="hover:text-white transition-colors">Acceptable Use</Link>
+                        <Link href="/legal/responsible-gambling" className="hover:text-amber-400 transition-colors text-amber-500">Responsible Gambling</Link>
+                        <Link href="/legal/disclosure" className="hover:text-white transition-colors">Affiliate Disclosure</Link>
+                        <Link href="/legal/corrections" className="hover:text-white transition-colors">Corrections</Link>
                         <Link href="/status" className="hover:text-emerald-400 transition-colors">Status</Link>
                     </div>
-                    <div className="flex items-center space-x-2 text-slate-500 text-xs">
+                    <div className="flex items-center space-x-2 text-slate-400 text-xs">
                         <span>&copy; {new Date().getFullYear()} Andrew Smith</span>
-                        <span className="h-1 w-1 bg-slate-700 rounded-full"></span>
+                        <span className="h-1 w-1 bg-slate-600 rounded-full"></span>
                         <span>All Rights Reserved</span>
-                        <span className="h-1 w-1 bg-slate-700 rounded-full"></span>
+                        <span className="h-1 w-1 bg-slate-600 rounded-full"></span>
                         <a
                             href={`https://github.com/ucalegon206/cap-alpha-protocol/commit/${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="font-mono text-slate-600 hover:text-emerald-500 transition-colors"
+                            aria-label="View source commit on GitHub"
+                            className="font-mono text-slate-400 hover:text-emerald-500 transition-colors"
                         >
                             v{process.env.NEXT_PUBLIC_COMMIT_SHA?.substring(0, 7) || 'local'}
                         </a>

@@ -202,12 +202,27 @@ def sample_utterances() -> list[dict]:
         stance="neutral",
     )
 
+    # Attributed speech acts (quoted/commentary) — exercises TestSpeakerAttribution.
+    # These MUST have originating_speaker set; the attribution test asserts 100% populated.
+    attributed_1 = _make_utterance(
+        text="According to Schefter, the trade will be finalized tomorrow",
+        speech_act_type="quoted",
+        originating_speaker="Adam Schefter",
+    )
+    attributed_2 = _make_utterance(
+        text="As I said on the show, the QB room needs addressing this offseason",
+        speech_act_type="commentary",
+        originating_speaker="Colin Cowherd",
+    )
+
     return good + [
         slightly_bad_1,
         slightly_bad_2,
         slightly_bad_3,
         slightly_bad_4,
         slightly_bad_5,
+        attributed_1,
+        attributed_2,
     ]
 
 
@@ -238,6 +253,20 @@ def broken_utterances() -> list[dict]:
         }
 
     return [_broken(i) for i in range(15)]
+
+
+@pytest.fixture
+def broken_quoted_utterances() -> list[dict]:
+    """
+    Quoted/commentary utterances that are missing originating_speaker.
+    Used by the TestThresholdsSensitivity meta-test to confirm that
+    TestSpeakerAttribution actually fires on known-bad data.
+    """
+    return [
+        {**_make_utterance(speech_act_type="quoted"), "originating_speaker": None},
+        {**_make_utterance(speech_act_type="commentary"), "originating_speaker": None},
+        {**_make_utterance(speech_act_type="quoted"), "originating_speaker": None},
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +347,7 @@ class TestSpeakerAttribution:
         attributed = [
             u
             for u in sample_utterances
-            if u.get("speech_act") in ("quoted", "commentary")
+            if u.get("speech_act_type") in ("quoted", "commentary")
         ]
         if not attributed:
             # None of the sample utterances use quoted/commentary — skip rather
@@ -494,4 +523,20 @@ class TestThresholdsSensitivity:
         pytest.fail(
             "None of the SPAM_PATTERNS matched the injected spam utterance. "
             "Check that SPAM_PATTERNS is correctly defined."
+        )
+
+    def test_speaker_attribution_fails_on_broken_data(self, broken_quoted_utterances):
+        """quoted/commentary utterances missing originating_speaker must trigger attribution check."""
+        attributed = [
+            u
+            for u in broken_quoted_utterances
+            if u.get("speech_act_type") in ("quoted", "commentary")
+        ]
+        assert len(attributed) > 0, "broken_quoted_utterances fixture has no attributed speech acts"
+
+        missing = [u for u in attributed if not u.get("originating_speaker")]
+        rate = len(missing) / len(attributed)
+        assert rate > 0.0, (
+            "Expected missing originating_speaker in broken_quoted_utterances, "
+            "but all were populated.  Adjust the fixture."
         )

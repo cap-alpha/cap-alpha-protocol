@@ -671,8 +671,8 @@ async function fetchPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoin
         AND cap_hit_millions IS NOT NULL
       ORDER BY year ASC, week ASC
     `;
-    const [job] = await bigquery.createQueryJob({ query, params: { playerName } });
-    const [rows] = await job.getQueryResults();
+    const [job] = await bigquery.createQueryJob({ query, params: { playerName }, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
     return rows.map((r: any) => ({
       week: String(r.week ?? ''),
       fmv: Number(r.fmv ?? 0),
@@ -701,7 +701,7 @@ export type PositionalComp = {
   efficiency: number;
 };
 
-async function fetchPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
+async function fetchPositionalComps(position: string): Promise<PositionalComp[]> {
   try {
     const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
     const query = `
@@ -729,8 +729,8 @@ async function fetchPositionalComps(playerName: string, position: string): Promi
       ORDER BY SAFE_DIVIDE(fmv, cap_hit) DESC
       LIMIT 10
     `;
-    const [job] = await bigquery.createQueryJob({ query, params: { position } });
-    const [rows] = await job.getQueryResults();
+    const [job] = await bigquery.createQueryJob({ query, params: { position }, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
     return rows.map((r: any) => ({
       name: String(r.name ?? ''),
       team: String(r.team ?? ''),
@@ -746,7 +746,7 @@ async function fetchPositionalComps(playerName: string, position: string): Promi
 
 export async function getPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
   const cachedFn = unstable_cache(
-    async () => fetchPositionalComps(playerName, position),
+    async () => fetchPositionalComps(position),
     [`positional-comps-v1-${position}`],
     { revalidate: 3600 }
   );

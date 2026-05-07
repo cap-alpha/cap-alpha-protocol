@@ -25,7 +25,7 @@ interface ChartDataPoint {
 
 interface ValueTrajectoryChartProps {
     chartDataWithBands: ChartDataPoint[];
-    playerYear: number;
+    playerYear?: number;
 }
 
 export function ValueTrajectoryChart({ chartDataWithBands, playerYear }: ValueTrajectoryChartProps) {

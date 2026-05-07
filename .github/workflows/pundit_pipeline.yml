@@ -87,6 +87,15 @@ jobs:
           cd pipeline
           python3 -m src.media_ingestor
 
+      - name: Seed pundit registry
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ env.GOOGLE_APPLICATION_CREDENTIALS }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          cd pipeline
+          python -m scripts.seed_pundit_registry
+
       - name: Extract predictions
         if: steps.power.outputs.on_battery != 'true'
         env:

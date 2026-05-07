@@ -98,7 +98,7 @@ export function PlayerTimeline({ timeline }: PlayerTimelineProps) {
                     <button 
                         onClick={() => setZoomLevel(Math.max(0, zoomLevel - 1))}
                         disabled={zoomLevel === 0}
-                        className="p-1.5 text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors rounded-md hover:bg-zinc-800"
+                        className="p-1.5 text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-300 transition-colors rounded-md hover:bg-zinc-800"
                         title="Zoom Out (Less Detail)"
                     >
                         <ZoomOut className="w-4 h-4" />
@@ -111,7 +111,7 @@ export function PlayerTimeline({ timeline }: PlayerTimelineProps) {
                     <button 
                         onClick={() => setZoomLevel(Math.min(2, zoomLevel + 1))}
                         disabled={zoomLevel === 2}
-                        className="p-1.5 text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-400 transition-colors rounded-md hover:bg-zinc-800"
+                        className="p-1.5 text-zinc-400 hover:text-white disabled:opacity-30 disabled:hover:text-zinc-300 transition-colors rounded-md hover:bg-zinc-800"
                         title="Zoom In (More Detail)"
                     >
                         <ZoomIn className="w-4 h-4" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { PlayerEfficiency } from "@/app/actions";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,36 +10,43 @@ import { ArrowLeft, ShieldAlert, CheckCircle2, Share2 } from "lucide-react";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-    ComposedChart,
-    Line,
-    Bar,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    Legend,
-    ResponsiveContainer,
-    Area
-} from "recharts";
 import { CutCalculator } from './cut-calculator';
 // import { SaveScenarioButton } from './save-scenario-button';
 import { IntelligenceFeed } from './intelligence-feed';
 import { VisualTimeline } from './visual-timeline';
 import { VerifiableAudit } from './verifiable-audit';
-import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath } from "@/app/actions";
+import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath, FmvHistoryPoint, PositionalComp } from "@/app/actions";
+
+const ValueTrajectoryChart = dynamic(
+    () => import('./value-trajectory-chart').then(m => m.ValueTrajectoryChart),
+    { ssr: false, loading: () => <div className="h-full animate-pulse bg-zinc-800 rounded" /> }
+);
+const FmvTimelineChart = dynamic(
+    () => import('./fmv-timeline-chart').then(m => m.FmvTimelineChart),
+    { ssr: false, loading: () => <div className="h-64 animate-pulse bg-zinc-800 rounded" /> }
+);
+const ContractEfficiencyGauge = dynamic(
+    () => import('./contract-efficiency-gauge').then(m => m.ContractEfficiencyGauge),
+    { ssr: false, loading: () => <div className="h-32 animate-pulse bg-zinc-800 rounded" /> }
+);
+const PositionalCompsTable = dynamic(
+    () => import('./positional-comps-table').then(m => m.PositionalCompsTable),
+    { ssr: false, loading: () => <div className="h-32 animate-pulse bg-zinc-800 rounded" /> }
+);
 
 interface PlayerDetailViewProps {
     player: PlayerEfficiency;
-    distributionData?: any[]; 
+    distributionData?: any[];
     timeline?: TimelineEvent[];
     feed?: IntelligenceEvent[];
     ledger?: AuditEntry[];
     deadMoneyMath?: DeadMoneyMath;
     hasHeadshot?: boolean;
+    fmvHistory?: FmvHistoryPoint[];
+    positionalComps?: PositionalComp[];
 }
 
-export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false, fmvHistory = [], positionalComps = [] }: PlayerDetailViewProps) {
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -61,9 +69,9 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
     const chartDataWithBands = chartData.map(d => ({
         ...d,
         bounds: [
-            Math.max(0, d.predicted - avgError), // Floor at 0
-            d.predicted + avgError
-        ]
+            Math.max(0, (d.predicted ?? 0) - avgError), // Floor at 0
+            (d.predicted ?? 0) + avgError
+        ] as [number, number]
     }));
 
     return (
@@ -331,40 +339,18 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                     <CardDescription>Actual Pay vs. Predicted Market Value</CardDescription>
                                 </CardHeader>
                                 <CardContent className="flex-1 min-h-[300px]">
-                                    {chartDataWithBands.length === 0 ? (
-                                        <div className="h-full flex flex-col items-center justify-center border border-dashed border-slate-800 rounded-lg bg-slate-950/30">
-                                            <ShieldAlert className="h-8 w-8 text-slate-600 mb-3" />
-                                            <h4 className="text-sm font-semibold text-slate-300">Insufficient Historical Data</h4>
-                                            <p className="text-xs text-slate-500 mt-1 max-w-[250px] text-center">
-                                                This asset lacks the required historical telemetry to generate a multi-year value trajectory model.
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <ResponsiveContainer width="100%" height="100%" minHeight={1} minWidth={1}>
-                                            <ComposedChart data={chartDataWithBands} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
-                                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" opacity={0.15} />
-                                                <XAxis dataKey="year" stroke="#94a3b8" />
-                                                <YAxis stroke="#94a3b8" tickFormatter={(v) => `$${v}M`} />
-                                                <Tooltip
-                                                    contentStyle={{ backgroundColor: '#18181b', borderColor: '#27272a', color: '#fff' }}
-                                                    itemStyle={{ color: '#fff' }}
-                                                    formatter={(value: any, name: any) => name === "Model Variance (95% CI)" ? null : [`$${Number(value).toFixed(2)}M`, name]}
-                                                />
-                                                <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                                                <Area type="monotone" dataKey="bounds" name="Model Variance (95% CI)" fill="#10b981" stroke="none" fillOpacity={0.1} />
-                                                <Line type="monotone" dataKey="predicted" name="Fair Market Value" stroke="#10b981" strokeWidth={2} dot={false} strokeDasharray="5 5" />
-                                                <Line type="monotone" dataKey="actual" name="Actual Cap Hit" stroke="#f472b6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 8 }} />
-                                                <Bar dataKey="error" name="Overpay/Underpay" fill="#64748b" opacity={0.3} barSize={20} />
-                                            </ComposedChart>
-                                        </ResponsiveContainer>
-                                    )}
+                                    <ValueTrajectoryChart
+                                        chartDataWithBands={chartDataWithBands}
+                                        playerYear={player.year}
+                                    />
                                 </CardContent>
                             </Card>
 
                             {/* Tabbed Intelligence & Ledger */}
                             <Tabs defaultValue="intelligence" className="w-full">
-                                <TabsList className="grid w-full grid-cols-2 bg-zinc-900 border border-zinc-800">
+                                <TabsList className="grid w-full grid-cols-3 bg-zinc-900 border border-zinc-800">
                                     <TabsTrigger value="intelligence" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Health Feed</TabsTrigger>
+                                    <TabsTrigger value="fmv" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">FMV</TabsTrigger>
                                     <TabsTrigger value="ledger" className="data-[state=active]:bg-zinc-800 data-[state=active]:text-emerald-400">Ledger</TabsTrigger>
                                 </TabsList>
 
@@ -372,6 +358,32 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
                                     <div className="h-[450px]">
                                         <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} feedEvents={feed} />
                                     </div>
+                                </TabsContent>
+
+                                <TabsContent value="fmv" className="mt-4 space-y-6">
+                                    {/* Contract Efficiency Gauge + FMV Timeline */}
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="md:col-span-1">
+                                            <ContractEfficiencyGauge
+                                                fairMarketValue={player.fair_market_value}
+                                                capHit={player.cap_hit_millions}
+                                                playerName={player.player_name}
+                                            />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <FmvTimelineChart
+                                                data={fmvHistory}
+                                                playerName={player.player_name}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {/* Positional Comps */}
+                                    <PositionalCompsTable
+                                        data={positionalComps}
+                                        currentPlayerName={player.player_name}
+                                        position={player.position}
+                                    />
                                 </TabsContent>
 
                                 <TabsContent value="ledger" className="mt-4">

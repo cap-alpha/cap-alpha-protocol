@@ -25,6 +25,18 @@ import { PunditCard, type PunditCardProps } from "@/components/pundit-card";
 // Types
 // ---------------------------------------------------------------------------
 
+interface ResolutionOutcomeStat {
+    resolution_status: string;
+    count: number;
+    avg_brier_score: number | null;
+}
+
+interface ResolutionStats {
+    outcomes: ResolutionOutcomeStat[];
+    total_resolved: number;
+    overall_avg_brier: number | null;
+}
+
 interface SimilarPrediction {
     utterance_id: string;
     speaker_entity_id: string;
@@ -594,6 +606,46 @@ function groupPredictions(predictions: RecentPrediction[]): PredictionGroup[] {
 }
 
 // ---------------------------------------------------------------------------
+// Resolution breakdown component — shows CORRECT / INCORRECT / VOID + avg Brier
+// ---------------------------------------------------------------------------
+
+function ResolutionBreakdown({ stats }: { stats: ResolutionStats }) {
+    const byStatus = new Map(stats.outcomes.map((o) => [o.resolution_status, o]));
+    const correct = byStatus.get("CORRECT");
+    const incorrect = byStatus.get("INCORRECT");
+    const voidd = byStatus.get("VOID");
+
+    return (
+        <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
+            <span className="text-zinc-600 uppercase tracking-widest text-[9px]">
+                Outcomes
+            </span>
+            {correct && (
+                <span className="text-emerald-400 font-semibold">
+                    ✓{correct.count.toLocaleString()}
+                </span>
+            )}
+            {incorrect && (
+                <span className="text-red-400 font-semibold">
+                    ✗{incorrect.count.toLocaleString()}
+                </span>
+            )}
+            {voidd && voidd.count > 0 && (
+                <span className="text-zinc-500">
+                    ∅{voidd.count.toLocaleString()}
+                </span>
+            )}
+            {stats.overall_avg_brier !== null && (
+                <span className="text-zinc-500">
+                    Brier{" "}
+                    <BrierBadge score={stats.overall_avg_brier} />
+                </span>
+            )}
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
 // localStorage default view key
 // ---------------------------------------------------------------------------
 
@@ -712,6 +764,7 @@ function HofHosGrid({
 export default function LedgerPage() {
     const [pundits, setPundits] = useState<PunditStat[]>([]);
     const [recent, setRecent] = useState<RecentPrediction[]>([]);
+    const [resolutionStats, setResolutionStats] = useState<ResolutionStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [sportFilter, setSportFilter] = useState<string>("ALL");
 
@@ -778,9 +831,11 @@ export default function LedgerPage() {
             fetch(`/api/ledger/recent?limit=30${sportFilter !== "ALL" ? `&sport=${sportFilter}` : ""}`).then((r) =>
                 r.json()
             ),
-        ]).then(([punditsData, recentData]: [{ pundits?: PunditStat[] }, { predictions?: RecentPrediction[] }]) => {
+            fetch(`/api/ledger/resolution-stats`).then((r) => r.json()).catch(() => null),
+        ]).then(([punditsData, recentData, statsData]: [{ pundits?: PunditStat[] }, { predictions?: RecentPrediction[] }, ResolutionStats | null]) => {
             setPundits(punditsData.pundits || []);
             setRecent(recentData.predictions || []);
+            if (statsData) setResolutionStats(statsData);
             setLastRefreshed(new Date());
             setSecondsSinceRefresh(0);
         }).catch((err) => {
@@ -875,25 +930,31 @@ export default function LedgerPage() {
                         </div>
 
                         {/* Aggregate stats */}
-                        <div className="hidden sm:flex items-center gap-6 text-right shrink-0">
-                            <div>
-                                <div className="text-2xl font-black font-mono text-white tabular-nums">
-                                    {pundits.length}
+                        <div className="hidden sm:flex flex-col items-end gap-3 shrink-0">
+                            <div className="flex items-center gap-6">
+                                <div className="text-right">
+                                    <div className="text-2xl font-black font-mono text-white tabular-nums">
+                                        {pundits.length}
+                                    </div>
+                                    <div className="text-xs text-zinc-500 font-mono">Pundits</div>
                                 </div>
-                                <div className="text-xs text-zinc-500 font-mono">Pundits</div>
-                            </div>
-                            <div>
-                                <div className="text-2xl font-black font-mono text-white tabular-nums">
-                                    {totalPredictions.toLocaleString()}
+                                <div className="text-right">
+                                    <div className="text-2xl font-black font-mono text-white tabular-nums">
+                                        {totalPredictions.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-zinc-500 font-mono">Predictions</div>
                                 </div>
-                                <div className="text-xs text-zinc-500 font-mono">Predictions</div>
-                            </div>
-                            <div>
-                                <div className="text-2xl font-black font-mono text-emerald-400 tabular-nums">
-                                    {totalResolved.toLocaleString()}
+                                <div className="text-right">
+                                    <div className="text-2xl font-black font-mono text-emerald-400 tabular-nums">
+                                        {totalResolved.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-zinc-500 font-mono">Resolved</div>
                                 </div>
-                                <div className="text-xs text-zinc-500 font-mono">Resolved</div>
                             </div>
+                            {/* Resolution outcome breakdown */}
+                            {resolutionStats && resolutionStats.outcomes.length > 0 && (
+                                <ResolutionBreakdown stats={resolutionStats} />
+                            )}
                         </div>
                     </div>
 

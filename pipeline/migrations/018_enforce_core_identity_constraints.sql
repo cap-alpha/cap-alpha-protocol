@@ -1,4 +1,4 @@
--- Migration: 009_enforce_core_identity_constraints
+-- Migration: 018_enforce_core_identity_constraints
 -- Issue: #106 — SP29-1: Enforce strict BigQuery NOT NULL constraints
 --
 -- CONVERTED TO NO-OP: BigQuery does not support ALTER COLUMN ... SET NOT NULL

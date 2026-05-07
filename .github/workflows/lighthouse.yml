@@ -8,9 +8,9 @@ on:
 
 jobs:
   lighthouse:
-    name: Lighthouse audit
+    name: Lighthouse audit [advisory]
     runs-on: ubuntu-latest
-    continue-on-error: true  # non-blocking while establishing baseline
+    continue-on-error: true  # advisory — failures are tracked but do not block merge
 
     steps:
       - name: Checkout

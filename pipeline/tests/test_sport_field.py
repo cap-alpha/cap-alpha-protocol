@@ -207,7 +207,12 @@ class TestRunExtractionSport:
             "content_hash": "abc" * 20 + "ab",
             "source_id": "espn_nfl",
             "title": "Test Article",
-            "raw_text": "Mahomes will win MVP this season.",
+            "raw_text": (
+                "Patrick Mahomes will win the NFL MVP award this season without a doubt. "
+                "The Kansas City Chiefs offense has been absolutely unstoppable in every game. "
+                "Their run game and passing attack are both clicking on all cylinders right now. "
+                "No quarterback in the entire league comes close to Mahomes in terms of impact."
+            ),
             "source_url": "https://espn.com/test",
             "author": "Adam Schefter",
             "matched_pundit_id": "adam_schefter",

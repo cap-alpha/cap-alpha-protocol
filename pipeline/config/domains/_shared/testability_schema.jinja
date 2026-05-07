@@ -5,6 +5,29 @@ testability_score = average of 5 sub-scores (each 0.0–1.0):
 - resolution_horizon_defined: "by Q4 2025"=1.0, "soon"=0.3, "eventually"=0.0
 - evidence_accessibility: Is there a data source that can answer this? "Eagles wins >= 11"=1.0, "most exciting team"=0.0
 
+TESTABILITY SCORE CALIBRATION — use the full 0.0–1.0 scale, not just 0 or 1:
+- 1.0: Specific, falsifiable, time-bounded claim with a named subject and numeric threshold
+       ("Patrick Mahomes will throw for 4000+ yards in the 2025 regular season")
+- 0.7: Testable but missing one element — no threshold, or implicit timeframe
+       ("Chiefs will have a top-5 offense this season")
+- 0.4: Vague prediction — subject named but outcome is fuzzy
+       ("Mahomes will be good this year" / "they might struggle")
+- 0.1: Pure opinion/analysis with no falsifiable outcome — named subject but no event
+       ("The Chiefs are the most complete team in the league")
+- 0.0: Not a prediction at all — factual statement, question, recap, or spam content
+
+Do NOT use only 0.0 and 1.0. Most speech acts fall in the 0.2–0.8 range. Assign the average
+of the five sub-scores as testability_score; never hard-code it as 0 or 1 unless the claim
+is completely untestable or perfectly specified.
+
+resolution_horizon — when will this claim resolve? Populate this field whenever possible:
+- For player performance claims: "end of [YEAR] NFL regular season" → ISO: "[YEAR]-01-06T23:59:59Z" (approx)
+- For Super Bowl / playoff predictions: "end of [YEAR]-[YEAR+1] NFL postseason" → ISO: "[YEAR+1]-02-15T23:59:59Z"
+- For transaction claims (trades, signings, cuts): "before [YEAR] Week 1" → ISO: "[YEAR]-09-07T00:00:00Z"
+- For draft pick claims: "after [YEAR] NFL Draft (Day 3)" → ISO: "[YEAR]-04-30T23:59:59Z"
+- For injury claims: "by [DATE] or start of next game" → best estimate
+- Leave null ONLY if the claim has no natural resolution point (career-long claims, pure opinions)
+
 Stance rules (for promoted claims):
 - bullish: prediction is positive/optimistic about the subject
 - bearish: prediction is negative/pessimistic about the subject

@@ -18,6 +18,7 @@ from src.assertion_extractor import (
     _apply_priority_sort,
     _deduplicate_claims,
     _validate_source_id,
+    check_content_quality,
     extract_assertions,
     get_source_priority_tier,
     get_unprocessed_media,
@@ -64,8 +65,15 @@ def make_raw_media_df(n=1):
                 "content_hash": f"hash_{i}",
                 "source_id": "espn_nfl",
                 "title": f"Article {i}",
-                "raw_text": "I think Patrick Mahomes will definitely win MVP this season. "
-                "He's been the best QB by far and nobody is close.",
+                # Text must be >= 50 words to pass the content quality gate.
+                "raw_text": (
+                    "I think Patrick Mahomes will definitely win MVP this season. "
+                    "He's been the best quarterback by far and nobody in the NFL is close. "
+                    "The Kansas City Chiefs offense has been unstoppable and the defense "
+                    "continues to improve. Mahomes' ability to extend plays and his "
+                    "accuracy on deep routes make him a truly exceptional talent. "
+                    "The Super Bowl is a real possibility for Kansas City this year."
+                ),
                 "source_url": f"https://espn.com/article/{i}",
                 "author": "Adam Schefter",
                 "matched_pundit_id": "adam_schefter",
@@ -723,6 +731,87 @@ class TestShouldFilterArticle:
 
         provider.classify.return_value = "No"
         assert should_filter_article("text", filter_provider=provider) is True
+
+
+class TestCheckContentQuality:
+    """Tests for the pre-LLM content quality gate (spam + word-count filter)."""
+
+    def test_empty_text_is_spam(self):
+        is_spam, reason = check_content_quality("")
+        assert is_spam is True
+        assert "empty" in reason
+
+    def test_short_text_below_threshold_is_spam(self):
+        """Fewer than 50 words → filtered regardless of content."""
+        short = "NFL picks week 10. Chiefs over Eagles."
+        is_spam, reason = check_content_quality(short)
+        assert is_spam is True
+        assert "too short" in reason
+
+    def test_genuine_nfl_article_passes(self):
+        """A normal NFL article should NOT be filtered."""
+        long_nfl = (
+            "Patrick Mahomes and the Kansas City Chiefs are preparing for what promises to be "
+            "an exciting NFL playoff run. The offense has been clicking on all cylinders and "
+            "the defense has stepped up in key moments. Analysts across the league believe the "
+            "Chiefs are the favorites to reach the Super Bowl, with Mahomes having arguably the "
+            "best statistical season of his career. The draft strategy this offseason will be "
+            "crucial for the front office as they look to build depth behind their star quarterback."
+        )
+        is_spam, reason = check_content_quality(long_nfl)
+        assert is_spam is False
+        assert reason == ""
+
+    def test_gambling_spam_no_nfl_signals_is_filtered(self):
+        """Content with spam signals and zero NFL team/player words → filtered."""
+        spam = " ".join(
+            [
+                "Email Verification: 1 SC for new accounts.",
+                "No table games available in your state.",
+                "Claim your bonus code for free spins on registration.",
+                "Wagering requirements apply to all deposit match offers.",
+                "Sign up bonus available to new players only.",
+                "Play for free with sweepstakes coins today.",
+                "Create your account and start winning real prizes right now.",
+                "Offer valid for new users in eligible states only.",
+                "Terms and conditions apply to all promotional offers listed here.",
+            ]
+        )
+        is_spam, reason = check_content_quality(spam)
+        assert is_spam is True
+        assert "spam signal" in reason
+
+    def test_spam_signals_with_nfl_content_passes(self):
+        """If an article has spam-like words BUT also has NFL signals, don't filter."""
+        mixed = (
+            "The Eagles won their game on Sunday. Unfortunately the site requires email "
+            "verification for user accounts. Nonetheless, the Eagles defense was dominant and "
+            "the Chiefs offense struggled. NFL analysts weighed in across the league. This "
+            "season the Eagles could reach the playoffs and the Super Bowl remains a goal. "
+            "Multiple sweepstakes promotions were running during the broadcast of the game."
+        )
+        is_spam, reason = check_content_quality(mixed)
+        # Has both spam signal (sweepstakes) AND NFL signal (Eagles, Chiefs, Super Bowl)
+        assert is_spam is False
+
+    def test_exact_audit_sample_is_filtered(self):
+        """The exact pattern from the BQ audit ('No table games', 'Email Verification: 1 SC')."""
+        spam_sample = (
+            "No table games available in this region. Email Verification: 1 SC awarded "
+            "upon account verification. Sign up bonus: 2500 GC plus 2.5 SC free on registration. "
+            "Sweepstakes coins are not redeemable for cash. Read terms before participating. "
+            "New players only. Players in restricted states are not eligible for this offer. "
+            "Contact customer support for more details about bonus code redemption."
+        )
+        is_spam, reason = check_content_quality(spam_sample)
+        assert is_spam is True
+
+    def test_source_id_included_in_call_does_not_affect_result(self):
+        """source_id parameter is for logging; shouldn't change filter logic."""
+        long_nfl = " ".join(["NFL chiefs eagles mahomes super bowl draft playoff"] * 10)
+        is_spam_generic, _ = check_content_quality(long_nfl, source_id="")
+        is_spam_sharp, _ = check_content_quality(long_nfl, source_id="sharp_football")
+        assert is_spam_generic == is_spam_sharp
 
 
 class TestPreFilterIntegration:

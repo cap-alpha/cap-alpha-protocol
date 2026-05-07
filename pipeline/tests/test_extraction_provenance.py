@@ -60,7 +60,12 @@ def make_raw_media_df():
                 "content_hash": "abc123",
                 "source_id": "espn_nfl",
                 "title": "Mock Article",
-                "raw_text": "Chiefs will win the Super Bowl this season.",
+                "raw_text": (
+                    "The Kansas City Chiefs will absolutely win the Super Bowl this season. "
+                    "Patrick Mahomes has been the best quarterback in the entire NFL all year. "
+                    "Their defense has improved significantly and the offense has been consistently elite. "
+                    "No team in the league has a better combination of talent and coaching right now."
+                ),
                 "source_url": "https://espn.com/1",
                 "author": "Adam Schefter",
                 "matched_pundit_id": "adam_schefter",

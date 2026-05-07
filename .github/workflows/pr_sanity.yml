@@ -14,7 +14,7 @@ jobs:
     name: PR sanity check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Print PR info
         run: |
@@ -40,7 +40,7 @@ jobs:
           echo "  pr_sanity.yml  → 'PR sanity check / sanity'  (this job)"
           echo ""
           echo "Reminder: before queuing a PR, verify:"
-          echo "  gh pr view <N> --json statusCheckRollup | jq '.statusCheckRollup | length'"
+          echo "  scripts/gh-lars pr view <N> --json statusCheckRollup | jq '.statusCheckRollup | length'"
           echo "  must return > 0 and every required check must be SUCCESS."
           echo ""
           echo "Sanity check passed."

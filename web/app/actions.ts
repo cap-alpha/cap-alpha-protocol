@@ -652,6 +652,181 @@ export async function getPlayerAuditLedger(playerName: string): Promise<AuditEnt
   return await cachedFn();
 }
 
+// --- FMV DASHBOARD ACTIONS ---
+
+export type FmvHistoryPoint = {
+  week: string;
+  fmv: number;
+  cap_hit: number;
+};
+
+async function fetchPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    // fact_player_efficiency has year + week + fair_market_value + cap_hit_millions
+    const query = `
+      SELECT
+        CONCAT(CAST(year AS STRING), ' W', LPAD(CAST(SAFE_CAST(week AS INT64) AS STRING), 2, '0')) AS week,
+        SAFE_CAST(fair_market_value AS FLOAT64) AS fmv,
+        SAFE_CAST(cap_hit_millions AS FLOAT64) AS cap_hit
+      FROM \`${projectId}.nfl_dead_money.fact_player_efficiency\`
+      WHERE LOWER(player_name) = LOWER(@playerName)
+        AND fair_market_value IS NOT NULL
+        AND cap_hit_millions IS NOT NULL
+      ORDER BY year ASC, week ASC
+    `;
+    const [job] = await bigquery.createQueryJob({ query, params: { playerName }, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
+    return rows.map((r: any) => ({
+      week: String(r.week ?? ''),
+      fmv: Number(r.fmv ?? 0),
+      cap_hit: Number(r.cap_hit ?? 0),
+    }));
+  } catch (error) {
+    console.error(`[Data] Error loading FMV history for ${playerName}:`, error);
+    return [];
+  }
+}
+
+export async function getPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPlayerFMVHistory(playerName),
+    [`player-fmv-history-v1-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
+export type PositionalComp = {
+  name: string;
+  team: string;
+  fmv: number;
+  cap_hit: number;
+  efficiency: number;
+};
+
+async function fetchPositionalComps(position: string): Promise<PositionalComp[]> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    const query = `
+      WITH RankedByYear AS (
+        SELECT
+          player_name,
+          team,
+          SAFE_CAST(fair_market_value AS FLOAT64) AS fmv,
+          SAFE_CAST(cap_hit_millions AS FLOAT64) AS cap_hit,
+          ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY year DESC) AS rn
+        FROM \`${projectId}.nfl_dead_money.fact_player_efficiency\`
+        WHERE UPPER(position) = UPPER(@position)
+          AND cap_hit_millions IS NOT NULL
+          AND cap_hit_millions > 0
+          AND fair_market_value IS NOT NULL
+      )
+      SELECT
+        player_name AS name,
+        team,
+        fmv,
+        cap_hit,
+        SAFE_DIVIDE(fmv, cap_hit) AS efficiency
+      FROM RankedByYear
+      WHERE rn = 1
+      ORDER BY SAFE_DIVIDE(fmv, cap_hit) DESC
+      LIMIT 10
+    `;
+    const [job] = await bigquery.createQueryJob({ query, params: { position }, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
+    return rows.map((r: any) => ({
+      name: String(r.name ?? ''),
+      team: String(r.team ?? ''),
+      fmv: Number(r.fmv ?? 0),
+      cap_hit: Number(r.cap_hit ?? 0),
+      efficiency: Number(r.efficiency ?? 0),
+    }));
+  } catch (error) {
+    console.error(`[Data] Error loading positional comps for ${position}:`, error);
+    return [];
+  }
+}
+
+export async function getPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPositionalComps(position),
+    [`positional-comps-v1-${position}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
+// --- PUNDIT RESOLUTION STATS ---
+
+export type ResolutionOutcomeStat = {
+  resolution_status: string;
+  count: number;
+  avg_brier_score: number | null;
+};
+
+export type PunditResolutionStats = {
+  outcomes: ResolutionOutcomeStat[];
+  total_resolved: number;
+  overall_avg_brier: number | null;
+};
+
+async function fetchPunditResolutionStats(): Promise<PunditResolutionStats> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    const query = `
+      SELECT
+        resolution_status,
+        COUNT(*) AS count,
+        AVG(brier_score) AS avg_brier_score
+      FROM \`${projectId}.gold_layer.prediction_resolutions\`
+      WHERE resolution_status IN ('CORRECT', 'INCORRECT', 'VOID')
+      GROUP BY resolution_status
+      ORDER BY resolution_status
+    `;
+
+    const [job] = await bigquery.createQueryJob({ query, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults();
+
+    const outcomes: ResolutionOutcomeStat[] = (rows as Array<Record<string, unknown>>).map((row) => ({
+      resolution_status: String(row.resolution_status ?? ''),
+      count: Number(row.count ?? 0),
+      avg_brier_score: row.avg_brier_score != null ? Number(row.avg_brier_score) : null,
+    }));
+
+    const total_resolved = outcomes
+      .filter((o) => o.resolution_status === 'CORRECT' || o.resolution_status === 'INCORRECT')
+      .reduce((sum, o) => sum + o.count, 0);
+
+    // Weighted average Brier across CORRECT + INCORRECT outcomes
+    const brierOutcomes = outcomes.filter(
+      (o) => o.avg_brier_score !== null && (o.resolution_status === 'CORRECT' || o.resolution_status === 'INCORRECT')
+    );
+    let overall_avg_brier: number | null = null;
+    if (brierOutcomes.length > 0) {
+      const totalCount = brierOutcomes.reduce((s, o) => s + o.count, 0);
+      if (totalCount > 0) {
+        overall_avg_brier =
+          brierOutcomes.reduce((s, o) => s + (o.avg_brier_score ?? 0) * o.count, 0) / totalCount;
+      }
+    }
+
+    return { outcomes, total_resolved, overall_avg_brier };
+  } catch (error) {
+    console.error('[Data] Error loading pundit resolution stats:', error);
+    return { outcomes: [], total_resolved: 0, overall_avg_brier: null };
+  }
+}
+
+export async function getPunditResolutionStats(): Promise<PunditResolutionStats> {
+  const cachedFn = unstable_cache(
+    async () => fetchPunditResolutionStats(),
+    ['pundit-resolution-stats-v1'],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
 // --- EXACT MATH CAP CALCULATOR ---
 export type DeadMoneyMath = {
   pre_june1_dead_cap: number;

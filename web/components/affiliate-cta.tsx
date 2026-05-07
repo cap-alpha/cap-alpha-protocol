@@ -12,6 +12,11 @@ import {
     type AffiliateVariant,
 } from "@/lib/affiliate";
 import { AffiliateDisclosure } from "@/components/affiliate-disclosure";
+import {
+    AFFILIATE_LINKS,
+    type AffiliatePlatformKey,
+    type AffiliateContextKey,
+} from "@/lib/affiliate-config";
 
 interface AffiliateCTAProps {
     /** Variant A platform */
@@ -112,5 +117,79 @@ export function AffiliateInlineLink({
                 Affiliate disclosure
             </Link>
         </>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// AffiliateCta — simple placement component (platform × context)
+//
+// Uses AFFILIATE_LINKS config; renders NOTHING when href is '#affiliate-pending'
+// so no broken links ship until Rakuten Advertising approval arrives.
+// Swap one line in affiliate-config.ts per platform to go live.
+// ---------------------------------------------------------------------------
+
+interface AffiliateCtaProps {
+    platform: AffiliatePlatformKey;
+    context: AffiliateContextKey;
+    className?: string;
+}
+
+/**
+ * Fires an affiliate click event. Tries @vercel/analytics first (if installed),
+ * falls back to Umami (which is already present in this codebase).
+ */
+function trackCtaClick(
+    platform: AffiliatePlatformKey,
+    context: AffiliateContextKey
+): void {
+    try {
+        // Vercel Analytics — available when @vercel/analytics is installed
+        const va = (window as typeof window & { va?: (event: string, props?: object) => void }).va;
+        if (typeof va === "function") {
+            va("event", { name: "affiliate_click", data: { platform, context } });
+            return;
+        }
+        // Umami fallback — already in use elsewhere in this codebase
+        const w = window as typeof window & {
+            umami?: { track: (event: string, props?: object) => void };
+        };
+        w.umami?.track("affiliate_click", { platform, context });
+    } catch {
+        // analytics unavailable — silent
+    }
+}
+
+export function AffiliateCta({ platform, context, className = "" }: AffiliateCtaProps) {
+    const entry = AFFILIATE_LINKS[platform];
+
+    // Render nothing while link is pending — zero user-visible impact until approval
+    if (entry.href === "#affiliate-pending") return null;
+
+    const ctaText = entry.cta[context];
+
+    return (
+        <div
+            className={`rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-4 py-4 ${className}`}
+        >
+            <a
+                href={entry.href}
+                target="_blank"
+                rel="noopener noreferrer sponsored"
+                onClick={() => trackCtaClick(platform, context)}
+                className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+            >
+                {ctaText}
+                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            </a>
+            <p className="mt-1.5 text-[11px] text-zinc-500">
+                Ad — Gambling affiliate link.{" "}
+                <Link
+                    href="/legal/disclosure"
+                    className="underline hover:text-zinc-400 transition-colors"
+                >
+                    Disclosure
+                </Link>
+            </p>
+        </div>
     );
 }

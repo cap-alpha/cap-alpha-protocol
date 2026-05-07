@@ -4,9 +4,24 @@ import { notFound } from 'next/navigation';
 import { slugify } from '@/lib/utils';
 import path from 'path';
 import fs from 'fs';
+import type { Metadata } from 'next';
 
 
 export const revalidate = 3600; // Cache for 1 hour (ISR)
+
+export async function generateMetadata({ params }: { params: { id: string } }): Promise<Metadata> {
+    const playerSlug = decodeURIComponent(params.id);
+    // Convert slug back to a display name (best-effort; accurate name resolved in page body)
+    const displayName = playerSlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    return {
+        title: `${displayName} — Contract Analysis | Cap Alpha`,
+        description: `FMV history, positional comps, and contract efficiency for ${displayName}.`,
+        openGraph: {
+            title: `${displayName} — Contract Analysis`,
+            description: `FMV history, positional comps, and contract efficiency for ${displayName}.`,
+        },
+    };
+}
 
 export default async function PlayerPage({ params }: { params: { id: string } }) {
     const playerSlug = decodeURIComponent(params.id);

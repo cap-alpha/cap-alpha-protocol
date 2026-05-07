@@ -9,7 +9,7 @@
 --
 -- Usage:
 --   export PROJECT_ID=cap-alpha-protocol
---   envsubst < pipeline/migrations/021_add_utterance_metadata.sql | \
+--   envsubst < pipeline/migrations/023_add_utterance_metadata.sql | \
 --     bq query --use_legacy_sql=false --project_id=$PROJECT_ID
 
 -- Part A: subscore columns already produced by 32B but previously discarded (#674)

@@ -134,22 +134,12 @@ interface AffiliateCtaProps {
     className?: string;
 }
 
-/**
- * Fires an affiliate click event. Tries @vercel/analytics first (if installed),
- * falls back to Umami (which is already present in this codebase).
- */
+/** Fires an affiliate_click event via Umami (consistent with trackAffClick in lib/affiliate.ts). */
 function trackCtaClick(
     platform: AffiliatePlatformKey,
     context: AffiliateContextKey
 ): void {
     try {
-        // Vercel Analytics — available when @vercel/analytics is installed
-        const va = (window as typeof window & { va?: (event: string, props?: object) => void }).va;
-        if (typeof va === "function") {
-            va("event", { name: "affiliate_click", data: { platform, context } });
-            return;
-        }
-        // Umami fallback — already in use elsewhere in this codebase
         const w = window as typeof window & {
             umami?: { track: (event: string, props?: object) => void };
         };

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AffiliateCta } from "@/components/affiliate-cta";
 import {
     Shield,
     CheckCircle2,
@@ -1085,6 +1086,9 @@ export default function LedgerPage() {
                         isPolling={false}
                     />
                 )}
+
+                {/* Affiliate CTA — renders nothing until Rakuten approval (href="#affiliate-pending") */}
+                <AffiliateCta platform="draftkings" context="ledger" className="mt-8" />
             </div>
         </div>
     );

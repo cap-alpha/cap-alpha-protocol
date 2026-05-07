@@ -36,7 +36,7 @@ export default function LandingPage() {
 
                     <div className="flex flex-col items-center gap-4 pt-2">
                         <WaitlistForm />
-                        <p className="text-xs text-zinc-600">
+                        <p className="text-xs text-zinc-400">
                             Free tier available at launch. No credit card required.
                         </p>
                         <SignUpCta />
@@ -98,7 +98,7 @@ export default function LandingPage() {
                             <p className="text-sm text-zinc-400 leading-relaxed">
                                 Predictions are resolved against official outcomes. The Pundit Credit
                                 Score weights accuracy, magnitude of misses, and prediction volume.{" "}
-                                <Link href="/methodology" className="text-emerald-400 hover:text-emerald-300 transition-colors">
+                                <Link href="/methodology" className="text-emerald-400 hover:text-emerald-300 transition-colors underline underline-offset-2">
                                     Read the methodology &rarr;
                                 </Link>
                             </p>
@@ -205,17 +205,17 @@ export default function LandingPage() {
 
             {/* Footer */}
             <footer className="border-t border-zinc-900 px-6 py-8 mt-auto">
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
+                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
                     <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
                         Pundit Ledger
                     </span>
                     <div className="flex items-center gap-6">
-                        <Link href="/ledger" className="hover:text-zinc-400 transition-colors">Leaderboard</Link>
-                        <Link href="/pricing" className="hover:text-zinc-400 transition-colors">Pricing</Link>
-                        <Link href="/methodology" className="hover:text-zinc-400 transition-colors">Methodology</Link>
-                        <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms</Link>
-                        <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
-                        <Link href="/legal/acceptable-use" className="hover:text-zinc-400 transition-colors">Acceptable Use</Link>
+                        <Link href="/ledger" className="hover:text-white transition-colors">Leaderboard</Link>
+                        <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
+                        <Link href="/methodology" className="hover:text-white transition-colors">Methodology</Link>
+                        <Link href="/legal/terms" className="hover:text-white transition-colors">Terms</Link>
+                        <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy</Link>
+                        <Link href="/legal/acceptable-use" className="hover:text-white transition-colors">Acceptable Use</Link>
                     </div>
                     <span>© {new Date().getFullYear()} Pundit Ledger. All predictions verified.</span>
                 </div>

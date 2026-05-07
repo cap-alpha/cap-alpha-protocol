@@ -11,7 +11,7 @@ export function AffiliateDisclosure() {
             <span className="font-semibold text-zinc-400">Affiliate link:</span>{" "}
             Cap Alpha may earn a commission if you sign up through this link, at no additional cost to you.{" "}
             <Link href="/legal/disclosure" className="underline hover:text-emerald-500 transition-colors">
-                Learn more
+                Affiliate disclosure
             </Link>
         </p>
     );

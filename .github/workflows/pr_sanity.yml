@@ -34,13 +34,15 @@ jobs:
 
       - name: Confirm required-status baseline
         run: |
-          echo "All required-status workflows:"
-          echo "  ci.yml         → 'CI Pipeline / test'"
-          echo "  tests.yml      → 'Data Quality Tests / test'"
-          echo "  pr_sanity.yml  → 'PR sanity check / sanity'  (this job)"
+          echo "All required checks (as registered in branch protection):"
+          echo "  preflight-build"
+          echo "  Lint Code"
+          echo "  Run Data Quality Tests (3.11)"
+          echo "  test (3.10)"
+          echo "  PR sanity check / sanity  (this job)"
           echo ""
-          echo "Reminder: before queuing a PR, verify:"
+          echo "Reminder: before queuing a PR, verify all non-passing checks:"
           echo "  scripts/gh-lars pr view <N> --json statusCheckRollup | jq '.statusCheckRollup | length'"
-          echo "  must return > 0 and every required check must be SUCCESS."
+          echo "  must return > 0 and every required check must be SUCCESS or SKIPPED."
           echo ""
           echo "Sanity check passed."

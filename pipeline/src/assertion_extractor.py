@@ -600,7 +600,7 @@ def _resolve_speaker_entity_id(pundit_id: str, db: Optional["DBManager"] = None)
         if not row.empty:
             return str(row.iloc[0]["entity_id"])
     except Exception as exc:
-        logger.debug(f"Entity lookup failed for pundit_id={pundit_id!r}: {exc}")
+        logger.warning(f"Entity lookup failed for pundit_id={pundit_id!r}: {exc}")
     return f"UNRESOLVED:{pundit_id}"
 
 
@@ -728,6 +728,22 @@ def write_raw_utterances(
         if isinstance(originating_speaker_val, str):
             originating_speaker_val = originating_speaker_val.strip() or None
 
+        # M7 fix: use explicit None checks so that a legitimate confidence of
+        # 0.0 is not silently replaced by score or 0.0 (the old "or" chain
+        # treats 0.0 as falsy and skips it).
+        _raw_conf = u.get("extraction_confidence")
+        extraction_confidence = max(
+            0.0,
+            min(
+                1.0,
+                float(
+                    _raw_conf
+                    if _raw_conf is not None
+                    else (score if score is not None else 0.0)
+                ),
+            ),
+        )
+
         row = {
             "utterance_id": str(uuid.uuid4()),
             "source_doc_id": source_doc_id,
@@ -738,9 +754,7 @@ def write_raw_utterances(
             "testability_score": score,
             "resolution_horizon": rh,
             "domain": domain,
-            "extraction_confidence": max(
-                0.0, min(1.0, float(u.get("extraction_confidence") or score or 0.0))
-            ),
+            "extraction_confidence": extraction_confidence,
             "created_at": now,
             "speech_act": speech_act,
             "originating_speaker": originating_speaker_val,
@@ -812,7 +826,8 @@ def write_raw_utterances(
             "google.cloud.bigquery", fromlist=["LoadJobConfig"]
         ).LoadJobConfig(write_disposition="WRITE_APPEND")
         df_clean = df.copy()
-        # Cast remaining object-dtype cols to str for BQ Parquet compatibility.
+        # Preserve NaN/None as actual NULL — astype(str) would silently write
+        # the string "None" for missing values, corrupting nullable columns in BQ.
         # datetime64 columns (uttered_at, created_at, resolution_horizon) are
         # not "object" dtype and are skipped automatically.
         # verification_flags is ARRAY<STRING> — skip it so pyarrow can
@@ -822,17 +837,21 @@ def write_raw_utterances(
             if col in _ARRAY_COLS:
                 continue
             if df_clean[col].dtype == object:
-                df_clean[col] = df_clean[col].astype(str)
+                # Use .where() to keep non-null values as-is and leave NaN/None
+                # as Python None (which pyarrow serialises as BQ NULL).
+                df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
         job = db.client.load_table_from_dataframe(
             df_clean, table_ref, job_config=job_config
         )
         job.result()
         logger.info(f"Wrote {len(rows)} raw_utterance rows to {table_ref}")
     except Exception as exc:
-        logger.warning(
-            f"Failed to write raw_utterances to {full_table}: {exc} — continuing"
+        logger.error(
+            f"BQ write failed for raw_utterances → {full_table}: {exc}",
+            exc_info=True,
         )
-        return 0
+        # Re-raise so the pipeline run is marked failed, not silently empty.
+        raise
     return len(rows)
 
 
@@ -891,7 +910,8 @@ def _write_extraction_run(
         df_clean = df.copy()
         for col in df_clean.columns:
             if df_clean[col].dtype == object:
-                df_clean[col] = df_clean[col].astype(str)
+                # Same C3 fix: preserve NaN/None as NULL rather than the string "None"
+                df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
         job = db.client.load_table_from_dataframe(
             df_clean, table_ref, job_config=job_config
         )

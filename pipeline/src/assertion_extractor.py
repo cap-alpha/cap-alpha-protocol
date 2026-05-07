@@ -572,35 +572,93 @@ def _is_promotable(utterance: dict, threshold: float) -> bool:
     return sat in PROMOTABLE_SPEECH_ACTS and score >= threshold and bool(claim.strip())
 
 
-def _resolve_speaker_entity_id(pundit_id: str, db: Optional["DBManager"] = None) -> str:
+def _resolve_speaker_entity_id(
+    pundit_id: str,
+    db: Optional["DBManager"] = None,
+    source_doc_id: Optional[str] = None,
+) -> str:
     """
-    Resolve a pundit_id to a silver_v2_core.entity_id.
-    Attempts a BigQuery lookup by external_ids or alias.
-    On any failure, returns the placeholder "UNRESOLVED:{pundit_id}".
+    Resolve a pundit_id to a stable entity identifier.
+
+    Resolution order:
+      1. pundit_registry (nfl_dead_money) — canonical table seeded from
+         media_sources.yaml via seed_pundit_registry.py.  Returns pundit_id
+         directly (it IS the entity identifier in this table).
+      2. raw_pundit_media.matched_pundit_id — fallback when pundit_registry is
+         empty or the pundit_id is absent.  source_doc_id (== content_hash)
+         is used to look up the matched_pundit_id from the originating article.
+         This ensures articles already matched by the ingestor are never
+         written as UNRESOLVED even before a full registry seed has run.
+      3. UNRESOLVED:{pundit_id} — returned only when both lookups fail.
+
+    Args:
+        pundit_id:     The raw pundit_id from the media row (may be "unknown").
+        db:            DBManager instance.  When None the function returns
+                       UNRESOLVED immediately (no BQ available).
+        source_doc_id: content_hash of the originating raw_pundit_media row.
+                       Required for the fallback lookup; ignored when registry
+                       hit succeeds.
     """
     if db is None:
         return f"UNRESOLVED:{pundit_id}"
     project_id = os.environ.get("GCP_PROJECT_ID", "")
     if not project_id:
         return f"UNRESOLVED:{pundit_id}"
+
+    from google.cloud.bigquery import ScalarQueryParameter as SQP
+
+    # ------------------------------------------------------------------
+    # Step 1 — pundit_registry lookup
+    # ------------------------------------------------------------------
     try:
-        query = f"""
-            SELECT entity_id
-            FROM `{project_id}.silver_v2_core.entity`
-            WHERE JSON_EXTRACT_SCALAR(external_ids, '$.pundit_id') = @pundit_id
-               OR entity_id = @pundit_id
+        registry_query = f"""
+            SELECT pundit_id
+            FROM `{project_id}.nfl_dead_money.pundit_registry`
+            WHERE pundit_id = @pundit_id
             LIMIT 1
         """
-        from google.cloud.bigquery import ScalarQueryParameter as SQP
-
         row = db.fetch_df(
-            query,
+            registry_query,
             query_parameters=[SQP("pundit_id", "STRING", pundit_id)],
         )
         if not row.empty:
-            return str(row.iloc[0]["entity_id"])
+            resolved = str(row.iloc[0]["pundit_id"])
+            logger.debug(
+                f"Speaker resolved via pundit_registry: {pundit_id!r} → {resolved!r}"
+            )
+            return resolved
     except Exception as exc:
-        logger.warning(f"Entity lookup failed for pundit_id={pundit_id!r}: {exc}")
+        logger.debug(f"pundit_registry lookup failed for {pundit_id!r}: {exc}")
+
+    # ------------------------------------------------------------------
+    # Step 2 — raw_pundit_media fallback (uses matched_pundit_id)
+    # ------------------------------------------------------------------
+    if source_doc_id:
+        try:
+            media_query = f"""
+                SELECT matched_pundit_id
+                FROM `{project_id}.nfl_dead_money.raw_pundit_media`
+                WHERE content_hash = @content_hash
+                  AND matched_pundit_id IS NOT NULL
+                LIMIT 1
+            """
+            row = db.fetch_df(
+                media_query,
+                query_parameters=[SQP("content_hash", "STRING", source_doc_id)],
+            )
+            if not row.empty:
+                resolved = str(row.iloc[0]["matched_pundit_id"])
+                logger.debug(
+                    f"Speaker resolved via raw_pundit_media fallback: "
+                    f"content_hash={source_doc_id!r} → {resolved!r}"
+                )
+                return resolved
+        except Exception as exc:
+            logger.debug(
+                f"raw_pundit_media fallback failed for "
+                f"content_hash={source_doc_id!r}: {exc}"
+            )
+
     return f"UNRESOLVED:{pundit_id}"
 
 
@@ -1715,8 +1773,12 @@ def run_extraction(
                     if pd.notna(row.get("published_at"))
                     else datetime.now(timezone.utc)
                 )
-                # Resolve speaker entity_id (best-effort; placeholder on miss)
-                speaker_entity_id = _resolve_speaker_entity_id(str(pundit_id), db=db)
+                # Resolve speaker entity_id (best-effort; placeholder on miss).
+                # Pass content_hash as source_doc_id so the raw_pundit_media
+                # fallback can find matched_pundit_id when pundit_registry is empty.
+                speaker_entity_id = _resolve_speaker_entity_id(
+                    str(pundit_id), db=db, source_doc_id=content_hash
+                )
                 article_sport = str(row.get("sport", sport))
 
                 # 7B verification pass — non-blocking; enriches utterances with

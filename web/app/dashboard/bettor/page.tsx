@@ -21,11 +21,11 @@ export default async function BettorDashboard() {
     const alphaAlerts = warRoomData.redAlerts.map((alert) => {
         const player = rosterMap.get(alert.player_name);
         const parts: string[] = ["ML model flags high bust probability."];
-        if (player?.cap_hit_millions && player.cap_hit_millions > 0) {
-            parts.push(`$${player.cap_hit_millions.toFixed(1)}M cap hit.`);
+        if ((player?.cap_hit_millions ?? 0) > 0) {
+            parts.push(`$${(player?.cap_hit_millions ?? 0).toFixed(1)}M cap hit.`);
         }
-        if (player?.risk_score && player.risk_score > 0) {
-            parts.push(`Risk score: ${(player.risk_score * 100).toFixed(0)}%.`);
+        if ((player?.risk_score ?? 0) > 0) {
+            parts.push(`Risk score: ${((player?.risk_score ?? 0) * 100).toFixed(0)}%.`);
         }
         return {
             player_name: alert.player_name,

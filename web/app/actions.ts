@@ -388,9 +388,10 @@ async function fetchPlayerTimeline(playerName: string): Promise<TimelineEvent[]>
 }
 
 export async function getPlayerTimeline(playerName: string): Promise<TimelineEvent[]> {
+  const normName = playerName.toLowerCase().trim();
   const cachedFn = unstable_cache(
-    async () => fetchPlayerTimeline(playerName),
-    [`player-timeline-v6-${playerName}`],
+    async () => fetchPlayerTimeline(normName),
+    [`player-timeline-v6-${normName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();
@@ -495,9 +496,10 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
 }
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
+  const normName = playerName.toLowerCase().trim();
   const cachedFn = unstable_cache(
-    async () => fetchIntelligenceFeed(playerName),
-    [`intelligence-feed-v5-${playerName}`],
+    async () => fetchIntelligenceFeed(normName),
+    [`intelligence-feed-v5-${normName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();
@@ -640,9 +642,10 @@ async function fetchPlayerAuditLedger(playerName: string): Promise<AuditEntry[]>
 }
 
 export async function getPlayerAuditLedger(playerName: string): Promise<AuditEntry[]> {
+  const normName = playerName.toLowerCase().trim();
   const cachedFn = unstable_cache(
-    async () => fetchPlayerAuditLedger(playerName),
-    [`player-audit-ledger-v1-${playerName}`],
+    async () => fetchPlayerAuditLedger(normName),
+    [`player-audit-ledger-v1-${normName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();
@@ -685,9 +688,10 @@ async function fetchPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoin
 }
 
 export async function getPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  const normName = playerName.toLowerCase().trim();
   const cachedFn = unstable_cache(
-    async () => fetchPlayerFMVHistory(playerName),
-    [`player-fmv-history-v1-${playerName}`],
+    async () => fetchPlayerFMVHistory(normName),
+    [`player-fmv-history-v1-${normName}`],
     { revalidate: 3600 }
   );
   return await cachedFn();
@@ -745,9 +749,11 @@ async function fetchPositionalComps(playerName: string, position: string): Promi
 }
 
 export async function getPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
+  const normName = playerName.toLowerCase().trim();
+  const normPos = position.toLowerCase().trim();
   const cachedFn = unstable_cache(
-    async () => fetchPositionalComps(playerName, position),
-    [`positional-comps-v1-${position}`],
+    async () => fetchPositionalComps(normName, normPos),
+    [`positional-comps-v1-${normPos}`],
     { revalidate: 3600 }
   );
   return await cachedFn();

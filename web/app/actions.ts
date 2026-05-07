@@ -483,26 +483,28 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
         });
       }
     }
-  } catch (e) { /* raw_media_mentions may not exist yet */ }
+  } catch (e) {
+    console.warn('[Data] raw_media_mentions error (table may not exist yet):', e);
+  }
 
   // No, we let the UI handle empty state. No filler.
   return feed;
 }
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
-  const cachedFn = unstable_cache(
-    async () => {
-      try {
-        return await fetchIntelligenceFeed(playerName);
-      } catch (error) {
-        console.error('[getIntelligenceFeed] BQ error, returning empty feed:', error);
-        return [];
-      }
-    },
-    [`intelligence-feed-v5-${playerName}`],
-    { revalidate: 3600 }
-  );
-  return await cachedFn();
+  // try/catch is OUTSIDE the cache so transient BQ errors are never cached.
+  // Only a successful fetch result gets stored for the revalidate window.
+  try {
+    const cachedFn = unstable_cache(
+      async () => fetchIntelligenceFeed(playerName),
+      [`intelligence-feed-v5-${playerName}`],
+      { revalidate: 3600 }
+    );
+    return await cachedFn();
+  } catch (error) {
+    console.error('[getIntelligenceFeed] BQ error, returning empty feed:', error);
+    return [];
+  }
 }
 
 // --- WAR ROOM ACTIONS ---

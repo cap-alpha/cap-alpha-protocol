@@ -160,12 +160,12 @@ jobs:
           fi
 
   e2e_test:
-    name: Run E2E Integration Tests (Docker)
+    name: Run E2E Integration Tests (Docker) [advisory]
     needs: [changes]
     # Only run when web/** files change — avoids flaky failures on backend-only PRs
     if: ${{ needs.changes.outputs.web == 'true' }}
     runs-on: ubuntu-latest
-    continue-on-error: true
+    continue-on-error: true  # advisory — failures are tracked but do not block merge
 
     steps:
     - name: Checkout code

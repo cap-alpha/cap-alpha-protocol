@@ -532,7 +532,9 @@ class TestThresholdsSensitivity:
             for u in broken_quoted_utterances
             if u.get("speech_act_type") in ("quoted", "commentary")
         ]
-        assert len(attributed) > 0, "broken_quoted_utterances fixture has no attributed speech acts"
+        assert len(attributed) > 0, (
+            "broken_quoted_utterances fixture has no attributed speech acts"
+        )
 
         missing = [u for u in attributed if not u.get("originating_speaker")]
         rate = len(missing) / len(attributed)

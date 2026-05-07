@@ -69,9 +69,9 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
     const chartDataWithBands = chartData.map(d => ({
         ...d,
         bounds: [
-            Math.max(0, d.predicted - avgError), // Floor at 0
-            d.predicted + avgError
-        ]
+            Math.max(0, (d.predicted ?? 0) - avgError), // Floor at 0
+            (d.predicted ?? 0) + avgError
+        ] as [number, number]
     }));
 
     return (

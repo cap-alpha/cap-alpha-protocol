@@ -64,9 +64,10 @@ jobs:
         run: |
           VENV_DIR="$HOME/.venv/cap-alpha"
           python3 -m venv "$VENV_DIR"
-          echo "$VENV_DIR/bin" >> $GITHUB_PATH
           "$VENV_DIR/bin/pip" install --upgrade pip setuptools
           "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt
+          echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
+          echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH
 
       - name: Authenticate to GCP
         run: |
@@ -79,6 +80,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
           GITHUB_SHA: ${{ github.sha }}
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 scripts/apply_migrations.py
 
@@ -87,6 +89,7 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m src.media_ingestor
 
@@ -95,6 +98,7 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m scripts.seed_pundit_registry
 
@@ -109,6 +113,7 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
 
@@ -119,6 +124,7 @@ jobs:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 scripts/check_extraction_health.py --window-minutes 120 --min-count 1
 
@@ -128,6 +134,7 @@ jobs:
           SPORTS_DATA_IO_API_KEY: ${{ secrets.SPORTS_DATA_IO_API_KEY }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()"
 
@@ -136,6 +143,7 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m src.resolve_daily
 
@@ -145,6 +153,7 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
+          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 - <<'PY'
           from src.db_manager import DBManager

@@ -272,6 +272,22 @@ def broken_quoted_utterances() -> list[dict]:
     ]
 
 
+@pytest.fixture
+def broken_resolution_horizon_utterances() -> list[dict]:
+    """
+    High-testability utterances (score >= 0.7) that are all missing resolution_horizon.
+    Used by the TestThresholdsSensitivity meta-test to confirm that
+    TestResolutionHorizonCompleteness actually fires on known-bad data.
+    """
+    return [
+        {
+            **_make_utterance(text=f"testable claim {i}", testability_score=0.85),
+            "resolution_horizon": None,
+        }
+        for i in range(10)
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Test class 1 — Field population contract
 # ---------------------------------------------------------------------------
@@ -546,15 +562,11 @@ class TestThresholdsSensitivity:
             "but all were populated.  Adjust the fixture."
         )
 
-    def test_resolution_horizon_fails_on_broken_data(self):
+    def test_resolution_horizon_fails_on_broken_data(
+        self, broken_resolution_horizon_utterances
+    ):
         """High-testability claims all missing resolution_horizon must exceed the 30% tolerance."""
-        broken = [
-            {
-                **_make_utterance(text=f"testable claim {i}", testability_score=0.85),
-                "resolution_horizon": None,
-            }
-            for i in range(10)
-        ]
+        broken = broken_resolution_horizon_utterances
         testable = [u for u in broken if (u.get("testability_score") or 0) >= 0.7]
         assert len(testable) > 0
 

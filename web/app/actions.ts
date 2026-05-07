@@ -409,98 +409,102 @@ export type IntelligenceEvent = {
 };
 
 async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
-  try {
-    const feed: IntelligenceEvent[] = [];
+  const feed: IntelligenceEvent[] = [];
 
-    // 1. Predictions
-    const [predJob] = await bigquery.createQueryJob({
-      query: `
-        SELECT year, 0 as week, predicted_risk_score, 0 as high_uncertainty_flag 
-        FROM \`nfl_dead_money.prediction_results\` 
-        WHERE player_name = @playerName 
-        ORDER BY year DESC LIMIT 5
-      `,
-      params: { playerName }
-    });
-    const [preds] = await predJob.getQueryResults();
+  // 1. Predictions
+  const [predJob] = await bigquery.createQueryJob({
+    query: `
+      SELECT year, 0 as week, predicted_risk_score, 0 as high_uncertainty_flag
+      FROM \`nfl_dead_money.prediction_results\`
+      WHERE player_name = @playerName
+      ORDER BY year DESC LIMIT 5
+    `,
+    params: { playerName }
+  });
+  const [preds] = await predJob.getQueryResults();
 
-    if (preds && preds.length > 0) {
-      const latest = preds[0] as any;
-      if (latest.predicted_risk_score == 1) {
-        feed.push({ type: "Warning", text: "Alpha Protocol model alerts high bust probability for current production trends.", icon: 'TrendingDown', color: 'text-rose-400' });
-      } else {
-        feed.push({ type: "Stable", text: "Alpha Protocol modeling shows stable production aligning with contract expectations.", icon: 'TrendingUp', color: 'text-emerald-400' });
-      }
+  if (preds && preds.length > 0) {
+    const latest = preds[0] as any;
+    if (latest.predicted_risk_score == 1) {
+      feed.push({ type: "Warning", text: "Alpha Protocol model alerts high bust probability for current production trends.", icon: 'TrendingDown', color: 'text-rose-400' });
+    } else {
+      feed.push({ type: "Stable", text: "Alpha Protocol modeling shows stable production aligning with contract expectations.", icon: 'TrendingUp', color: 'text-emerald-400' });
     }
+  }
 
-    // 2. Media Consensus
-    const [mediaJob] = await bigquery.createQueryJob({
+  // 2. Media Consensus
+  const [mediaJob] = await bigquery.createQueryJob({
+    query: `
+      SELECT media_date_approx as date_of_event, rationale, source_url
+      FROM \`nfl_dead_money.media_lag_metrics\`
+      WHERE player_name = @playerName
+      ORDER BY year DESC LIMIT 3
+    `,
+    params: { playerName }
+  });
+  const [media] = await mediaJob.getQueryResults();
+
+  if (media && media.length > 0) {
+    for (const m of media) {
+      feed.push({
+        type: "Media",
+        text: `Consensus shift: ${(m as any).rationale}`,
+        icon: 'AlertCircle',
+        color: 'text-amber-400',
+        url: (m as any).source_url || undefined,
+      });
+    }
+  }
+
+  // 3. Raw News / Tweets — raw_media_mentions may not exist yet; swallow only this error.
+  try {
+    const [rawNewsJob] = await bigquery.createQueryJob({
       query: `
-        SELECT media_date_approx as date_of_event, rationale, source_url
-        FROM \`nfl_dead_money.media_lag_metrics\`
+        SELECT headline as rationale, published_at as date_of_event, url as source_url, source_type, provenance_hash
+        FROM \`nfl_dead_money.raw_media_mentions\`
         WHERE player_name = @playerName
-        ORDER BY year DESC LIMIT 3
+        ORDER BY published_at DESC LIMIT 5
       `,
       params: { playerName }
     });
-    const [media] = await mediaJob.getQueryResults();
+    const [rawNews] = await rawNewsJob.getQueryResults();
 
-    if (media && media.length > 0) {
-      for (const m of media) {
+    if (rawNews && rawNews.length > 0) {
+      for (const n of rawNews) {
+        const isTwitter = (n as any).source_type === 'twitter';
         feed.push({
-          type: "Media",
-          text: `Consensus shift: ${(m as any).rationale}`,
-          icon: 'AlertCircle',
-          color: 'text-amber-400',
-          url: (m as any).source_url || undefined,
+          type: isTwitter ? "X_POST" : "WEB_ARCHIVE",
+          text: (n as any).rationale,
+          icon: 'FileText',
+          color: 'text-zinc-300',
+          url: (n as any).source_url || undefined,
+          provenanceHash: (n as any).provenance_hash || undefined,
+          timestamp: (n as any).date_of_event || new Date().toISOString(),
         });
       }
     }
-
-    // 3. Raw News / Tweets (Guarantees every player has a feed)
-    try {
-      const [rawNewsJob] = await bigquery.createQueryJob({
-        query: `
-          SELECT headline as rationale, published_at as date_of_event, url as source_url, source_type, provenance_hash
-          FROM \`nfl_dead_money.raw_media_mentions\`
-          WHERE player_name = @playerName
-          ORDER BY published_at DESC LIMIT 5
-        `,
-        params: { playerName }
-      });
-      const [rawNews] = await rawNewsJob.getQueryResults();
-
-      if (rawNews && rawNews.length > 0) {
-        for (const n of rawNews) {
-          const isTwitter = (n as any).source_type === 'twitter';
-          feed.push({
-            type: isTwitter ? "X_POST" : "WEB_ARCHIVE",
-            text: (n as any).rationale,
-            icon: 'FileText',
-            color: 'text-zinc-300',
-            url: (n as any).source_url || undefined,
-            provenanceHash: (n as any).provenance_hash || undefined,
-            timestamp: (n as any).date_of_event || new Date().toISOString(),
-          });
-        }
-      }
-    } catch (e) { /* Might not exist yet */ }
-
-    // No, we let the UI handle empty state. No filler.
-    return feed;
-  } catch (error) {
-    console.error("[Data] Error loading intelligence feed:", error);
-    return []; // ZERO MOCKS.
+  } catch (e) {
+    console.warn('[Data] raw_media_mentions error (table may not exist yet):', e);
   }
+
+  // No, we let the UI handle empty state. No filler.
+  return feed;
 }
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
-  const cachedFn = unstable_cache(
-    async () => fetchIntelligenceFeed(playerName),
-    [`intelligence-feed-v5-${playerName}`],
-    { revalidate: 3600 }
-  );
-  return await cachedFn();
+  // try/catch is OUTSIDE the cache so transient BQ errors are never cached.
+  // Only a successful fetch result gets stored for the revalidate window.
+  try {
+    const cachedFn = unstable_cache(
+      async () => fetchIntelligenceFeed(playerName),
+      [`intelligence-feed-v5-${playerName}`],
+      { revalidate: 3600 }
+    );
+    return await cachedFn();
+  } catch (error) {
+    console.error('[getIntelligenceFeed] BQ error, returning empty feed:', error);
+    return [];
+  }
 }
 
 // --- WAR ROOM ACTIONS ---
@@ -643,6 +647,181 @@ export async function getPlayerAuditLedger(playerName: string): Promise<AuditEnt
   const cachedFn = unstable_cache(
     async () => fetchPlayerAuditLedger(playerName),
     [`player-audit-ledger-v1-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
+// --- FMV DASHBOARD ACTIONS ---
+
+export type FmvHistoryPoint = {
+  week: string;
+  fmv: number;
+  cap_hit: number;
+};
+
+async function fetchPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    // fact_player_efficiency has year + week + fair_market_value + cap_hit_millions
+    const query = `
+      SELECT
+        CONCAT(CAST(year AS STRING), ' W', LPAD(CAST(SAFE_CAST(week AS INT64) AS STRING), 2, '0')) AS week,
+        SAFE_CAST(fair_market_value AS FLOAT64) AS fmv,
+        SAFE_CAST(cap_hit_millions AS FLOAT64) AS cap_hit
+      FROM \`${projectId}.nfl_dead_money.fact_player_efficiency\`
+      WHERE LOWER(player_name) = LOWER(@playerName)
+        AND fair_market_value IS NOT NULL
+        AND cap_hit_millions IS NOT NULL
+      ORDER BY year ASC, week ASC
+    `;
+    const [job] = await bigquery.createQueryJob({ query, params: { playerName }, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
+    return rows.map((r: any) => ({
+      week: String(r.week ?? ''),
+      fmv: Number(r.fmv ?? 0),
+      cap_hit: Number(r.cap_hit ?? 0),
+    }));
+  } catch (error) {
+    console.error(`[Data] Error loading FMV history for ${playerName}:`, error);
+    return [];
+  }
+}
+
+export async function getPlayerFMVHistory(playerName: string): Promise<FmvHistoryPoint[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPlayerFMVHistory(playerName),
+    [`player-fmv-history-v1-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
+export type PositionalComp = {
+  name: string;
+  team: string;
+  fmv: number;
+  cap_hit: number;
+  efficiency: number;
+};
+
+async function fetchPositionalComps(position: string): Promise<PositionalComp[]> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    const query = `
+      WITH RankedByYear AS (
+        SELECT
+          player_name,
+          team,
+          SAFE_CAST(fair_market_value AS FLOAT64) AS fmv,
+          SAFE_CAST(cap_hit_millions AS FLOAT64) AS cap_hit,
+          ROW_NUMBER() OVER (PARTITION BY player_name ORDER BY year DESC) AS rn
+        FROM \`${projectId}.nfl_dead_money.fact_player_efficiency\`
+        WHERE UPPER(position) = UPPER(@position)
+          AND cap_hit_millions IS NOT NULL
+          AND cap_hit_millions > 0
+          AND fair_market_value IS NOT NULL
+      )
+      SELECT
+        player_name AS name,
+        team,
+        fmv,
+        cap_hit,
+        SAFE_DIVIDE(fmv, cap_hit) AS efficiency
+      FROM RankedByYear
+      WHERE rn = 1
+      ORDER BY SAFE_DIVIDE(fmv, cap_hit) DESC
+      LIMIT 10
+    `;
+    const [job] = await bigquery.createQueryJob({ query, params: { position }, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults({ timeoutMs: 15000 });
+    return rows.map((r: any) => ({
+      name: String(r.name ?? ''),
+      team: String(r.team ?? ''),
+      fmv: Number(r.fmv ?? 0),
+      cap_hit: Number(r.cap_hit ?? 0),
+      efficiency: Number(r.efficiency ?? 0),
+    }));
+  } catch (error) {
+    console.error(`[Data] Error loading positional comps for ${position}:`, error);
+    return [];
+  }
+}
+
+export async function getPositionalComps(playerName: string, position: string): Promise<PositionalComp[]> {
+  const cachedFn = unstable_cache(
+    async () => fetchPositionalComps(position),
+    [`positional-comps-v1-${position}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
+}
+
+// --- PUNDIT RESOLUTION STATS ---
+
+export type ResolutionOutcomeStat = {
+  resolution_status: string;
+  count: number;
+  avg_brier_score: number | null;
+};
+
+export type PunditResolutionStats = {
+  outcomes: ResolutionOutcomeStat[];
+  total_resolved: number;
+  overall_avg_brier: number | null;
+};
+
+async function fetchPunditResolutionStats(): Promise<PunditResolutionStats> {
+  try {
+    const projectId = process.env.GCP_PROJECT_ID || 'cap-alpha-protocol';
+    const query = `
+      SELECT
+        resolution_status,
+        COUNT(*) AS count,
+        AVG(brier_score) AS avg_brier_score
+      FROM \`${projectId}.gold_layer.prediction_resolutions\`
+      WHERE resolution_status IN ('CORRECT', 'INCORRECT', 'VOID')
+      GROUP BY resolution_status
+      ORDER BY resolution_status
+    `;
+
+    const [job] = await bigquery.createQueryJob({ query, jobTimeoutMs: 15000 });
+    const [rows] = await job.getQueryResults();
+
+    const outcomes: ResolutionOutcomeStat[] = (rows as Array<Record<string, unknown>>).map((row) => ({
+      resolution_status: String(row.resolution_status ?? ''),
+      count: Number(row.count ?? 0),
+      avg_brier_score: row.avg_brier_score != null ? Number(row.avg_brier_score) : null,
+    }));
+
+    const total_resolved = outcomes
+      .filter((o) => o.resolution_status === 'CORRECT' || o.resolution_status === 'INCORRECT')
+      .reduce((sum, o) => sum + o.count, 0);
+
+    // Weighted average Brier across CORRECT + INCORRECT outcomes
+    const brierOutcomes = outcomes.filter(
+      (o) => o.avg_brier_score !== null && (o.resolution_status === 'CORRECT' || o.resolution_status === 'INCORRECT')
+    );
+    let overall_avg_brier: number | null = null;
+    if (brierOutcomes.length > 0) {
+      const totalCount = brierOutcomes.reduce((s, o) => s + o.count, 0);
+      if (totalCount > 0) {
+        overall_avg_brier =
+          brierOutcomes.reduce((s, o) => s + (o.avg_brier_score ?? 0) * o.count, 0) / totalCount;
+      }
+    }
+
+    return { outcomes, total_resolved, overall_avg_brier };
+  } catch (error) {
+    console.error('[Data] Error loading pundit resolution stats:', error);
+    return { outcomes: [], total_resolved: 0, overall_avg_brier: null };
+  }
+}
+
+export async function getPunditResolutionStats(): Promise<PunditResolutionStats> {
+  const cachedFn = unstable_cache(
+    async () => fetchPunditResolutionStats(),
+    ['pundit-resolution-stats-v1'],
     { revalidate: 3600 }
   );
   return await cachedFn();

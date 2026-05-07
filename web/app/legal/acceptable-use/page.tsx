@@ -12,7 +12,7 @@ export default function AcceptableUsePolicy() {
             <article className="max-w-3xl mx-auto px-6 py-20 space-y-10">
                 <header className="space-y-3 border-b border-zinc-800 pb-8">
                     <h1 className="text-4xl font-black tracking-tight">Acceptable Use Policy</h1>
-                    <p className="text-sm text-zinc-500">Effective: [DATE]</p>
+                    <p className="text-sm text-zinc-500">Effective: May 6, 2026</p>
                 </header>
 
                 <section className="space-y-4 text-zinc-300 leading-relaxed">

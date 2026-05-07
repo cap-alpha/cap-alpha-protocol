@@ -10,6 +10,16 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $CLAUDE_PROJECT_DIR/scripts/prune_worktrees.sh 2>/dev/null || true"
+          }
+        ]
+      }
     ]
   }
 }

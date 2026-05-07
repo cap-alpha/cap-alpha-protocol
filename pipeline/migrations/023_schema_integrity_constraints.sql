@@ -1,4 +1,4 @@
--- Migration 009: Schema Integrity — NOT NULL Constraints (Issue #106)
+-- Migration 023: Schema Integrity — NOT NULL Constraints (Issue #106)
 --
 -- CONVERTED TO NO-OP: BigQuery does not support ALTER COLUMN ... SET NOT NULL
 -- via the standard SQL jobs API (syntax error: expected DATA, DEFAULT, GENERATED,

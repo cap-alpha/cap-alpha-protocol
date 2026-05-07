@@ -1,0 +1,46 @@
+name: PR Sanity Check
+
+# Always fires on every PR — guarantees statusCheckRollup is never empty.
+# Without this, merge queue can land PRs with zero CI checks if workflow
+# path filters exclude the changed files (see issue #735).
+on:
+  pull_request:
+    branches: [main]
+  merge_group:
+    branches: [main]
+
+jobs:
+  sanity:
+    name: PR sanity check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Print PR info
+        run: |
+          echo "PR / merge-group event: ${{ github.event_name }}"
+          echo "PR number: ${{ github.event.pull_request.number || 'merge_group' }}"
+          echo "Head SHA: ${{ github.sha }}"
+          echo "Ref: ${{ github.ref }}"
+
+      - name: Verify CODEOWNERS exists
+        run: |
+          if [[ ! -f .github/CODEOWNERS ]]; then
+            echo "ERROR: .github/CODEOWNERS is missing — extraction-risk paths have no required reviewer."
+            exit 1
+          fi
+          echo "CODEOWNERS present."
+          grep -c "^[^#]" .github/CODEOWNERS || true
+
+      - name: Confirm required-status baseline
+        run: |
+          echo "All required-status workflows:"
+          echo "  ci.yml         → 'CI Pipeline / test'"
+          echo "  tests.yml      → 'Data Quality Tests / test'"
+          echo "  pr_sanity.yml  → 'PR sanity check / sanity'  (this job)"
+          echo ""
+          echo "Reminder: before queuing a PR, verify:"
+          echo "  gh pr view <N> --json statusCheckRollup | jq '.statusCheckRollup | length'"
+          echo "  must return > 0 and every required check must be SUCCESS."
+          echo ""
+          echo "Sanity check passed."

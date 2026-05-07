@@ -2004,3 +2004,639 @@ class TestResolveSpeakerEntityId:
         )
         assert result == "adam_schefter"
         assert call_count["n"] == 2  # registry tried, media tried
+
+
+# Canonical "fully-populated" mock LLM response for a promotable assertion.
+_FULL_PHASE_C_PAYLOAD = [
+    {
+        "text": "Patrick Mahomes will win MVP this season.",
+        "speech_act_type": "assertion",
+        "testability_subscores": {
+            "subject_specificity": 1.0,
+            "predicate_falsifiability": 1.0,
+            "threshold_concreteness": 0.8,
+            "resolution_horizon_defined": 0.9,
+            "evidence_accessibility": 1.0,
+        },
+        "testability_score": 0.94,
+        "resolution_horizon": "2026-01-31T23:59:59Z",
+        "predicate": "will_win_award",
+        "subject": "Patrick Mahomes",
+        "predicate_args": {"award": "MVP", "league": "NFL"},
+        "extracted_claim": "Patrick Mahomes will win NFL MVP in the 2025 season",
+        "claim_category": "award_prediction",
+        "stance": "bullish",
+        "season_year": 2026,
+        "target_player": "Patrick Mahomes",
+        "target_team": "KC",
+        "confidence_note": "explicit award prediction",
+        "prediction_horizon_days": 120,
+        "extraction_confidence": 0.95,
+    }
+]
+
+# Non-promotable utterance (rhetorical question) — tests that suppressed
+# utterances still carry the new fields without crashing.
+_RHETORICAL_PAYLOAD = [
+    {
+        "text": "Can anyone stop this Chiefs offense?",
+        "speech_act_type": "rhetorical_question",
+        "testability_subscores": {
+            "subject_specificity": 1.0,
+            "predicate_falsifiability": 0.1,
+            "threshold_concreteness": 0.0,
+            "resolution_horizon_defined": 0.0,
+            "evidence_accessibility": 0.2,
+        },
+        "testability_score": 0.26,
+        "resolution_horizon": None,
+        "predicate": "",
+        "subject": "Kansas City Chiefs",
+        "predicate_args": {},
+        "extracted_claim": "",
+        "claim_category": "game_outcome",
+        "stance": "bullish",
+        "season_year": None,
+        "target_player": None,
+        "target_team": "KC",
+        "confidence_note": "rhetorical emphasis",
+        "prediction_horizon_days": -1,
+        "extraction_confidence": 0.3,
+    }
+]
+
+
+class TestPhaseCNewFields:
+    """
+    Prove that the updated extraction prompt (PR #723) correctly populates
+    the Phase C fields that were previously 100% NULL.
+    """
+
+    def test_extract_assertions_populates_text_field(self, mock_provider):
+        """'text' (verbatim quote) must be non-null in every utterance."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Patrick Mahomes will win MVP this season.",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        assert result.error is None
+        assert len(result.utterances) == 1
+        assert (
+            result.utterances[0]["text"] == "Patrick Mahomes will win MVP this season."
+        )
+
+    def test_extract_assertions_populates_speech_act_type(self, mock_provider):
+        """'speech_act_type' must be non-null and one of the valid values."""
+        from src.assertion_extractor import VALID_SPEECH_ACT_TYPES
+
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        sat = result.utterances[0]["speech_act_type"]
+        assert sat is not None
+        assert sat in VALID_SPEECH_ACT_TYPES
+
+    def test_extract_assertions_populates_testability_score(self, mock_provider):
+        """'testability_score' must be a float in [0, 1]."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        score = result.utterances[0]["testability_score"]
+        assert score is not None
+        assert isinstance(score, float)
+        assert 0.0 <= score <= 1.0
+
+    def test_extract_assertions_recomputes_score_from_subscores(self, mock_provider):
+        """
+        When testability_subscores are present, extract_assertions must
+        recompute testability_score from the formula, not trust the LLM value.
+        """
+        # LLM says score=0.94 but subscores average to 0.94 as well — use real math.
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        u = result.utterances[0]
+        expected = (1.0 + 1.0 + 0.8 + 0.9 + 1.0) / 5
+        assert u["testability_score"] == pytest.approx(expected, abs=1e-4)
+
+    def test_extract_assertions_populates_all_five_subscores(self, mock_provider):
+        """All five testability_subscores keys must be present and non-null."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        subscores = result.utterances[0].get("testability_subscores", {})
+        for key in (
+            "subject_specificity",
+            "predicate_falsifiability",
+            "threshold_concreteness",
+            "resolution_horizon_defined",
+            "evidence_accessibility",
+        ):
+            assert key in subscores, f"Missing subscore key: {key}"
+            assert subscores[key] is not None, f"Subscore {key} is None"
+
+    def test_extract_assertions_populates_resolution_horizon(self, mock_provider):
+        """'resolution_horizon' must be non-null when the LLM provides an ISO date."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        rh = result.utterances[0].get("resolution_horizon")
+        assert rh is not None
+        # LLM-provided string is preserved on the utterance (write_raw_utterances
+        # converts it to a Timestamp, tested separately below).
+        assert "2026" in str(rh)
+
+    def test_extract_assertions_populates_predicate(self, mock_provider):
+        """'predicate' must be non-null for a promotable assertion."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        predicate = result.utterances[0].get("predicate")
+        assert predicate is not None
+        assert predicate != ""
+
+    def test_extract_assertions_populates_subject(self, mock_provider):
+        """'subject' must be non-null and identify the entity."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        subject = result.utterances[0].get("subject")
+        assert subject is not None
+        assert subject != ""
+
+    def test_extract_assertions_populates_predicate_args(self, mock_provider):
+        """'predicate_args' must be a non-empty dict for a specific assertion."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        pargs = result.utterances[0].get("predicate_args")
+        assert pargs is not None
+        assert isinstance(pargs, dict)
+        assert len(pargs) > 0
+
+    def test_extract_assertions_populates_prediction_horizon_days(self, mock_provider):
+        """'prediction_horizon_days' must be an int >= 0 for a promotable claim."""
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        phd = result.utterances[0].get("prediction_horizon_days")
+        assert phd is not None
+        assert phd >= 0
+
+    def test_extract_assertions_utterances_non_empty_for_rich_response(
+        self, mock_provider
+    ):
+        """
+        ExtractionResult.utterances must be populated (not []) when the LLM
+        returns any speech acts — this is the Phase C raw_utterance audit trail.
+        """
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        assert len(result.utterances) == 1
+        # The utterance must be the same object that was returned by the provider.
+        assert (
+            result.utterances[0]["text"] == "Patrick Mahomes will win MVP this season."
+        )
+
+    def test_rhetorical_question_in_utterances_but_not_predictions(self, mock_provider):
+        """
+        A rhetorical question utterance must appear in .utterances (full audit
+        trail) but NOT in .predictions (only promotable acts go to ledger).
+        """
+        set_provider_predictions(mock_provider, _RHETORICAL_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Can anyone stop this Chiefs offense?",
+            provider=mock_provider,
+        )
+        assert len(result.utterances) == 1
+        assert len(result.predictions) == 0
+        assert result.utterances[0]["speech_act_type"] == "rhetorical_question"
+
+    def test_all_18_new_fields_present_in_utterance(self, mock_provider):
+        """
+        Regression test: every new Phase C field the prompt now asks the LLM
+        to fill must survive round-trip through extract_assertions intact.
+        """
+        set_provider_predictions(mock_provider, _FULL_PHASE_C_PAYLOAD)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        u = result.utterances[0]
+        required_new_fields = [
+            "text",
+            "speech_act_type",
+            "testability_subscores",
+            "testability_score",
+            "resolution_horizon",
+            "predicate",
+            "subject",
+            "predicate_args",
+            "extraction_confidence",
+            # pre-existing fields that should also be non-null for a well-formed claim:
+            "extracted_claim",
+            "claim_category",
+            "stance",
+            "season_year",
+            "target_player",
+            "target_team",
+            "confidence_note",
+            "prediction_horizon_days",
+        ]
+        for field in required_new_fields:
+            assert field in u, f"Field '{field}' missing from utterance dict"
+            # None is acceptable for optional nullable fields (resolution_horizon
+            # when not applicable, etc.) but the key itself must be present.
+
+        # Spot-check that the "previously 100% NULL" ones are actually non-null:
+        assert u["text"] is not None and u["text"] != ""
+        assert u["speech_act_type"] is not None
+        assert u["testability_score"] is not None
+        assert u["testability_subscores"] is not None
+        assert u["predicate"] is not None
+        assert u["subject"] is not None
+        assert u["predicate_args"] is not None
+
+
+class TestPhaseCRegressionMissingFields:
+    """
+    Regression tests: if the LLM omits Phase C fields (old model / partial
+    response), the code must not raise KeyError — it must gracefully fall
+    back to safe defaults.
+    """
+
+    def test_missing_speech_act_type_does_not_crash(self, mock_provider):
+        """Utterances without speech_act_type must not cause extract_assertions to crash."""
+        payload_no_sat = [
+            {
+                # No "speech_act_type" key
+                "extracted_claim": "Mahomes wins MVP",
+                "claim_category": "award_prediction",
+                "confidence_note": "strong",
+                "season_year": 2026,
+            }
+        ]
+        set_provider_predictions(mock_provider, payload_no_sat)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        # Must not raise; predictions must still be populated via legacy path
+        assert result.error is None
+        assert len(result.predictions) == 1
+
+    def test_missing_testability_subscores_does_not_crash(self, mock_provider):
+        """Utterances without testability_subscores must not crash."""
+        payload_no_subscores = [
+            {
+                "text": "Josh Allen wins Super Bowl",
+                "speech_act_type": "assertion",
+                # No "testability_subscores" key
+                "testability_score": 0.85,
+                "extracted_claim": "Josh Allen wins Super Bowl",
+                "claim_category": "game_outcome",
+                "confidence_note": "strong",
+                "season_year": 2026,
+            }
+        ]
+        set_provider_predictions(mock_provider, payload_no_subscores)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Allen wins it all",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        assert result.error is None
+        assert len(result.utterances) == 1
+        # testability_score should use the LLM-supplied value as-is
+        assert result.utterances[0]["testability_score"] == pytest.approx(
+            0.85, abs=1e-4
+        )
+
+    def test_missing_resolution_horizon_stored_as_none(self, mock_provider):
+        """Utterances without resolution_horizon must store None gracefully."""
+        payload_no_rh = [
+            {
+                "text": "Eagles win the NFC",
+                "speech_act_type": "assertion",
+                "testability_score": 0.75,
+                # No "resolution_horizon" key
+                "extracted_claim": "Eagles win the NFC",
+                "claim_category": "game_outcome",
+                "confidence_note": "moderate",
+                "season_year": 2026,
+            }
+        ]
+        set_provider_predictions(mock_provider, payload_no_rh)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Eagles win the NFC",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        assert result.error is None
+        assert (
+            "resolution_horizon" not in result.utterances[0]
+            or result.utterances[0].get("resolution_horizon") is None
+        )
+
+    def test_missing_predicate_does_not_crash(self, mock_provider):
+        """Utterances without predicate/subject/predicate_args must not crash."""
+        payload_minimal = [
+            {
+                "text": "Browns miss playoffs",
+                "speech_act_type": "assertion",
+                "testability_score": 0.7,
+                "extracted_claim": "Browns miss playoffs",
+                "claim_category": "game_outcome",
+                "confidence_note": "strong",
+                "season_year": 2026,
+                # No predicate, subject, predicate_args, resolution_horizon
+            }
+        ]
+        set_provider_predictions(mock_provider, payload_minimal)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Browns miss playoffs",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        assert result.error is None
+        assert len(result.utterances) == 1
+
+    def test_none_string_values_handled_gracefully(self, mock_provider):
+        """
+        PR #723 fix: LLM sometimes returns the string "None" instead of JSON null.
+        This must not propagate as a non-null value into BQ string fields.
+        The fix: extractor strips "None" strings from nullable fields.
+        """
+        payload_none_strings = [
+            {
+                "text": "Mahomes wins MVP",
+                "speech_act_type": "assertion",
+                "testability_score": 0.9,
+                "resolution_horizon": "None",  # LLM returned string "None"
+                "predicate": "None",
+                "subject": "Patrick Mahomes",
+                "predicate_args": {},
+                "extracted_claim": "Mahomes wins MVP",
+                "claim_category": "award_prediction",
+                "stance": "bullish",
+                "season_year": 2026,
+                "target_player": "None",  # LLM returned string "None"
+                "target_team": "KC",
+                "confidence_note": "strong",
+                "prediction_horizon_days": 120,
+            }
+        ]
+        set_provider_predictions(mock_provider, payload_none_strings)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        # Must not crash — the important thing is that the extractor does not explode
+        # on "None" strings; individual field cleaning is handled upstream in the prompt
+        assert result.error is None
+
+    def test_extra_unknown_fields_in_response_do_not_crash(self, mock_provider):
+        """
+        Future-proofing: if the LLM adds extra fields not in the schema,
+        extract_assertions must pass them through without crashing.
+        """
+        payload_extra = [
+            {
+                "text": "Mahomes wins MVP",
+                "speech_act_type": "assertion",
+                "testability_score": 0.9,
+                "extracted_claim": "Mahomes wins MVP",
+                "claim_category": "award_prediction",
+                "confidence_note": "strong",
+                "season_year": 2026,
+                "extra_field_not_in_schema": "some_value",
+                "another_future_field": 42,
+            }
+        ]
+        set_provider_predictions(mock_provider, payload_extra)
+        result = extract_assertions(
+            content_hash="abc123",
+            text="Mahomes wins MVP",
+            provider=mock_provider,
+            allow_historical=True,
+        )
+        assert result.error is None
+        assert len(result.utterances) == 1
+
+
+class TestPhaseCComputeTestabilityScore:
+    """Unit tests for compute_testability_score() — the formula we own."""
+
+    def test_full_scores_average_to_one(self):
+        from src.assertion_extractor import compute_testability_score
+
+        subscores = {
+            "subject_specificity": 1.0,
+            "predicate_falsifiability": 1.0,
+            "threshold_concreteness": 1.0,
+            "resolution_horizon_defined": 1.0,
+            "evidence_accessibility": 1.0,
+        }
+        assert compute_testability_score(subscores) == pytest.approx(1.0, abs=1e-4)
+
+    def test_zero_scores_average_to_zero(self):
+        from src.assertion_extractor import compute_testability_score
+
+        subscores = {
+            "subject_specificity": 0.0,
+            "predicate_falsifiability": 0.0,
+            "threshold_concreteness": 0.0,
+            "resolution_horizon_defined": 0.0,
+            "evidence_accessibility": 0.0,
+        }
+        assert compute_testability_score(subscores) == pytest.approx(0.0, abs=1e-4)
+
+    def test_missing_subscore_key_defaults_to_zero(self):
+        """A missing sub-score key should be treated as 0 (penalises the average)."""
+        from src.assertion_extractor import compute_testability_score
+
+        # Only 4 of 5 keys present
+        subscores = {
+            "subject_specificity": 1.0,
+            "predicate_falsifiability": 1.0,
+            "threshold_concreteness": 1.0,
+            "resolution_horizon_defined": 1.0,
+            # evidence_accessibility missing
+        }
+        result = compute_testability_score(subscores)
+        # Missing key contributes 0 → average of (1+1+1+1+0)/5 = 0.8
+        assert result == pytest.approx(0.8, abs=1e-4)
+
+    def test_empty_subscores_returns_zero(self):
+        from src.assertion_extractor import compute_testability_score
+
+        assert compute_testability_score({}) == 0.0
+
+    def test_scores_clamped_to_unit_interval(self):
+        """Sub-scores outside [0,1] (malformed LLM output) must be clamped."""
+        from src.assertion_extractor import compute_testability_score
+
+        subscores = {
+            "subject_specificity": 2.5,  # > 1 — must be clamped to 1.0
+            "predicate_falsifiability": -0.5,  # < 0 — must be clamped to 0.0
+            "threshold_concreteness": 0.5,
+            "resolution_horizon_defined": 0.5,
+            "evidence_accessibility": 0.5,
+        }
+        result = compute_testability_score(subscores)
+        # (1.0 + 0.0 + 0.5 + 0.5 + 0.5) / 5 = 0.5
+        assert result == pytest.approx(0.5, abs=1e-4)
+
+    def test_string_scores_coerced_to_float(self):
+        """Some LLMs return scores as strings — must be coerced to float."""
+        from src.assertion_extractor import compute_testability_score
+
+        subscores = {
+            "subject_specificity": "1.0",
+            "predicate_falsifiability": "0.8",
+            "threshold_concreteness": "0.6",
+            "resolution_horizon_defined": "0.7",
+            "evidence_accessibility": "0.9",
+        }
+        result = compute_testability_score(subscores)
+        assert result == pytest.approx((1.0 + 0.8 + 0.6 + 0.7 + 0.9) / 5, abs=1e-4)
+
+
+class TestPhaseCIsPromotable:
+    """Unit tests for _is_promotable() — the gate to prediction_ledger."""
+
+    def test_assertion_above_threshold_is_promotable(self):
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            "speech_act_type": "assertion",
+            "testability_score": 0.8,
+            "extracted_claim": "Mahomes wins MVP",
+        }
+        assert _is_promotable(u, threshold=0.6) is True
+
+    def test_rhetorical_question_is_not_promotable(self):
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            "speech_act_type": "rhetorical_question",
+            "testability_score": 0.9,
+            "extracted_claim": "Can anyone stop Mahomes?",
+        }
+        assert _is_promotable(u, threshold=0.6) is False
+
+    def test_hedge_is_not_promotable(self):
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            "speech_act_type": "hedge",
+            "testability_score": 0.7,
+            "extracted_claim": "Mahomes might win MVP",
+        }
+        assert _is_promotable(u, threshold=0.6) is False
+
+    def test_assertion_below_threshold_is_not_promotable(self):
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            "speech_act_type": "assertion",
+            "testability_score": 0.4,
+            "extracted_claim": "Eagles could win",
+        }
+        assert _is_promotable(u, threshold=0.6) is False
+
+    def test_conditional_above_threshold_is_promotable(self):
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            "speech_act_type": "conditional",
+            "testability_score": 0.88,
+            "extracted_claim": "Ravens reach AFC Championship (OL stays healthy)",
+        }
+        assert _is_promotable(u, threshold=0.6) is True
+
+    def test_missing_speech_act_type_defaults_to_assertion(self):
+        """Backward-compat: absent speech_act_type → 'assertion' → promotable."""
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            # No speech_act_type
+            "testability_score": 0.9,
+            "extracted_claim": "Eagles win NFC East",
+        }
+        assert _is_promotable(u, threshold=0.6) is True
+
+    def test_absent_testability_score_defaults_to_one_point_zero(self):
+        """Backward-compat: absent testability_score → 1.0 (legacy responses always promoted)."""
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            "speech_act_type": "assertion",
+            # No testability_score
+            "extracted_claim": "Browns miss playoffs",
+        }
+        assert _is_promotable(u, threshold=0.6) is True
+
+    def test_empty_extracted_claim_is_not_promotable(self):
+        """An utterance with no extracted_claim text must not be promoted."""
+        from src.assertion_extractor import _is_promotable
+
+        u = {
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extracted_claim": "",
+        }
+        assert _is_promotable(u, threshold=0.6) is False

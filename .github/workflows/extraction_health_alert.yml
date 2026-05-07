@@ -100,7 +100,7 @@ jobs:
           PY
 
       - name: Install GitHub App PEM
-        if: steps.health_check.outcome == 'failure'
+        if: steps.health_check.outcome == 'failure' && secrets.GH_APP_PEM_CONTENT != ''
         run: |
           mkdir -p ~/.ghconfig
           printf '%s' '${{ secrets.GH_APP_PEM_CONTENT }}' > ~/.ghconfig/triage-app.pem
@@ -111,12 +111,11 @@ jobs:
         env:
           GH_APP_ID: ${{ secrets.GH_APP_ID }}
           GH_INSTALLATION_ID: ${{ secrets.GH_INSTALLATION_ID }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          scripts/gh-lars issue create \
-            --title "incident: extraction health check failed $(date -u '+%Y-%m-%dT%H:%MZ')" \
-            --label "incident:extraction" \
-            --body "$(cat <<EOF
+          TITLE="incident: extraction health check failed $(date -u '+%Y-%m-%dT%H:%MZ')"
+          BODY="$(cat <<EOF
           ## Extraction health check failed
 
           The hourly extraction health check detected an issue. Check the [workflow run]($WORKFLOW_URL) for details.
@@ -134,6 +133,19 @@ jobs:
           /cc @king-hrothgar
           EOF
           )"
+          # Use gh-lars (GitHub App token) if credentials available; fall back to
+          # GITHUB_TOKEN when GH_APP_ID is not configured as a CI secret.
+          if [[ -n "${GH_APP_ID:-}" && -n "${GH_INSTALLATION_ID:-}" ]]; then
+            scripts/gh-lars issue create \
+              --title "$TITLE" \
+              --label "incident:extraction" \
+              --body "$BODY"
+          else
+            gh issue create \
+              --title "$TITLE" \
+              --label "incident:extraction" \
+              --body "$BODY"
+          fi
 
       - name: Assert healthy
         if: steps.health_check.outcome == 'failure'

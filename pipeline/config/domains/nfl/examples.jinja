@@ -1,0 +1,117 @@
+--- FEW-SHOT EXAMPLES ---
+
+Example 1 — Rhetorical question (NOT promoted to ledger):
+Input: "Can anyone stop Patrick Mahomes at this point?"
+Output:
+{
+  "text": "Can anyone stop Patrick Mahomes at this point?",
+  "speech_act_type": "rhetorical_question",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.2},
+  "testability_score": 0.26,
+  "resolution_horizon": null,
+  "predicate": "",
+  "subject": "Patrick Mahomes",
+  "predicate_args": {},
+  "extracted_claim": "",
+  "claim_category": "player_performance",
+  "stance": "bullish",
+  "season_year": null,
+  "target_player": "Patrick Mahomes",
+  "target_team": "KC",
+  "confidence_note": "rhetorical emphasis",
+  "prediction_horizon_days": -1
+}
+
+Example 2 — Genuine assertion (PROMOTED to ledger):
+Input: "The Eagles will win at least 11 games this season."
+Output:
+{
+  "text": "The Eagles will win at least 11 games this season.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0},
+  "testability_score": 0.96,
+  "resolution_horizon": "2025-12-31T23:59:59Z",
+  "predicate": "will_win_at_least",
+  "subject": "Philadelphia Eagles",
+  "predicate_args": {"threshold": 11, "stat": "wins", "unit": "games"},
+  "extracted_claim": "Eagles will win at least 11 games in the 2025 season",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": 2025,
+  "target_player": null,
+  "target_team": "PHI",
+  "confidence_note": "explicit numeric threshold",
+  "prediction_horizon_days": 150
+}
+
+Example 3 — Conditional (PROMOTED to ledger):
+Input: "If their offensive line stays healthy, the Ravens will reach the AFC Championship."
+Output:
+{
+  "text": "If their offensive line stays healthy, the Ravens will reach the AFC Championship.",
+  "speech_act_type": "conditional",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.7, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0},
+  "testability_score": 0.88,
+  "resolution_horizon": "2025-12-31T23:59:59Z",
+  "predicate": "will_reach",
+  "subject": "Baltimore Ravens",
+  "predicate_args": {"milestone": "AFC Championship", "condition": "offensive line stays healthy"},
+  "extracted_claim": "Ravens will reach the AFC Championship (conditional on OL health)",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": 2025,
+  "target_player": null,
+  "target_team": "BAL",
+  "confidence_note": "conditional on OL health",
+  "prediction_horizon_days": 120
+}
+
+Example 4 — Quoted claim (speech_act=quoted, score routed to originating_speaker):
+Input: "Adam Schefter is reporting that the Cowboys will cut Dak Prescott before the season."
+Output:
+{
+  "text": "Adam Schefter is reporting that the Cowboys will cut Dak Prescott before the season.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.7, "evidence_accessibility": 0.9},
+  "testability_score": 0.88,
+  "resolution_horizon": "2026-09-01T00:00:00Z",
+  "predicate": "will_cut",
+  "subject": "Dallas Cowboys",
+  "predicate_args": {"player": "Dak Prescott", "timing": "before season"},
+  "extracted_claim": "Cowboys will cut Dak Prescott before the season (per Schefter)",
+  "claim_category": "contract",
+  "stance": "bearish",
+  "season_year": 2026,
+  "target_player": "Dak Prescott",
+  "target_team": "DAL",
+  "confidence_note": "attributed report from named insider",
+  "prediction_horizon_days": 90,
+  "speech_act": "quoted",
+  "originating_speaker": "Adam Schefter"
+}
+
+Example 5 — Commentary (speech_act=commentary, speaker authors an agree/disagree claim):
+Input: "I completely agree with Cowherd — Mahomes will win a fourth Super Bowl before he retires."
+Output:
+{
+  "text": "I completely agree with Cowherd — Mahomes will win a fourth Super Bowl before he retires.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.5, "evidence_accessibility": 0.9},
+  "testability_score": 0.82,
+  "resolution_horizon": null,
+  "predicate": "will_win",
+  "subject": "Patrick Mahomes",
+  "predicate_args": {"milestone": "4th Super Bowl", "threshold": 4},
+  "extracted_claim": "agree: Mahomes will win a fourth Super Bowl before retiring",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": null,
+  "target_player": "Patrick Mahomes",
+  "target_team": "KC",
+  "confidence_note": "explicit agreement with named pundit's claim",
+  "prediction_horizon_days": -1,
+  "speech_act": "commentary",
+  "originating_speaker": "Colin Cowherd"
+}
+
+--- END EXAMPLES ---

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS `{project_id}.nfl_dead_money.raw_pundit_media`
   raw_metadata          STRING    OPTIONS(description="JSON blob of extra metadata from the source"),
 
   -- Sport context (multi-sport expansion)
-  sport                 STRING    OPTIONS(description="Sport inferred from media_sources.yaml config: NFL|MLB|NBA etc. Default NFL.") DEFAULT 'NFL'
+  sport                 STRING    DEFAULT 'NFL' OPTIONS(description="Sport inferred from media_sources.yaml config: NFL|MLB|NBA etc. Default NFL.")
 )
 PARTITION BY DATE(ingested_at)
 CLUSTER BY source_id, matched_pundit_id

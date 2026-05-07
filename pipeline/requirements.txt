@@ -1,6 +1,6 @@
 pandas
 pandas-gbq
-nfl-data-py>=0.3.0
+nfl-data-py>=0.3.3
 db-dtypes
 xgboost
 shap>=0.40.0
@@ -20,7 +20,7 @@ pyarrow
 selenium
 webdriver-manager
 pyyaml
-numba>=0.54.0
+numba>=0.65.1
 fastapi
 uvicorn
 httpx
@@ -30,8 +30,12 @@ tabulate
 praw
 google-cloud-bigquery
 google-genai
+anthropic
+google-api-python-client
 duckduckgo-search
 pydantic
-youtube-transcript-api>=0.6.3,<2.0.0
+youtube-transcript-api>=1.2.4,<2.0.0
 readability-lxml
 tenacity
+sentry-sdk[fastapi]>=2.0.0
+Jinja2>=3.1.0

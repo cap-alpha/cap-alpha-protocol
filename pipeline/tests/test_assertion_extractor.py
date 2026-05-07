@@ -5,7 +5,7 @@ Unit tests — no LLM API or BigQuery required.
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -27,6 +27,7 @@ from src.assertion_extractor import (
     reset_processed_hashes,
     run_extraction,
     should_filter_article,
+    write_raw_utterances,
 )
 
 # ---------------------------------------------------------------------------
@@ -272,8 +273,10 @@ class TestExtractAssertions:
 
         call_args = mock_provider.extract_predictions.call_args
         prompt_text = call_args[0][0]  # first positional arg
-        # Text should be truncated to 4000 chars
-        assert len(prompt_text) < len(long_text) + 1000
+        # The raw long_text is 10000 chars but extract_assertions truncates to 4000.
+        # Verify truncation by checking the un-truncated tail is absent from the prompt.
+        assert "x" * 5000 not in prompt_text  # tail of long_text should be absent
+        assert "x" * 4000 in prompt_text  # first 4000 chars should be present
 
     def test_deduplicates_near_identical_claims(self):
         """Semantic dedup removes near-duplicate claims."""
@@ -808,7 +811,11 @@ class TestPreFilterIntegration:
         )
 
         summary = run_extraction(
-            limit=10, db=mock_db, provider=mock_provider, disable_filter=True
+            limit=10,
+            db=mock_db,
+            provider=mock_provider,
+            disable_filter=True,
+            disable_triage=True,
         )
 
         assert summary["filtered_out"] == 0
@@ -1215,20 +1222,38 @@ class TestSourceConfig:
         assert len(cfg) > 0
 
     def test_known_tier1_sources_have_correct_tier(self):
-        """pat_mcafee_show and espn_nfl should be tier 1 per media_sources.yaml."""
+        """pat_mcafee_show and theathletic_nfl should be tier 1 per media_sources.yaml."""
         import src.assertion_extractor as ae
 
         ae._SOURCE_CONFIG_CACHE = None
         assert get_source_priority_tier("pat_mcafee_show") == 1
-        assert get_source_priority_tier("espn_nfl") == 1
+        assert get_source_priority_tier("theathletic_nfl") == 1
+
+    def test_known_tier2_sources_have_correct_tier(self):
+        """espn_nfl should be tier 2 per media_sources.yaml (issue #381)."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert get_source_priority_tier("espn_nfl") == 2
+
+    def test_known_tier3_sources_have_correct_tier(self):
+        """pft_nbc should be tier 3 per media_sources.yaml (issue #381)."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        assert get_source_priority_tier("pft_nbc") == 3
 
     def test_skip_extraction_sources(self):
-        """club_shay_shay and nfl_official should have skip_extraction=True."""
+        """club_shay_shay should have skip_extraction=True.
+        nfl_official was removed from media_sources.yaml (permanently dead — 2026-05),
+        so it falls through to the default (False).
+        """
         import src.assertion_extractor as ae
 
         ae._SOURCE_CONFIG_CACHE = None
         assert is_skip_extraction("club_shay_shay") is True
-        assert is_skip_extraction("nfl_official") is True
+        # nfl_official removed from config; unknown source → default False
+        assert is_skip_extraction("nfl_official") is False
 
     def test_non_skip_source(self):
         """pat_mcafee_show should NOT be skip_extraction."""
@@ -1260,6 +1285,34 @@ class TestPriorityInGetUnprocessedMedia:
         assert "club_shay_shay" in query
         assert "NOT IN" in query
 
+    def test_query_orders_by_priority_tier_then_ingested_at(self, mock_db):
+        """Main query should ORDER BY priority_tier ASC, ingested_at DESC (issue #381)."""
+        import src.assertion_extractor as ae
+
+        ae._SOURCE_CONFIG_CACHE = None
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        get_unprocessed_media(mock_db)
+        query = mock_db.fetch_df.call_args[0][0]
+        assert "ORDER BY" in query
+        assert "ASC" in query
+        assert "ingested_at DESC" in query
+
+    def test_fallback_query_orders_by_priority_tier_then_ingested_at(self, mock_db):
+        """Fallback query (no tracking table) also ORDER BY priority_tier ASC, ingested_at DESC."""
+        import src.assertion_extractor as ae
+        from google.api_core.exceptions import NotFound
+
+        ae._SOURCE_CONFIG_CACHE = None
+        mock_db.fetch_df.side_effect = [
+            NotFound("processed_media_hashes"),
+            pd.DataFrame(),
+        ]
+        get_unprocessed_media(mock_db)
+        fallback_query = mock_db.fetch_df.call_args_list[1][0][0]
+        assert "ORDER BY" in fallback_query
+        assert "ASC" in fallback_query
+        assert "ingested_at DESC" in fallback_query
+
     def test_priority_sort_applied_to_results(self, mock_db):
         """Results returned from DB should be re-sorted by tier before returning."""
         import src.assertion_extractor as ae
@@ -1272,7 +1325,7 @@ class TestPriorityInGetUnprocessedMedia:
             [
                 {
                     "content_hash": "hash_tier3",
-                    "source_id": "rotoballer_nfl",  # tier 3
+                    "source_id": "rotoballer_nfl",  # unknown source → DEFAULT_PRIORITY_TIER (2)
                     "title": "Low yield",
                     "raw_text": "text",
                     "source_url": "https://example.com/a",
@@ -1284,7 +1337,7 @@ class TestPriorityInGetUnprocessedMedia:
                 },
                 {
                     "content_hash": "hash_tier1",
-                    "source_id": "espn_nfl",  # tier 1
+                    "source_id": "pat_mcafee_show",  # tier 1 (McAfee transcripts)
                     "title": "High yield",
                     "raw_text": "text",
                     "source_url": "https://example.com/b",
@@ -1298,8 +1351,8 @@ class TestPriorityInGetUnprocessedMedia:
         )
         mock_db.fetch_df.return_value = raw
         result = get_unprocessed_media(mock_db, limit=10)
-        # espn_nfl (tier 1) should come before rotoballer_nfl (tier 3)
-        assert result.iloc[0]["source_id"] == "espn_nfl"
+        # pat_mcafee_show (tier 1) should come before rotoballer_nfl (unknown → tier 2)
+        assert result.iloc[0]["source_id"] == "pat_mcafee_show"
         assert result.iloc[1]["source_id"] == "rotoballer_nfl"
 
     def test_run_extraction_skips_low_yield_source(self, mock_db, mock_provider):
@@ -1438,3 +1491,326 @@ class TestExtractionRunWrite:
         kwargs = mock_write_run.call_args.kwargs
         assert kwargs["mean_testability_score"] == pytest.approx(0.5, abs=1e-6)
         assert kwargs["metadata_completeness_pct"] == pytest.approx(100.0, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# write_raw_utterances — resolution_horizon serialization (#555)
+# ---------------------------------------------------------------------------
+
+
+def _capture_load_args(mock_db):
+    """Return the rows list passed to db.client.load_table_from_dataframe."""
+    call_args = mock_db.client.load_table_from_dataframe.call_args
+    df = call_args[0][0]  # first positional arg is the DataFrame
+    return df.to_dict(orient="records")
+
+
+def _make_mock_db_for_bq_write():
+    """Build a mock DBManager whose BQ load path succeeds."""
+    db = MagicMock()
+    mock_job = MagicMock()
+    mock_job.result.return_value = None
+    db.client.load_table_from_dataframe.return_value = mock_job
+    return db
+
+
+class TestWriteRawUtterancesResolutionHorizon:
+    """
+    Regression tests for the resolution_horizon TIMESTAMP serialization.
+
+    silver_v2_claims.raw_utterance defines resolution_horizon as TIMESTAMP
+    (nullable).  The column must be written as datetime64[ns, UTC] so pyarrow
+    can serialize it correctly.  Passing an "object" dtype column (strings/None)
+    caused the "Array, ListArray, or StructArray" pyarrow error and silently
+    dropped every row.  The fix applies pd.to_datetime(utc=True, errors="coerce")
+    to the column before calling load_table_from_dataframe.
+    """
+
+    _BASE_UTTERANCE = {
+        "text": "Mahomes will win MVP",
+        "speech_act_type": "assertion",
+        "testability_score": 0.9,
+        "extraction_confidence": 0.9,
+    }
+
+    def _write_one(self, resolution_horizon_value):
+        """Helper: write a single utterance with the given resolution_horizon."""
+        import os
+
+        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+        db = _make_mock_db_for_bq_write()
+        utterance = {
+            **self._BASE_UTTERANCE,
+            "resolution_horizon": resolution_horizon_value,
+        }
+        n = write_raw_utterances(
+            utterances=[utterance],
+            source_doc_id="doc_abc",
+            speaker_entity_id="entity_xyz",
+            uttered_at=datetime(2025, 9, 1, tzinfo=timezone.utc),
+            domain="nfl",
+            db=db,
+        )
+        assert n == 1, "Expected 1 row written"
+        rows = _capture_load_args(db)
+        assert len(rows) == 1
+        return rows[0]["resolution_horizon"]
+
+    def _is_utc_timestamp(self, val):
+        import pandas as pd
+
+        return isinstance(val, pd.Timestamp) and val.tzinfo is not None
+
+    def test_datetime_becomes_utc_timestamp(self):
+        """datetime object → UTC pd.Timestamp in the written DataFrame."""
+        dt = datetime(2025, 12, 31, 23, 59, 59, tzinfo=timezone.utc)
+        result = self._write_one(dt)
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025 and result.month == 12 and result.day == 31
+
+    def test_date_becomes_utc_timestamp(self):
+        """date object → UTC pd.Timestamp (midnight UTC)."""
+        d = date(2025, 12, 31)
+        result = self._write_one(d)
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025 and result.month == 12 and result.day == 31
+
+    def test_pd_timestamp_stays_utc_timestamp(self):
+        """pd.Timestamp → UTC pd.Timestamp."""
+        import pandas as pd
+
+        ts = pd.Timestamp("2025-12-31T23:59:59Z")
+        result = self._write_one(ts)
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025
+
+    def test_dict_becomes_nat(self):
+        """dict cannot represent a datetime → NaT (NULL in BQ)."""
+        import pandas as pd
+
+        result = self._write_one({"year": 2025, "quarter": "Q4"})
+        assert result is pd.NaT
+
+    def test_list_becomes_nat(self):
+        """list cannot represent a datetime → NaT (NULL in BQ)."""
+        import pandas as pd
+
+        result = self._write_one(["2025-Q4", "end of season"])
+        assert result is pd.NaT
+
+    def test_iso_string_becomes_utc_timestamp(self):
+        """ISO-8601 string → UTC pd.Timestamp."""
+        result = self._write_one("2025-12-31T23:59:59Z")
+        assert self._is_utc_timestamp(result)
+        assert result.year == 2025
+
+    def test_unparseable_string_becomes_nat(self):
+        """Non-date string (e.g. 'end of season') → NaT (NULL in BQ)."""
+        import pandas as pd
+
+        result = self._write_one("end of the 2025 NFL season")
+        assert result is pd.NaT
+
+    def test_none_becomes_nat(self):
+        """None → NaT (NULL in BQ TIMESTAMP column)."""
+        import pandas as pd
+
+        result = self._write_one(None)
+        assert result is pd.NaT
+
+    def test_empty_string_becomes_nat(self):
+        """Empty string cannot be parsed as datetime → NaT."""
+        import pandas as pd
+
+        result = self._write_one("")
+        assert result is pd.NaT
+
+    def test_multiple_utterances_all_written(self):
+        """All rows in a batch are written; valid dates become Timestamps, None → NaT."""
+        import os
+
+        import pandas as pd
+
+        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+        db = _make_mock_db_for_bq_write()
+        utterances = [
+            {
+                **self._BASE_UTTERANCE,
+                "resolution_horizon": datetime(2025, 12, 31, tzinfo=timezone.utc),
+            },
+            {**self._BASE_UTTERANCE, "resolution_horizon": "2026-01-15T00:00:00Z"},
+            {**self._BASE_UTTERANCE, "resolution_horizon": None},
+        ]
+        n = write_raw_utterances(
+            utterances=utterances,
+            source_doc_id="doc_multi",
+            speaker_entity_id="entity_xyz",
+            uttered_at=datetime(2025, 9, 1, tzinfo=timezone.utc),
+            domain="nfl",
+            db=db,
+        )
+        assert n == 3
+        rows = _capture_load_args(db)
+        assert len(rows) == 3
+        # datetime → UTC Timestamp
+        assert self._is_utc_timestamp(rows[0]["resolution_horizon"])
+        assert rows[0]["resolution_horizon"].year == 2025
+        # ISO string → UTC Timestamp
+        assert self._is_utc_timestamp(rows[1]["resolution_horizon"])
+        assert rows[1]["resolution_horizon"].year == 2026
+        # None → NaT
+        assert rows[2]["resolution_horizon"] is pd.NaT
+
+
+# ---------------------------------------------------------------------------
+# write_raw_utterances — new metadata fields (#674, #675)
+# ---------------------------------------------------------------------------
+
+
+class TestWriteRawUtterancesMetadata:
+    """
+    Tests that subscore, stance, horizon, and 7B verification fields
+    are persisted in the BQ row rather than discarded (#674, #675).
+    """
+
+    _UTTERED_AT = datetime(2025, 9, 1, tzinfo=timezone.utc)
+
+    def _write_utterance(self, utterance: dict) -> dict:
+        """Write a single utterance and return the first captured BQ row."""
+        import os
+
+        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+        db = _make_mock_db_for_bq_write()
+        write_raw_utterances(
+            utterances=[utterance],
+            source_doc_id="doc_meta",
+            speaker_entity_id="entity_meta",
+            uttered_at=self._UTTERED_AT,
+            domain="nfl",
+            db=db,
+        )
+        rows = _capture_load_args(db)
+        assert len(rows) == 1
+        return rows[0]
+
+    def test_subscore_fields_persisted(self):
+        """All five testability sub-scores from #674 are written to BQ."""
+        utterance = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extraction_confidence": 0.9,
+            "testability_subscores": {
+                "subject_specificity": 1.0,
+                "predicate_falsifiability": 0.9,
+                "threshold_concreteness": 0.8,
+                "resolution_horizon_defined": 0.7,
+                "evidence_accessibility": 1.0,
+            },
+        }
+        row = self._write_utterance(utterance)
+        assert float(row["subscore_subject_specificity"]) == pytest.approx(1.0)
+        assert float(row["subscore_predicate_falsifiability"]) == pytest.approx(0.9)
+        assert float(row["subscore_threshold_concreteness"]) == pytest.approx(0.8)
+        assert float(row["subscore_resolution_horizon_defined"]) == pytest.approx(0.7)
+        assert float(row["subscore_evidence_accessibility"]) == pytest.approx(1.0)
+
+    def test_stance_field_persisted(self):
+        """stance value from LLM is written to BQ (#674)."""
+        utterance = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extraction_confidence": 0.9,
+            "stance": "bullish",
+        }
+        row = self._write_utterance(utterance)
+        assert row["stance"] == "bullish"
+
+    def test_prediction_horizon_days_persisted(self):
+        """prediction_horizon_days from LLM is written to BQ (#674)."""
+        utterance = {
+            "text": "Eagles win NFC East",
+            "speech_act_type": "assertion",
+            "testability_score": 0.85,
+            "extraction_confidence": 0.85,
+            "prediction_horizon_days": 120,
+        }
+        row = self._write_utterance(utterance)
+        # DataFrame int → str after astype(str), so compare as string or int
+        assert str(row["prediction_horizon_days"]) == "120"
+
+    def test_confidence_note_persisted(self):
+        """confidence_note from LLM is written to BQ (#674)."""
+        utterance = {
+            "text": "Kelce retires",
+            "speech_act_type": "assertion",
+            "testability_score": 0.7,
+            "extraction_confidence": 0.7,
+            "confidence_note": "explicit numeric threshold",
+        }
+        row = self._write_utterance(utterance)
+        assert row["confidence_note"] == "explicit numeric threshold"
+
+    def test_resolution_condition_persisted(self):
+        """resolution_condition from #675 is written to BQ."""
+        utterance = {
+            "text": "Hill traded before June",
+            "speech_act_type": "assertion",
+            "testability_score": 0.8,
+            "extraction_confidence": 0.8,
+            "resolution_condition": "Reported by major outlet as traded before 2026-06-01",
+        }
+        row = self._write_utterance(utterance)
+        assert "traded before" in row["resolution_condition"]
+
+    def test_hedge_level_persisted(self):
+        """hedge_level from #675 is written to BQ."""
+        utterance = {
+            "text": "I think the Eagles might win",
+            "speech_act_type": "hedge",
+            "testability_score": 0.4,
+            "extraction_confidence": 0.6,
+            "hedge_level": "weak",
+        }
+        row = self._write_utterance(utterance)
+        assert row["hedge_level"] == "weak"
+
+    def test_verification_fields_persisted(self):
+        """7B verification fields from #675 are written to BQ."""
+        utterance = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extraction_confidence": 0.9,
+            "claim_text_alignment": 0.95,
+            "hallucination_risk": "low",
+            "verification_flags": ["team_inferred"],
+            "quality_score": 0.88,
+            "needs_review": False,
+        }
+        row = self._write_utterance(utterance)
+        assert float(row["claim_text_alignment"]) == pytest.approx(0.95)
+        assert row["hallucination_risk"] == "low"
+        assert row["quality_score"] is not None
+        # verification_flags is ARRAY<STRING> — serialized as list
+        assert "team_inferred" in row["verification_flags"]
+        # needs_review is BOOL — not coerced to str by the object-dtype loop
+        assert row["needs_review"] is False
+
+    def test_missing_metadata_fields_default_to_none(self):
+        """When LLM doesn't return optional fields, they are None (not KeyError)."""
+        utterance = {
+            "text": "Some claim",
+            "speech_act_type": "commentary",
+            "testability_score": 0.2,
+            "extraction_confidence": 0.5,
+        }
+        row = self._write_utterance(utterance)
+        # All new fields should exist as None/"nan" (not missing from dict)
+        assert "subscore_subject_specificity" in row
+        assert "resolution_condition" in row
+        assert "hedge_level" in row
+        assert "claim_text_alignment" in row
+        assert "hallucination_risk" in row
+        assert "quality_score" in row

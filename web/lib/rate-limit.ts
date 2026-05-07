@@ -26,6 +26,7 @@ export interface RateLimitResult {
 export const TIER_RATE_LIMITS: Record<Tier, number> = {
     free: 100,
     pro: 1_000,
+    agent: 10_000,
     api_starter: 10_000,
     api_growth: 100_000,
     enterprise: 1_000_000, // effectively unlimited

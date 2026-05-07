@@ -669,13 +669,58 @@ class TestWriteRawUtterances:
         df_written = mock_db.client.load_table_from_dataframe.call_args[0][0]
         assert df_written.iloc[0]["speech_act_type"] == "commentary"
 
-    def test_continues_on_write_failure(self, mock_db):
-        """write_raw_utterances should NOT raise on BQ write failure — just return 0."""
+    def test_raises_on_write_failure(self, mock_db):
+        """write_raw_utterances must re-raise on BQ write failure so the pipeline is
+        marked failed rather than silently producing zero rows (C4 fix)."""
         mock_db.client.load_table_from_dataframe.side_effect = Exception(
             "BQ unavailable"
         )
         utterances = [make_utterance()]
 
+        with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
+            with pytest.raises(Exception, match="BQ unavailable"):
+                write_raw_utterances(
+                    utterances=utterances,
+                    source_doc_id="h",
+                    speaker_entity_id="e",
+                    uttered_at=datetime.now(timezone.utc),
+                    domain="nfl",
+                    db=mock_db,
+                )
+
+    # NOT-NULL invariant tests (#595) -------------------------------------------
+
+    def test_raises_on_null_domain(self, mock_db):
+        """write_raw_utterances raises ValueError if domain is None."""
+        utterances = [make_utterance()]
+        with pytest.raises(ValueError, match="NOT NULL invariant violated"):
+            write_raw_utterances(
+                utterances=utterances,
+                source_doc_id="h",
+                speaker_entity_id="e",
+                uttered_at=datetime.now(timezone.utc),
+                domain=None,
+                db=mock_db,
+            )
+        mock_db.client.load_table_from_dataframe.assert_not_called()
+
+    def test_raises_mentions_null_column_names(self, mock_db):
+        """ValueError message names the offending column(s)."""
+        utterances = [make_utterance()]
+        with pytest.raises(ValueError) as exc_info:
+            write_raw_utterances(
+                utterances=utterances,
+                source_doc_id="h",
+                speaker_entity_id="e",
+                uttered_at=datetime.now(timezone.utc),
+                domain=None,
+                db=mock_db,
+            )
+        assert "domain" in str(exc_info.value)
+
+    def test_does_not_raise_with_complete_metadata(self, mock_db):
+        """No ValueError when all required fields are present."""
+        utterances = [make_utterance()]
         with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
             n = write_raw_utterances(
                 utterances=utterances,
@@ -685,7 +730,21 @@ class TestWriteRawUtterances:
                 domain="nfl",
                 db=mock_db,
             )
-        assert n == 0  # soft failure
+        assert n == 1
+
+    def test_raises_before_bq_write(self, mock_db):
+        """BQ client must not be called when the invariant is violated."""
+        utterances = [make_utterance()]
+        with pytest.raises(ValueError):
+            write_raw_utterances(
+                utterances=utterances,
+                source_doc_id="h",
+                speaker_entity_id="e",
+                uttered_at=datetime.now(timezone.utc),
+                domain=None,
+                db=mock_db,
+            )
+        mock_db.client.load_table_from_dataframe.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

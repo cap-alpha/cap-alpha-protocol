@@ -1,3 +1,4 @@
+// Footer with correction policy link — issue #482
 import React from 'react';
 import Link from 'next/link';
 import { DebugReset } from './debug-reset';
@@ -45,6 +46,8 @@ const Footer = () => {
                         <Link href="/legal/acceptable-use" className="hover:text-slate-300 transition-colors">Acceptable Use</Link>
                         <Link href="/legal/responsible-gambling" className="hover:text-amber-400 transition-colors text-amber-600">Responsible Gambling</Link>
                         <Link href="/legal/disclosure" className="hover:text-slate-300 transition-colors">Affiliate Disclosure</Link>
+                        <Link href="/legal/corrections" className="hover:text-slate-300 transition-colors">Corrections</Link>
+                        <Link href="/status" className="hover:text-emerald-400 transition-colors">Status</Link>
                     </div>
                     <div className="flex items-center space-x-2 text-slate-500 text-xs">
                         <span>&copy; {new Date().getFullYear()} Andrew Smith</span>

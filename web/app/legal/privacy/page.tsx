@@ -4,8 +4,8 @@ import Link from "next/link";
 import { ShieldCheck, ArrowLeft } from "lucide-react";
 
 export const metadata: Metadata = {
-    title: "Privacy Policy | Pundit Ledger",
-    description: "How Pundit Ledger collects, uses, and protects your information.",
+    title: "Privacy Policy | Cap Alpha",
+    description: "How Cap Alpha collects, uses, and protects your information.",
 };
 
 export default function PrivacyPolicy() {
@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
                     className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors mb-10"
                 >
                     <ArrowLeft className="w-4 h-4" />
-                    Back to Pundit Ledger
+                    Back to Cap Alpha
                 </Link>
 
                 {/* Header */}
@@ -33,7 +33,7 @@ export default function PrivacyPolicy() {
                     <section className="space-y-3">
                         <h2 className="text-xl font-bold text-white">1. What We Collect</h2>
                         <p>
-                            When you visit Pundit Ledger we may collect standard server log data
+                            When you visit Cap Alpha we may collect standard server log data
                             (IP address, browser type, referring URL, pages visited). If you
                             create an account via Clerk, we store the email address and display
                             name you provide. We do not collect payment details directly — that is

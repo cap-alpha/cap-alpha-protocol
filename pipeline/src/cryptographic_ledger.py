@@ -68,6 +68,9 @@ class PunditPrediction:
     prompt_version: Optional[str] = None  # SHA-256 prefix of extraction prompt template
     llm_provider: Optional[str] = None  # e.g. "ollama", "gemini", "openai"
     llm_model: Optional[str] = None  # e.g. "qwen2.5:32b", "gemini-2.5-flash"
+    target_entity: Optional[str] = (
+        None  # Issue #688 — JSON string, polymorphic entity envelope
+    )
 
 
 def _canonical_payload(prediction: PunditPrediction) -> str:
@@ -283,6 +286,7 @@ def ingest_batch(
                         "target_player_id": prediction.target_player_id,
                         "target_player_name": prediction.target_player_name,
                         "target_team": prediction.target_team,
+                        "target_entity": prediction.target_entity,
                         "stance": prediction.stance,
                         "sport": prediction.sport,
                         "prompt_version": prediction.prompt_version,

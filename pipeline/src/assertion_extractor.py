@@ -52,7 +52,9 @@ from src.llm_provider import (
     get_provider,
     get_provider_with_fallback,
     load_llm_config,
+    verify_utterance,
 )
+from src.prompt_renderer import render_extraction_prompt, get_prompt_version
 from tenacity import (
     retry,
     retry_if_exception,
@@ -94,6 +96,15 @@ VALID_SPEECH_ACT_TYPES = frozenset(
         "joke",
     }
 )
+
+# ---------------------------------------------------------------------------
+# Issue #366 — speech-act authorship classification
+# ---------------------------------------------------------------------------
+
+# Authorship dimension: who *owns* the claim.
+# Distinct from speech_act_type (utterance shape).
+VALID_SPEECH_ACTS = frozenset({"authored", "quoted", "commentary"})
+DEFAULT_SPEECH_ACT = "authored"
 
 # Default testability threshold.  Override via env var TESTABILITY_THRESHOLD.
 _DEFAULT_TESTABILITY_THRESHOLD = 0.6
@@ -316,7 +327,11 @@ For EACH utterance, classify it and score its testability. Return a JSON array w
   "target_player": null,
   "target_team": null,
   "confidence_note": "how explicit/confident the prediction is",
-  "prediction_horizon_days": -1
+  "prediction_horizon_days": -1,
+  "speech_act": "authored|quoted|commentary",
+  "originating_speaker": null,
+  "resolution_condition": "plain-English statement of what makes this claim true, or empty string",
+  "hedge_level": "strong|moderate|weak"
 }}
 
 speech_act_type definitions:
@@ -336,6 +351,13 @@ testability_score = average of 5 sub-scores (each 0.0–1.0):
 - threshold_concreteness: "below 3%"=1.0, "low"=0.3, "some"=0.0
 - resolution_horizon_defined: "by Q4 2025"=1.0, "soon"=0.3, "eventually"=0.0
 - evidence_accessibility: Is there a data source that can answer this? "Eagles wins >= 11"=1.0, "most exciting team"=0.0
+
+speech_act authorship classification (NEW — issue #366):
+- authored: the speaker is directly making this claim themselves
+- quoted: the speaker is transmitting someone else's claim ("Schefter just reported X") — set originating_speaker to the reported speaker's name
+- commentary: the speaker is reacting to / agreeing or disagreeing with a claim they did not author — this IS itself an authored claim of agreement/disagreement. Set originating_speaker to the name of the speaker whose claim is being commented on.
+
+originating_speaker: name of the entity whose claim is being transmitted (quoted) or commented on (commentary). Null for authored speech acts.
 
 Stance rules (for promoted claims):
 - bullish: prediction is positive/optimistic about the subject
@@ -410,6 +432,54 @@ Output:
   "prediction_horizon_days": 120
 }}
 
+Example 4 — Quoted claim (speech_act=quoted, score routed to originating_speaker):
+Input: "Adam Schefter is reporting that the Cowboys will cut Dak Prescott before the season."
+Output:
+{{
+  "text": "Adam Schefter is reporting that the Cowboys will cut Dak Prescott before the season.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.7, "evidence_accessibility": 0.9}},
+  "testability_score": 0.88,
+  "resolution_horizon": "2026-09-01T00:00:00Z",
+  "predicate": "will_cut",
+  "subject": "Dallas Cowboys",
+  "predicate_args": {{"player": "Dak Prescott", "timing": "before season"}},
+  "extracted_claim": "Cowboys will cut Dak Prescott before the season (per Schefter)",
+  "claim_category": "contract",
+  "stance": "bearish",
+  "season_year": 2026,
+  "target_player": "Dak Prescott",
+  "target_team": "DAL",
+  "confidence_note": "attributed report from named insider",
+  "prediction_horizon_days": 90,
+  "speech_act": "quoted",
+  "originating_speaker": "Adam Schefter"
+}}
+
+Example 5 — Commentary (speech_act=commentary, speaker authors an agree/disagree claim):
+Input: "I completely agree with Cowherd — Mahomes will win a fourth Super Bowl before he retires."
+Output:
+{{
+  "text": "I completely agree with Cowherd — Mahomes will win a fourth Super Bowl before he retires.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {{"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.5, "evidence_accessibility": 0.9}},
+  "testability_score": 0.82,
+  "resolution_horizon": null,
+  "predicate": "will_win",
+  "subject": "Patrick Mahomes",
+  "predicate_args": {{"milestone": "4th Super Bowl", "threshold": 4}},
+  "extracted_claim": "agree: Mahomes will win a fourth Super Bowl before retiring",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": null,
+  "target_player": "Patrick Mahomes",
+  "target_team": "KC",
+  "confidence_note": "explicit agreement with named pundit's claim",
+  "prediction_horizon_days": -1,
+  "speech_act": "commentary",
+  "originating_speaker": "Colin Cowherd"
+}}
+
 --- END EXAMPLES ---
 
 SOURCE: {source_name}
@@ -418,7 +488,25 @@ TITLE: {title}
 TEXT:
 {text}"""
 
+# Legacy fallback version — computed from the hardcoded string.
+# The canonical version for new pipeline runs comes from get_prompt_version("nfl")
+# (SHA-256 of the rendered Jinja template with sentinel values).
 PROMPT_VERSION = hashlib.sha256(EXTRACTION_PROMPT.encode("utf-8")).hexdigest()[:8]
+
+# Domain used when sport maps to NFL (the only domain with templates so far).
+_NFL_DOMAIN = "nfl"
+
+
+def _get_nfl_prompt_version() -> str:
+    """Return the Jinja-template-based prompt version for the NFL domain.
+
+    Falls back to the legacy PROMPT_VERSION if the templates are missing
+    (e.g. in unit tests that stub the filesystem).
+    """
+    try:
+        return get_prompt_version(_NFL_DOMAIN)
+    except Exception:
+        return PROMPT_VERSION
 
 
 @dataclass
@@ -512,8 +600,56 @@ def _resolve_speaker_entity_id(pundit_id: str, db: Optional["DBManager"] = None)
         if not row.empty:
             return str(row.iloc[0]["entity_id"])
     except Exception as exc:
-        logger.debug(f"Entity lookup failed for pundit_id={pundit_id!r}: {exc}")
+        logger.warning(f"Entity lookup failed for pundit_id={pundit_id!r}: {exc}")
     return f"UNRESOLVED:{pundit_id}"
+
+
+def _build_target_entity(utterance: dict, domain: str) -> Optional[str]:
+    """
+    Build the target_entity JSON string (Issue #688 — polymorphic entity).
+
+    For NFL/sports domains, maps target_player and target_team from the LLM
+    output into the canonical envelope.  For other domains the LLM is
+    expected to return a target_entity dict directly; if present it is
+    serialised and returned as-is.
+
+    Returns a JSON string suitable for BigQuery's JSON column type, or None
+    if there is no entity to record.
+    """
+    # Prefer an explicit target_entity dict returned by the LLM (non-NFL domains
+    # or future NFL prompt versions that emit the full envelope directly).
+    raw_entity = utterance.get("target_entity")
+    if isinstance(raw_entity, dict) and raw_entity:
+        return json.dumps(raw_entity, ensure_ascii=False)
+
+    # NFL / sports: synthesise from the legacy target_player / target_team fields.
+    nfl_like_domains = {"nfl", "mlb", "nba", "nhl", "ncaaf", "ncaab", "sports"}
+    domain_lower = (domain or "").lower()
+    if domain_lower in nfl_like_domains or "sport" in domain_lower:
+        target_player = (utterance.get("target_player") or "").strip()
+        target_team = (utterance.get("target_team") or "").strip()
+        if target_player:
+            entity: dict = {
+                "type": "player",
+                "name": target_player,
+                "sport": domain_lower.upper() if domain_lower != "sports" else "NFL",
+            }
+            if target_team:
+                entity["team"] = target_team
+            return json.dumps(entity, ensure_ascii=False)
+        if target_team:
+            return json.dumps(
+                {
+                    "type": "team",
+                    "abbrev": target_team,
+                    "sport": domain_lower.upper()
+                    if domain_lower != "sports"
+                    else "NFL",
+                },
+                ensure_ascii=False,
+            )
+
+    return None
 
 
 def write_raw_utterances(
@@ -539,49 +675,147 @@ def write_raw_utterances(
     now = datetime.now(timezone.utc)
     rows = []
     for u in utterances:
-        # Ensure testability_score is the recomputed value if subscores present
+        # Backward compat: LLM may return Phase B schema ("extracted_claim") or
+        # Phase C schema ("text" + "speech_act_type" + "testability_score").
+        # Phase C fields are preferred; Phase B values are used as fallbacks.
+
+        # text: Phase C → "text"; Phase B → "extracted_claim"
+        text_val = (u.get("text") or u.get("extracted_claim") or "")[:4000]
+
+        # testability_score: Phase C → explicit float; Phase B → absent (treat as 1.0
+        # for backward compat, same as _is_promotable).
         subscores = u.get("testability_subscores") or {}
         if subscores:
             score = compute_testability_score(subscores)
         else:
-            raw_score = u.get("testability_score", 0.0)
-            try:
-                score = float(raw_score)
-            except (TypeError, ValueError):
-                score = 0.0
+            raw_score = u.get("testability_score")
+            if raw_score is None:
+                # Legacy Phase B response — no score field; default to 1.0 so
+                # existing rows are not silently assigned zero testability.
+                score = 1.0
+            else:
+                try:
+                    score = float(raw_score)
+                except (TypeError, ValueError):
+                    score = 0.0
 
-        sat = u.get("speech_act_type", "commentary")
-        if sat not in VALID_SPEECH_ACT_TYPES:
-            sat = "commentary"
+        # speech_act_type: Phase C → explicit value (invalid → "commentary");
+        # Phase B (absent entirely) → "assertion" for backward compat.
+        sat_raw = u.get("speech_act_type")
+        if sat_raw is None:
+            sat = "assertion"  # Phase B: no field present, assume testable assertion
+        elif sat_raw not in VALID_SPEECH_ACT_TYPES:
+            sat = "commentary"  # Phase C: LLM returned unrecognised type
+        else:
+            sat = sat_raw
 
-        # Resolution horizon: parse ISO8601 or leave None
+        # resolution_horizon: Phase C only; Phase B used "prediction_horizon_days"
+        # (an int) which cannot map to TIMESTAMP — leave as None for Phase B rows.
         rh = u.get("resolution_horizon")
-        rh_ts = None
-        if rh:
-            try:
-                rh_ts = pd.Timestamp(rh, tz="UTC")
-            except Exception:
-                rh_ts = None
+        if isinstance(rh, (dict, list, bool)):
+            rh = None
 
-        rows.append(
-            {
-                "utterance_id": str(uuid.uuid4()),
-                "source_doc_id": source_doc_id,
-                "speaker_entity_id": speaker_entity_id,
-                "uttered_at": uttered_at,
-                "text": str(u.get("text", ""))[:4000],
-                "speech_act_type": sat,
-                "testability_score": score,
-                "resolution_horizon": rh_ts,
-                "domain": domain,
-                "extraction_confidence": max(
-                    0.0, min(1.0, float(u.get("extraction_confidence", score)))
+        # speech_act (authored|quoted|commentary): Issue #366 authorship dimension.
+        # Absent in pre-366 responses → default "authored" for backward compat.
+        sa_raw = u.get("speech_act")
+        if sa_raw in VALID_SPEECH_ACTS:
+            speech_act = sa_raw
+        else:
+            speech_act = DEFAULT_SPEECH_ACT
+
+        # originating_speaker: only meaningful for quoted/commentary speech acts.
+        originating_speaker_val = u.get("originating_speaker") or None
+        if isinstance(originating_speaker_val, str):
+            originating_speaker_val = originating_speaker_val.strip() or None
+
+        # M7 fix: use explicit None checks so that a legitimate confidence of
+        # 0.0 is not silently replaced by score or 0.0 (the old "or" chain
+        # treats 0.0 as falsy and skips it).
+        _raw_conf = u.get("extraction_confidence")
+        extraction_confidence = max(
+            0.0,
+            min(
+                1.0,
+                float(
+                    _raw_conf
+                    if _raw_conf is not None
+                    else (score if score is not None else 0.0)
                 ),
-                "created_at": now,
-            }
+            ),
+        )
+
+        row = {
+            "utterance_id": str(uuid.uuid4()),
+            "source_doc_id": source_doc_id,
+            "speaker_entity_id": speaker_entity_id,
+            "uttered_at": uttered_at,
+            "text": text_val,
+            "speech_act_type": sat,
+            "testability_score": score,
+            "resolution_horizon": rh,
+            "domain": domain,
+            "extraction_confidence": extraction_confidence,
+            "created_at": now,
+            "speech_act": speech_act,
+            "originating_speaker": originating_speaker_val,
+            # --- Part A: subscore fields (#674) ---
+            "subscore_subject_specificity": subscores.get("subject_specificity"),
+            "subscore_predicate_falsifiability": subscores.get(
+                "predicate_falsifiability"
+            ),
+            "subscore_threshold_concreteness": subscores.get("threshold_concreteness"),
+            "subscore_resolution_horizon_defined": subscores.get(
+                "resolution_horizon_defined"
+            ),
+            "subscore_evidence_accessibility": subscores.get("evidence_accessibility"),
+            "stance": u.get("stance"),
+            "prediction_horizon_days": u.get("prediction_horizon_days"),
+            "confidence_note": u.get("confidence_note"),
+            # --- Part B: new extraction fields (#675) ---
+            "resolution_condition": u.get("resolution_condition"),
+            "hedge_level": u.get("hedge_level"),
+            # Verification fields populated separately after 7B pass
+            "claim_text_alignment": u.get("claim_text_alignment"),
+            "hallucination_risk": u.get("hallucination_risk"),
+            "verification_flags": u.get("verification_flags"),
+            "quality_score": u.get("quality_score"),
+            "needs_review": u.get("needs_review"),
+            # Issue #688 — polymorphic entity (Option D: alongside legacy columns)
+            "target_entity": _build_target_entity(u, domain),
+        }
+        rows.append(row)
+
+    # NOT-NULL invariant — fail fast before any BQ I/O (#595)
+    _NULL_CHECKED_COLS = (
+        "speech_act_type",
+        "testability_score",
+        "domain",
+        "extraction_confidence",
+    )
+    _null_violations: list[str] = []
+    for _row in rows:
+        for _col in _NULL_CHECKED_COLS:
+            if _row.get(_col) is None:
+                _null_violations.append(_col)
+    if _null_violations:
+        raise ValueError(
+            f"write_raw_utterances: NOT NULL invariant violated — "
+            f"columns: {sorted(set(_null_violations))}. "
+            "Refusing to write batch with NULL metadata."
         )
 
     df = pd.DataFrame(rows)
+
+    # BQ schema: resolution_horizon is TIMESTAMP (nullable).
+    # Convert string/None values to datetime64[ns, UTC] so pyarrow can serialize
+    # them as TIMESTAMP.  errors="coerce" turns unparseable strings into NaT
+    # (which becomes NULL in BQ).  An "object" dtype column of strings cannot
+    # be serialized to TIMESTAMP by pyarrow — this pd.to_datetime call is the
+    # fix for the "Array, ListArray, or StructArray" pyarrow error.
+    df["resolution_horizon"] = pd.to_datetime(
+        df["resolution_horizon"], utc=True, errors="coerce"
+    )
+
     # Use qualified table name: write to silver_v2_claims dataset
     full_table = f"{RAW_UTTERANCE_DATASET}.{RAW_UTTERANCE_TABLE}"
     try:
@@ -592,20 +826,32 @@ def write_raw_utterances(
             "google.cloud.bigquery", fromlist=["LoadJobConfig"]
         ).LoadJobConfig(write_disposition="WRITE_APPEND")
         df_clean = df.copy()
-        # Cast object cols to str for BQ Parquet compatibility
+        # Preserve NaN/None as actual NULL — astype(str) would silently write
+        # the string "None" for missing values, corrupting nullable columns in BQ.
+        # datetime64 columns (uttered_at, created_at, resolution_horizon) are
+        # not "object" dtype and are skipped automatically.
+        # verification_flags is ARRAY<STRING> — skip it so pyarrow can
+        # serialize the list values directly without coercing to a plain string.
+        _ARRAY_COLS = {"verification_flags"}
         for col in df_clean.columns:
+            if col in _ARRAY_COLS:
+                continue
             if df_clean[col].dtype == object:
-                df_clean[col] = df_clean[col].astype(str)
+                # Use .where() to keep non-null values as-is and leave NaN/None
+                # as Python None (which pyarrow serialises as BQ NULL).
+                df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
         job = db.client.load_table_from_dataframe(
             df_clean, table_ref, job_config=job_config
         )
         job.result()
         logger.info(f"Wrote {len(rows)} raw_utterance rows to {table_ref}")
     except Exception as exc:
-        logger.warning(
-            f"Failed to write raw_utterances to {full_table}: {exc} — continuing"
+        logger.error(
+            f"BQ write failed for raw_utterances → {full_table}: {exc}",
+            exc_info=True,
         )
-        return 0
+        # Re-raise so the pipeline run is marked failed, not silently empty.
+        raise
     return len(rows)
 
 
@@ -664,7 +910,8 @@ def _write_extraction_run(
         df_clean = df.copy()
         for col in df_clean.columns:
             if df_clean[col].dtype == object:
-                df_clean[col] = df_clean[col].astype(str)
+                # Same C3 fix: preserve NaN/None as NULL rather than the string "None"
+                df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
         job = db.client.load_table_from_dataframe(
             df_clean, table_ref, job_config=job_config
         )
@@ -733,14 +980,32 @@ def extract_assertions(
 
         provider = GeminiProvider()
 
-    prompt = EXTRACTION_PROMPT.format(
-        sport=sport,
-        published_date=published_date or "Unknown",
-        source_name=source_name or "Unknown",
-        author=author or "Unknown",
-        title=title or "Untitled",
-        text=text[:4000],
-    )
+    # Render the prompt from Jinja2 templates for the NFL domain.
+    # Falls back to the legacy hardcoded string if templates are unavailable
+    # (so existing unit tests that don't care about templates still pass).
+    try:
+        prompt, _tpl_version = render_extraction_prompt(
+            domain=_NFL_DOMAIN,
+            sport=sport,
+            published_date=published_date or "Unknown",
+            source_name=source_name or "Unknown",
+            author=author or "Unknown",
+            title=title or "Untitled",
+            text=text,
+            max_text_chars=4000,
+        )
+    except Exception as exc:
+        logger.warning(
+            f"Template render failed ({exc}), falling back to hardcoded EXTRACTION_PROMPT"
+        )
+        prompt = EXTRACTION_PROMPT.format(
+            sport=sport,
+            published_date=published_date or "Unknown",
+            source_name=source_name or "Unknown",
+            author=author or "Unknown",
+            title=title or "Untitled",
+            text=text[:4000],
+        )
 
     @retry(
         retry=retry_if_exception(_is_transient_llm_error),
@@ -873,9 +1138,36 @@ def get_unprocessed_media(
             skip_filter = f"\n              AND r.source_id NOT IN ({skip_ids})"
             fallback_skip_filter = f"\n              AND source_id NOT IN ({skip_ids})"
 
+    # Build a BQ CASE expression for priority_tier so the query pre-sorts by tier
+    # before Python re-sorts. This pushes tier-1 rows to the front of the BQ result
+    # set, reducing how many rows we need to fetch.
+    # Source IDs from YAML are validated by _validate_source_id before embedding.
+    priority_case_parts = []
+    for sid, cfg in source_cfg.items():
+        tier = cfg["priority_tier"]
+        if tier != DEFAULT_PRIORITY_TIER:
+            try:
+                vsid = _validate_source_id(sid)
+                priority_case_parts.append(f"WHEN '{vsid}' THEN {tier}")
+            except ValueError:
+                pass  # skip invalid ids — they won't appear in BQ anyway
+    if priority_case_parts:
+        when_clauses = "\n                   ".join(priority_case_parts)
+        priority_case_expr = (
+            f"CASE r.source_id\n                   {when_clauses}"
+            f"\n                   ELSE {DEFAULT_PRIORITY_TIER} END"
+        )
+        fallback_priority_case_expr = (
+            f"CASE source_id\n                   {when_clauses}"
+            f"\n                   ELSE {DEFAULT_PRIORITY_TIER} END"
+        )
+    else:
+        priority_case_expr = str(DEFAULT_PRIORITY_TIER)
+        fallback_priority_case_expr = str(DEFAULT_PRIORITY_TIER)
+
     try:
         # Fetch more rows than needed so we can re-sort by tier in Python
-        # (BQ doesn't have the YAML config; fetching 3× limit then trimming is safe)
+        # (BQ CASE ORDER BY pre-sorts by tier; Python _apply_priority_sort then trims)
         fetch_limit = max(limit * 3, 300)
         query = f"""
             SELECT r.content_hash, r.source_id, r.title, r.raw_text,
@@ -888,7 +1180,7 @@ def get_unprocessed_media(
             WHERE p.content_hash IS NULL
               AND r.raw_text IS NOT NULL
               AND LENGTH(r.raw_text) > 50{pundit_filter}{skip_filter}
-            ORDER BY r.published_at DESC
+            ORDER BY {priority_case_expr} ASC, r.ingested_at DESC
             LIMIT {fetch_limit}
         """
         df = db.fetch_df(query)
@@ -903,7 +1195,7 @@ def get_unprocessed_media(
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
             WHERE raw_text IS NOT NULL
               AND LENGTH(raw_text) > 50{fallback_pundit_filter}{fallback_skip_filter}
-            ORDER BY ingested_at DESC
+            ORDER BY {fallback_priority_case_expr} ASC, ingested_at DESC
             LIMIT {fetch_limit}
         """
         df = db.fetch_df(query)
@@ -1023,6 +1315,58 @@ def should_filter_article(
         return False
 
 
+# ---------------------------------------------------------------------------
+# Triage pass (self-hosted runner / Ollama — Issue #621)
+# ---------------------------------------------------------------------------
+
+TRIAGE_PROMPT = """You are a triage filter. Answer only YES or NO.
+
+Does this text contain a specific, testable prediction about an NFL player, trade, draft pick, contract, or game outcome?
+
+A testable prediction: "Player X will be traded", "Team Y will draft Z in round 1", "Player A will be cut before June 1"
+NOT a prediction: opinions, analysis, historical facts, game recaps
+
+Text: {first_500_chars}
+
+Answer YES or NO only."""
+
+
+def should_triage_skip_article(
+    text: str,
+    triage_provider=None,
+    source: str = "",
+) -> bool:
+    """Return True if the article should be skipped (triage says no predictions).
+
+    Runs the triage prompt on qwen2.5:7b before committing to the full 32B
+    extraction model. If the triage call fails for any reason, defaults to
+    False (keep the article — fail-open so we never silently drop content).
+
+    Args:
+        text: Article text (only first 500 chars are sent to the triage model).
+        triage_provider: LLM provider configured for the 'triage' role. If None,
+            triage is skipped and the article is always kept.
+        source: Source identifier for logging.
+    """
+    if triage_provider is None:
+        return False
+    try:
+        first_500 = text[:500].strip()
+        prompt = TRIAGE_PROMPT.format(first_500_chars=first_500)
+        answer = triage_provider.classify(prompt)
+        result = answer.strip().upper()
+        if result.startswith("NO"):
+            logger.debug(f"Triage filtered: {source or 'unknown'}")
+            return True
+        # YES or any non-NO response → keep (fail-open)
+        return False
+    except Exception as exc:
+        logger.warning(
+            f"Triage error for {source!r} (fail-open, keeping article): {exc}"
+        )
+        return False
+
+
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
@@ -1032,6 +1376,7 @@ def run_extraction(
     provider: Optional[LLMProvider] = None,
     provider_name: Optional[str] = None,
     disable_filter: bool = False,
+    disable_triage: bool = False,
     # Legacy parameter — ignored if provider is set
     gemini_client=None,
 ) -> dict:
@@ -1039,11 +1384,12 @@ def run_extraction(
     Main extraction entry point (Phase C).
 
     1. Fetch unprocessed raw media from BQ
-    2. Send each to LLM for speech-act + testability extraction
-    3. Write ALL utterances to silver_v2_claims.raw_utterance (Phase C)
-    4. Promote qualifying utterances to PunditPredictions for ledger
-    5. Ingest into the cryptographic ledger
-    6. Mark as processed
+    2. Fast triage pass (qwen2.5:7b) — skip articles with no predictions
+    3. Send each to LLM for speech-act + testability extraction (qwen2.5:32b)
+    4. Write ALL utterances to silver_v2_claims.raw_utterance (Phase C)
+    5. Promote qualifying utterances to PunditPredictions for ledger
+    6. Ingest into the cryptographic ledger
+    7. Mark as processed
 
     Returns a summary dict for observability.
     """
@@ -1081,6 +1427,7 @@ def run_extraction(
         "errors": 0,
         "skipped_no_predictions": 0,
         "filtered_out": 0,
+        "triage_filtered_out": 0,
         "skipped_low_yield": 0,
         "testability_threshold": threshold,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
@@ -1096,6 +1443,27 @@ def run_extraction(
                 filter_provider = get_provider("filter", config)
             except Exception as exc:
                 logger.warning(f"Pre-filter provider init failed (disabled): {exc}")
+
+    # Set up triage provider if enabled (fast 7B pass before full 32B extraction)
+    triage_provider = None
+    if not disable_triage and not dry_run:
+        _triage_config = load_llm_config()
+        _triage_cfg = _triage_config.get("triage", {})
+        if _triage_cfg.get("enabled", True):  # enabled by default
+            try:
+                triage_provider = get_provider("triage", _triage_config)
+                logger.info(
+                    f"Triage provider initialized: {getattr(triage_provider, 'model', '?')}"
+                )
+            except Exception as exc:
+                logger.warning(f"Triage provider init failed (disabled): {exc}")
+
+    # Read 7B verification config from triage block (same model, reuses settings)
+    _llm_cfg_for_verify = load_llm_config()
+    _verify_cfg = _llm_cfg_for_verify.get("triage", {})
+    _verify_base_url = _verify_cfg.get("base_url", "http://localhost:11434")
+    _verify_model = _verify_cfg.get("model", "qwen2.5:7b")
+    _verify_timeout = int(_verify_cfg.get("timeout", 30))
 
     try:
         media_df = get_unprocessed_media(
@@ -1158,6 +1526,17 @@ def run_extraction(
                     processed_hashes.append(content_hash)
                     continue
 
+            # Triage pass: fast 7B relevance check before committing to full 32B extraction
+            if triage_provider is not None:
+                if should_triage_skip_article(
+                    str(row.get("raw_text", "")),
+                    triage_provider=triage_provider,
+                    source=source_id,
+                ):
+                    summary["triage_filtered_out"] += 1
+                    processed_hashes.append(content_hash)
+                    continue
+
             # Format publish date for the prompt
             pub_date = ""
             if pd.notna(row.get("published_at")):
@@ -1205,8 +1584,25 @@ def run_extraction(
                 # Resolve speaker entity_id (best-effort; placeholder on miss)
                 speaker_entity_id = _resolve_speaker_entity_id(str(pundit_id), db=db)
                 article_sport = str(row.get("sport", sport))
+
+                # 7B verification pass — non-blocking; enriches utterances with
+                # quality signals before writing to raw_utterance (#675)
+                raw_text_for_verify = str(row.get("raw_text", ""))
+                verified_utterances = []
+                for _u in result.utterances:
+                    _verification = verify_utterance(
+                        utterance=_u,
+                        source_text=raw_text_for_verify,
+                        base_url=_verify_base_url,
+                        model=_verify_model,
+                        timeout=_verify_timeout,
+                    )
+                    if _verification:
+                        _u = {**_u, **_verification}
+                    verified_utterances.append(_u)
+
                 written = write_raw_utterances(
-                    utterances=result.utterances,
+                    utterances=verified_utterances,
                     source_doc_id=content_hash,
                     speaker_entity_id=speaker_entity_id,
                     uttered_at=uttered_at,
@@ -1214,11 +1610,11 @@ def run_extraction(
                     db=db,
                 )
                 summary["utterances_written"] += written
-                suppressed_here = len(result.utterances) - len(result.predictions)
+                suppressed_here = len(verified_utterances) - len(result.predictions)
                 summary["suppressed"] += max(0, suppressed_here)
 
                 # Accumulate per-run metrics for extraction_run table
-                for u in result.utterances:
+                for u in verified_utterances:
                     _run_metadata_total += 1
                     ts = u.get("testability_score")
                     ec = u.get("extraction_confidence")
@@ -1253,10 +1649,27 @@ def run_extraction(
                     if raw_stance in ("bullish", "bearish", "neutral")
                     else "neutral"
                 )
+
+                # Issue #366 — speech-act routing:
+                # quoted → score credited to originating_speaker, not the transmitter.
+                # commentary → current speaker authors an agree/disagree claim;
+                #              attribution stays with them (they own the opinion).
+                pred_speech_act = pred.get("speech_act", DEFAULT_SPEECH_ACT)
+                orig_speaker = (pred.get("originating_speaker") or "").strip()
+
+                if pred_speech_act == "quoted" and orig_speaker:
+                    effective_pundit_id = (
+                        f"quoted:{orig_speaker.lower().replace(' ', '_')}"
+                    )
+                    effective_pundit_name = orig_speaker
+                else:
+                    effective_pundit_id = str(pundit_id)
+                    effective_pundit_name = str(pundit_name)
+
                 all_predictions.append(
                     PunditPrediction(
-                        pundit_id=str(pundit_id),
-                        pundit_name=str(pundit_name),
+                        pundit_id=effective_pundit_id,
+                        pundit_name=effective_pundit_name,
                         source_url=source_url,
                         raw_assertion_text=str(row.get("raw_text", ""))[:2000],
                         extracted_claim=pred["extracted_claim"],
@@ -1265,9 +1678,13 @@ def run_extraction(
                         target_player_id=None,
                         target_player_name=player_name,
                         target_team=pred.get("target_team"),
+                        # Issue #688 — polymorphic entity alongside legacy columns
+                        target_entity=_build_target_entity(
+                            pred, str(row.get("sport", sport))
+                        ),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
-                        prompt_version=PROMPT_VERSION,
+                        prompt_version=_get_nfl_prompt_version(),
                         llm_provider=provider_type,
                         llm_model=str(llm_model) if llm_model else None,
                     )
@@ -1301,6 +1718,7 @@ def run_extraction(
 
         logger.info(
             f"Extraction complete: {summary['total_processed']} processed, "
+            f"{summary['triage_filtered_out']} triage-filtered, "
             f"{summary['utterances_written']} utterances → raw_utterance, "
             f"{summary['predictions_extracted']} promoted to ledger "
             f"(testability_score >= {threshold}), "
@@ -1330,7 +1748,7 @@ def run_extraction(
                 finished_at=_finished_at,
                 provider=_run_provider,
                 model=_run_model,
-                prompt_version=PROMPT_VERSION,
+                prompt_version=_get_nfl_prompt_version(),
                 articles_processed=summary["total_processed"],
                 utterances_written=summary["utterances_written"],
                 claims_promoted=summary["predictions_ingested"],

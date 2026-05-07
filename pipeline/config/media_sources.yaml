@@ -16,7 +16,7 @@ sources:
     scrape_full_text: true
     url: "https://profootballtalk.nbcsports.com/feed/"
     enabled: true
-    priority_tier: 1  # yield_rate=0.70 (179/257 articles) — high-yield news source
+    priority_tier: 3  # Tier 3: news wire/breaking-news source; low prediction density
     default_pundit:
       id: pft_staff
       name: "PFT Staff"
@@ -44,7 +44,7 @@ sources:
     scrape_full_text: true
     url: "https://www.espn.com/espn/rss/nfl/news"
     enabled: true
-    priority_tier: 1  # yield_rate=1.79 (286/160 articles) — top-yield source (multiple predictions per article)
+    priority_tier: 2  # Tier 2: ESPN mix of analysis + news; medium prediction density
     default_pundit:
       id: espn_nfl_staff
       name: "ESPN NFL Staff"
@@ -65,20 +65,7 @@ sources:
         name: "Matt Bowen"
         match_authors: ["Matt Bowen"]
 
-  - id: theringer_nfl
-    name: "The Ringer NFL"
-    sport: "NFL"
-    type: rss
-    url: "https://www.theringer.com/rss/nfl/index.xml"
-    enabled: true
-    priority_tier: 2  # yield_rate=unknown (no data yet) — opinion/analysis outlet, estimated medium yield
-    pundits:
-      - id: bill_simmons
-        name: "Bill Simmons"
-        match_authors: ["Bill Simmons"]
-      - id: kevin_clark
-        name: "Kevin Clark"
-        match_authors: ["Kevin Clark"]
+  # theringer_nfl removed: returns HTML not XML (permanently dead — 2026-05)
 
   - id: theathletic_nfl
     name: "The Athletic NFL"
@@ -88,7 +75,7 @@ sources:
     # Re-enable once a working NFL-only feed URL is confirmed. (#128)
     url: "https://theathletic.com/feeds/rss/news/?sport=football"
     enabled: true
-    priority_tier: 2  # yield_rate=0.17 (68/401 articles) — medium yield
+    priority_tier: 1  # Tier 1: The Athletic long-form analysis; high prediction density
     default_pundit:
       id: athletic_nfl_staff
       name: "The Athletic NFL Staff"
@@ -115,37 +102,13 @@ sources:
         name: "Jeff Howe"
         match_authors: ["Jeff Howe"]
 
-  - id: nfl_official
-    name: "NFL.com News"
-    sport: "NFL"
-    type: rss
-    scrape_full_text: true
-    url: "https://www.nfl.com/rss/rsslanding?searchString=home"
-    enabled: true
-    priority_tier: 3  # yield_rate=0.00 (0/1 articles) — near-zero yield; skip LLM extraction
-    skip_extraction: true
-    pundits:
-      - id: ian_rapoport
-        name: "Ian Rapoport"
-        match_authors: ["Ian Rapoport", "Rapoport"]
-      - id: tom_pelissero
-        name: "Tom Pelissero"
-        match_authors: ["Tom Pelissero"]
-
-  - id: si_nfl
-    name: "Sports Illustrated NFL"
-    sport: "NFL"
-    type: rss
-    scrape_full_text: true
-    url: "https://www.si.com/rss/si_nfl.rss"
-    enabled: true
-    priority_tier: 2  # yield_rate=unknown (no data yet) — analytical outlet, estimated medium yield
-    pundits:
-      - id: albert_breer
-        name: "Albert Breer"
-        match_authors: ["Albert Breer"]
+  # nfl_official removed: malformed XML from ad injection (permanently dead — 2026-05)
+  # si_nfl removed: malformed XML (permanently dead — 2026-05)
 
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
+  # On self-hosted runner with home IP, YouTube transcript fetching works without
+  # the rate-limiting that blocks GitHub-hosted ubuntu-latest runners.
+  # Requires yt-dlp (brew install yt-dlp) — works on self-hosted home IP runner
   - id: pat_mcafee_show
     name: "The Pat McAfee Show"
     sport: "NFL"
@@ -158,6 +121,7 @@ sources:
         name: "Pat McAfee"
         match_authors: ["Pat McAfee"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: undisputed
     name: "Undisputed"
     sport: "NFL"
@@ -172,6 +136,7 @@ sources:
         name: "Skip Bayless"
         match_authors: ["Skip Bayless"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: first_take
     name: "First Take"
     sport: "NFL"
@@ -180,14 +145,15 @@ sources:
     # First Take debate/opinion show. Re-enable with correct channel ID. (#128)
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
     enabled: false  # Disabled: channel is NBA game highlights, not NFL prediction content (#128)
-    priority_tier: 3  # yield_rate=0.00 (0/15 articles) — wrong channel; skip extraction when re-enabled
-    skip_extraction: true
+    priority_tier: 1  # Tier 1: First Take debate/opinion show; high prediction density when re-enabled with correct channel
+    skip_extraction: true  # wrong channel until #128 resolved; skip extraction to avoid wasting LLM calls
     pundits:
       - id: stephen_a_smith
         name: "Stephen A. Smith"
         match_authors: ["Stephen A. Smith", "Stephen A"]
 
   # ── Tier 1 YouTube Expansion (issue #129) ──────────────────────────────────
+  # Requires yt-dlp (brew install yt-dlp)
   - id: the_herd
     name: "The Herd with Colin Cowherd"
     sport: "NFL"
@@ -203,19 +169,21 @@ sources:
         name: "Colin Cowherd"
         match_authors: ["Colin Cowherd", "Cowherd"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: club_shay_shay
     name: "Club Shay Shay"
     sport: "NFL"
     type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCQoxJOkwaCgyzQtiuAIDcuw"
     enabled: true
-    priority_tier: 3  # yield_rate=0.00 (0/87 articles) — interview/entertainment show; skip LLM extraction
-    skip_extraction: true
+    priority_tier: 1  # Tier 1: Club Shay Shay interview show; high prediction density when extraction enabled
+    skip_extraction: true  # yield_rate=0.00 (0/87 articles) — interview/entertainment content; skip LLM extraction
     pundits:
       - id: shannon_sharpe
         name: "Shannon Sharpe"
         match_authors: ["Shannon Sharpe", "Sharpe"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: whats_wright
     name: "What's Wright? with Nick Wright"
     sport: "NFL"
@@ -229,6 +197,7 @@ sources:
         name: "Nick Wright"
         match_authors: ["Nick Wright", "Wright"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: dan_patrick_show
     name: "The Dan Patrick Show"
     sport: "NFL"
@@ -241,6 +210,7 @@ sources:
         name: "Dan Patrick"
         match_authors: ["Dan Patrick"]
 
+  # Requires yt-dlp (brew install yt-dlp)
   - id: rich_eisen_show
     name: "The Rich Eisen Show"
     sport: "NFL"
@@ -252,6 +222,74 @@ sources:
       - id: rich_eisen
         name: "Rich Eisen"
         match_authors: ["Rich Eisen"]
+
+  # ── Tier 1 NFL Analysis (issue #381) ────────────────────────────────────────
+  - id: sharp_football
+    name: "Sharp Football Analysis"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.sharpfootballanalysis.com/feed/"
+    enabled: false  # TODO: verify feed URL before enabling
+    priority_tier: 1  # Tier 1: data-driven analysis with high prediction density
+    pundits:
+      - id: warren_sharp
+        name: "Warren Sharp"
+        match_authors: ["Warren Sharp", "sharp"]
+
+  # ── Tier 2 NFL Analysis (issue #381) ────────────────────────────────────────
+  - id: cbs_sports_nfl
+    name: "CBS Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.cbssports.com/rss/headlines/nfl/"
+    enabled: false  # TODO: verify feed URL before enabling
+    priority_tier: 2  # Tier 2: ESPN-tier mix of analysis + news
+    default_pundit:
+      id: cbs_sports_staff
+      name: "CBS Sports Staff"
+    pundits:
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco", "Prisco"]
+      - id: jason_la_canfora
+        name: "Jason La Canfora"
+        match_authors: ["Jason La Canfora"]
+
+  - id: four_for_four
+    name: "4for4 Fantasy Football"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.4for4.com/feed"
+    enabled: false  # TODO: verify feed URL before enabling
+    priority_tier: 2  # Tier 2: analytical fantasy/NFL predictions
+    pundits: []
+
+  - id: the_33rd_team
+    name: "The 33rd Team"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.the33rdteam.com/feed/"
+    enabled: false  # TODO: verify feed URL before enabling
+    priority_tier: 2  # Tier 2: former NFL executives + analytical NFL coverage
+    pundits: []
+
+  # ── Tier 3 NFL News Wire (issue #381) ────────────────────────────────────────
+  - id: yahoo_sports_nfl
+    name: "Yahoo Sports NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://sports.yahoo.com/nfl/rss.xml"
+    enabled: false  # TODO: verify feed URL before enabling
+    priority_tier: 3  # Tier 3: wire/news aggregator; low prediction density
+    default_pundit:
+      id: yahoo_sports_staff
+      name: "Yahoo Sports Staff"
+    pundits: []
 
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:

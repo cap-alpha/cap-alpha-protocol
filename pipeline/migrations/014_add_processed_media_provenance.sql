@@ -13,7 +13,7 @@
 --   bq query --use_legacy_sql=false --project_id=cap-alpha-protocol \
 --     < pipeline/migrations/014_add_processed_media_provenance.sql
 
-ALTER TABLE `cap-alpha-protocol`.nfl_dead_money.processed_media_hashes
+ALTER TABLE `{project_id}`.nfl_dead_money.processed_media_hashes
 ADD COLUMN IF NOT EXISTS extractor_model STRING,
 ADD COLUMN IF NOT EXISTS extractor_provider STRING,
 ADD COLUMN IF NOT EXISTS assertions_extracted INT64,

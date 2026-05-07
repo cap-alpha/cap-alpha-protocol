@@ -1,10 +1,12 @@
 import "server-only";
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
+
+const PAID_TIERS = new Set(["pro", "api_starter", "api_growth", "enterprise"]);
 
 const NFL_TEAMS = [
     { id: "ARI", name: "Arizona Cardinals", color: "bg-red-700" },
@@ -48,11 +50,12 @@ export default async function TeamSelection() {
         redirect("/");
     }
 
-    // Checking Subscription Status here (Placeholder logic for now before Webhook)
-    const isSubscriptionActive = true;
+    const user = await clerkClient.users.getUser(userId);
+    const tier = user.publicMetadata?.tier as string | undefined;
+    const isSubscriptionActive = PAID_TIERS.has(tier ?? "");
 
     if (!isSubscriptionActive) {
-        // Redirect to Stripe Customer Portal
+        redirect("/pricing");
     }
 
     return (

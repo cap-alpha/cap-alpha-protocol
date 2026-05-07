@@ -13,12 +13,31 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { SearchIndexItem } from "@/app/actions"
+import type { PunditSearchResult } from "@/app/api/search/pundits/route"
+
+// ---------------------------------------------------------------------------
+// Shape adapter: unify pundit search results with the legacy SearchIndexItem
+// shape so the existing rendering code is reused unchanged.
+// ---------------------------------------------------------------------------
+
+function punditToIndexItem(p: PunditSearchResult): SearchIndexItem {
+    return {
+        label: p.name,
+        sub: p.domain,
+        url: `/ledger/${encodeURIComponent(p.slug)}`,
+        type: "player",
+    };
+}
 
 export function GlobalSearch() {
     const [open, setOpen] = React.useState(false)
     const [query, setQuery] = React.useState("")
+    // Legacy player/team search index (non-pundit) — still used for non-pundit routes
     const [index, setIndex] = React.useState<SearchIndexItem[]>([])
+    const [punditResults, setPunditResults] = React.useState<SearchIndexItem[]>([])
     const [selectedIndex, setSelectedIndex] = React.useState(0)
+    const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+    const abortRef = React.useRef<AbortController | null>(null)
     const router = useRouter()
 
     // Keyboard shortcut and custom event to open search
@@ -29,7 +48,7 @@ export function GlobalSearch() {
                 setOpen((open) => !open)
             }
         }
-        
+
         const handleCustomOpen = (e: CustomEvent) => {
             if (e.detail) {
                 setQuery(e.detail);
@@ -39,14 +58,14 @@ export function GlobalSearch() {
 
         document.addEventListener("keydown", down)
         window.addEventListener("open-global-search", handleCustomOpen as EventListener)
-        
+
         return () => {
             document.removeEventListener("keydown", down)
             window.removeEventListener("open-global-search", handleCustomOpen as EventListener)
         }
     }, [])
 
-    // Fetch index lightweight representation when opened for first time
+    // Fetch legacy search index on first open
     React.useEffect(() => {
         if (open && index.length === 0) {
             fetch("/api/search-index")
@@ -56,19 +75,58 @@ export function GlobalSearch() {
         }
     }, [open, index.length])
 
+    // Debounced pundit search via the new API route
+    React.useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+
+        if (query.length < 2) {
+            setPunditResults([])
+            return
+        }
+
+        debounceRef.current = setTimeout(async () => {
+            if (abortRef.current) abortRef.current.abort()
+            abortRef.current = new AbortController()
+
+            try {
+                const res = await fetch(
+                    `/api/search/pundits?q=${encodeURIComponent(query)}`,
+                    { signal: abortRef.current.signal }
+                )
+                if (!res.ok) return
+                const data = await res.json()
+                const items: PunditSearchResult[] = data.results ?? []
+                setPunditResults(items.map(punditToIndexItem))
+            } catch (err: unknown) {
+                if (err instanceof Error && err.name === "AbortError") return
+                console.error("[GlobalSearch] Pundit search error:", err)
+            }
+        }, 300)
+
+        return () => {
+            if (debounceRef.current) clearTimeout(debounceRef.current)
+        }
+    }, [query])
+
     const handleSelect = (url: string) => {
         setOpen(false)
         setQuery("") // Reset query on selection
         router.push(url)
     }
 
-    // Filter logic
-    const filteredResults = query.length > 0 
-        ? index.filter(i => 
-            i.label.toLowerCase().includes(query.toLowerCase()) || 
+    // Combine pundit results (prioritised) with legacy index matches
+    const legacyMatches = query.length > 0
+        ? index.filter(i =>
+            i.label.toLowerCase().includes(query.toLowerCase()) ||
             i.sub.toLowerCase().includes(query.toLowerCase())
-          ).slice(0, 6) // Max 6 results for clean UI
-        : [];
+          )
+        : []
+
+    // Deduplicate by URL: pundit results take priority
+    const punditUrls = new Set(punditResults.map((r) => r.url))
+    const deduped = legacyMatches.filter((r) => !punditUrls.has(r.url))
+
+    const filteredResults = [...punditResults, ...deduped].slice(0, 6);
 
     return (
         <>

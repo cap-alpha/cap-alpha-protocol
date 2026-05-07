@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserButton, useUser, SignInButton } from "@clerk/nextjs";
+import { UserButton, useUser, SignInButton, SignUpButton } from "@clerk/nextjs";
 import { useState, useEffect } from "react";
+import { PunditSearchBar } from "@/components/pundit-search-bar";
 
 // Routes visible only to signed-in users
 const AUTH_ONLY_ROUTES = ["/dashboard", "/scenarios", "/fantasy"];
@@ -92,6 +93,14 @@ export function Navbar() {
                     </nav>
                 </div>
 
+                {/* Desktop pundit search — center of navbar, ≥1024px only */}
+                <div className="hidden lg:flex flex-1 justify-center px-8 max-w-sm mx-auto">
+                    <PunditSearchBar
+                        placeholder="Search pundits..."
+                        className="w-full"
+                    />
+                </div>
+
                 <div className="flex items-center gap-4">
                     {/* Auth */}
                     {isLoaded && (
@@ -105,11 +114,18 @@ export function Navbar() {
                                 }}
                             />
                         ) : (
-                            <SignInButton mode="modal">
-                                <span className="cursor-pointer text-sm font-medium text-slate-300 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-md border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10">
-                                    Sign In
-                                </span>
-                            </SignInButton>
+                            <div className="flex items-center gap-2">
+                                <SignUpButton mode="modal">
+                                    <span className="cursor-pointer text-sm font-medium text-black transition-colors bg-emerald-500 px-4 py-2 rounded-md hover:bg-emerald-400">
+                                        Sign Up Free
+                                    </span>
+                                </SignUpButton>
+                                <SignInButton mode="modal">
+                                    <span className="cursor-pointer text-sm font-medium text-slate-300 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-md border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10">
+                                        Sign In
+                                    </span>
+                                </SignInButton>
+                            </div>
                         )
                     )}
                 </div>

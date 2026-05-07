@@ -233,21 +233,19 @@ export async function getTradeableAssets(team?: string) {
     .sort((a, b) => b.cap_hit_millions - a.cap_hit_millions);
 }
 
-// TODO: Refactor this to use simulation engine API when available
+// NOTE: simulateTrade is not wired to the live TradeMachine UI (which uses ApiClient.evaluateTrade
+// directly). Win-probability delta requires the Python AdversarialTradeEngine backend; returning
+// Math.random() here produced fake data in production. Stub returns a coming-soon signal until
+// the backend endpoint is ready.
 export async function simulateTrade(assets: any[]) {
-  console.log("Simulating trade with assets:", assets);
-
-  // Simple heuristic for simulation delta (Mocking the AI)
-  // In real system: This would call the Python `AdversarialTradeEngine`
-  const win_delta = (Math.random() * 0.1) - 0.02;
-  const cap_delta_a = assets.reduce((sum, a) => sum + (a.cap_hit_millions || 0), 0);
+  const cap_delta_a = assets.reduce((sum: number, a: any) => sum + (a.cap_hit_millions || 0), 0);
 
   return {
-    success: true,
-    summary: `Trade simulation completed. Analyzed ${assets.length} assets. Resulting in ${win_delta > 0 ? 'positive' : 'negative'} EPA delta.`,
-    teamA_cap_delta: -cap_delta_a, // Simplified: Team A sheds the salary
-    teamB_cap_delta: cap_delta_a,  // Team B takes it
-    win_prob_delta: win_delta
+    success: false,
+    summary: "Win-probability simulation coming soon — powered by the AdversarialTradeEngine backend.",
+    teamA_cap_delta: -cap_delta_a,
+    teamB_cap_delta: cap_delta_a,
+    win_prob_delta: null,
   };
 }
 

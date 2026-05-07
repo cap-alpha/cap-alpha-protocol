@@ -42,8 +42,14 @@ CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "llm_config.ya
 # support native schema enforcement (Ollama, OpenAI function_calling workaround).
 PREDICTION_SCHEMA_DESCRIPTION = """
 Return a JSON array of objects. Each object must have:
-- "extracted_claim": string — concise, testable statement (REQUIRED)
-- "claim_category": string — one of: player_performance, game_outcome, trade, draft_pick, injury, contract (REQUIRED)
+- "text": string — verbatim quote or close paraphrase of the speech act (REQUIRED)
+- "speech_act_type": string — one of: assertion, conditional, recall, rhetorical_question, hedge, commentary, opinion, analogy, joke (REQUIRED)
+- "testability_subscores": object — five float sub-scores each 0.0–1.0: subject_specificity, predicate_falsifiability, threshold_concreteness, resolution_horizon_defined, evidence_accessibility (REQUIRED)
+- "testability_score": float — average of the five sub-scores (0.0–1.0) (REQUIRED)
+- "resolution_horizon": string or null — ISO8601 datetime when the claim resolves; null if unresolvable or not applicable (REQUIRED)
+- "extraction_confidence": float — confidence in extraction quality (0.0–1.0) (REQUIRED)
+- "extracted_claim": string — concise, testable statement for the ledger; empty string if not testable (REQUIRED)
+- "claim_category": string — one of: player_performance, game_outcome, trade, draft_pick, injury, contract, award_prediction, fa_signing (REQUIRED)
 - "stance": string — directional sentiment: "bullish" (positive outcome predicted), "bearish" (negative outcome predicted), or "neutral" (no clear directional bias) (REQUIRED)
 - "season_year": integer or null — season year the prediction applies to (CRITICAL for draft_pick: must be the draft year, e.g. 2025, 2026)
 - "draft_year": integer or null — for draft pick predictions, set to the year of the draft (e.g. 2026). Otherwise null.
@@ -51,10 +57,12 @@ Return a JSON array of objects. Each object must have:
 - "target_team": string or null — team abbreviation (e.g. "KC", "CHI")
 - "confidence_note": string — how explicit/confident the prediction is (REQUIRED)
 - "prediction_horizon_days": integer — estimated days from publication date to when the event resolves; use -1 for retroactive/past statements (REQUIRED)
+- "resolution_condition": string — plain-English statement of what makes this claim true; empty string if claim is not resolvable. Examples: "Reported by a major outlet as traded before 2026-06-01", "Selected in the first 3 rounds of the 2026 NFL Draft"
+- "hedge_level": string — one of: "strong" (will, is definitely, guaranteed), "moderate" (I think, likely, probably), "weak" (could, might, wouldn't be surprised)
 
 For draft_pick category: season_year MUST be populated with the draft year (infer if not explicitly stated).
 
-If no testable predictions exist, return an empty array: []
+If no speech acts exist, return an empty array: []
 """
 
 
@@ -86,21 +94,26 @@ class LLMProvider(ABC):
             lines = [ln for ln in lines if not ln.strip().startswith("```")]
             text = "\n".join(lines).strip()
 
+        def _has_content(p: dict) -> bool:
+            # Accept Phase C items (text field) or Phase B items (extracted_claim field)
+            return bool(
+                (p.get("text") or "").strip()
+                or (p.get("extracted_claim") or "").strip()
+            )
+
         try:
             result = json.loads(text)
             if isinstance(result, list):
-                return [p for p in result if p.get("extracted_claim", "").strip()]
+                return [p for p in result if _has_content(p)]
             if isinstance(result, dict):
                 # Handle {"predictions": [...]} wrapper
                 if "predictions" in result:
                     preds = result["predictions"]
                     if isinstance(preds, list):
-                        return [
-                            p for p in preds if p.get("extracted_claim", "").strip()
-                        ]
+                        return [p for p in preds if _has_content(p)]
                 # Handle single prediction dict (common with smaller models)
-                if "extracted_claim" in result:
-                    return [result] if result["extracted_claim"].strip() else []
+                if "text" in result or "extracted_claim" in result:
+                    return [result] if _has_content(result) else []
             logger.warning(f"Unexpected JSON structure: {type(result)}")
             return []
         except json.JSONDecodeError as e:
@@ -132,14 +145,62 @@ class GeminiProvider(LLMProvider):
 
     def _build_schema(self):
         types = self.types
+        subscore_props = {
+            k: types.Schema(type=types.Type.NUMBER)
+            for k in (
+                "subject_specificity",
+                "predicate_falsifiability",
+                "threshold_concreteness",
+                "resolution_horizon_defined",
+                "evidence_accessibility",
+            )
+        }
         return types.Schema(
             type=types.Type.ARRAY,
             items=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
+                    # Phase C fields
+                    "text": types.Schema(
+                        type=types.Type.STRING,
+                        description="Verbatim quote or close paraphrase of the speech act",
+                    ),
+                    "speech_act_type": types.Schema(
+                        type=types.Type.STRING,
+                        enum=[
+                            "assertion",
+                            "conditional",
+                            "recall",
+                            "rhetorical_question",
+                            "hedge",
+                            "commentary",
+                            "opinion",
+                            "analogy",
+                            "joke",
+                        ],
+                    ),
+                    "testability_subscores": types.Schema(
+                        type=types.Type.OBJECT,
+                        properties=subscore_props,
+                    ),
+                    "testability_score": types.Schema(
+                        type=types.Type.NUMBER,
+                        description="Average of 5 sub-scores (0.0–1.0)",
+                    ),
+                    "resolution_horizon": types.Schema(
+                        type=types.Type.STRING,
+                        nullable=True,
+                        description="ISO8601 datetime when the claim resolves, or null",
+                    ),
+                    "extraction_confidence": types.Schema(
+                        type=types.Type.NUMBER,
+                        nullable=True,
+                        description="Confidence in extraction quality (0.0–1.0)",
+                    ),
+                    # Phase B fields (kept for ledger promotion path)
                     "extracted_claim": types.Schema(
                         type=types.Type.STRING,
-                        description="Concise, testable statement",
+                        description="Concise, testable statement for ledger; empty string if not testable",
                     ),
                     "claim_category": types.Schema(
                         type=types.Type.STRING,
@@ -150,12 +211,14 @@ class GeminiProvider(LLMProvider):
                             "draft_pick",
                             "injury",
                             "contract",
+                            "award_prediction",
+                            "fa_signing",
                         ],
                     ),
                     "stance": types.Schema(
                         type=types.Type.STRING,
                         enum=["bullish", "bearish", "neutral"],
-                        description="Directional sentiment: bullish=positive outcome predicted, bearish=negative, neutral=no clear bias",
+                        description="Directional sentiment",
                     ),
                     "season_year": types.Schema(type=types.Type.INTEGER, nullable=True),
                     "draft_year": types.Schema(
@@ -177,6 +240,10 @@ class GeminiProvider(LLMProvider):
                     ),
                 },
                 required=[
+                    "text",
+                    "speech_act_type",
+                    "testability_subscores",
+                    "testability_score",
                     "extracted_claim",
                     "claim_category",
                     "stance",
@@ -305,15 +372,62 @@ class AsyncGeminiProvider:
         self._semaphore: Optional[asyncio.Semaphore] = None
 
     def _build_schema(self):
+        # Identical to GeminiProvider._build_schema — Phase C + Phase B fields
         types = self.types
+        subscore_props = {
+            k: types.Schema(type=types.Type.NUMBER)
+            for k in (
+                "subject_specificity",
+                "predicate_falsifiability",
+                "threshold_concreteness",
+                "resolution_horizon_defined",
+                "evidence_accessibility",
+            )
+        }
         return types.Schema(
             type=types.Type.ARRAY,
             items=types.Schema(
                 type=types.Type.OBJECT,
                 properties={
+                    "text": types.Schema(
+                        type=types.Type.STRING,
+                        description="Verbatim quote or close paraphrase of the speech act",
+                    ),
+                    "speech_act_type": types.Schema(
+                        type=types.Type.STRING,
+                        enum=[
+                            "assertion",
+                            "conditional",
+                            "recall",
+                            "rhetorical_question",
+                            "hedge",
+                            "commentary",
+                            "opinion",
+                            "analogy",
+                            "joke",
+                        ],
+                    ),
+                    "testability_subscores": types.Schema(
+                        type=types.Type.OBJECT,
+                        properties=subscore_props,
+                    ),
+                    "testability_score": types.Schema(
+                        type=types.Type.NUMBER,
+                        description="Average of 5 sub-scores (0.0–1.0)",
+                    ),
+                    "resolution_horizon": types.Schema(
+                        type=types.Type.STRING,
+                        nullable=True,
+                        description="ISO8601 datetime when the claim resolves, or null",
+                    ),
+                    "extraction_confidence": types.Schema(
+                        type=types.Type.NUMBER,
+                        nullable=True,
+                        description="Confidence in extraction quality (0.0–1.0)",
+                    ),
                     "extracted_claim": types.Schema(
                         type=types.Type.STRING,
-                        description="Concise, testable statement",
+                        description="Concise, testable statement for ledger; empty string if not testable",
                     ),
                     "claim_category": types.Schema(
                         type=types.Type.STRING,
@@ -324,6 +438,8 @@ class AsyncGeminiProvider:
                             "draft_pick",
                             "injury",
                             "contract",
+                            "award_prediction",
+                            "fa_signing",
                         ],
                     ),
                     "stance": types.Schema(
@@ -332,6 +448,10 @@ class AsyncGeminiProvider:
                         description="Directional sentiment",
                     ),
                     "season_year": types.Schema(type=types.Type.INTEGER, nullable=True),
+                    "draft_year": types.Schema(
+                        type=types.Type.INTEGER,
+                        nullable=True,
+                    ),
                     "target_player": types.Schema(
                         type=types.Type.STRING, nullable=True
                     ),
@@ -340,12 +460,20 @@ class AsyncGeminiProvider:
                         type=types.Type.STRING,
                         description="How explicit/confident the prediction is",
                     ),
+                    "prediction_horizon_days": types.Schema(
+                        type=types.Type.INTEGER,
+                    ),
                 },
                 required=[
+                    "text",
+                    "speech_act_type",
+                    "testability_subscores",
+                    "testability_score",
                     "extracted_claim",
                     "claim_category",
                     "stance",
                     "confidence_note",
+                    "prediction_horizon_days",
                 ],
             ),
         )
@@ -363,19 +491,24 @@ class AsyncGeminiProvider:
             lines = text.split("\n")
             lines = [ln for ln in lines if not ln.strip().startswith("```")]
             text = "\n".join(lines).strip()
+
+        def _has_content(p: dict) -> bool:
+            return bool(
+                (p.get("text") or "").strip()
+                or (p.get("extracted_claim") or "").strip()
+            )
+
         try:
             result = json.loads(text)
             if isinstance(result, list):
-                return [p for p in result if p.get("extracted_claim", "").strip()]
+                return [p for p in result if _has_content(p)]
             if isinstance(result, dict):
                 if "predictions" in result:
                     preds = result["predictions"]
                     if isinstance(preds, list):
-                        return [
-                            p for p in preds if p.get("extracted_claim", "").strip()
-                        ]
-                if "extracted_claim" in result:
-                    return [result] if result["extracted_claim"].strip() else []
+                        return [p for p in preds if _has_content(p)]
+                if "text" in result or "extracted_claim" in result:
+                    return [result] if _has_content(result) else []
             return []
         except json.JSONDecodeError as e:
             logger.warning(f"JSON parse failed: {e}. Response: {text[:200]}")
@@ -564,10 +697,14 @@ class OllamaProvider(LLMProvider):
         self,
         model: str = "qwen2.5:32b",
         base_url: str = "http://localhost:11434",
+        timeout: int = 120,
+        temperature: float = 0.1,
         **kwargs,
     ):
         super().__init__(model)
         self.base_url = os.environ.get("OLLAMA_BASE_URL", base_url)
+        self.timeout = timeout
+        self.temperature = temperature
 
     def _generate(self, prompt: str, format_json: bool = False) -> tuple[str, int]:
         """
@@ -584,7 +721,7 @@ class OllamaProvider(LLMProvider):
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "options": {"temperature": 0.1},
+            "options": {"temperature": self.temperature},
         }
         if format_json:
             payload["format"] = "json"
@@ -593,7 +730,7 @@ class OllamaProvider(LLMProvider):
             resp = requests.post(
                 f"{self.base_url}/api/generate",
                 json=payload,
-                timeout=120,
+                timeout=self.timeout,
             )
             resp.raise_for_status()
             data = resp.json()
@@ -638,15 +775,59 @@ def load_llm_config(config_path: Optional[Path] = None) -> dict:
     if not path.exists():
         logger.info(f"No llm_config.yaml found at {path}, using defaults")
         return {
-            "extraction": {"provider": "gemini", "model": "gemini-2.5-flash"},
+            "extraction": {"provider": "ollama", "model": "qwen2.5:32b"},
             "filter": {
-                "provider": "gemini",
-                "model": "gemini-2.5-flash",
+                "provider": "ollama",
+                "model": "qwen2.5:7b",
                 "enabled": False,
             },
         }
     with open(path) as f:
         return yaml.safe_load(f)
+
+
+_GEMINI_MODEL_PREFIXES = ("gemini-",)
+_CLAUDE_MODEL_PREFIXES = ("claude-",)
+_OPENAI_MODEL_PREFIXES = ("gpt-", "o1", "o3")
+
+
+def _validate_provider_model(provider_name: str, model: str) -> None:
+    """Raise ValueError if the model name is inconsistent with the provider.
+
+    This catches cross-provider leaks such as using an Ollama model name
+    (e.g. 'llama3.1:8b') when the provider is set to 'gemini'.
+
+    Rules:
+      - gemini / gemini-flash: model must start with 'gemini-'
+      - claude: model must start with 'claude-'
+      - openai: model must start with 'gpt-', 'o1', or 'o3'
+      - ollama: no restriction (any model name accepted)
+    """
+    canonical = provider_name.lower()
+
+    if canonical in ("gemini", "gemini-flash"):
+        if not any(model.startswith(p) for p in _GEMINI_MODEL_PREFIXES):
+            raise ValueError(
+                f"Invalid model {model!r} for Gemini provider. "
+                f"Use a gemini-* model name (e.g. 'gemini-2.5-flash'). "
+                f"This mismatch is likely caused by llm_config.yaml still containing "
+                f"an Ollama model name while LLM_EXTRACTION_PROVIDER is set to 'gemini'."
+            )
+
+    elif canonical == "claude":
+        if not any(model.startswith(p) for p in _CLAUDE_MODEL_PREFIXES):
+            raise ValueError(
+                f"Invalid model {model!r} for Claude provider. "
+                f"Use a claude-* model name (e.g. 'claude-sonnet-4-20250514')."
+            )
+
+    elif canonical == "openai":
+        if not any(model.startswith(p) for p in _OPENAI_MODEL_PREFIXES):
+            raise ValueError(
+                f"Invalid model {model!r} for OpenAI provider. "
+                f"Use a gpt-*, o1*, or o3* model name (e.g. 'gpt-4o')."
+            )
+    # ollama: any model name is valid
 
 
 def get_provider(
@@ -691,7 +872,7 @@ def get_provider(
     else:
         # LLM_EXTRACTION_MODEL overrides yaml config when set
         env_model = os.environ.get("LLM_EXTRACTION_MODEL")
-        model = env_model or role_config.get("model", "gemini-2.5-flash")
+        model = env_model or role_config.get("model", "qwen2.5:32b")
 
     provider_cls = PROVIDERS.get(provider_name)
     if not provider_cls:
@@ -708,7 +889,21 @@ def get_provider(
                 "Set it with: export GEMINI_API_KEY=<your-key>"
             )
 
+    # Validate provider+model combination before constructing the provider.
+    # This catches the exact production bug: LLM_EXTRACTION_PROVIDER=gemini
+    # while llm_config.yaml (or an env var) still has an Ollama model name.
+    _validate_provider_model(provider_name, model)
+
     logger.info(f"Initializing {provider_name} provider (model={model}, role={role})")
+    # Pass through Ollama-specific config fields (timeout, temperature, base_url)
+    # so the triage role can use a shorter timeout than extraction.
+    if provider_name == "ollama":
+        return provider_cls(
+            model=model,
+            base_url=role_config.get("base_url", "http://localhost:11434"),
+            timeout=int(role_config.get("timeout", 120)),
+            temperature=float(role_config.get("temperature", 0.1)),
+        )
     return provider_cls(model=model)
 
 
@@ -765,3 +960,106 @@ class _FallbackProvider(LLMProvider):
                 f"Primary classify failed ({e}), falling back to {self.fallback.model}"
             )
             return self.fallback.classify(prompt)
+
+
+# ---------------------------------------------------------------------------
+# 7B verification helpers (Issue #675)
+# ---------------------------------------------------------------------------
+
+
+def _call_ollama_raw(prompt: str, model: str, base_url: str, timeout: int) -> str:
+    """Send a single generation request to Ollama and return the response text."""
+    import requests
+
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "stream": False,
+        "format": "json",
+        "options": {"temperature": 0.0},
+    }
+    resp = requests.post(f"{base_url}/api/generate", json=payload, timeout=timeout)
+    resp.raise_for_status()
+    return resp.json()["response"]
+
+
+def _extract_json_from_response(text: str) -> str:
+    """Strip markdown fences and return the first JSON object/array found."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        lines = [ln for ln in lines if not ln.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+    # Find first { or [ and last matching } or ]
+    for start_char, end_char in (("{", "}"), ("[", "]")):
+        start = text.find(start_char)
+        end = text.rfind(end_char)
+        if start != -1 and end != -1 and end > start:
+            return text[start : end + 1]
+    return text
+
+
+def verify_utterance(
+    utterance: dict,
+    source_text: str,
+    base_url: str = "http://localhost:11434",
+    model: str = "qwen2.5:7b",
+    timeout: int = 30,
+) -> dict:
+    """
+    Run 7B model to verify extraction quality.
+
+    Non-blocking: returns an empty dict on any failure so utterances are
+    still written with null verification fields rather than being dropped.
+
+    Args:
+        utterance: The extracted utterance dict from the 32B model.
+        source_text: The original article text (first 800 chars are used).
+        base_url: Ollama base URL (default: http://localhost:11434).
+        model: Ollama model to use for verification (default: qwen2.5:7b).
+        timeout: HTTP timeout in seconds (default: 30).
+
+    Returns:
+        Dict with keys: claim_text_alignment, hallucination_risk,
+        verification_flags, quality_score, needs_review.
+        Empty dict on failure.
+    """
+    prompt = f"""Source text (first 800 chars):
+{source_text[:800]}
+
+Extracted claim: {utterance.get("extracted_claim", "")}
+Target player: {utterance.get("target_player", "none")}
+Target team: {utterance.get("target_team", "none")}
+
+Return ONLY valid JSON:
+{{
+  "claim_text_alignment": <0.0-1.0, does extracted claim accurately reflect source>,
+  "player_mentioned_in_source": <true/false>,
+  "team_mentioned_in_source": <true/false>,
+  "hallucination_risk": "<low|medium|high>",
+  "verification_flags": [<list from: "player_name_uncertain", "team_inferred", "date_not_in_source", "claim_overstated", "claim_understated">]
+}}"""
+
+    try:
+        raw_response = _call_ollama_raw(
+            prompt, model=model, base_url=base_url, timeout=timeout
+        )
+        result = json.loads(_extract_json_from_response(raw_response))
+
+        alignment = float(result.get("claim_text_alignment", 0.5))
+        testability = utterance.get("testability_score", 0.5)
+        if testability is None:
+            testability = 0.5
+        quality = round(0.6 * float(testability) + 0.4 * alignment, 3)
+        needs_review = quality < 0.5 or result.get("hallucination_risk") == "high"
+
+        return {
+            "claim_text_alignment": alignment,
+            "hallucination_risk": result.get("hallucination_risk", "unknown"),
+            "verification_flags": result.get("verification_flags", []),
+            "quality_score": quality,
+            "needs_review": needs_review,
+        }
+    except Exception as e:
+        logger.warning(f"7B verification failed (non-fatal): {e}")
+        return {}

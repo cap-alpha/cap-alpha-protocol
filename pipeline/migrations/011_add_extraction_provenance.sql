@@ -12,7 +12,7 @@
 --   bq query --use_legacy_sql=false --project_id=<PROJECT_ID> \
 --     < pipeline/migrations/011_add_extraction_provenance.sql
 
-ALTER TABLE `${PROJECT_ID}.gold_layer.prediction_ledger`
+ALTER TABLE `{project_id}.gold_layer.prediction_ledger`
 ADD COLUMN IF NOT EXISTS prompt_version STRING,
 ADD COLUMN IF NOT EXISTS llm_provider STRING,
 ADD COLUMN IF NOT EXISTS llm_model STRING;

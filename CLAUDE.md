@@ -4,13 +4,15 @@
 >
 > **All agent work on this repo MUST happen in a git worktree, and all PRs MUST land via the GitHub merge queue.**
 >
+> - **One concern per PR.** A PR may touch multiple files but must address a single logical change. Never bundle an unrelated fix into the same PR even if convenient. If you catch a bug while working on a feature, open a separate PR for the bug fix.
+> - **Repository settings are OFF LIMITS.** Never modify branch protection rules, webhook config, Actions settings, collaborators, or any GitHub repository settings via `gh api` or any other mechanism. This includes `gh api repos/.../branches/.../protection`, `gh repo edit`, and similar. The GitHub App intentionally lacks Administration permission.
 > - **Never edit files in the main checkout.** A PreToolUse hook (`.claude/hooks/require-worktree.sh`) blocks Edit/Write/MultiEdit when CWD is the main repo. If you see that error, switch to a worktree.
 > - **Use `EnterWorktree` first**, or run `git worktree add .claude/worktrees/<name> -b <branch>` and `cd` into it before any edit.
-> - **Land PRs with `gh pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits). Squash and merge-commit are disabled at the repo level; `main` requires linear history.
+> - **Land PRs with `scripts/gh-lars pr merge <n> --rebase --auto`** (rebase only — no squash, no merge commits). PRs require at least 1 human approval before merge; queue them and let the owner approve.
 > - **All `gh` issue/PR/comment operations MUST use `scripts/gh-lars`** instead of bare `gh`. Identity is the **`cap-alpha-workflow-automation` GitHub App**. Tokens are minted automatically by `scripts/gh-app-token.sh` using `GH_APP_ID` and `GH_INSTALLATION_ID` from `.env.personas` (gitignored). PEM at `~/.ghconfig/triage-app.pem` on each dev machine (never committed).
 > - **Why:** concurrent agents in the same checkout cause branch switches, vanishing edits, and merge conflicts. Worktrees give physical isolation; the merge queue serializes landings and re-runs CI on the combined state.
 >
-> Established 2026-04-07 after multi-agent coordination failures.
+> Established 2026-04-07 after multi-agent coordination failures. One-PR-per-concern rule added 2026-05-06.
 
 ---
 
@@ -81,7 +83,7 @@ cat .agent/current.md
 # 4. Do your work, commit, push, open the PR
 
 # 5. Queue the PR for landing — never direct merge. Always rebase.
-gh pr merge <pr-number> --rebase --auto
+scripts/gh-lars pr merge <pr-number> --rebase --auto
 
 # 6. After the PR lands on main, release locks
 .agent/claim.sh release issue:129 claude-sonnet-<session>
@@ -150,6 +152,16 @@ web/app/layout.tsx
 - Environment variables for secrets (never hardcode)
 - Commit messages: `type(scope): description`
 - All SQL must compile natively for BigQuery (`STRING` not `VARCHAR`, `FLOAT64`/`INT64`, `SAFE_CAST` not `TRY_CAST`, `MOD()` not `%`).
+
+## Frontend shipping checklist (mandatory, closes #672)
+
+Before marking any UI/frontend task done, an agent MUST verify all three:
+
+1. **Deploy pipeline fired** — confirm `production.yml` triggered on the merge (check `gh run list --workflow=production.yml --limit=3`). If it didn't fire, run `cd web && vercel --prod` manually.
+2. **Change is live at cap-alpha.co** — fetch the changed route and confirm it returns 200 and the feature is present. Use `curl -I https://cap-alpha.co/<route>` or the Vercel MCP `web_fetch_vercel_url` tool.
+3. **E2E coverage** — if Playwright tests exist for the changed route, confirm they passed in CI. If no tests exist, file a follow-up issue for coverage (do not block the PR, but do not skip this step).
+
+Skipping this checklist and reporting a frontend task "done" is a process violation.
 
 ## Workflows
 

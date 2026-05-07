@@ -14,6 +14,8 @@
 --   envsubst < pipeline/migrations/016_create_silver_v2_claims.sql | \
 --     bq query --use_legacy_sql=false --project_id=$PROJECT_ID
 
+CREATE SCHEMA IF NOT EXISTS `{project_id}.silver_v2_claims`;
+
 -- ============================================================
 -- 1. raw_utterance — verbatim speech acts from source docs
 -- ============================================================

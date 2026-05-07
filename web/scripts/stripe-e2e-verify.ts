@@ -2,9 +2,12 @@
  * stripe-e2e-verify.ts
  *
  * Verifies the Stripe test-mode end-to-end flow:
- *   customer creation → checkout session → webhook event construction
+ *   products list → customer creation → checkout session → webhook event construction
  *
- * This covers acceptance criteria AC4 from issue #483 (Gate 0 sole-prop verification).
+ * Covers acceptance criteria for issue #140 (business entity + Stripe account verification):
+ *   AC1: stripe products list via API returns from the verified account
+ *   AC2: test-mode charge end-to-end succeeds
+ *
  * Run with a test-mode key — never a live key.
  *
  * Usage:
@@ -44,21 +47,34 @@ async function main() {
         apiVersion: "2026-04-22.dahlia",
     });
 
-    const TOTAL = 4;
+    const TOTAL = 5;
 
-    // 1. Create a test customer
-    let done = step(1, TOTAL, "Creating test customer...");
+    // 1. Verify products list returns results (AC1 — #140)
+    let done = step(1, TOTAL, "Listing products...");
+    const products = await stripe.products.list({ active: true, limit: 10 });
+    assert(
+        Array.isArray(products.data),
+        "stripe.products.list() must return a data array"
+    );
+    assert(
+        products.data.length > 0,
+        `products list is empty — run scripts/stripe-setup.ts first (found ${products.data.length} products)`
+    );
+    done(`ok (${products.data.length} active product${products.data.length === 1 ? "" : "s"})`);
+
+    // 2. Create a test customer
+    done = step(2, TOTAL, "Creating test customer...");
     const customer = await stripe.customers.create({
-        email: "sole-prop-verify@example.com",
-        metadata: { clerk_user_id: "test_sole_prop_verify" },
+        email: "entity-verify@example.com",
+        metadata: { clerk_user_id: "test_entity_verify" },
     });
     done(`ok (${customer.id})`);
 
-    // 2. Create a Checkout session (test mode, no redirect required)
-    done = step(2, TOTAL, "Creating checkout session...");
+    // 3. Create a Checkout session (test mode, no redirect required)
+    done = step(3, TOTAL, "Creating checkout session...");
     const session = await stripe.checkout.sessions.create({
         customer: customer.id,
-        client_reference_id: "test_sole_prop_verify",
+        client_reference_id: "test_entity_verify",
         mode: "subscription",
         line_items: [{ price: STRIPE_PRO_PRICE_ID, quantity: 1 }],
         success_url: `${APP_URL}/dashboard?checkout=success`,
@@ -67,8 +83,8 @@ async function main() {
     });
     done(`ok (${session.id})`);
 
-    // 3. Verify session properties
-    done = step(3, TOTAL, "Verifying session properties...");
+    // 4. Verify session properties
+    done = step(4, TOTAL, "Verifying session properties...");
     assert(session.mode === "subscription", "session.mode must be 'subscription'");
     assert(session.status === "open", "session.status must be 'open'");
     assert(session.customer === customer.id, "session.customer must match");
@@ -78,8 +94,8 @@ async function main() {
     );
     done("ok");
 
-    // 4. Verify webhook event construction (validates STRIPE_WEBHOOK_SECRET if set)
-    done = step(4, TOTAL, "Constructing webhook event...");
+    // 5. Verify webhook event construction (validates STRIPE_WEBHOOK_SECRET if set)
+    done = step(5, TOTAL, "Constructing webhook event...");
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     if (webhookSecret) {
         const payload = JSON.stringify({
@@ -103,7 +119,7 @@ async function main() {
 
     console.log("\nAll checks passed. Stripe test-mode E2E verified.");
     console.log(`Checkout URL was: ${session.url}`);
-    console.log("\nNext: complete live-mode verification per docs/business/stripe-sole-prop-verification.md");
+    console.log("\nNext: complete live-mode verification per docs/business/stripe-llc-verification.md");
 }
 
 main().catch((err) => {

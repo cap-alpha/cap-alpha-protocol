@@ -1,0 +1,66 @@
+name: Nightly NULL-Metadata Assertion
+
+# Issue #595 — hard-fail if any raw_utterance row written in the last 24h
+# has speech_act_type IS NULL or testability_score IS NULL.
+# A non-zero count means write_raw_utterances() validation was bypassed.
+
+on:
+  schedule:
+    - cron: '30 9 * * *'  # 09:30 UTC — after nightly pipeline at 08:00
+  workflow_dispatch:
+
+jobs:
+  assert-no-null-metadata:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      - name: Install BigQuery client
+        run: pip install google-cloud-bigquery
+
+      - name: Authenticate to GCP
+        run: |
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/gcp-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV
+
+      - name: Assert zero NULL-metadata rows in last 24h
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          python - <<'PY'
+          import os, sys
+          from google.cloud import bigquery
+
+          project_id = os.environ["GCP_PROJECT_ID"]
+          client = bigquery.Client(project=project_id)
+
+          query = f"""
+          SELECT COUNTIF(
+              speech_act_type IS NULL OR testability_score IS NULL
+          ) AS null_metadata_rows
+          FROM `{project_id}.silver_v2_claims.raw_utterance`
+          WHERE created_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 24 HOUR)
+          """
+
+          rows = list(client.query(query).result())
+          null_count = rows[0].null_metadata_rows if rows else 0
+
+          if null_count > 0:
+              print(
+                  f"FAIL: {null_count} raw_utterance row(s) written in the last 24h "
+                  "have NULL speech_act_type or testability_score. "
+                  "The write_raw_utterances() NOT-NULL guard was bypassed.",
+                  file=sys.stderr,
+              )
+              sys.exit(1)
+
+          print(f"OK: 0 NULL-metadata rows in last 24h (assertion passed)")
+          PY
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/gcp-key.json

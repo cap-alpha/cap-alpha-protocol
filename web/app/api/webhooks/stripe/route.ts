@@ -1,5 +1,5 @@
 /**
- * POST /api/webhooks/stripe
+ * POST /api/webhooks/stripe — replay attack hardening (#484)
  *
  * Receives Stripe webhook events, verifies the signature, and keeps
  * subscription state in sync across:
@@ -7,9 +7,10 @@
  *   - Clerk publicMetadata.tier (for fast tier reads by the rate limiter)
  *   - BigQuery monetization.stripe_events (best-effort audit log)
  *
- * Idempotency: Postgres updates are safe to replay (UPDATE WHERE clerkId).
- * BigQuery audit inserts are best-effort; duplicate deliveries may produce
- * duplicate rows (event_id uniqueness is not enforced at insert time).
+ * Idempotency: event IDs are stored in stripe_processed_events. A UNIQUE
+ * constraint prevents duplicate processing even under concurrent delivery
+ * or replay attacks. If the event was already processed, the handler
+ * returns 200 immediately without re-applying state changes.
  *
  * Required env vars:
  *   STRIPE_WEBHOOK_SECRET — from Stripe Dashboard → Webhooks → endpoint secret
@@ -22,7 +23,7 @@ import { eq } from "drizzle-orm";
 import type Stripe from "stripe";
 
 import { db } from "@/db";
-import { users } from "@/db/schema";
+import { users, stripeProcessedEvents } from "@/db/schema";
 import { stripe, tierFromPriceId } from "@/lib/stripe";
 import type { Tier } from "@/lib/api-keys/tiers";
 
@@ -173,21 +174,29 @@ async function handleSubscriptionUpdated(
     const priceId = sub.items.data[0]?.price?.id ?? null;
     const currentPeriodEnd = new Date((sub.items.data[0]?.current_period_end ?? 0) * 1000);
     const status = sub.status;
+    // Treat cancel_at_period_end as an immediate downgrade so the customer
+    // portal cancellation path satisfies the <10s downgrade acceptance criterion
+    // (#150). Users who cancel receive free-tier access immediately rather than
+    // keeping paid access until the period ends.
+    const cancelAtPeriodEnd = sub.cancel_at_period_end ?? false;
+    const isPro = (status === "active" || status === "trialing") && !cancelAtPeriodEnd;
 
     await db
         .update(users)
         .set({
-            stripeSubscriptionStatus: status,
-            stripePriceId: priceId,
+            stripeSubscriptionStatus: cancelAtPeriodEnd ? "canceled" : status,
+            stripePriceId: cancelAtPeriodEnd ? null : priceId,
             stripeCurrentPeriodEnd: currentPeriodEnd,
-            isPro: status === "active" || status === "trialing",
+            isPro,
         })
         .where(eq(users.clerkId, clerkUserId));
 
-    const tier = tierFromPriceId(priceId);
+    const tier = isPro ? tierFromPriceId(priceId) : "free";
     await setUserTier(clerkUserId, tier);
 
-    console.log(`[Stripe Webhook] subscription updated: ${clerkUserId} → ${tier} (${status})`);
+    console.log(
+        `[Stripe Webhook] subscription updated: ${clerkUserId} → ${tier} (${status}, cancel_at_period_end=${cancelAtPeriodEnd})`
+    );
     return clerkUserId;
 }
 
@@ -288,6 +297,26 @@ export async function POST(req: Request): Promise<Response> {
     } catch (err) {
         console.error("[Stripe Webhook] Signature verification failed:", err);
         return new Response("Webhook signature verification failed", { status: 400 });
+    }
+
+    // Idempotency guard — deduplicate by Stripe event ID.
+    // INSERT ... ON CONFLICT DO NOTHING prevents duplicate processing even
+    // under concurrent delivery or adversarial replay.
+    try {
+        const inserted = await db
+            .insert(stripeProcessedEvents)
+            .values({ stripeEventId: event.id, eventType: event.type })
+            .onConflictDoNothing()
+            .returning({ id: stripeProcessedEvents.id });
+        if (inserted.length === 0) {
+            // Already processed — return 200 so Stripe stops retrying
+            console.log(`[Stripe Webhook] Duplicate event ignored: ${event.id}`);
+            return new Response(null, { status: 200 });
+        }
+    } catch (err) {
+        // If the idempotency table doesn't exist yet (migration pending), log and continue.
+        // This ensures backwards compatibility during the migration window.
+        console.warn("[Stripe Webhook] Idempotency check failed (table may not exist yet):", err);
     }
 
     let clerkUserId: string | null = null;

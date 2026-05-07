@@ -18,18 +18,24 @@ Usage (inside Docker):
 """
 
 import argparse
+import hashlib
+import json
 import logging
 import os
 import re
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import pandas as pd
 import yaml
 from google.api_core.exceptions import NotFound
+from google.cloud import bigquery
 
 from src.db_manager import DBManager
 from src.resolution_engine import (
+    VoidReason,
     get_pending_predictions,
     resolve_binary,
     void_prediction,
@@ -39,6 +45,192 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s — %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# silver_v2_claims dual-write helpers (Issue #615)
+# ---------------------------------------------------------------------------
+
+# Maps resolve_daily outcome_source strings → silver_v2 resolution_method_id slugs
+_OUTCOME_SOURCE_TO_METHOD_ID: dict[str, str] = {
+    "sportsdataio": "nfl_draft_pick_sportsdataio",
+    "draft_board": "nfl_draft_pick_sportsdataio",
+    "sportsdataio_scores": "nfl_game_outcome_scores",
+    "nflverse_player_stats": "nfl_player_perf_nflverse",
+    "nfl_awards_config": "nfl_award_config",
+    "sportsdataio_rosters": "nfl_fa_signing_rosters",
+}
+
+
+def _silver_v2_resolution_method_id(outcome_source: Optional[str]) -> str:
+    """Map a gold_layer outcome_source string to a silver_v2 resolution_method_id."""
+    return _OUTCOME_SOURCE_TO_METHOD_ID.get(
+        outcome_source or "", "nfl_draft_pick_sportsdataio"
+    )
+
+
+def _dual_write_silver_v2_resolution(
+    *,
+    prediction_hash: str,
+    outcome: str,
+    outcome_confidence: float,
+    evidence: dict,
+    resolution_method_id: str,
+    db: DBManager,
+) -> None:
+    """
+    Append one row to silver_v2_claims.resolution.
+
+    This is a best-effort write: errors are logged but never re-raised so that
+    v2 failures cannot break the existing v1 gold_layer write path.
+
+    The cryptographic chain is append-only: we fetch the latest this_hash for
+    the given claim_id and use it as prev_hash. For the first resolution the
+    prev_hash is an empty string (chain root).
+    """
+    try:
+        project_id = os.environ.get("GCP_PROJECT_ID")
+        if not project_id:
+            logger.warning("dual_write_silver_v2: GCP_PROJECT_ID not set, skipping")
+            return
+
+        resolution_table = f"`{project_id}.silver_v2_claims.resolution`"
+
+        # Fetch the latest this_hash for prev_hash chaining
+        chain_query = f"""
+            SELECT this_hash
+            FROM {resolution_table}
+            WHERE claim_id = @claim_id
+            ORDER BY resolved_at DESC
+            LIMIT 1
+        """
+        try:
+            chain_rows = db.fetch_df(
+                chain_query,
+                query_parameters=[
+                    bigquery.ScalarQueryParameter("claim_id", "STRING", prediction_hash)
+                ],
+            )
+            prev_hash = (
+                str(chain_rows.iloc[0]["this_hash"]) if not chain_rows.empty else ""
+            )
+        except Exception as chain_err:
+            logger.debug(
+                f"dual_write_silver_v2: could not fetch prev_hash for "
+                f"{prediction_hash[:16]}…: {chain_err}"
+            )
+            prev_hash = ""
+
+        resolution_id = str(uuid.uuid4())
+        now = datetime.now(timezone.utc)
+        evidence_json = json.dumps(evidence, separators=(",", ":"))
+
+        # Compute this_hash as SHA-256 of the canonical payload
+        payload_str = json.dumps(
+            {
+                "resolution_id": resolution_id,
+                "claim_id": prediction_hash,
+                "resolved_at": now.isoformat(),
+                "outcome": outcome,
+                "outcome_confidence": outcome_confidence,
+                "evidence": evidence,
+                "resolution_method_id": resolution_method_id,
+                "prev_hash": prev_hash,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        this_hash = hashlib.sha256(payload_str.encode()).hexdigest()
+
+        insert_sql = f"""
+            INSERT INTO {resolution_table}
+              (resolution_id, claim_id, resolved_at, outcome, outcome_confidence,
+               evidence, resolution_method_id, prev_hash, this_hash, notes)
+            VALUES
+              (@resolution_id, @claim_id, @resolved_at, @outcome, @outcome_confidence,
+               PARSE_JSON(@evidence_json), @resolution_method_id, @prev_hash, @this_hash,
+               NULL)
+        """
+        db.execute(
+            insert_sql,
+            query_parameters=[
+                bigquery.ScalarQueryParameter("resolution_id", "STRING", resolution_id),
+                bigquery.ScalarQueryParameter("claim_id", "STRING", prediction_hash),
+                bigquery.ScalarQueryParameter("resolved_at", "TIMESTAMP", now),
+                bigquery.ScalarQueryParameter("outcome", "STRING", outcome),
+                bigquery.ScalarQueryParameter(
+                    "outcome_confidence", "FLOAT64", outcome_confidence
+                ),
+                bigquery.ScalarQueryParameter("evidence_json", "STRING", evidence_json),
+                bigquery.ScalarQueryParameter(
+                    "resolution_method_id", "STRING", resolution_method_id
+                ),
+                bigquery.ScalarQueryParameter("prev_hash", "STRING", prev_hash),
+                bigquery.ScalarQueryParameter("this_hash", "STRING", this_hash),
+            ],
+        )
+        logger.info(
+            f"dual_write_silver_v2: wrote resolution {resolution_id[:8]}… "
+            f"for claim {prediction_hash[:16]}… outcome={outcome}"
+        )
+    except Exception as exc:
+        logger.error(
+            f"dual_write_silver_v2: failed to write silver_v2_claims.resolution "
+            f"for {prediction_hash[:16]}… — {exc} (v1 write unaffected)"
+        )
+
+
+def _resolve_binary_with_dual_write(
+    prediction_hash: str,
+    correct: bool,
+    outcome_source: str,
+    outcome_reference_id: Optional[str] = None,
+    outcome_notes: Optional[str] = None,
+    db: Optional[DBManager] = None,
+) -> None:
+    """
+    Thin wrapper: calls resolve_binary (gold_layer v1 write), then dual-writes
+    to silver_v2_claims.resolution.  v2 failure is logged but never raised.
+    """
+    resolve_binary(
+        prediction_hash=prediction_hash,
+        correct=correct,
+        outcome_source=outcome_source,
+        outcome_reference_id=outcome_reference_id,
+        outcome_notes=outcome_notes,
+        db=db,
+    )
+    if db is not None:
+        outcome_str = "true" if correct else "false"
+        _dual_write_silver_v2_resolution(
+            prediction_hash=prediction_hash,
+            outcome=outcome_str,
+            outcome_confidence=1.0,
+            evidence={"source": outcome_source, "notes": outcome_notes or ""},
+            resolution_method_id=_silver_v2_resolution_method_id(outcome_source),
+            db=db,
+        )
+
+
+def _void_prediction_with_dual_write(
+    prediction_hash: str,
+    reason: "str | VoidReason",
+    db: Optional[DBManager] = None,
+) -> None:
+    """
+    Thin wrapper: calls void_prediction (gold_layer v1 write), then dual-writes
+    outcome='unresolvable' to silver_v2_claims.resolution.  v2 failure is logged
+    but never raised.
+    """
+    void_prediction(prediction_hash=prediction_hash, reason=reason, db=db)
+    if db is not None:
+        _dual_write_silver_v2_resolution(
+            prediction_hash=prediction_hash,
+            outcome="unresolvable",
+            outcome_confidence=1.0,
+            evidence={"reason": reason},
+            resolution_method_id="nfl_draft_pick_sportsdataio",
+            db=db,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +454,7 @@ def _resolve_team_claim(claim, parsed, year_draft_data, phash, db, dry_run):
             f"  {'CORRECT' if correct else 'INCORRECT'} {phash[:12]}… — {notes}"
         )
         if not dry_run:
-            resolve_binary(
+            _resolve_binary_with_dual_write(
                 phash, correct, outcome_source="draft_board", outcome_notes=notes, db=db
             )
         return "resolved"
@@ -455,7 +647,9 @@ def resolve_draft_picks(
                 f"  VOID {phash[:12]}… — can't parse specific claim: {claim[:60]}"
             )
             if not dry_run:
-                void_prediction(phash, "unparseable_draft_claim", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -464,7 +658,7 @@ def resolve_draft_picks(
         logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
 
         if not dry_run:
-            resolve_binary(
+            _resolve_binary_with_dual_write(
                 prediction_hash=phash,
                 correct=correct,
                 outcome_source="sportsdataio",
@@ -798,7 +992,9 @@ def resolve_game_outcomes(
                 f"  VOID {phash[:12]}… — can't resolve game claim: {claim[:60]}"
             )
             if not dry_run:
-                void_prediction(phash, "unparseable_game_claim", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -811,7 +1007,7 @@ def resolve_game_outcomes(
         logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
 
         if not dry_run:
-            resolve_binary(
+            _resolve_binary_with_dual_write(
                 prediction_hash=phash,
                 correct=correct,
                 outcome_source="sportsdataio_scores",
@@ -1004,7 +1200,9 @@ def resolve_player_performance(
         if "stat_column" not in parsed or "threshold" not in parsed:
             logger.info(f"  VOID {phash[:12]}… — can't parse stat claim: {claim[:60]}")
             if not dry_run:
-                void_prediction(phash, "unparseable_stat_claim", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1071,7 +1269,7 @@ def resolve_player_performance(
         logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
 
         if not dry_run:
-            resolve_binary(
+            _resolve_binary_with_dual_write(
                 prediction_hash=phash,
                 correct=correct,
                 outcome_source="nflverse_player_stats",
@@ -1200,7 +1398,9 @@ def resolve_award_predictions(
         if award_key is None:
             logger.info(f"  VOID {phash[:12]}… — unrecognised award type: {claim[:60]}")
             if not dry_run:
-                void_prediction(phash, "unrecognised_award_type", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1221,7 +1421,9 @@ def resolve_award_predictions(
                 f"  VOID {phash[:12]}… — no predicted player name: {claim[:60]}"
             )
             if not dry_run:
-                void_prediction(phash, "no_predicted_player", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1240,7 +1442,7 @@ def resolve_award_predictions(
             f"predicted '{predicted_player}', actual '{actual_winner}' ({award_key})"
         )
         if not dry_run:
-            resolve_binary(
+            _resolve_binary_with_dual_write(
                 phash,
                 bool(correct),
                 outcome_source="nfl_awards_config",
@@ -1261,16 +1463,14 @@ def _load_current_rosters(db: DBManager) -> pd.DataFrame:
     """Load current player team assignments from bronze_sportsdataio_players."""
     project_id = os.environ.get("GCP_PROJECT_ID", "cap-alpha-protocol")
     try:
-        df = db.fetch_df(
-            f"""
+        df = db.fetch_df(f"""
             SELECT
                 Name,
                 LOWER(Name) AS name_lower,
                 Team AS current_team
             FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
             WHERE Team IS NOT NULL AND Team != ''
-            """
-        )
+            """)
         return df
     except NotFound:
         logger.warning("bronze_sportsdataio_players table not found")
@@ -1329,7 +1529,9 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
                 f"  VOID {phash[:12]}… — no player name in fa_signing: {claim[:60]}"
             )
             if not dry_run:
-                void_prediction(phash, "no_player_name", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1339,7 +1541,9 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
                 f"  VOID {phash[:12]}… — can't parse destination team: {claim[:60]}"
             )
             if not dry_run:
-                void_prediction(phash, "unparseable_fa_team", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1349,7 +1553,9 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
                 f"  VOID {phash[:12]}… — unknown team '{predicted_team_raw}': {claim[:60]}"
             )
             if not dry_run:
-                void_prediction(phash, f"unknown_team:{predicted_team_raw}", db=db)
+                _void_prediction_with_dual_write(
+                    phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                )
             summary["voided"] += 1
             continue
 
@@ -1375,7 +1581,7 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
             f"'{player_name}': {notes}"
         )
         if not dry_run:
-            resolve_binary(
+            _resolve_binary_with_dual_write(
                 phash,
                 bool(correct),
                 outcome_source="sportsdataio_rosters",
@@ -1388,7 +1594,7 @@ def resolve_fa_signings(db: DBManager, dry_run: bool = False) -> dict:
 
 
 def _get_void_predictions_by_note(
-    note: str, db: DBManager, sport: Optional[str] = "NFL"
+    note: "str | VoidReason", db: DBManager, sport: Optional[str] = "NFL"
 ) -> "pd.DataFrame":
     """
     Fetch predictions that were previously VOID'd with a specific outcome_notes value.
@@ -1418,6 +1624,49 @@ def _get_void_predictions_by_note(
         ORDER BY l.ingestion_timestamp ASC
     """
     return db.fetch_df(query)
+
+
+def expire_stale_predictions(db: DBManager, dry_run: bool = False) -> int:
+    """
+    Void PENDING predictions that have passed their resolution horizon.
+
+    A prediction is considered stale if any of the following is true:
+      - resolution_deadline < CURRENT_DATE() (if that column exists on the ledger), OR
+      - season_year <= EXTRACT(YEAR FROM CURRENT_DATE()) - 2  (more than 2 seasons old)
+
+    Each stale prediction is voided with reason 'past_resolution_horizon'.
+    Returns the count of predictions expired.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    query = f"""
+        SELECT prediction_hash
+        FROM `{project_id}.gold_layer.prediction_ledger`
+        WHERE resolution_status = 'PENDING'
+          AND (
+            (resolution_deadline IS NOT NULL AND resolution_deadline < CURRENT_DATE())
+            OR season_year <= EXTRACT(YEAR FROM CURRENT_DATE()) - 2
+          )
+    """
+    try:
+        stale = db.fetch_df(query)
+    except Exception as e:
+        logger.warning(f"expire_stale_predictions: could not query ledger: {e}")
+        return 0
+
+    count = len(stale)
+    if count == 0:
+        logger.info("expire_stale_predictions: no stale predictions found")
+        return 0
+
+    logger.info(f"expire_stale_predictions: expiring {count} stale prediction(s)")
+    for _, row in stale.iterrows():
+        phash = row["prediction_hash"]
+        logger.info(f"  VOID {phash[:12]}… — past_resolution_horizon")
+        if not dry_run:
+            void_prediction(phash, VoidReason.PAST_RESOLUTION_HORIZON, db=db)
+
+    logger.info(f"expire_stale_predictions: expired {count} prediction(s)")
+    return count
 
 
 def resolve_all(
@@ -1451,10 +1700,10 @@ def resolve_all(
             if re_resolve_voids:
                 # Re-attempt draft predictions previously VOID'd as unparseable
                 void_drafts = _get_void_predictions_by_note(
-                    "unparseable_draft_claim", db=db
+                    VoidReason.UNPARSEABLE_CLAIM, db=db
                 )
                 logger.info(
-                    f"Re-resolve-voids: {len(void_drafts)} unparseable_draft_claim entries"
+                    f"Re-resolve-voids: {len(void_drafts)} {VoidReason.UNPARSEABLE_CLAIM.value} entries"
                 )
                 if not void_drafts.empty:
                     summaries["draft_pick_voids"] = resolve_draft_picks(
@@ -1481,6 +1730,25 @@ def resolve_all(
 
         if not category or category == "fa_signing":
             summaries["fa_signing"] = resolve_fa_signings(db, dry_run=dry_run)
+
+        # LLM judge fallback pass — runs last, after all rule-based resolvers.
+        # Only fires when no category filter is active (full pass only).
+        if not category:
+            try:
+                from src.resolvers.llm_judge import run_llm_judge_pass
+
+                summaries["llm_judge"] = run_llm_judge_pass(db=db, dry_run=dry_run)
+            except Exception as exc:
+                logger.warning(f"llm_judge pass failed (non-fatal): {exc}")
+                summaries["llm_judge"] = {
+                    "checked": 0,
+                    "resolved": 0,
+                    "skipped": 0,
+                    "errors": 1,
+                }
+
+        # Expire predictions past their resolution horizon (runs on every full pass)
+        expired = expire_stale_predictions(db, dry_run=dry_run)
 
         # Combined summary
         total = {

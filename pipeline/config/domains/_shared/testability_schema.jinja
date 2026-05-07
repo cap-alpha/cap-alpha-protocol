@@ -1,0 +1,19 @@
+testability_score = average of 5 sub-scores (each 0.0–1.0):
+- subject_specificity: Is the subject a nameable entity? "The Eagles"=1.0, "young QBs these days"=0.0
+- predicate_falsifiability: Can it be scored TRUE/FALSE? "will win the SB"=1.0, "will struggle"=0.4
+- threshold_concreteness: "below 3%"=1.0, "low"=0.3, "some"=0.0
+- resolution_horizon_defined: "by Q4 2025"=1.0, "soon"=0.3, "eventually"=0.0
+- evidence_accessibility: Is there a data source that can answer this? "Eagles wins >= 11"=1.0, "most exciting team"=0.0
+
+Stance rules (for promoted claims):
+- bullish: prediction is positive/optimistic about the subject
+- bearish: prediction is negative/pessimistic about the subject
+- neutral: no clear directional bias (retirement, trade, factual future event)
+
+hedge_level — how confident/committed is the speaker:
+- strong: explicit commitment ("will", "is definitely", "guaranteed")
+- moderate: qualified belief ("I think", "likely", "probably")
+- weak: low-commitment ("could", "might", "wouldn't surprise me if")
+
+resolution_condition: plain-English statement of what makes this claim true; empty string if not resolvable.
+Examples: "Reported by a major outlet as traded before 2026-06-01", "Selected in the first 3 rounds of the 2026 NFL Draft"

@@ -5,6 +5,23 @@ from typing import Any, Dict, List, Optional
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
+
+_SENTRY_DSN = os.environ.get("SENTRY_DSN")
+if _SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+
+        sentry_sdk.init(
+            dsn=_SENTRY_DSN,
+            traces_sample_rate=0.1,
+            integrations=[StarletteIntegration(), FastApiIntegration()],
+            environment=os.environ.get("ENVIRONMENT", "production"),
+            send_default_pii=False,
+        )
+    except ImportError:
+        pass  # sentry-sdk not installed; error reporting disabled
 from pydantic import BaseModel
 
 try:

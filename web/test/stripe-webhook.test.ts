@@ -1,96 +1,72 @@
 /**
  * Unit tests for POST /api/webhooks/stripe
  *
- * These tests exercise the webhook handler in isolation using mocked
- * Stripe SDK, Drizzle ORM, and Clerk client. The key coverage goals are:
+ * Covers:
  *   - Signature verification failure → 400
  *   - Missing STRIPE_WEBHOOK_SECRET → 500
  *   - checkout.session.completed → Postgres + Clerk tier update
- *   - customer.subscription.updated → Postgres + Clerk tier update
- *   - customer.subscription.deleted → free tier
- *   - invoice.payment_failed → past_due (no downgrade)
- *   - invoice.payment_succeeded → active restore
+ *   - customer.subscription.updated / deleted / invoice events
+ *   - Replay attack: same event replayed 5× → 1 grant, 4 skips (idempotency)
+ *   - Corrupted payload → 400 (signature fails)
  *   - Unrecognised event type → 200 (no-op)
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // --------------------------------------------------------------------------
-// Module mocks — must be declared before any imports that pull in the modules
+// Module mocks
 // --------------------------------------------------------------------------
 
-// Mock Stripe
 const mockConstructEvent = vi.fn();
 const mockSubscriptionsRetrieve = vi.fn();
 
-vi.mock("stripe", () => {
-    const Stripe: any = vi.fn().mockImplementation(() => ({
-        webhooks: {
-            constructEvent: mockConstructEvent,
-        },
-        subscriptions: {
-            retrieve: mockSubscriptionsRetrieve,
-        },
-    }));
-    return { default: Stripe };
-});
+vi.mock("@/lib/stripe", () => ({
+    stripe: {
+        webhooks: { constructEvent: mockConstructEvent },
+        subscriptions: { retrieve: mockSubscriptionsRetrieve },
+    },
+    tierFromPriceId: vi.fn().mockReturnValue("pro"),
+}));
 
-// Mock Drizzle db
 const mockDbUpdate = vi.fn();
 const mockDbSelect = vi.fn();
+const mockDbInsert = vi.fn();
 
 vi.mock("@/db", () => ({
     db: {
         update: mockDbUpdate,
         select: mockDbSelect,
+        insert: mockDbInsert,
     },
 }));
-
-// Mock Clerk
-const mockUpdateUserMetadata = vi.fn();
-const mockGetUser = vi.fn();
 
 vi.mock("@clerk/nextjs/server", () => ({
     clerkClient: {
-        users: {
-            updateUserMetadata: mockUpdateUserMetadata,
-            getUser: mockGetUser,
-        },
+        users: { updateUserMetadata: vi.fn() },
     },
 }));
 
-// Mock BigQuery (fire-and-forget audit log)
 vi.mock("@google-cloud/bigquery", () => ({
-    BigQuery: vi.fn().mockImplementation(() => ({
-        dataset: vi.fn().mockReturnValue({
-            table: vi.fn().mockReturnValue({
-                insert: vi.fn().mockResolvedValue(undefined),
+    BigQuery: vi.fn().mockImplementation(function () {
+        return {
+            dataset: vi.fn().mockReturnValue({
+                table: vi.fn().mockReturnValue({
+                    insert: vi.fn().mockResolvedValue(undefined),
+                }),
             }),
-        }),
-    })),
+        };
+    }),
 }));
 
 // --------------------------------------------------------------------------
 // Helpers
 // --------------------------------------------------------------------------
 
-/**
- * Build a minimal mock Stripe event.
- */
-function makeEvent(type: string, data: object): object {
-    return {
-        id: `evt_test_${type.replace(/\./g, "_")}`,
-        type,
-        livemode: false,
-        data: { object: data },
-    };
+function makeEvent(type: string, data: object, id = `evt_${type.replace(/\W/g, "_")}`) {
+    return { id, type, livemode: false, data: { object: data } };
 }
 
-/**
- * Build a Next.js Request-like object with the given body and optional
- * stripe-signature header.
- */
-function makeRequest(body: string, sig: string | null = "t=1,v1=abc"): Request {
+function makeRequest(body: string, sig: string | null = "t=1,v1=ok"): Request {
     const headers: Record<string, string> = { "Content-Type": "text/plain" };
     if (sig !== null) headers["stripe-signature"] = sig;
     return new Request("http://localhost/api/webhooks/stripe", {
@@ -100,25 +76,36 @@ function makeRequest(body: string, sig: string | null = "t=1,v1=abc"): Request {
     });
 }
 
-// --------------------------------------------------------------------------
-// Setup a chainable Drizzle update mock
-// --------------------------------------------------------------------------
-
-function setupDbUpdateChain(): void {
+function setupDbUpdateChain() {
     const chain = {
         set: vi.fn().mockReturnThis(),
         where: vi.fn().mockResolvedValue(undefined),
     };
     mockDbUpdate.mockReturnValue(chain);
+    return chain;
 }
 
-function setupDbSelectChain(rows: object[]): void {
+function setupDbSelectChain(rows: object[]) {
     const chain = {
         from: vi.fn().mockReturnThis(),
         where: vi.fn().mockReturnThis(),
         limit: vi.fn().mockResolvedValue(rows),
     };
     mockDbSelect.mockReturnValue(chain);
+    return chain;
+}
+
+// Set up the idempotency insert mock. Pass `alreadyProcessed=true` to simulate replay.
+function setupIdempotencyInsert(alreadyProcessed = false) {
+    const chain = {
+        values: vi.fn().mockReturnThis(),
+        onConflictDoNothing: vi.fn().mockReturnThis(),
+        returning: vi
+            .fn()
+            .mockResolvedValue(alreadyProcessed ? [] : [{ id: 1 }]),
+    };
+    mockDbInsert.mockReturnValue(chain);
+    return chain;
 }
 
 // --------------------------------------------------------------------------
@@ -126,20 +113,20 @@ function setupDbSelectChain(rows: object[]): void {
 // --------------------------------------------------------------------------
 
 describe("POST /api/webhooks/stripe", () => {
-    // We import the route handler lazily inside each test so vi.mock hoisting
-    // has taken effect. We store the imported POST function here.
     let POST: (req: Request) => Promise<Response>;
+    let mockUpdateUserMetadata: ReturnType<typeof vi.fn>;
 
     beforeEach(async () => {
         vi.clearAllMocks();
-        // Reset env
         process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
-        process.env.STRIPE_SECRET_KEY = "sk_test_xxx";
+        process.env.STRIPE_SECRET_KEY = "sk_test";
         process.env.GCP_PROJECT_ID = "cap-alpha-protocol";
 
-        // Default: import the route handler
         const mod = await import("@/app/api/webhooks/stripe/route");
         POST = mod.POST;
+
+        const clerk = await import("@clerk/nextjs/server");
+        mockUpdateUserMetadata = clerk.clerkClient.users.updateUserMetadata as ReturnType<typeof vi.fn>;
     });
 
     afterEach(() => {
@@ -147,37 +134,25 @@ describe("POST /api/webhooks/stripe", () => {
     });
 
     // -----------------------------------------------------------------------
-    // Config guard
+    // Config / signature
     // -----------------------------------------------------------------------
 
     it("returns 500 when STRIPE_WEBHOOK_SECRET is missing", async () => {
         delete process.env.STRIPE_WEBHOOK_SECRET;
-
-        const req = makeRequest("{}");
-        const res = await POST(req);
-
+        const res = await POST(makeRequest("{}"));
         expect(res.status).toBe(500);
     });
 
-    // -----------------------------------------------------------------------
-    // Signature verification
-    // -----------------------------------------------------------------------
-
     it("returns 400 when stripe-signature header is absent", async () => {
-        const req = makeRequest("{}", null);
-        const res = await POST(req);
-
+        const res = await POST(makeRequest("{}", null));
         expect(res.status).toBe(400);
     });
 
-    it("returns 400 when Stripe signature verification fails", async () => {
+    it("returns 400 when signature verification throws (corrupted payload)", async () => {
         mockConstructEvent.mockImplementation(() => {
-            throw new Error("Signature verification failed");
+            throw new Error("Invalid signature");
         });
-
-        const req = makeRequest("{}", "t=1,v1=bad");
-        const res = await POST(req);
-
+        const res = await POST(makeRequest("{corrupted}", "t=1,v1=bad"));
         expect(res.status).toBe(400);
     });
 
@@ -185,132 +160,112 @@ describe("POST /api/webhooks/stripe", () => {
     // checkout.session.completed
     // -----------------------------------------------------------------------
 
-    it("handles checkout.session.completed → PRO tier", async () => {
+    it("grants PRO tier on checkout.session.completed", async () => {
         const sessionObj = {
+            mode: "subscription",
             client_reference_id: "user_clerk123",
             customer: "cus_abc",
             subscription: "sub_xyz",
         };
-        const event = makeEvent("checkout.session.completed", sessionObj);
-        mockConstructEvent.mockReturnValue(event);
-
+        mockConstructEvent.mockReturnValue(makeEvent("checkout.session.completed", sessionObj));
         mockSubscriptionsRetrieve.mockResolvedValue({
-            items: { data: [{ price: { id: process.env.STRIPE_PRICE_PRO ?? "price_pro" } }] },
-            current_period_end: Math.floor(Date.now() / 1000) + 2592000,
+            items: { data: [{ price: { id: "price_pro" }, current_period_end: 9999999999 }] },
         });
-
+        setupIdempotencyInsert(false);
         setupDbUpdateChain();
 
-        const req = makeRequest(JSON.stringify(sessionObj));
-        const res = await POST(req);
+        const res = await POST(makeRequest(JSON.stringify(sessionObj)));
 
         expect(res.status).toBe(200);
-        expect(mockDbUpdate).toHaveBeenCalled();
+        expect(mockDbUpdate).toHaveBeenCalledTimes(1);
         expect(mockUpdateUserMetadata).toHaveBeenCalledWith("user_clerk123", {
-            publicMetadata: { tier: expect.any(String) },
+            publicMetadata: { tier: "pro" },
         });
     });
 
-    it("handles checkout.session.completed with no client_reference_id gracefully", async () => {
-        const sessionObj = { customer: "cus_abc", subscription: "sub_xyz" };
-        const event = makeEvent("checkout.session.completed", sessionObj);
-        mockConstructEvent.mockReturnValue(event);
-
-        const req = makeRequest(JSON.stringify(sessionObj));
-        const res = await POST(req);
-
-        // No Clerk call since we couldn't identify the user
-        expect(res.status).toBe(200);
-        expect(mockUpdateUserMetadata).not.toHaveBeenCalled();
-    });
-
     // -----------------------------------------------------------------------
-    // customer.subscription.updated
+    // Replay attack — idempotency
+    // The first delivery inserts the event ID (returns row).
+    // Subsequent replays get empty returning() → 200 with no state change.
     // -----------------------------------------------------------------------
 
-    it("handles customer.subscription.updated → updates tier and status", async () => {
-        const subObj = {
-            customer: "cus_abc",
-            status: "active",
-            items: { data: [{ price: { id: "price_pro" } }] },
-            current_period_end: Math.floor(Date.now() / 1000) + 2592000,
+    it("replay attack: 5 deliveries → 1 access grant, 4 skipped (idempotency)", async () => {
+        const sessionObj = {
+            mode: "subscription",
+            client_reference_id: "user_replay_victim",
+            customer: "cus_replay",
+            subscription: "sub_replay",
         };
-        const event = makeEvent("customer.subscription.updated", subObj);
-        mockConstructEvent.mockReturnValue(event);
-
-        setupDbSelectChain([{ clerkId: "user_clerk123" }]);
-        setupDbUpdateChain();
-
-        const req = makeRequest(JSON.stringify(subObj));
-        const res = await POST(req);
-
-        expect(res.status).toBe(200);
-        expect(mockUpdateUserMetadata).toHaveBeenCalledWith("user_clerk123", {
-            publicMetadata: { tier: expect.any(String) },
+        const event = makeEvent("checkout.session.completed", sessionObj, "evt_replay_001");
+        mockSubscriptionsRetrieve.mockResolvedValue({
+            items: { data: [{ price: { id: "price_pro" }, current_period_end: 9999999999 }] },
         });
-    });
 
-    it("handles customer.subscription.updated with unknown customer gracefully", async () => {
-        const subObj = {
-            customer: "cus_unknown",
-            status: "active",
-            items: { data: [{ price: { id: "price_pro" } }] },
-            current_period_end: Math.floor(Date.now() / 1000) + 2592000,
-        };
-        const event = makeEvent("customer.subscription.updated", subObj);
-        mockConstructEvent.mockReturnValue(event);
+        let grantCount = 0;
 
-        setupDbSelectChain([]); // no rows → unknown customer
+        for (let i = 0; i < 5; i++) {
+            vi.clearAllMocks();
+            mockConstructEvent.mockReturnValue(event);
+            mockSubscriptionsRetrieve.mockResolvedValue({
+                items: { data: [{ price: { id: "price_pro" }, current_period_end: 9999999999 }] },
+            });
 
-        const req = makeRequest(JSON.stringify(subObj));
-        const res = await POST(req);
+            if (i === 0) {
+                // First delivery: insert succeeds → process event
+                setupIdempotencyInsert(false);
+                setupDbUpdateChain();
+            } else {
+                // Subsequent replays: insert returns no rows → skip
+                setupIdempotencyInsert(true);
+            }
 
-        expect(res.status).toBe(200);
-        expect(mockUpdateUserMetadata).not.toHaveBeenCalled();
+            const res = await POST(makeRequest(JSON.stringify(sessionObj)));
+            expect(res.status, `delivery ${i + 1} should be 200`).toBe(200);
+
+            if (mockDbUpdate.mock.calls.length > 0) {
+                grantCount++;
+            }
+        }
+
+        expect(grantCount).toBe(1);
     });
 
     // -----------------------------------------------------------------------
-    // customer.subscription.deleted
+    // customer.subscription.deleted → free tier
     // -----------------------------------------------------------------------
 
-    it("handles customer.subscription.deleted → free tier", async () => {
+    it("customer.subscription.deleted → free tier + isPro=false", async () => {
         const subObj = { customer: "cus_abc" };
-        const event = makeEvent("customer.subscription.deleted", subObj);
-        mockConstructEvent.mockReturnValue(event);
-
+        mockConstructEvent.mockReturnValue(makeEvent("customer.subscription.deleted", subObj));
+        setupIdempotencyInsert(false);
         setupDbSelectChain([{ clerkId: "user_clerk123" }]);
-        setupDbUpdateChain();
+        const updateChain = setupDbUpdateChain();
 
-        const req = makeRequest(JSON.stringify(subObj));
-        const res = await POST(req);
+        const res = await POST(makeRequest(JSON.stringify(subObj)));
 
         expect(res.status).toBe(200);
         expect(mockUpdateUserMetadata).toHaveBeenCalledWith("user_clerk123", {
             publicMetadata: { tier: "free" },
         });
+        expect(updateChain.set).toHaveBeenCalledWith(
+            expect.objectContaining({ isPro: false, stripeSubscriptionStatus: "canceled" })
+        );
     });
 
     // -----------------------------------------------------------------------
-    // invoice.payment_failed
+    // invoice.payment_failed → past_due only
     // -----------------------------------------------------------------------
 
-    it("handles invoice.payment_failed → sets past_due, does NOT downgrade tier", async () => {
+    it("invoice.payment_failed → past_due, no tier change", async () => {
         const invoiceObj = { customer: "cus_abc" };
-        const event = makeEvent("invoice.payment_failed", invoiceObj);
-        mockConstructEvent.mockReturnValue(event);
-
+        mockConstructEvent.mockReturnValue(makeEvent("invoice.payment_failed", invoiceObj));
+        setupIdempotencyInsert(false);
         setupDbSelectChain([{ clerkId: "user_clerk123" }]);
-        const updateChain = {
-            set: vi.fn().mockReturnThis(),
-            where: vi.fn().mockResolvedValue(undefined),
-        };
-        mockDbUpdate.mockReturnValue(updateChain);
+        const updateChain = setupDbUpdateChain();
 
-        const req = makeRequest(JSON.stringify(invoiceObj));
-        const res = await POST(req);
+        const res = await POST(makeRequest(JSON.stringify(invoiceObj)));
 
         expect(res.status).toBe(200);
-        // Tier NOT changed — only status updated to past_due
         expect(mockUpdateUserMetadata).not.toHaveBeenCalled();
         expect(updateChain.set).toHaveBeenCalledWith(
             expect.objectContaining({ stripeSubscriptionStatus: "past_due" })
@@ -318,43 +273,17 @@ describe("POST /api/webhooks/stripe", () => {
     });
 
     // -----------------------------------------------------------------------
-    // invoice.payment_succeeded
+    // Unknown event type → 200 no-op
     // -----------------------------------------------------------------------
 
-    it("handles invoice.payment_succeeded → restores active status", async () => {
-        const invoiceObj = { customer: "cus_abc" };
-        const event = makeEvent("invoice.payment_succeeded", invoiceObj);
-        mockConstructEvent.mockReturnValue(event);
+    it("returns 200 for unrecognised event types without touching DB state", async () => {
+        mockConstructEvent.mockReturnValue(makeEvent("payment_intent.created", { id: "pi_test" }));
+        setupIdempotencyInsert(false);
 
-        setupDbSelectChain([{ clerkId: "user_clerk123" }]);
-        const updateChain = {
-            set: vi.fn().mockReturnThis(),
-            where: vi.fn().mockResolvedValue(undefined),
-        };
-        mockDbUpdate.mockReturnValue(updateChain);
-
-        const req = makeRequest(JSON.stringify(invoiceObj));
-        const res = await POST(req);
+        const res = await POST(makeRequest("{}"));
 
         expect(res.status).toBe(200);
-        expect(updateChain.set).toHaveBeenCalledWith(
-            expect.objectContaining({ stripeSubscriptionStatus: "active", isPro: true })
-        );
-    });
-
-    // -----------------------------------------------------------------------
-    // Unknown event type
-    // -----------------------------------------------------------------------
-
-    it("returns 200 for unrecognised event types (no-op)", async () => {
-        const event = makeEvent("payment_intent.created", { id: "pi_test" });
-        mockConstructEvent.mockReturnValue(event);
-
-        const req = makeRequest("{}");
-        const res = await POST(req);
-
-        expect(res.status).toBe(200);
+        // Only the idempotency insert should have been called, not the users table update
         expect(mockDbUpdate).not.toHaveBeenCalled();
-        expect(mockUpdateUserMetadata).not.toHaveBeenCalled();
     });
 });

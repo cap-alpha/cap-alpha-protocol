@@ -100,7 +100,7 @@ export function PositionalCompsTable({
                             variant="outline"
                             className="text-[9px] px-1 py-0 border-emerald-500/30 text-emerald-400"
                           >
-                            You
+                            Viewed
                           </Badge>
                         )}
                         <span className="text-zinc-500 text-xs">{comp.team}</span>

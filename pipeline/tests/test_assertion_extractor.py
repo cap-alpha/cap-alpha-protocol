@@ -17,6 +17,7 @@ from src.assertion_extractor import (
     ExtractionResult,
     _apply_priority_sort,
     _deduplicate_claims,
+    _resolve_speaker_entity_id,
     _validate_source_id,
     check_content_quality,
     extract_assertions,
@@ -1903,3 +1904,103 @@ class TestWriteRawUtterancesMetadata:
         assert "claim_text_alignment" in row
         assert "hallucination_risk" in row
         assert "quality_score" in row
+
+
+# ---------------------------------------------------------------------------
+# _resolve_speaker_entity_id
+# ---------------------------------------------------------------------------
+
+
+class TestResolveSpeakerEntityId:
+    """Unit tests for the three-tier speaker resolution fallback."""
+
+    def _make_db(self, registry_hit=None, media_hit=None):
+        """Build a mock DBManager whose fetch_df returns controlled values."""
+        db = MagicMock()
+
+        def _fetch_df(query, query_parameters=None, params=None):
+            q = query.strip()
+            if "pundit_registry" in q:
+                if registry_hit is not None:
+                    return pd.DataFrame([{"pundit_id": registry_hit}])
+                return pd.DataFrame()
+            if "raw_pundit_media" in q:
+                if media_hit is not None:
+                    return pd.DataFrame([{"matched_pundit_id": media_hit}])
+                return pd.DataFrame()
+            return pd.DataFrame()
+
+        db.fetch_df.side_effect = _fetch_df
+        return db
+
+    def test_no_db_returns_unresolved(self):
+        result = _resolve_speaker_entity_id("mike_florio", db=None)
+        assert result == "UNRESOLVED:mike_florio"
+
+    def test_no_project_id_returns_unresolved(self, monkeypatch):
+        monkeypatch.delenv("GCP_PROJECT_ID", raising=False)
+        db = MagicMock()
+        result = _resolve_speaker_entity_id("mike_florio", db=db)
+        assert result == "UNRESOLVED:mike_florio"
+
+    def test_registry_hit_returns_pundit_id(self, monkeypatch):
+        """When pundit_registry has the pundit, return its pundit_id directly."""
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_db(registry_hit="mike_florio")
+        result = _resolve_speaker_entity_id("mike_florio", db=db)
+        assert result == "mike_florio"
+        # raw_pundit_media should NOT have been queried (registry hit short-circuits)
+        calls = [str(c) for c in db.fetch_df.call_args_list]
+        assert not any("raw_pundit_media" in c for c in calls)
+
+    def test_registry_miss_falls_back_to_media(self, monkeypatch):
+        """When registry is empty, fall back to raw_pundit_media.matched_pundit_id."""
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_db(registry_hit=None, media_hit="warren_sharp")
+        result = _resolve_speaker_entity_id(
+            "unknown_pundit",
+            db=db,
+            source_doc_id="abc123hash",
+        )
+        assert result == "warren_sharp"
+
+    def test_registry_miss_no_source_doc_returns_unresolved(self, monkeypatch):
+        """Without source_doc_id the media fallback is skipped → UNRESOLVED."""
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_db(registry_hit=None, media_hit="warren_sharp")
+        result = _resolve_speaker_entity_id("unknown_pundit", db=db, source_doc_id=None)
+        assert result == "UNRESOLVED:unknown_pundit"
+
+    def test_both_miss_returns_unresolved(self, monkeypatch):
+        """When both lookups return empty, return the UNRESOLVED placeholder."""
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = self._make_db(registry_hit=None, media_hit=None)
+        result = _resolve_speaker_entity_id(
+            "ghost_pundit",
+            db=db,
+            source_doc_id="hashxyz",
+        )
+        assert result == "UNRESOLVED:ghost_pundit"
+
+    def test_registry_exception_falls_back_to_media(self, monkeypatch):
+        """A BigQuery error on the registry lookup triggers the media fallback."""
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+        db = MagicMock()
+
+        call_count = {"n": 0}
+
+        def _fetch_df(query, query_parameters=None, params=None):
+            call_count["n"] += 1
+            if "pundit_registry" in query:
+                raise RuntimeError("table not found")
+            # media fallback
+            return pd.DataFrame([{"matched_pundit_id": "adam_schefter"}])
+
+        db.fetch_df.side_effect = _fetch_df
+        result = _resolve_speaker_entity_id(
+            "adam_schefter",
+            db=db,
+            source_doc_id="hashcontent",
+        )
+        assert result == "adam_schefter"
+        assert call_count["n"] == 2  # registry tried, media tried

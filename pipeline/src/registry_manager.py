@@ -243,16 +243,24 @@ class RegistryManager:
 
         if source_rows:
             df = pd.DataFrame(source_rows)
-            for col in ["last_fetched_at", "default_pundit_id"]:
+            for col in ["last_fetched_at"]:
                 if col in df.columns:
-                    df[col] = df[col].where(df[col].notna(), None)
+                    df[col] = pd.to_datetime(df[col], utc=True, errors="coerce")
+            if "default_pundit_id" in df.columns:
+                df["default_pundit_id"] = df["default_pundit_id"].where(
+                    df["default_pundit_id"].notna(), None
+                )
             self.db.append_dataframe_to_table(df, "source_registry")
 
         if pundit_rows:
             df = pd.DataFrame(pundit_rows)
-            for col in ["last_seen_at", "posts_per_month"]:
+            for col in ["last_seen_at"]:
                 if col in df.columns:
-                    df[col] = df[col].where(df[col].notna(), None)
+                    df[col] = pd.to_datetime(df[col], utc=True, errors="coerce")
+            if "posts_per_month" in df.columns:
+                df["posts_per_month"] = df["posts_per_month"].where(
+                    df["posts_per_month"].notna(), None
+                )
             self.db.append_dataframe_to_table(df, "pundit_registry")
 
         summary = {

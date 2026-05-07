@@ -196,22 +196,25 @@ class DBManager:
                 r"[^a-zA-Z0-9_]", "_", regex=True
             )
 
-            # Cast object types to string to avoid Parquet type mismatch exceptions
-            # but preserve None values in nullable string columns
+            # Normalize object-dtype columns for pyarrow/BQ compatibility.
             for col in df_cleaned.columns:
-                if df_cleaned[col].dtype == "object":
-                    # Check if all non-null values are already strings
-                    non_null_values = df_cleaned[col].dropna()
-                    if len(non_null_values) > 0 and all(
-                        isinstance(v, str) for v in non_null_values
-                    ):
-                        # Column is already nullable string — preserve None values
-                        df_cleaned[col] = df_cleaned[col].where(
-                            df_cleaned[col].notna(), None
-                        )
-                    else:
-                        # Column has mixed types — coerce to string
-                        df_cleaned[col] = df_cleaned[col].astype(str)
+                if df_cleaned[col].dtype != "object":
+                    continue
+                non_null = df_cleaned[col].dropna()
+                if len(non_null) == 0:
+                    # All-null column — leave as Python None; BQ schema determines type.
+                    continue
+                if all(isinstance(v, list) for v in non_null):
+                    # ARRAY column — leave as Python lists; pyarrow handles them.
+                    continue
+                if all(isinstance(v, str) for v in non_null):
+                    # Nullable string — preserve None without coercion.
+                    df_cleaned[col] = df_cleaned[col].where(
+                        df_cleaned[col].notna(), None
+                    )
+                else:
+                    # Mixed non-string scalars — coerce to string.
+                    df_cleaned[col] = df_cleaned[col].astype(str)
 
             job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
             job = self.client.load_table_from_dataframe(

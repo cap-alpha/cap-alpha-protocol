@@ -1,4 +1,5 @@
--- Migration 009: Schema Integrity — NOT NULL Constraints (Issue #106)
+-- Migration: 018_enforce_core_identity_constraints
+-- Issue: #106 — SP29-1: Enforce strict BigQuery NOT NULL constraints
 --
 -- CONVERTED TO NO-OP: BigQuery does not support ALTER COLUMN ... SET NOT NULL
 -- via the standard SQL jobs API (syntax error: expected DATA, DEFAULT, GENERATED,
@@ -6,7 +7,8 @@
 -- pipeline/src/data_quality_tests.py::validate_not_null_constraints().
 --
 -- Original intent: enforce NOT NULL on identity columns across
---   bronze_sportsdataio_players, fact_player_efficiency,
---   silver_spotrac_contracts, raw_pundit_media
--- Those tables are validated at pipeline runtime, not at schema level.
+--   silver_pfr_game_logs, silver_penalties, silver_spotrac_contracts,
+--   silver_spotrac_rankings, silver_team_cap, silver_player_metadata,
+--   silver_team_finance, silver_spotrac_salaries, silver_pfr_draft_history,
+--   fact_player_efficiency
 SELECT 1;

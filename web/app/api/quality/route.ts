@@ -21,6 +21,7 @@ const PROJECT_ID = process.env.GCP_PROJECT_ID || "cap-alpha-protocol";
 const UTTERANCE_TABLE = `\`${PROJECT_ID}.silver_v2_claims.raw_utterance\``;
 const LEDGER_TABLE = `\`${PROJECT_ID}.gold_layer.prediction_ledger\``;
 const RESOLUTION_TABLE = `\`${PROJECT_ID}.silver_v2_claims.resolution\``;
+const EXTRACTION_RUN_TABLE = `\`${PROJECT_ID}.silver_v2_claims.extraction_run\``;
 
 // Waitlist-removal criteria thresholds (configurable via env)
 const TESTABILITY_THRESHOLD = parseFloat(
@@ -304,7 +305,7 @@ export async function GET() {
                     FROM rolling_gates
                     ORDER BY date DESC
                     LIMIT 1
-                )
+                ),
                 -- Phase C completeness: speech_act_type, testability_score, domain, extraction_confidence (#595)
                 phase_c_null AS (
                     SELECT
@@ -361,10 +362,30 @@ export async function GET() {
         const metadataPass =
             Number(qRow?.last_30d_metadata_pass ?? 0) === 1;
 
-        // Zero-output run gate: count days in last 30 where total utterances = 0
-        // We approximate using daily_completeness: any date with 0 utterances = bad run
-        // A proper count requires the extraction_run table (Issue 4); stub to 0 until then.
-        const zeroOutputRuns7d = 0;
+        // Zero-output run count: query extraction_run table for runs in the last 7 days
+        // where utterances_written = 0 (or NULL, which indicates the run recorded no output).
+        // Best-effort: errors fall back to 0 rather than failing the entire response.
+        let zeroOutputRuns7d = 0;
+        try {
+            const [zeroRunRows] = await bq.query({
+                query: `
+                    SELECT COUNT(*) AS zero_run_count
+                    FROM ${EXTRACTION_RUN_TABLE}
+                    WHERE started_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 7 DAY)
+                      AND (utterances_written = 0 OR utterances_written IS NULL)
+                `,
+                jobTimeoutMs: 10000,
+            });
+            const zeroRunRow = (zeroRunRows as Array<Record<string, unknown>>)[0] ?? null;
+            if (zeroRunRow?.zero_run_count != null) {
+                zeroOutputRuns7d = Number(zeroRunRow.zero_run_count);
+            }
+        } catch (zeroRunErr) {
+            console.warn(
+                "[Quality API] zero_output_runs_7d query failed (extraction_run table may not exist yet):",
+                zeroRunErr
+            );
+        }
 
         // Query 4: resolution_accuracy from silver_v2_claims.resolution (Issue #615)
         // Best-effort: errors produce null rather than failing the entire response.
@@ -426,9 +447,9 @@ export async function GET() {
             {
                 id: "zero_output",
                 label: `Zero 0-output production runs for ${CONSECUTIVE_DAYS_REQUIRED} days`,
-                description: `No extraction run may produce 0 utterances in the last ${CONSECUTIVE_DAYS_REQUIRED} days. Requires Issue #4 (extraction_run table) to be fully operational.`,
-                pass: false,
-                current_value: null,
+                description: `No extraction run may produce 0 utterances in the last ${CONSECUTIVE_DAYS_REQUIRED} days. Sourced from silver_v2_claims.extraction_run.`,
+                pass: zeroOutputRuns7d === 0,
+                current_value: zeroOutputRuns7d,
                 threshold: 0,
             },
         ];

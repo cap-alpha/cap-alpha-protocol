@@ -1,4 +1,4 @@
--- Migration 021: add metadata fields to silver_v2_claims.raw_utterance
+-- Migration 023: add metadata fields to silver_v2_claims.raw_utterance
 -- Issues: #674 (persist existing metadata), #675 (resolution_condition, hedge_level, 7B verification)
 --
 -- All new columns are NULLABLE for full backward compatibility.
@@ -9,7 +9,7 @@
 --
 -- Usage:
 --   export PROJECT_ID=cap-alpha-protocol
---   envsubst < pipeline/migrations/021_add_utterance_metadata.sql | \
+--   envsubst < pipeline/migrations/023_add_utterance_metadata.sql | \
 --     bq query --use_legacy_sql=false --project_id=$PROJECT_ID
 
 -- Part A: subscore columns already produced by 32B but previously discarded (#674)

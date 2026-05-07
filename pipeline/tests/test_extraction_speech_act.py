@@ -99,7 +99,12 @@ def make_raw_media_df(n: int = 1) -> pd.DataFrame:
                 "content_hash": f"hash_{i}",
                 "source_id": "espn_nfl",
                 "title": f"Article {i}",
-                "raw_text": "Mahomes will win MVP this season. Can anyone stop him?",
+                "raw_text": (
+                    "Patrick Mahomes will win the NFL MVP award this season for sure. "
+                    "Can anyone really stop him and the Kansas City Chiefs this year? "
+                    "Kansas City has one of the best and most complete rosters in the NFL. "
+                    "Their defense has improved significantly and the Super Bowl remains the goal."
+                ),
                 "source_url": f"https://espn.com/article/{i}",
                 "author": "Adam Schefter",
                 "matched_pundit_id": "adam_schefter",

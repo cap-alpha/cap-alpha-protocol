@@ -80,7 +80,12 @@ def make_raw_media_df(n: int = 1) -> pd.DataFrame:
                 "content_hash": f"hash_{i}",
                 "source_id": "espn_nfl",
                 "title": f"Article {i}",
-                "raw_text": "Some pundit content",
+                "raw_text": (
+                    "Patrick Mahomes will definitely win the NFL MVP award this season without question. "
+                    "The Kansas City Chiefs offense has been completely unstoppable all year long. "
+                    "Nobody in the entire NFL can match his incredible playmaking ability and arm strength. "
+                    "The Super Bowl is absolutely well within reach for the Chiefs this season."
+                ),
                 "source_url": f"https://espn.com/article/{i}",
                 "author": "Adam Schefter",
                 "matched_pundit_id": "adam_schefter",

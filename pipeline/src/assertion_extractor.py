@@ -1260,6 +1260,127 @@ def reset_processed_hashes(db: DBManager, source_id: Optional[str] = None) -> in
 
 
 # ---------------------------------------------------------------------------
+# Content quality gate — applied before any LLM call (all sources)
+# ---------------------------------------------------------------------------
+
+# Minimum token count for an article to be worth extracting.
+# Anything shorter is almost certainly a stub, promo blurb, or spam.
+_MIN_WORD_COUNT = 50
+
+# NFL team names and common player-name fragments used by the spam detector.
+# We only need partial coverage — the goal is to distinguish "no NFL content at
+# all" from "genuine article that happens to be short".
+_NFL_TEAM_TOKENS = frozenset(
+    {
+        "chiefs",
+        "eagles",
+        "cowboys",
+        "patriots",
+        "49ers",
+        "niners",
+        "ravens",
+        "bills",
+        "bengals",
+        "browns",
+        "steelers",
+        "texans",
+        "colts",
+        "jaguars",
+        "titans",
+        "broncos",
+        "raiders",
+        "chargers",
+        "seahawks",
+        "rams",
+        "cardinals",
+        "niners",
+        "falcons",
+        "panthers",
+        "saints",
+        "buccaneers",
+        "bears",
+        "lions",
+        "packers",
+        "vikings",
+        "giants",
+        "jets",
+        "commanders",
+        "dolphins",
+        # Common NFL-specific terms that don't appear in gambling spam
+        "quarterback",
+        "touchdowns",
+        "nfl",
+        "super bowl",
+        "playoffs",
+        "draft",
+        "free agent",
+        "roster",
+        "offense",
+        "defense",
+        "mahomes",
+        "allen",
+        "burrow",
+        "hurts",
+        "lamar",
+    }
+)
+
+# Patterns that strongly indicate gambling/sweepstakes spam content.
+# These are exact substrings or regex fragments seen in the BQ audit.
+_SPAM_PATTERNS = (
+    "email verification",
+    "sweepstakes",
+    " sc ",  # social casino "SC coins" — note surrounding spaces to avoid
+    " gc ",  # "GC coins"              — false positives on normal words
+    "no table games",
+    "casino promo",
+    "bonus code",
+    "free spins",
+    "deposit match",
+    "wagering requirement",
+    "play for free",
+    "sign up bonus",
+    "verification: 1",
+    "verification code",
+)
+
+
+def check_content_quality(
+    text: str,
+    source_id: str = "",
+) -> tuple[bool, str]:
+    """
+    Fast, pre-LLM content quality gate applied to ALL sources.
+
+    Returns (is_spam: bool, reason: str).
+      - is_spam=True  → caller should mark speech_act_type="spam",
+                         testability_score=0.0, skip LLM.
+      - is_spam=False → proceed normally.
+
+    Two checks (in order):
+    1. Word count < _MIN_WORD_COUNT → too short to contain useful predictions.
+    2. Contains gambling/spam signal AND has no NFL team or player name → spam.
+    """
+    if not text:
+        return True, "empty text"
+
+    words = text.split()
+    if len(words) < _MIN_WORD_COUNT:
+        return True, f"too short ({len(words)} words < {_MIN_WORD_COUNT})"
+
+    text_lower = text.lower()
+    has_spam_signal = any(pat in text_lower for pat in _SPAM_PATTERNS)
+    if has_spam_signal:
+        has_nfl_signal = any(tok in text_lower for tok in _NFL_TEAM_TOKENS)
+        if not has_nfl_signal:
+            # Spam signal present with no NFL signal → classify as spam
+            matched = next(pat for pat in _SPAM_PATTERNS if pat in text_lower)
+            return True, f"spam signal '{matched.strip()}' with no NFL content"
+
+    return False, ""
+
+
+# ---------------------------------------------------------------------------
 # Pre-filter (Issue #180)
 # ---------------------------------------------------------------------------
 
@@ -1490,11 +1611,24 @@ def run_extraction(
                 )
                 continue
 
+            # Content quality gate: reject spam / too-short articles before any LLM call.
+            # Applied to all sources regardless of filter/triage config.
+            _raw_text = str(row.get("raw_text", ""))
+            _is_spam, _spam_reason = check_content_quality(_raw_text, source_id)
+            if _is_spam:
+                logger.warning(
+                    f"Content quality gate: skipping {content_hash[:16]}… "
+                    f"[source={source_id!r}] reason={_spam_reason!r}"
+                )
+                summary["filtered_out"] += 1
+                processed_hashes.append(content_hash)
+                continue
+
             # Pre-filter: skip articles with no predictions
             if filter_provider is not None:
                 article_sport = str(row.get("sport", sport))
                 if should_filter_article(
-                    str(row.get("raw_text", "")),
+                    _raw_text,
                     filter_provider=filter_provider,
                     sport=article_sport,
                 ):
@@ -1509,7 +1643,7 @@ def run_extraction(
             # Triage pass: fast 7B relevance check before committing to full 32B extraction
             if triage_provider is not None:
                 if should_triage_skip_article(
-                    str(row.get("raw_text", "")),
+                    _raw_text,
                     triage_provider=triage_provider,
                     source=source_id,
                 ):
@@ -1527,7 +1661,7 @@ def run_extraction(
 
             result = extract_assertions(
                 content_hash=content_hash,
-                text=str(row.get("raw_text", "")),
+                text=_raw_text,
                 title=str(row.get("title", "")),
                 author=str(row.get("author", "")),
                 source_name=str(row.get("source_id", "")),
@@ -1567,7 +1701,7 @@ def run_extraction(
 
                 # 7B verification pass — non-blocking; enriches utterances with
                 # quality signals before writing to raw_utterance (#675)
-                raw_text_for_verify = str(row.get("raw_text", ""))
+                raw_text_for_verify = _raw_text
                 verified_utterances = []
                 for _u in result.utterances:
                     _verification = verify_utterance(
@@ -1651,7 +1785,7 @@ def run_extraction(
                         pundit_id=effective_pundit_id,
                         pundit_name=effective_pundit_name,
                         source_url=source_url,
-                        raw_assertion_text=str(row.get("raw_text", ""))[:2000],
+                        raw_assertion_text=_raw_text[:2000],
                         extracted_claim=pred["extracted_claim"],
                         claim_category=pred["claim_category"],
                         season_year=pred.get("season_year"),

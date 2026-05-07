@@ -114,4 +114,108 @@ Output:
   "originating_speaker": "Colin Cowherd"
 }
 
+Example 6 — Calibration: vague prediction scores 0.4 (NOT 0.0 or 1.0):
+Input: "Mahomes will be good this year."
+Output:
+{
+  "text": "Mahomes will be good this year.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.2, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.5, "evidence_accessibility": 0.3},
+  "testability_score": 0.40,
+  "resolution_horizon": "2026-01-06T23:59:59Z",
+  "predicate": "will_perform_well",
+  "subject": "Patrick Mahomes",
+  "predicate_args": {},
+  "extracted_claim": "Mahomes will perform well in 2025",
+  "claim_category": "player_performance",
+  "stance": "bullish",
+  "season_year": 2025,
+  "target_player": "Patrick Mahomes",
+  "target_team": "KC",
+  "confidence_note": "vague — no numeric threshold or specific outcome",
+  "prediction_horizon_days": 150,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "",
+  "hedge_level": "strong"
+}
+
+Example 7 — Calibration: top-5 claim scores 0.7 (missing threshold/specifics):
+Input: "Kansas City will have a top-five offense this season."
+Output:
+{
+  "text": "Kansas City will have a top-five offense this season.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.8, "threshold_concreteness": 0.6, "resolution_horizon_defined": 0.7, "evidence_accessibility": 0.9},
+  "testability_score": 0.80,
+  "resolution_horizon": "2026-01-06T23:59:59Z",
+  "predicate": "will_rank_top_five",
+  "subject": "Kansas City Chiefs",
+  "predicate_args": {"stat": "offense", "threshold": 5, "ranking": "top-5"},
+  "extracted_claim": "Chiefs will have a top-5 offense in the 2025 regular season",
+  "claim_category": "player_performance",
+  "stance": "bullish",
+  "season_year": 2025,
+  "target_player": null,
+  "target_team": "KC",
+  "confidence_note": "specific team and threshold but ranking metric not defined",
+  "prediction_horizon_days": 150,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Chiefs finish top 5 in total offense yards per game by end of 2025 regular season",
+  "hedge_level": "strong"
+}
+
+Example 8 — Calibration: pure opinion scores 0.1 (subjective, no falsifiable claim):
+Input: "The Chiefs are the most complete team in the league right now."
+Output:
+{
+  "text": "The Chiefs are the most complete team in the league right now.",
+  "speech_act_type": "opinion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.1},
+  "testability_score": 0.24,
+  "resolution_horizon": null,
+  "predicate": "",
+  "subject": "Kansas City Chiefs",
+  "predicate_args": {},
+  "extracted_claim": "",
+  "claim_category": "game_outcome",
+  "stance": "bullish",
+  "season_year": null,
+  "target_player": null,
+  "target_team": "KC",
+  "confidence_note": "subjective superlative — no measurable outcome",
+  "prediction_horizon_days": -1,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "",
+  "hedge_level": "strong"
+}
+
+Example 9 — Calibration: transaction claim with resolution_horizon:
+Input: "I expect the Jets to trade Sauce Gardner before the start of the season."
+Output:
+{
+  "text": "I expect the Jets to trade Sauce Gardner before the start of the season.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.8, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0},
+  "testability_score": 0.92,
+  "resolution_horizon": "2026-09-07T00:00:00Z",
+  "predicate": "will_be_traded",
+  "subject": "Sauce Gardner",
+  "predicate_args": {"timing": "before Week 1", "from_team": "NYJ"},
+  "extracted_claim": "Sauce Gardner will be traded by Jets before 2026 Week 1",
+  "claim_category": "trade",
+  "stance": "bearish",
+  "season_year": 2026,
+  "target_player": "Sauce Gardner",
+  "target_team": "NYJ",
+  "confidence_note": "named player, specific team, time-bounded",
+  "prediction_horizon_days": 60,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Reported by a major outlet as traded before 2026-09-07",
+  "hedge_level": "moderate"
+}
+
 --- END EXAMPLES ---

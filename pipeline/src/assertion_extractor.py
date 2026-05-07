@@ -628,7 +628,9 @@ def _resolve_speaker_entity_id(
             )
             return resolved
     except Exception as exc:
-        logger.debug(f"pundit_registry lookup failed for {pundit_id!r}: {exc}")
+        logger.warning(
+            f"pundit_registry lookup failed for pundit_id={pundit_id!r}: {exc}"
+        )
 
     # ------------------------------------------------------------------
     # Step 2 — raw_pundit_media fallback (uses matched_pundit_id)

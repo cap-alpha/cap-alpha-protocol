@@ -1,0 +1,26 @@
+# Politics domain claim categories used in extraction prompts.
+# Matches the enum enforced by the LLM schema and BigQuery column.
+categories:
+  - election_outcome      # will win/lose an election or primary
+  - polling_prediction    # will poll at X% by date
+  - appointment           # will be nominated/confirmed for position
+  - legislation           # bill will pass/fail/be amended
+  - policy_prediction     # administration will implement X by Y
+  - party_dynamics        # party will gain/lose seats, shift platform
+
+# Vocabulary hints to improve extraction quality for this domain.
+entity_types:
+  - politician: "full name, e.g. 'Joe Biden', 'Kamala Harris'"
+  - party: "'Democratic Party', 'Republican Party', 'D', 'R'"
+  - institution: "'Senate', 'House', 'Supreme Court', 'White House'"
+  - bill: "bill name or number, e.g. 'Inflation Reduction Act', 'S. 1234'"
+
+notes:
+  election_outcome: |
+    season_year = the election year. target_player = the candidate name. target_team = null.
+  polling_prediction: |
+    Use predicate_args to capture threshold (e.g. {"threshold": 48, "unit": "percent", "polling_firm": "generic"}).
+  appointment: |
+    Use predicate_args: {"role": "...", "nominator": "...", "chamber": "Senate|null"}.
+  legislation: |
+    season_year = the congress year or null if unclear. target_player = null.

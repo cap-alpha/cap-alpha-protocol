@@ -145,6 +145,7 @@ def main():
         ("ledger_hash", "python -m src.cryptographic_ledger"),
         ("quality_checks", "python -m pytest tests/ -m unit -v --tb=short"),
         ("bq_data_quality", "python -m src.bq_data_quality"),
+        ("coi_detection", "python -m src.coi_engine"),
     ]
 
     results = []

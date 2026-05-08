@@ -210,20 +210,24 @@ export async function GET(req: Request) {
 
         // Fetch renewal date from the local DB (written by Stripe/LS webhooks).
         // Prefer Stripe; fall back to LemonSqueezy; null for free users.
-        const userRows = await db
-            .select({
-                stripeCurrentPeriodEnd: users.stripeCurrentPeriodEnd,
-                lsCurrentPeriodEnd: users.lsCurrentPeriodEnd,
-            })
-            .from(users)
-            .where(eq(users.clerkId, userId))
-            .limit(1);
+        const PAID_TIERS: Tier[] = ["pro", "agent", "api_starter", "api_growth", "enterprise"];
+        let renewalDate: string | null = null;
+        if (PAID_TIERS.includes(tier)) {
+            const userRows = await db
+                .select({
+                    stripeCurrentPeriodEnd: users.stripeCurrentPeriodEnd,
+                    lsCurrentPeriodEnd: users.lsCurrentPeriodEnd,
+                })
+                .from(users)
+                .where(eq(users.clerkId, userId))
+                .limit(1);
 
-        const periodEnd =
-            userRows[0]?.stripeCurrentPeriodEnd ??
-            userRows[0]?.lsCurrentPeriodEnd ??
-            null;
-        const renewalDate = periodEnd ? periodEnd.toISOString() : null;
+            const periodEnd =
+                userRows[0]?.stripeCurrentPeriodEnd ??
+                userRows[0]?.lsCurrentPeriodEnd ??
+                null;
+            renewalDate = periodEnd ? periodEnd.toISOString() : null;
+        }
 
         // Check if user has zero requests (empty state)
         const totalRequests =

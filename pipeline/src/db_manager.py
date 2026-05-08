@@ -238,6 +238,272 @@ class DBManager:
         except Exception:
             return False
 
+    # -----------------------------------------------------------------------
+    # Graph Extension — entity nodes and sidecar metadata (Issue #807)
+    # -----------------------------------------------------------------------
+
+    def upsert_entity(self, entity: dict) -> str:
+        """Insert or update an entity node. Returns entity_id.
+
+        Uses a MERGE statement so the operation is idempotent: if the entity
+        already exists (same entity_id) it updates mutable fields; otherwise
+        it inserts. The entity_id must be provided by the caller in the format
+        '{type}_{slug}_{shorthash6}', e.g. 'player_patrick-mahomes_e3f9a2'.
+
+        Required keys: entity_id, entity_type, canonical_name, domain.
+        Optional keys: aliases, metadata, first_seen_at, last_seen_at.
+        """
+        required = {"entity_id", "entity_type", "canonical_name", "domain"}
+        missing = required - set(entity.keys())
+        if missing:
+            raise ValueError(f"upsert_entity: missing required keys: {missing}")
+
+        project_id = self.project_id
+        entity_id = entity["entity_id"]
+        entity_type = entity["entity_type"]
+        canonical_name = entity["canonical_name"]
+        domain = entity.get("domain", "SPORTS")
+        aliases = entity.get("aliases") or []
+        metadata = entity.get("metadata")
+        first_seen_at = entity.get("first_seen_at")
+        last_seen_at = entity.get("last_seen_at")
+
+        import json as _json
+
+        aliases_literal = (
+            "["
+            + ", ".join(f"'{a.replace(chr(39), chr(39) * 2)}'" for a in aliases)
+            + "]"
+        )
+        metadata_literal = (
+            f"JSON '{_json.dumps(metadata)}'" if metadata is not None else "NULL"
+        )
+        first_seen_literal = f"TIMESTAMP '{first_seen_at}'" if first_seen_at else "NULL"
+        last_seen_literal = f"TIMESTAMP '{last_seen_at}'" if last_seen_at else "NULL"
+
+        merge_sql = f"""
+            MERGE `{project_id}.{self.dataset_id}.entities` AS T
+            USING (SELECT @entity_id AS entity_id) AS S
+            ON T.entity_id = S.entity_id
+            WHEN MATCHED THEN
+                UPDATE SET
+                    canonical_name = @canonical_name,
+                    aliases        = {aliases_literal},
+                    metadata       = {metadata_literal},
+                    last_seen_at   = COALESCE({last_seen_literal}, T.last_seen_at),
+                    claim_count    = COALESCE(T.claim_count, 0) + 1
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    entity_id, entity_type, canonical_name, aliases,
+                    domain, metadata, first_seen_at, last_seen_at,
+                    claim_count, created_at
+                )
+                VALUES (
+                    @entity_id, @entity_type, @canonical_name, {aliases_literal},
+                    @domain, {metadata_literal}, {first_seen_literal}, {last_seen_literal},
+                    1, CURRENT_TIMESTAMP()
+                )
+        """
+        qp = [
+            bigquery.ScalarQueryParameter("entity_id", "STRING", entity_id),
+            bigquery.ScalarQueryParameter("entity_type", "STRING", entity_type),
+            bigquery.ScalarQueryParameter("canonical_name", "STRING", canonical_name),
+            bigquery.ScalarQueryParameter("domain", "STRING", domain),
+        ]
+        self.execute(merge_sql, query_parameters=qp)
+        logger.info("upsert_entity: entity_id=%s (%s)", entity_id, entity_type)
+        return entity_id
+
+    def get_entity(self, entity_id: str) -> dict | None:
+        """Fetch entity by ID. Returns None if not found."""
+        project_id = self.project_id
+        query = f"""
+            SELECT *
+            FROM `{project_id}.{self.dataset_id}.entities`
+            WHERE entity_id = @entity_id
+            LIMIT 1
+        """
+        qp = [bigquery.ScalarQueryParameter("entity_id", "STRING", entity_id)]
+        df = self.fetch_df(query, query_parameters=qp)
+        if df.empty:
+            return None
+        row = df.iloc[0].to_dict()
+        return row
+
+    def get_entities_by_name(
+        self,
+        canonical_name: str,
+        entity_type: str | None = None,
+    ) -> list[dict]:
+        """Look up entities by canonical name for entity resolution.
+
+        Performs a case-insensitive exact match on canonical_name.
+        Also checks the aliases array for the name.
+        Optionally filters by entity_type.
+        """
+        project_id = self.project_id
+        type_filter = "AND entity_type = @entity_type" if entity_type else ""
+        query = f"""
+            SELECT *
+            FROM `{project_id}.{self.dataset_id}.entities`
+            WHERE (
+                LOWER(canonical_name) = LOWER(@canonical_name)
+                OR EXISTS (
+                    SELECT 1 FROM UNNEST(aliases) AS a
+                    WHERE LOWER(a) = LOWER(@canonical_name)
+                )
+            )
+            {type_filter}
+            ORDER BY claim_count DESC
+            LIMIT 50
+        """
+        qp = [
+            bigquery.ScalarQueryParameter("canonical_name", "STRING", canonical_name),
+        ]
+        if entity_type:
+            qp.append(
+                bigquery.ScalarQueryParameter("entity_type", "STRING", entity_type)
+            )
+        df = self.fetch_df(query, query_parameters=qp)
+        return df.to_dict(orient="records")
+
+    def upsert_graph_extension(self, prediction_hash: str, extension: dict) -> None:
+        """Write graph metadata for a claim to the sidecar table.
+
+        Idempotent: MERGE on prediction_hash. Safe to call multiple times
+        (e.g. when the embedding or cluster_id is backfilled later).
+
+        Keys accepted in extension dict:
+          entity_ids, primary_entity_id, claim_type, domain,
+          asserted_state (dict → stored as JSON), embedding (list[float]),
+          cluster_id, entity_resolution_confidence.
+        """
+        import json as _json
+
+        project_id = self.project_id
+
+        entity_ids = extension.get("entity_ids") or []
+        primary_entity_id = extension.get("primary_entity_id")
+        claim_type = extension.get("claim_type")
+        domain = extension.get("domain", "SPORTS")
+        asserted_state = extension.get("asserted_state")
+        embedding = extension.get("embedding")
+        cluster_id = extension.get("cluster_id")
+        entity_resolution_confidence = extension.get("entity_resolution_confidence")
+
+        entity_ids_literal = (
+            "["
+            + ", ".join(f"'{eid.replace(chr(39), chr(39) * 2)}'" for eid in entity_ids)
+            + "]"
+        )
+        asserted_state_literal = (
+            f"JSON '{_json.dumps(asserted_state)}'"
+            if asserted_state is not None
+            else "NULL"
+        )
+        embedding_literal = (
+            "[" + ", ".join(str(float(v)) for v in embedding) + "]"
+            if embedding is not None
+            else "NULL"
+        )
+
+        qp = [
+            bigquery.ScalarQueryParameter("prediction_hash", "STRING", prediction_hash),
+            bigquery.ScalarQueryParameter(
+                "primary_entity_id", "STRING", primary_entity_id
+            ),
+            bigquery.ScalarQueryParameter("claim_type", "STRING", claim_type),
+            bigquery.ScalarQueryParameter("domain", "STRING", domain),
+            bigquery.ScalarQueryParameter("cluster_id", "STRING", cluster_id),
+            bigquery.ScalarQueryParameter(
+                "entity_resolution_confidence",
+                "FLOAT64",
+                entity_resolution_confidence,
+            ),
+        ]
+
+        merge_sql = f"""
+            MERGE `{project_id}.{self.dataset_id}.prediction_ledger_graph_extension` AS T
+            USING (SELECT @prediction_hash AS prediction_hash) AS S
+            ON T.prediction_hash = S.prediction_hash
+            WHEN MATCHED THEN
+                UPDATE SET
+                    entity_ids                   = {entity_ids_literal},
+                    primary_entity_id            = COALESCE(@primary_entity_id, T.primary_entity_id),
+                    claim_type                   = COALESCE(@claim_type, T.claim_type),
+                    domain                       = COALESCE(@domain, T.domain),
+                    asserted_state               = COALESCE({asserted_state_literal}, T.asserted_state),
+                    embedding                    = COALESCE({embedding_literal}, T.embedding),
+                    cluster_id                   = COALESCE(@cluster_id, T.cluster_id),
+                    entity_resolution_confidence = COALESCE(
+                                                     @entity_resolution_confidence,
+                                                     T.entity_resolution_confidence
+                                                   ),
+                    updated_at                   = CURRENT_TIMESTAMP()
+            WHEN NOT MATCHED THEN
+                INSERT (
+                    prediction_hash, entity_ids, primary_entity_id,
+                    claim_type, domain, asserted_state, embedding,
+                    cluster_id, entity_resolution_confidence,
+                    created_at, updated_at
+                )
+                VALUES (
+                    @prediction_hash, {entity_ids_literal}, @primary_entity_id,
+                    @claim_type, @domain, {asserted_state_literal}, {embedding_literal},
+                    @cluster_id, @entity_resolution_confidence,
+                    CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP()
+                )
+        """
+        self.execute(merge_sql, query_parameters=qp)
+        logger.info(
+            "upsert_graph_extension: prediction_hash=%s...", prediction_hash[:16]
+        )
+
+    def get_claim_edges(
+        self,
+        pundit_id: str | None = None,
+        entity_id: str | None = None,
+        limit: int = 100,
+    ) -> list[dict]:
+        """Query the claim_edges view with optional filters.
+
+        Returns joined ledger + graph-extension rows. Sidecar columns will
+        be None/null for claims not yet enriched by the entity-resolution
+        pipeline.
+
+        Args:
+            pundit_id: Filter by pundit slug, e.g. 'adam_schefter'.
+            entity_id: Filter to claims mentioning this entity_id in
+                       the entity_ids array of the sidecar table.
+            limit: Maximum rows to return (default 100, max enforced by BQ
+                   query cost — callers should paginate for large sets).
+        """
+        project_id = self.project_id
+        conditions = []
+        qp = [
+            bigquery.ScalarQueryParameter("limit_val", "INT64", int(limit)),
+        ]
+
+        if pundit_id:
+            conditions.append("pundit_id = @pundit_id")
+            qp.append(bigquery.ScalarQueryParameter("pundit_id", "STRING", pundit_id))
+        if entity_id:
+            conditions.append(
+                "EXISTS (SELECT 1 FROM UNNEST(entity_ids) AS eid WHERE eid = @entity_id)"
+            )
+            qp.append(bigquery.ScalarQueryParameter("entity_id", "STRING", entity_id))
+
+        where_clause = ("WHERE " + " AND ".join(conditions)) if conditions else ""
+        query = f"""
+            SELECT *
+            FROM `{project_id}.gold_layer.claim_edges`
+            {where_clause}
+            ORDER BY timestamp_made DESC
+            LIMIT @limit_val
+        """
+        df = self.fetch_df(query, query_parameters=qp)
+        return df.to_dict(orient="records")
+
     def close(self):
         """Cleans up ephemeral dataframes before closing the connection."""
         for temp_ref in self._temp_tables:

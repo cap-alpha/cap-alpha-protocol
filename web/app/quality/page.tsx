@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { CheckCircle2, XCircle, AlertTriangle, Activity, BarChart3, Database, Shield, TrendingUp } from "lucide-react";
 import type { QualityResponse, WaitlistGate } from "@/app/api/quality/route";
 
-export const revalidate = 3600;
+export const revalidate = 300;
 
 export const metadata: Metadata = {
     title: "Extraction Quality Dashboard | Pundit Ledger",
@@ -65,7 +65,7 @@ interface ResolutionStatsResponse {
 async function getQualityData(): Promise<QualityResponse> {
     try {
         const res = await fetch(`${INTERNAL_API_BASE}/api/quality`, {
-            next: { revalidate: 3600 },
+            next: { revalidate: 300 },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();

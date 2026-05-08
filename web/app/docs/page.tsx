@@ -234,7 +234,7 @@ export default function ApiDocsPage() {
                         <SectionLabel><Shield className="w-3.5 h-3.5" /> Authentication</SectionLabel>
                         <h2 className="text-3xl font-black text-white">API key authentication</h2>
                         <p className="text-zinc-400 leading-relaxed max-w-2xl">
-                            API-key enforcement is <strong className="text-white">active</strong> on all endpoints.
+                            API-key enforcement is <strong className="text-white">active</strong> on all data endpoints.
                             Every request to <code className="font-mono text-sm text-zinc-300">/v1/*</code> endpoints requires a valid <code className="font-mono text-sm text-zinc-300">x-api-key</code> header.
                             Keys are provisioned via your Cap Alpha dashboard and are validated against your account in real-time.
                         </p>

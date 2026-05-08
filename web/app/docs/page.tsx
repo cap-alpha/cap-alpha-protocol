@@ -140,7 +140,7 @@ export default function ApiDocsPage() {
                         <Terminal className="w-3.5 h-3.5" />
                         REST API
                     </SectionLabel>
-                    <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+                    <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
                         Pundit Ledger{" "}
                         <span className="text-emerald-400">API Reference</span>
                     </h1>

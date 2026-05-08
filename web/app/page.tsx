@@ -24,7 +24,7 @@ export default function LandingPage() {
                         Cryptographically Verified
                     </div>
 
-                    <h1 className="font-serif text-display-xl">
+                    <h1 className="font-display text-display-xl">
                         Hold Pundits{" "}
                         <span className="text-emerald-400">Accountable.</span>
                     </h1>

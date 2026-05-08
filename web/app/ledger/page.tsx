@@ -96,23 +96,23 @@ function AccuracyBar({ rate }: { rate: number | null }) {
     if (rate === null)
         return <span className="text-xs text-zinc-600 font-mono tabular-nums">—</span>;
     const pct = Math.round(rate * 100);
-    const color =
+    const barColor =
         pct >= 60 ? "bg-emerald-500" : pct >= 45 ? "bg-yellow-500" : "bg-red-500";
-    const textColor =
+    const textStyle: React.CSSProperties =
         pct >= 60
-            ? "text-emerald-400"
+            ? { color: 'var(--pos)' }
             : pct >= 45
-            ? "text-yellow-400"
-            : "text-red-400";
+            ? { color: 'var(--warn)' }
+            : { color: 'var(--neg)' };
     return (
         <div className="flex items-center gap-2">
             <div className="w-16 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                 <div
-                    className={cn("h-full rounded-full transition-all", color)}
+                    className={cn("h-full rounded-full transition-all", barColor)}
                     style={{ width: `${pct}%` }}
                 />
             </div>
-            <span className={cn("text-xs font-mono font-semibold tabular-nums", textColor)}>
+            <span className="text-xs font-mono font-semibold tabular-nums" style={textStyle}>
                 {pct}%
             </span>
         </div>
@@ -122,14 +122,14 @@ function AccuracyBar({ rate }: { rate: number | null }) {
 function BrierBadge({ score }: { score: number | null }) {
     if (score === null)
         return <span className="text-xs text-zinc-600 font-mono">—</span>;
-    const color =
+    const style: React.CSSProperties =
         score <= 0.1
-            ? "text-emerald-400"
+            ? { color: 'var(--pos)' }
             : score <= 0.2
-            ? "text-yellow-400"
-            : "text-red-400";
+            ? { color: 'var(--warn)' }
+            : { color: 'var(--neg)' };
     return (
-        <span className={cn("text-xs font-mono tabular-nums font-semibold", color)}>
+        <span className="text-xs font-mono tabular-nums font-semibold" style={style}>
             {score.toFixed(3)}
         </span>
     );
@@ -621,12 +621,12 @@ function ResolutionBreakdown({ stats }: { stats: ResolutionStats }) {
                 Outcomes
             </span>
             {correct && (
-                <span className="text-emerald-400 font-semibold">
+                <span className="font-semibold score-pos">
                     ✓{correct.count.toLocaleString()}
                 </span>
             )}
             {incorrect && (
-                <span className="text-red-400 font-semibold">
+                <span className="font-semibold score-neg">
                     ✗{incorrect.count.toLocaleString()}
                 </span>
             )}
@@ -920,7 +920,7 @@ export default function LedgerPage() {
                                     Cryptographically Sealed
                                 </span>
                             </div>
-                            <h1 className="text-3xl font-black tracking-tight text-white">
+                            <h1 className="text-3xl font-display font-black tracking-tight text-white">
                                 Pundit Ledger
                             </h1>
                             <p className="mt-1 text-sm text-zinc-400 max-w-lg">
@@ -945,7 +945,7 @@ export default function LedgerPage() {
                                     <div className="text-xs text-zinc-500 font-mono">Predictions</div>
                                 </div>
                                 <div className="text-right">
-                                    <div className="text-2xl font-black font-mono text-emerald-400 tabular-nums">
+                                    <div className="text-2xl font-black font-mono tabular-nums score-pos">
                                         {totalResolved.toLocaleString()}
                                     </div>
                                     <div className="text-xs text-zinc-500 font-mono">Resolved</div>
@@ -1253,10 +1253,10 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
 
                         <AccuracyBar rate={p.accuracy_rate} />
 
-                        <span className="text-right text-sm font-mono font-semibold text-emerald-400 tabular-nums">
+                        <span className="text-right text-sm font-mono font-semibold tabular-nums score-pos">
                             {p.correct_predictions > 0 ? p.correct_predictions : "—"}
                         </span>
-                        <span className="text-right text-sm font-mono font-semibold text-red-400 tabular-nums">
+                        <span className="text-right text-sm font-mono font-semibold tabular-nums score-neg">
                             {p.incorrect_predictions > 0 ? p.incorrect_predictions : "—"}
                         </span>
                         <div className="flex justify-end">
@@ -1301,12 +1301,12 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                             </div>
                             <div className="flex items-center gap-1.5 justify-end mt-0.5">
                                 {p.correct_predictions > 0 && (
-                                    <span className="text-xs font-mono text-emerald-400">
+                                    <span className="text-xs font-mono score-pos">
                                         ✓{p.correct_predictions}
                                     </span>
                                 )}
                                 {p.incorrect_predictions > 0 && (
-                                    <span className="text-xs font-mono text-red-400">
+                                    <span className="text-xs font-mono score-neg">
                                         ✗{p.incorrect_predictions}
                                     </span>
                                 )}

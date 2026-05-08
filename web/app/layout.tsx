@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { Playfair_Display, Source_Sans_3, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import OnboardingModal from "@/components/onboarding-modal";
@@ -7,16 +7,17 @@ import { AuthInterstitial } from "@/components/auth-interstitial";
 import { Navbar } from "@/components/navbar";
 import Footer from "@/components/footer";
 
-const inter = Inter({
+const playfairDisplay = Playfair_Display({
     subsets: ["latin"],
-    variable: "--font-sans",
+    weight: ["400", "700", "900"],
+    style: ["normal", "italic"],
+    variable: "--font-display",
 });
 
-const instrumentSerif = Instrument_Serif({
+const sourceSans3 = Source_Sans_3({
     subsets: ["latin"],
-    weight: ["400"],
-    style: ["normal", "italic"],
-    variable: "--font-serif",
+    weight: ["300", "400", "600", "700"],
+    variable: "--font-body",
 });
 
 const jetbrainsMono = JetBrains_Mono({
@@ -50,7 +51,7 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en" className="dark">
-            <body className={`${inter.variable} ${instrumentSerif.variable} ${jetbrainsMono.variable} font-sans min-h-screen flex flex-col bg-background text-foreground`}>
+            <body className={`${playfairDisplay.variable} ${sourceSans3.variable} ${jetbrainsMono.variable} font-body min-h-screen flex flex-col bg-background text-foreground`}>
                 <Providers>
                     <OnboardingModal />
                     <AuthInterstitial />

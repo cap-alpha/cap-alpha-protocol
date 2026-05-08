@@ -76,6 +76,8 @@ const TIER_CONFIG: Record<Tier, { name: string; monthlyQuota: number | null }> =
         agent: { name: "Agent", monthlyQuota: 1000000 },
         api_starter: { name: "API Starter", monthlyQuota: 1000000 },
         api_growth: { name: "API Growth", monthlyQuota: 10000000 },
+        agent_standard: { name: "Agent Standard", monthlyQuota: 300000 },   // 10,000 calls/day × 30
+        agent_pro: { name: "Agent Pro", monthlyQuota: 1500000 },             // 50,000 calls/day × 30
         enterprise: { name: "Enterprise", monthlyQuota: null },
     };
 
@@ -85,6 +87,8 @@ const RATE_LIMITS: Record<string, { minute: number; day: number }> = {
     pro: { minute: 1000, day: 100000 },
     api_starter: { minute: 10000, day: 1000000 },
     api_growth: { minute: 100000, day: 10000000 },
+    agent_standard: { minute: 10000, day: 300000 },    // 10,000 calls/day
+    agent_pro: { minute: 50000, day: 1500000 },        // 50,000 calls/day
     enterprise: { minute: 999999, day: 999999999 },
 };
 

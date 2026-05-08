@@ -1602,7 +1602,7 @@ function PredictionGroupRow({
                         <button
                             className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
                             onClick={() => setExpanded((v) => !v)}
-                            aria-label={expanded ? "Collapse repeat occurrences" : "Show repeat occurrences"}
+                            aria-label={`${repeatOccurrences.length} repeat${repeatOccurrences.length !== 1 ? "s" : ""} — ${expanded ? "collapse" : "show"}`}
                         >
                             {repeatOccurrences.length} repeat{repeatOccurrences.length !== 1 ? "s" : ""}
                             {expanded ? (

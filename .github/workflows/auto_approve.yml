@@ -19,7 +19,7 @@ jobs:
     steps:
       - name: Approve PR if all required checks pass
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.KINGHROTHGAR_DEV_PAT }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -114,5 +114,5 @@ jobs:
 
           echo "All gates passed — approving PR #$PR"
           gh pr review "$PR" --repo "$REPO" --approve \
-            --body "Copilot has reviewed, no changes requested, all required CI checks pass — auto-approving for merge queue." \
-            || echo "Warning: auto-approval failed (repo may require manual approval) — PR is ready to merge once approved."
+            --body "Copilot has reviewed, no changes requested, all required CI checks pass — kinghrothgar-dev auto-approving for merge queue." \
+            || echo "Warning: auto-approval failed — PR is ready to merge once approved."

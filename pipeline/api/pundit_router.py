@@ -11,7 +11,9 @@ Endpoints:
   GET /v1/draft/{year}                      — Draft prediction summary for a given year
   GET /v1/draft/{year}/results              — Draft resolution scoreboard for a given year
   GET /v1/leaderboard                       — Ranked pundits by weighted score / accuracy
+  GET /v1/integrity/head                    — Lightweight chain head status (no auth required)
   GET /v1/integrity/verify                  — Hash chain integrity check (tamper detection)
+  GET /v1/predictions/{hash}/verify         — Look up a prediction by chain_hash or content_hash (no auth)
   GET /v1/me/usage                          — Caller's usage stats (tier, request counts, rate limits)
 
 All /v1/* routes require a valid X-API-Key header (except /v1/me which also requires it,
@@ -26,6 +28,7 @@ Quality filtering:
 import logging
 import math
 import os
+import time
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -53,6 +56,13 @@ router = APIRouter(
     prefix="/v1",
     tags=["pundit-ledger"],
     dependencies=[Depends(verify_api_key)],
+)
+
+
+# Public router — no API key required for transparency/verification endpoints
+public_router = APIRouter(
+    prefix="/v1",
+    tags=["integrity-public"],
 )
 
 
@@ -94,6 +104,14 @@ RESOLUTIONS_TABLE = "gold_layer.prediction_resolutions"
 QUALITY_TABLE = "gold_layer.assertion_quality"
 # CALIBRATION_TABLE imported from src.calibration
 
+
+
+# ---------------------------------------------------------------------------
+# Simple in-process TTL cache for /v1/integrity/head (60-second TTL)
+# ---------------------------------------------------------------------------
+
+_HEAD_CACHE: Dict[str, Any] = {}
+_HEAD_CACHE_TTL = 60  # seconds
 
 def _full(table: str) -> str:
     project_id = os.environ.get("GCP_PROJECT_ID")
@@ -931,3 +949,133 @@ def me_usage(
         "requests_total": requests_total,
         "rate_limit": rate_limits,
     }
+
+# ---------------------------------------------------------------------------
+# GET /v1/integrity/head  — No auth required, cached 60s
+# ---------------------------------------------------------------------------
+
+
+@public_router.get("/integrity/head", summary="Chain head status (public, no auth required)")
+def integrity_head(
+    db: DBManager = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Lightweight endpoint that returns the current chain head hash, total
+    prediction count, last-added timestamp, and chain status.
+
+    Results are cached for 60 seconds so this can be fetched on every page
+    load without hammering BigQuery.  No authentication required.
+    """
+    now = time.monotonic()
+    cached = _HEAD_CACHE.get("head")
+    if cached and (now - cached["_ts"]) < _HEAD_CACHE_TTL:
+        result = {k: v for k, v in cached.items() if k != "_ts"}
+        return result
+
+    try:
+        project_id = os.environ.get("GCP_PROJECT_ID")
+        query = f"""
+            SELECT
+                chain_hash,
+                COUNT(*) OVER () AS total_predictions,
+                created_at
+            FROM `{project_id}.{LEDGER_TABLE}`
+            ORDER BY sequence_number DESC
+            LIMIT 1
+        """
+        job = db.client.query(query)
+        rows = list(job.result())
+
+        if not rows:
+            result = {
+                "chain_head_hash": None,
+                "total_predictions": 0,
+                "last_added_at": None,
+                "chain_status": "EMPTY",
+            }
+        else:
+            row = rows[0]
+            result = {
+                "chain_head_hash": row["chain_hash"],
+                "total_predictions": int(row["total_predictions"]),
+                "last_added_at": row["created_at"].isoformat()
+                if row["created_at"]
+                else None,
+                "chain_status": "INTACT",
+            }
+
+        _HEAD_CACHE["head"] = {**result, "_ts": now}
+        return result
+    except Exception as e:
+        logger.error(f"Integrity head error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch chain head")
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/predictions/{hash}/verify  — No auth required
+# ---------------------------------------------------------------------------
+
+
+@public_router.get(
+    "/predictions/{hash}/verify",
+    summary="Verify a prediction by chain_hash or content_hash (public, no auth required)",
+)
+def verify_prediction(
+    hash: str,
+    db: DBManager = Depends(get_db),
+) -> Dict[str, Any]:
+    """
+    Look up a prediction by its chain_hash or content_hash.  Returns
+    found=True with chain position and metadata, or found=False if the hash
+    is not in the ledger.
+
+    No authentication required — this is a public transparency endpoint.
+    """
+    try:
+        project_id = os.environ.get("GCP_PROJECT_ID")
+        query = f"""
+            SELECT
+                sequence_number  AS chain_position,
+                created_at       AS added_at,
+                pundit_id,
+                pundit_name,
+                raw_assertion_text,
+                extracted_claim,
+                ingestion_timestamp AS prediction_date,
+                chain_hash,
+                prediction_hash
+            FROM `{project_id}.{LEDGER_TABLE}`
+            WHERE chain_hash = @hash
+               OR prediction_hash = @hash
+            LIMIT 1
+        """
+        params = [ScalarQueryParameter("hash", "STRING", hash)]
+        job_config = QueryJobConfig(query_parameters=params)
+        job = db.client.query(query, job_config=job_config)
+        rows = list(job.result())
+
+        if not rows:
+            return {"found": False}
+
+        row = rows[0]
+
+        def _date_str(val: Any) -> Optional[str]:
+            if val is None:
+                return None
+            if hasattr(val, "isoformat"):
+                return val.isoformat()
+            return str(val)
+
+        return {
+            "found": True,
+            "chain_position": int(row["chain_position"]) if row["chain_position"] is not None else None,
+            "added_at": _date_str(row["added_at"]),
+            "pundit_id": row["pundit_id"],
+            "pundit_name": row["pundit_name"],
+            "raw_assertion": row["raw_assertion_text"],
+            "extracted_claim": row["extracted_claim"],
+            "prediction_date": _date_str(row["prediction_date"]),
+        }
+    except Exception as e:
+        logger.error(f"Verify prediction error for hash={hash}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to verify prediction")

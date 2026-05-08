@@ -25,10 +25,10 @@ if _SENTRY_DSN:
 from pydantic import BaseModel
 
 try:
-    from api.pundit_router import router as pundit_router
+    from api.pundit_router import router as pundit_router, public_router as pundit_public_router, public_router as pundit_public_router
 except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-    from api.pundit_router import router as pundit_router
+    from api.pundit_router import router as pundit_router, public_router as pundit_public_router, public_router as pundit_public_router
 
 try:
     from src.adversarial_engine import AdversarialEngine
@@ -60,6 +60,7 @@ app.add_middleware(
 )
 
 app.include_router(pundit_router)
+app.include_router(pundit_public_router)
 
 # Initialize Engine (only if trade modules loaded successfully)
 if _TRADE_AVAILABLE:

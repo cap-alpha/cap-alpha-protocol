@@ -585,6 +585,12 @@ export default function MethodologyPage() {
                                 Chain integrity can be independently verified via our API.
                                 If the data has been tampered with, anyone can detect it.
                             </p>
+                            <Link
+                                href="/verify"
+                                className="inline-flex items-center gap-1 text-xs text-emerald-400 hover:text-emerald-300 transition-colors mt-1"
+                            >
+                                Verify the Ledger <ArrowRight className="w-3 h-3" />
+                            </Link>
                         </div>
                     </div>
                 </div>

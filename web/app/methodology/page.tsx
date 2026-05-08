@@ -18,6 +18,11 @@ import {
     MessageSquareWarning,
     CheckCircle2,
     XCircle,
+    Newspaper,
+    ListFilter,
+    Database,
+    Cpu,
+    ExternalLink,
 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -647,6 +652,157 @@ export default function MethodologyPage() {
                                 support@cap-alpha.co
                             </a>
                         </p>
+                    </div>
+                </div>
+            </section>
+
+            {/* Editorial Standards */}
+            <section className="w-full px-6 py-20 border-t border-zinc-900">
+                <div className="max-w-3xl mx-auto">
+                    <SectionHeader
+                        label="Editorial Standards"
+                        title="Editorial Standards"
+                        subtitle="Our commitment to independence, transparency, and consistent editorial practice."
+                    />
+
+                    <div className="space-y-8">
+                        {/* 1. Editorial Independence */}
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <Newspaper className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    Editorial Independence
+                                </h3>
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                Cap Alpha is not affiliated with any pundit, media
+                                organization, sports team, league, or sportsbook. Pundits
+                                are selected based on volume of public predictions. Scoring
+                                is automated and applies uniformly —{" "}
+                                <span className="text-zinc-200 font-medium">
+                                    no pundit can pay to be excluded, promoted, or re-scored.
+                                </span>
+                            </p>
+                        </div>
+
+                        {/* 2. Claim Selection Policy */}
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <ListFilter className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    Claim Selection Policy
+                                </h3>
+                            </div>
+                            <div className="space-y-3 text-sm">
+                                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
+                                    <p className="font-semibold text-emerald-400 text-xs font-mono uppercase tracking-widest">
+                                        Categories Tracked
+                                    </p>
+                                    <p className="text-zinc-300">
+                                        Game outcome, player performance, trade, draft pick,
+                                        injury, contract
+                                    </p>
+                                </div>
+                                <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 space-y-2">
+                                    <p className="font-semibold text-red-400 text-xs font-mono uppercase tracking-widest">
+                                        Excluded
+                                    </p>
+                                    <p className="text-zinc-400">
+                                        Entertainment predictions, non-sports content, and
+                                        ambiguous claims that cannot be objectively resolved
+                                    </p>
+                                </div>
+                                <div className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-4 space-y-2">
+                                    <p className="font-semibold text-zinc-300 text-xs font-mono uppercase tracking-widest">
+                                        Quality Threshold
+                                    </p>
+                                    <p className="text-zinc-400">
+                                        A minimum confidence threshold (quality score ≥ 0.5)
+                                        is required for a claim to enter the ledger
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. Resolution Sources */}
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <Database className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    Resolution Sources
+                                </h3>
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                Outcomes are determined from authoritative public sources:
+                            </p>
+                            <div className="space-y-2 text-sm">
+                                <div className="flex items-start gap-2">
+                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                                    <p className="text-zinc-400">
+                                        <span className="font-semibold text-zinc-200">
+                                            Sports Reference / PFR
+                                        </span>{" "}
+                                        — game outcomes and box scores
+                                    </p>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                                    <p className="text-zinc-400">
+                                        <span className="font-semibold text-zinc-200">
+                                            Spotrac and Over the Cap
+                                        </span>{" "}
+                                        — contracts and transactions
+                                    </p>
+                                </div>
+                                <div className="flex items-start gap-2">
+                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                                    <p className="text-zinc-400">
+                                        <span className="font-semibold text-zinc-200">
+                                            Official league transaction wire
+                                        </span>{" "}
+                                        — roster moves
+                                    </p>
+                                </div>
+                            </div>
+                            <p className="text-sm text-zinc-500">
+                                Edge cases resolved by manual review are logged and
+                                attributed.
+                            </p>
+                        </div>
+
+                        {/* 4. Extraction Transparency */}
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <Cpu className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    Extraction Transparency
+                                </h3>
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                Predictions are extracted using LLM assistance. The model
+                                version and prompt version are logged with each prediction.
+                                The raw verbatim quote is always stored alongside the
+                                extracted structured claim.{" "}
+                                <span className="text-zinc-200 font-medium">
+                                    Both are publicly visible on every prediction card.
+                                </span>
+                            </p>
+                            <Link
+                                href="/legal/disclosure"
+                                className="inline-flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                                View full disclosure
+                                <ExternalLink className="w-3.5 h-3.5" />
+                            </Link>
+                        </div>
                     </div>
                 </div>
             </section>

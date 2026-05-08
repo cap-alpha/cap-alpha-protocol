@@ -94,8 +94,7 @@ jobs:
             exit 0
           fi
 
-          # Gate: only approve once Copilot has completed a review.
-          # The bot login includes the "[bot]" suffix.
+          # Gate: Copilot must have completed a review.
           COPILOT_REVIEWED=$(gh pr view "$PR" --repo "$REPO" --json reviews \
             --jq '[.reviews[] | select(.author.login == "copilot-pull-request-reviewer[bot]")] | length' 2>/dev/null)
           if [ "${COPILOT_REVIEWED:-0}" -eq "0" ]; then
@@ -103,6 +102,23 @@ jobs:
             exit 0
           fi
           echo "Copilot review found for PR #$PR"
+
+          # Gate: all Copilot review threads must be resolved.
+          # Unresolved threads mean Claude has not yet addressed the issue.
+          OWNER="${REPO%%/*}"
+          REPO_NAME="${REPO##*/}"
+          UNRESOLVED_COPILOT=$(gh api graphql \
+            -f query='query($owner:String!,$repo:String!,$pr:Int!){repository(owner:$owner,name:$repo){pullRequest(number:$pr){reviewThreads(first:100){nodes{isResolved comments(first:1){nodes{author{login}}}}}}}}' \
+            -F owner="$OWNER" \
+            -F repo="$REPO_NAME" \
+            -F pr="$PR" \
+            --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved == false and (.comments.nodes[0].author.login | startswith("copilot")))] | length' \
+            2>/dev/null)
+          if [ "${UNRESOLVED_COPILOT:-0}" -gt "0" ]; then
+            echo "PR #$PR has ${UNRESOLVED_COPILOT} unresolved Copilot thread(s) — Claude must address each before approval"
+            exit 0
+          fi
+          echo "All Copilot threads resolved for PR #$PR"
 
           # Skip if already approved
           ALREADY_APPROVED=$(gh pr view "$PR" --repo "$REPO" --json reviews \

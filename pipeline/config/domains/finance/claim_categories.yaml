@@ -1,0 +1,43 @@
+categories:
+  # Financial market predictions
+  - earnings_prediction    # company will beat/miss earnings consensus
+  - price_target           # stock/asset will reach price level by date
+  - rate_decision          # central bank will raise/hold/cut rates
+  - merger_acquisition     # company will be acquired/merge/spin off
+  - macro_indicator        # GDP/inflation/unemployment will reach threshold
+  - sector_call            # sector/industry will outperform/underperform
+  # Business & corporate predictions
+  - product_launch         # company will ship/announce product by date
+  - leadership_change      # executive will join/leave/be replaced
+  - market_share           # company/product will reach/lose share threshold
+  - regulatory_outcome     # company will receive/lose regulatory approval
+  - company_strategy       # company will enter/exit market, pivot, layoffs
+
+entity_types:
+  - company: "full name or ticker, e.g. 'Apple', 'AAPL', 'OpenAI'"
+  - instrument: "asset name, e.g. 'S&P 500', 'US 10Y Treasury', 'Bitcoin'"
+  - institution: "'Federal Reserve', 'ECB', 'FTC', 'SEC', 'Treasury'"
+  - executive: "full name + role, e.g. 'Elon Musk (Tesla CEO)', 'Sam Altman (OpenAI)'"
+  - product: "product name + company, e.g. 'iPhone 17 (Apple)', 'GPT-5 (OpenAI)'"
+
+notes:
+  price_target: |
+    predicate_args: {"price": 150.0, "currency": "USD", "direction": "above|below", "ticker": "AAPL"}
+    resolution_horizon = the stated date or end of stated period.
+  earnings_prediction: |
+    predicate_args: {"metric": "EPS|revenue", "consensus": 2.45, "direction": "beat|miss", "ticker": "MSFT"}
+    season_year = fiscal year of the earnings report.
+  rate_decision: |
+    predicate_args: {"institution": "Fed", "action": "raise|hold|cut", "by_bps": 25}
+  product_launch: |
+    predicate_args: {"product": "iPhone 17", "company": "Apple", "milestone": "announce|ship|ship_to_consumers"}
+    resolution_horizon = the stated deadline date.
+  leadership_change: |
+    predicate_args: {"executive": "CEO|CTO|CFO", "company": "...", "change": "resign|hired|fired|replaced_by"}
+    target_player = the executive's name.
+  market_share: |
+    predicate_args: {"metric": "market_share", "threshold": 40.0, "unit": "percent", "segment": "..."}
+  regulatory_outcome: |
+    predicate_args: {"agency": "FTC|SEC|EU|DOJ", "outcome": "approve|block|fine|investigate"}
+  company_strategy: |
+    predicate_args: {"action": "enter_market|exit_market|layoffs|pivot|ipo|spinoff", "details": "..."}

@@ -721,7 +721,7 @@ export default function MethodologyPage() {
                                         Quality Threshold
                                     </p>
                                     <p className="text-zinc-400">
-                                        A minimum confidence threshold (quality score ≥ 0.5)
+                                        A minimum testability threshold (testability score ≥ 0.6)
                                         is required for a claim to enter the ledger
                                     </p>
                                 </div>

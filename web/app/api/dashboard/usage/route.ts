@@ -16,7 +16,10 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { BigQuery } from "@google-cloud/bigquery";
+import { eq } from "drizzle-orm";
 import { getUserTier, type Tier } from "@/lib/api-keys/tiers";
+import { db } from "@/db";
+import { users } from "@/db/schema";
 
 const PROJECT_ID = process.env.GCP_PROJECT_ID || "cap-alpha-protocol";
 const DATASET = "monetization";
@@ -205,6 +208,23 @@ export async function GET(req: Request) {
 
         const limits = RATE_LIMITS[tier] ?? RATE_LIMITS.free;
 
+        // Fetch renewal date from the local DB (written by Stripe/LS webhooks).
+        // Prefer Stripe; fall back to LemonSqueezy; null for free users.
+        const userRows = await db
+            .select({
+                stripeCurrentPeriodEnd: users.stripeCurrentPeriodEnd,
+                lsCurrentPeriodEnd: users.lsCurrentPeriodEnd,
+            })
+            .from(users)
+            .where(eq(users.clerkId, userId))
+            .limit(1);
+
+        const periodEnd =
+            userRows[0]?.stripeCurrentPeriodEnd ??
+            userRows[0]?.lsCurrentPeriodEnd ??
+            null;
+        const renewalDate = periodEnd ? periodEnd.toISOString() : null;
+
         // Check if user has zero requests (empty state)
         const totalRequests =
             dailyRequests.reduce(
@@ -217,7 +237,7 @@ export async function GET(req: Request) {
             currentTier: tier,
             tierName: tierConfig.name,
             monthlyQuota: tierConfig.monthlyQuota || limits.day,
-            renewalDate: null, // TODO: integrate with Stripe subscription data
+            renewalDate,
             dailyRequests,
             topEndpoints,
             rateLimitStatus: {

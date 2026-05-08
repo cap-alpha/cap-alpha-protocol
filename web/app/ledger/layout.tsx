@@ -3,9 +3,9 @@ import Link from "next/link";
 import { AffiliateInlineLink } from "@/components/affiliate-cta";
 
 export const metadata: Metadata = {
-    title: "Pundit Leaderboard",
+    title: "Pundit Accountability Leaderboard",
     description:
-        "Live accuracy scores for every tracked sports pundit. See who is actually right.",
+        "Independent accuracy audit of sports media pundits. Publicly verified prediction records — who is right, who hedges, and who has never been held accountable.",
 };
 
 export default function LedgerLayout({

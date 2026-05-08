@@ -26,11 +26,11 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
     title: {
-        default: "Pundit Ledger — Hold Sports Pundits Accountable",
+        default: "Pundit Ledger — Sports Media Intelligence & Accountability",
         template: "%s | Pundit Ledger",
     },
     description:
-        "Every sports prediction tracked, scored, and cryptographically sealed. See which pundits are actually right.",
+        "Independent accuracy audit of sports media pundits. Every public prediction verified, scored, and permanently on record — so no one can rewrite history.",
     metadataBase: new URL("https://cap-alpha.co"),
     openGraph: {
         siteName: "Pundit Ledger",

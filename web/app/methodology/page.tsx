@@ -23,7 +23,7 @@ import {
 export const metadata: Metadata = {
     title: "Methodology | Pundit Ledger",
     description:
-        "How we score pundits — the truthiness framework behind the Pundit Credit Score.",
+        "How Cap Alpha independently audits sports media pundits — the accountability framework behind the Pundit Credit Score.",
 };
 
 // --- Reusable section components ---

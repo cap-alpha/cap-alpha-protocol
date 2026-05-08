@@ -30,8 +30,8 @@ export default function LandingPage() {
                     </h1>
 
                     <p className="text-xl text-zinc-400 max-w-xl mx-auto leading-relaxed">
-                        Every sports prediction. Tracked, scored, and cryptographically
-                        sealed — so no one can rewrite history.
+                        Every sports prediction. Publicly scored. Permanently on record —
+                        so no one can rewrite history.
                     </p>
 
                     <div className="flex flex-col items-center gap-4 pt-2">

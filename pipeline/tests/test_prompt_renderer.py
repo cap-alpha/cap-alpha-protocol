@@ -224,3 +224,51 @@ class TestRenderExtractionPrompt:
         assert "Patrick Mahomes" in rendered
         assert "Philadelphia Eagles" in rendered
         assert "Baltimore Ravens" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Tests for _sport_to_domain (Issue #683 — domain routing)
+# ---------------------------------------------------------------------------
+
+
+class TestSportToDomain:
+    """Unit tests for the _sport_to_domain helper in assertion_extractor."""
+
+    def _fn(self):
+        from src.assertion_extractor import _sport_to_domain
+
+        return _sport_to_domain
+
+    def test_politics_maps_to_politics(self):
+        fn = self._fn()
+        assert fn("politics") == "politics"
+
+    def test_politics_case_insensitive(self):
+        fn = self._fn()
+        assert fn("Politics") == "politics"
+        assert fn("POLITICS") == "politics"
+
+    def test_politics_with_whitespace(self):
+        fn = self._fn()
+        assert fn("  politics  ") == "politics"
+
+    def test_nfl_uppercase_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("NFL") == "nfl"
+
+    def test_nfl_lowercase_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("nfl") == "nfl"
+
+    def test_empty_string_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("") == "nfl"
+
+    def test_none_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn(None) == "nfl"
+
+    def test_unknown_sport_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("baseball") == "nfl"
+        assert fn("basketball") == "nfl"

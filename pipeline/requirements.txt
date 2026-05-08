@@ -37,5 +37,5 @@ pydantic
 youtube-transcript-api>=1.2.4,<2.0.0
 readability-lxml
 tenacity
-sentry-sdk[fastapi]>=2.0.0
-Jinja2>=3.1.0
+sentry-sdk[fastapi]>=2.59.0
+Jinja2>=3.1.6

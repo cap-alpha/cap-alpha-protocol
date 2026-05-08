@@ -224,3 +224,65 @@ class TestRenderExtractionPrompt:
         assert "Patrick Mahomes" in rendered
         assert "Philadelphia Eagles" in rendered
         assert "Baltimore Ravens" in rendered
+
+    def test_politics_render_returns_string(self):
+        """Minimal smoke test: politics domain renders without error."""
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, version = render_extraction_prompt(
+            domain="politics",
+            sport="politics",
+            published_date="2026-11-03",
+            source_name="Politico",
+            author="Jane Doe",
+            title="Election Preview",
+            text="The incumbent will win the Senate race by a wide margin.",
+        )
+        assert isinstance(rendered, str)
+        assert len(rendered) > 100
+        assert isinstance(version, str) and len(version) == 8
+
+    def test_politics_render_contains_claim_categories(self):
+        """Politics prompt must include all politics claim categories."""
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, _ = render_extraction_prompt(
+            domain="politics",
+            sport="politics",
+            published_date="2026-11-03",
+            source_name="Politico",
+            author="Jane Doe",
+            title="Election Preview",
+            text="The incumbent will win.",
+        )
+        for cat in [
+            "election_outcome",
+            "polling_prediction",
+            "appointment",
+            "legislation",
+            "policy_prediction",
+            "party_dynamics",
+        ]:
+            assert cat in rendered, (
+                f"Politics claim category {cat!r} missing from rendered prompt"
+            )
+
+    def test_politics_render_uses_target_entity_not_target_player(self):
+        """Politics prompt must reference target_entity, not target_player."""
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, _ = render_extraction_prompt(
+            domain="politics",
+            sport="politics",
+            published_date="2026-11-03",
+            source_name="Politico",
+            author="Jane Doe",
+            title="Election Preview",
+            text="The incumbent will win.",
+        )
+        assert "target_entity" in rendered, (
+            "Politics prompt must use target_entity (not target_player)"
+        )
+        assert "target_player = candidate" not in rendered, (
+            "Politics prompt must not instruct model to populate target_player"
+        )

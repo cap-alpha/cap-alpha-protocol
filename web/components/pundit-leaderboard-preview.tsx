@@ -68,7 +68,7 @@ export function PunditLeaderboardPreview() {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-40">
-                <div className="flex items-center gap-2 text-zinc-600">
+                <div className="flex items-center gap-2 text-zinc-400">
                     <Activity className="w-4 h-4 animate-pulse" />
                     <span className="text-sm font-mono">Loading ledger…</span>
                 </div>

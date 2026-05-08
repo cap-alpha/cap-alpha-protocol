@@ -1,7 +1,7 @@
 import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, DollarSign } from "lucide-react";
+import { ArrowLeft, DollarSign, BarChart2 } from "lucide-react";
 
 export const metadata: Metadata = {
     title: "Affiliate Disclosure | Cap Alpha",
@@ -24,9 +24,47 @@ export default function DisclosurePage() {
                     <DollarSign className="w-7 h-7 text-emerald-500" />
                     <h1 className="text-3xl font-extrabold tracking-tight">Affiliate Disclosure</h1>
                 </div>
-                <p className="text-zinc-500 text-sm mb-10">Last Updated: April 29, 2026</p>
+                <p className="text-zinc-500 text-sm mb-10">Last Updated: May 7, 2026</p>
 
                 <div className="space-y-8 text-zinc-300 leading-relaxed">
+                    <section className="border border-zinc-800 rounded-lg p-6 bg-zinc-950">
+                        <div className="flex items-center gap-2 mb-3">
+                            <BarChart2 className="w-5 h-5 text-emerald-500" />
+                            <h2 className="text-xl font-bold text-white">Prediction Scoring — Not Betting Advice</h2>
+                        </div>
+                        <ul className="space-y-3 text-zinc-300">
+                            <li>
+                                Cap Alpha is not a sportsbook, sports betting operator, or gambling service.
+                            </li>
+                            <li>
+                                The Pundit Prediction Ledger scores the historical accuracy of <strong className="text-white">public statements</strong> made
+                                by sports media personalities. Scores are computed from past, resolved events using
+                                publicly available sports data.
+                            </li>
+                            <li>
+                                Nothing on this site constitutes a betting recommendation, gambling tip, odds
+                                advisory, or financial advice of any kind.
+                            </li>
+                            <li>
+                                Accuracy scores reflect historical performance only. Past prediction accuracy does
+                                not guarantee future results.
+                            </li>
+                            <li>
+                                Cap Alpha does not display live betting odds, point spreads, or bookmaker lines.
+                            </li>
+                            <li>
+                                Pundits scored on this site are public figures making public statements. Each scored
+                                claim is attributed to its original source URL.
+                            </li>
+                        </ul>
+                        <p className="mt-4 text-sm text-zinc-400">
+                            For information on how errors in scored predictions are handled, see our{' '}
+                            <Link href="/legal/corrections" className="text-emerald-500 underline hover:text-emerald-400">
+                                Corrections Policy
+                            </Link>.
+                        </p>
+                    </section>
+
                     <section>
                         <h2 className="text-xl font-bold text-white mb-3">FTC Disclosure</h2>
                         <p>

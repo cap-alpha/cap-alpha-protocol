@@ -72,7 +72,7 @@ jobs:
       github.event.pull_request.head.repo.full_name == github.repository
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -120,7 +120,7 @@ jobs:
 
       - name: Set up Python
         if: steps.paths.outputs.touched == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.10"
           cache: 'pip'
@@ -133,7 +133,7 @@ jobs:
         id: auth
         if: steps.paths.outputs.touched == 'true'
         continue-on-error: true
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@v3
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 

@@ -82,13 +82,26 @@ cat .agent/current.md
 
 # 4. Do your work, commit, push, open the PR
 
-# 5. Queue the PR for landing — never direct merge. Always rebase.
+# 5. Before queueing: verify zero non-advisory FAILURE checks
+#    Run this and confirm the output is "0". If not, investigate — do NOT merge anyway.
+scripts/gh-lars pr view <pr-number> --json statusCheckRollup \
+  | jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" and (.name | test("\\[advisory\\]") | not))] | length'
+
+# 6. Queue the PR for landing — never direct merge. Always rebase.
 scripts/gh-lars pr merge <pr-number> --rebase --auto
 
-# 6. After the PR lands on main, release locks
+# 7. After the PR lands on main, release locks
 .agent/claim.sh release issue:129 claude-sonnet-<session>
 .agent/claim.sh release file:pipeline/src/assertion_extractor.py claude-sonnet-<session>
 ```
+
+### Advisory vs blocking CI checks
+
+CI check names ending in `[advisory]` are **non-blocking** — their failures are tracked for trends but must not stop a merge. Checks without `[advisory]` are **blocking** and a FAILURE must be investigated and fixed before queueing.
+
+Currently advisory: `Lighthouse audit [advisory]`, `Run E2E Integration Tests (Docker) [advisory]`, dbt tests.
+
+**"CI was red but I merged anyway" is a process violation.** If a non-advisory check is FAILURE, either fix it or escalate — never merge over it.
 
 ### Lock semantics
 - POSIX-atomic `mkdir` — exactly one concurrent caller wins, others get an immediate error and the holder's identity.
@@ -169,6 +182,16 @@ Skipping this checklist and reporting a frontend task "done" is a process violat
 ```
 make check   # lint + unit tests via local venv
 ```
+
+**Before queuing any PR for merge, confirm CI checks are registered:**
+```bash
+scripts/gh-lars pr view <N> --json statusCheckRollup | jq '.statusCheckRollup | length'
+# Must return > 0. A result of 0 means no CI ran — do NOT merge.
+
+scripts/gh-lars pr view <N> --json statusCheckRollup | jq '[.statusCheckRollup[] | select(.state != "SUCCESS" and .state != "SKIPPED")] | length'
+# Must return 0. Any non-SUCCESS/non-SKIPPED check blocks the merge.
+```
+A PR that runs no CI has no safety net. `pr_sanity.yml` fires unconditionally on every PR to guarantee `statusCheckRollup` is never empty (see issue #735).
 
 ### /test — Run the test suite
 ```

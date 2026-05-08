@@ -33,7 +33,7 @@ const Footer = () => {
                         The data and predictions provided by Cap Alpha are probabilistic simulations and should not be
                         construed as financial, legal, or professional sports management advice.
                     </p>
-                    <p className="text-slate-500 text-xs text-center max-w-2xl leading-relaxed">
+                    <p className="text-slate-400 text-xs text-center max-w-2xl leading-relaxed">
                         Some links on this site are affiliate links. Cap Alpha may earn a commission when you sign up through
                         these links, at no additional cost to you.{' '}
                         <Link href="/legal/disclosure" className="underline hover:text-emerald-500 transition-colors">
@@ -58,10 +58,10 @@ const Footer = () => {
                             href={`https://github.com/ucalegon206/cap-alpha-protocol/commit/${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label="View source commit on GitHub"
                             className="font-mono text-slate-400 hover:text-emerald-500 transition-colors"
                         >
                             v{process.env.NEXT_PUBLIC_COMMIT_SHA?.substring(0, 7) || 'local'}
+                            <span className="sr-only"> — View source commit on GitHub</span>
                         </a>
                         <span className="h-1 w-1 bg-slate-700 rounded-full mx-2 hidden sm:inline-block"></span>
                         <DebugReset />

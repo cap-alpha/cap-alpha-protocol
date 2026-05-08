@@ -32,6 +32,7 @@ POLITICS_CLAIM_CATEGORIES: list[str] = [
     "appointment",
     "legislation",
     "policy_prediction",
+    "party_dynamics",
 ]
 
 # Politics-tuned weights (rationale on issue #684):

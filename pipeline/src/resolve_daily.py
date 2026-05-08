@@ -1696,6 +1696,18 @@ def resolve_all(
     try:
         summaries = {}
 
+        # Route non-NFL domains to their stub resolvers (Phase A — stubs only)
+        if sport and sport.lower() == "politics":
+            from src.resolve_daily_politics import resolve_pending_politics
+
+            resolve_pending_politics(dry_run=dry_run, db=db)
+            return {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+        elif sport and sport.lower() in {"finance", "business"}:
+            from src.resolve_daily_finance import resolve_pending_finance
+
+            resolve_pending_finance(dry_run=dry_run, db=db)
+            return {"checked": 0, "resolved": 0, "voided": 0, "skipped": 0}
+
         if not category or category == "draft_pick":
             if re_resolve_voids:
                 # Re-attempt draft predictions previously VOID'd as unparseable
@@ -1788,12 +1800,21 @@ if __name__ == "__main__":
         action="store_true",
         help="Also re-attempt predictions previously VOID'd as unparseable",
     )
+    parser.add_argument(
+        "--sport",
+        default=None,
+        help=(
+            "Restrict resolution to a specific sport domain "
+            "(e.g. NFL, politics, finance). Omit to process all domains."
+        ),
+    )
     args = parser.parse_args()
 
     result = resolve_all(
         category=args.category,
         dry_run=args.dry_run,
         re_resolve_voids=args.re_resolve_voids,
+        sport=args.sport,
     )
     import json
 

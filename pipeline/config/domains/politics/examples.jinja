@@ -1,0 +1,211 @@
+--- FEW-SHOT EXAMPLES (political domain) ---
+
+Example 1 — election_outcome (PROMOTED to ledger, high testability):
+Input: "Harris will win Pennsylvania in the 2024 general election."
+Output:
+{
+  "text": "Harris will win Pennsylvania in the 2024 general election.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.9, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2024-11-06T23:59:59Z",
+  "predicate": "will_win",
+  "subject": "Kamala Harris",
+  "predicate_args": {"state": "Pennsylvania", "election_type": "general", "year": 2024},
+  "extracted_claim": "Harris will win Pennsylvania in the 2024 presidential general election",
+  "claim_category": "election_outcome",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": "Kamala Harris",
+  "target_team": null,
+  "confidence_note": "specific candidate, state, and election",
+  "prediction_horizon_days": 90,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "AP and major networks call Pennsylvania for Harris on election night 2024",
+  "hedge_level": "strong"
+}
+
+Example 2 — polling_prediction (PROMOTED to ledger, high testability):
+Input: "Trump will poll above 50% nationally by the end of October."
+Output:
+{
+  "text": "Trump will poll above 50% nationally by the end of October.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.9, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2024-10-31T23:59:59Z",
+  "predicate": "will_poll_above",
+  "subject": "Donald Trump",
+  "predicate_args": {"threshold": 50, "unit": "percent", "scope": "national", "polling_firm": "generic"},
+  "extracted_claim": "Trump will poll above 50% nationally by end of October 2024",
+  "claim_category": "polling_prediction",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": "Donald Trump",
+  "target_team": null,
+  "confidence_note": "explicit numeric threshold and time bound",
+  "prediction_horizon_days": 45,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Any major national polling average shows Trump at or above 50% before November 1 2024",
+  "hedge_level": "strong"
+}
+
+Example 3 — appointment (PROMOTED to ledger, high testability):
+Input: "If Biden drops out, Newsom will be nominated for the Democratic ticket."
+Output:
+{
+  "text": "If Biden drops out, Newsom will be nominated for the Democratic ticket.",
+  "speech_act_type": "conditional",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.7, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0},
+  "testability_score": 0.88,
+  "resolution_horizon": "2024-08-22T23:59:59Z",
+  "predicate": "will_be_nominated",
+  "subject": "Gavin Newsom",
+  "predicate_args": {"role": "Democratic presidential nominee", "nominator": "Democratic National Convention", "chamber": null, "condition": "Biden drops out"},
+  "extracted_claim": "Newsom will be nominated as Democratic presidential candidate (conditional on Biden withdrawal)",
+  "claim_category": "appointment",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": "Gavin Newsom",
+  "target_team": null,
+  "confidence_note": "conditional on Biden withdrawal; specific role and party",
+  "prediction_horizon_days": 60,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Newsom formally nominated at 2024 Democratic National Convention",
+  "hedge_level": "moderate"
+}
+
+Example 4 — legislation (PROMOTED to ledger, high testability):
+Input: "The border security bill will fail to get 60 votes in the Senate."
+Output:
+{
+  "text": "The border security bill will fail to get 60 votes in the Senate.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.7, "evidence_accessibility": 1.0},
+  "testability_score": 0.94,
+  "resolution_horizon": null,
+  "predicate": "will_fail_cloture",
+  "subject": "border security bill",
+  "predicate_args": {"threshold": 60, "chamber": "Senate", "vote_type": "cloture"},
+  "extracted_claim": "The bipartisan border security bill will fail to clear the 60-vote cloture threshold in the Senate",
+  "claim_category": "legislation",
+  "stance": "bearish",
+  "season_year": null,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific bill, chamber, and vote threshold",
+  "prediction_horizon_days": 30,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Senate holds cloture vote on the bill and it receives fewer than 60 votes",
+  "hedge_level": "strong"
+}
+
+Example 5 — policy_prediction (PROMOTED to ledger, medium testability):
+Input: "The Biden administration will cancel at least $10,000 in student debt per borrower before the midterms."
+Output:
+{
+  "text": "The Biden administration will cancel at least $10,000 in student debt per borrower before the midterms.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.8, "evidence_accessibility": 1.0},
+  "testability_score": 0.96,
+  "resolution_horizon": "2022-11-08T00:00:00Z",
+  "predicate": "will_cancel",
+  "subject": "Biden administration",
+  "predicate_args": {"policy": "student debt cancellation", "threshold": 10000, "unit": "USD per borrower", "timing": "before midterms"},
+  "extracted_claim": "Biden administration will cancel at least $10,000 in student debt per borrower before November 2022 midterms",
+  "claim_category": "policy_prediction",
+  "stance": "bullish",
+  "season_year": 2022,
+  "target_player": "Joe Biden",
+  "target_team": null,
+  "confidence_note": "specific dollar threshold, actor, and deadline",
+  "prediction_horizon_days": 120,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Executive order or federal action cancels at least $10,000 per eligible borrower before November 8 2022",
+  "hedge_level": "strong"
+}
+
+Example 6 — party_dynamics (PROMOTED to ledger, medium testability):
+Input: "Republicans will gain at least five Senate seats in the 2022 midterms."
+Output:
+{
+  "text": "Republicans will gain at least five Senate seats in the 2022 midterms.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2022-11-09T06:00:00Z",
+  "predicate": "will_gain_seats",
+  "subject": "Republican Party",
+  "predicate_args": {"chamber": "Senate", "threshold": 5, "direction": "gain", "election": "2022 midterms"},
+  "extracted_claim": "Republicans will net at least 5 Senate seats in the 2022 midterm elections",
+  "claim_category": "party_dynamics",
+  "stance": "bullish",
+  "season_year": 2022,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific party, chamber, numeric threshold, and election cycle",
+  "prediction_horizon_days": 60,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Final certified Senate results show Republicans gained 5 or more net seats vs. pre-election composition",
+  "hedge_level": "strong"
+}
+
+Example 7 — Calibration: vague political opinion scores 0.1 (NOT promoted):
+Input: "Biden has been an absolute disaster for this country."
+Output:
+{
+  "text": "Biden has been an absolute disaster for this country.",
+  "speech_act_type": "opinion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.1},
+  "testability_score": 0.24,
+  "resolution_horizon": null,
+  "predicate": "",
+  "subject": "Joe Biden",
+  "predicate_args": {},
+  "extracted_claim": "",
+  "claim_category": "policy_prediction",
+  "stance": "bearish",
+  "season_year": null,
+  "target_player": "Joe Biden",
+  "target_team": null,
+  "confidence_note": "subjective superlative — no falsifiable outcome or threshold",
+  "prediction_horizon_days": -1,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "",
+  "hedge_level": "strong"
+}
+
+Example 8 — Quoted claim (speech_act=quoted, score routed to originating_speaker):
+Input: "Nate Silver is saying Trump has a 65% chance of winning the Electoral College."
+Output:
+{
+  "text": "Nate Silver is saying Trump has a 65% chance of winning the Electoral College.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.9, "resolution_horizon_defined": 0.9, "evidence_accessibility": 1.0},
+  "testability_score": 0.96,
+  "resolution_horizon": "2024-11-06T23:59:59Z",
+  "predicate": "will_win",
+  "subject": "Donald Trump",
+  "predicate_args": {"milestone": "Electoral College majority", "probability": 0.65, "model": "Silver Bulletin"},
+  "extracted_claim": "Trump will win the Electoral College (65% model probability per Nate Silver)",
+  "claim_category": "election_outcome",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": "Donald Trump",
+  "target_team": null,
+  "confidence_note": "attributed probabilistic model from named analyst",
+  "prediction_horizon_days": 90,
+  "speech_act": "quoted",
+  "originating_speaker": "Nate Silver",
+  "resolution_condition": "Trump wins 270+ Electoral College votes on November 5 2024",
+  "hedge_level": "moderate"
+}
+
+--- END EXAMPLES ---

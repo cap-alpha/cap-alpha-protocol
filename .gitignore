@@ -89,3 +89,4 @@ docker_env.txt
 
 # Claude Code session runtime artifacts
 .claude/usage_log.jsonl
+.claude/worktrees/

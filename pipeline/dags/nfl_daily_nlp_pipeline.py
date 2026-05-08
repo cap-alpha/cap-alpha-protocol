@@ -75,6 +75,14 @@ with DAG(
         bash_command=f'cd {PROJECT_ROOT} && export GEMINI_API_KEY=$(cat ../web/.env.local | grep GEMINI_API_KEY | cut -d "=" -f 2) && {VENV_PYTHON} scripts/media_lag_analyzer.py 2>&1 | tail -20',
         dag=dag,
     )
-    
+
+    # 5. Recompute per-pundit calibration scores (Issue #809)
+    # Runs after media_lag so resolution data is current before scoring.
+    compute_calibration_task = BashOperator(
+        task_id='compute_pundit_calibration',
+        bash_command=f'cd {PROJECT_ROOT} && {VENV_PYTHON} -m src.calibration --season-year current 2>&1 | tail -30',
+        dag=dag,
+    )
+
     # DAG Dependencies
-    [ingest_injuries, ingest_news] >> generate_features >> analyze_media_lag
+    [ingest_injuries, ingest_news] >> generate_features >> analyze_media_lag >> compute_calibration_task

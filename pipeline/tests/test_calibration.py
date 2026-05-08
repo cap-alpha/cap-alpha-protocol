@@ -1,14 +1,20 @@
 """
-Unit tests for pipeline/src/calibration.py (Issue #341).
-No BigQuery required — pure math tests.
+Unit tests for pipeline/src/calibration.py (Issues #341, #809).
+No BigQuery required — pure math + mock-BQ tests.
 """
 
+from unittest.mock import MagicMock, patch
+
+import pandas as pd
 import pytest
 
 from src.calibration import (
+    _brier_score_query,
     compute_brier_score,
+    compute_calibration,
     compute_overconfidence_score,
     compute_reliability_bins,
+    get_current_nfl_season,
 )
 
 
@@ -214,3 +220,275 @@ class TestComputeOverconfidenceScore:
     def test_all_wrong_with_full_confidence(self):
         preds = [{"confidence": 1.0, "outcome": 0} for _ in range(5)]
         assert compute_overconfidence_score(preds) == pytest.approx(1.0)
+
+
+# ---------------------------------------------------------------------------
+# Issue #809 — multi-dimensional calibration helpers
+# ---------------------------------------------------------------------------
+
+
+class TestGetCurrentNflSeason:
+    """Test the NFL season calendar boundary helper."""
+
+    def test_may_returns_prior_year(self, monkeypatch):
+        """May is off-season → current season is year-1."""
+        import src.calibration as cal_module
+        from datetime import date
+
+        monkeypatch.setattr(
+            cal_module,
+            "date",
+            type("_D", (), {"today": staticmethod(lambda: date(2026, 5, 8))})(),
+        )
+        assert get_current_nfl_season() == 2025
+
+    def test_january_returns_prior_year(self, monkeypatch):
+        """January (playoffs) still belongs to the previous season year."""
+        import src.calibration as cal_module
+        from datetime import date
+
+        monkeypatch.setattr(
+            cal_module,
+            "date",
+            type("_D", (), {"today": staticmethod(lambda: date(2026, 1, 15))})(),
+        )
+        assert get_current_nfl_season() == 2025
+
+    def test_august_returns_current_year(self, monkeypatch):
+        """August (pre-season) starts the new season."""
+        import src.calibration as cal_module
+        from datetime import date
+
+        monkeypatch.setattr(
+            cal_module,
+            "date",
+            type("_D", (), {"today": staticmethod(lambda: date(2026, 8, 1))})(),
+        )
+        assert get_current_nfl_season() == 2026
+
+    def test_september_returns_current_year(self, monkeypatch):
+        """September (week 1) is in the new season."""
+        import src.calibration as cal_module
+        from datetime import date
+
+        monkeypatch.setattr(
+            cal_module,
+            "date",
+            type("_D", (), {"today": staticmethod(lambda: date(2026, 9, 10))})(),
+        )
+        assert get_current_nfl_season() == 2026
+
+
+class TestBrierScorePerfectAndWorst:
+    """Requirement: Brier=0 when confidence=1 and correct, Brier=1 when confidence=1 and wrong."""
+
+    def test_perfect_calibration_brier_zero(self):
+        """confidence=1.0, outcome=True → Brier = (1-1)^2 = 0."""
+        preds = [{"confidence": 1.0, "outcome": True}]
+        assert compute_brier_score(preds) == pytest.approx(0.0)
+
+    def test_worst_calibration_brier_one(self):
+        """confidence=1.0, outcome=False → Brier = (1-0)^2 = 1."""
+        preds = [{"confidence": 1.0, "outcome": False}]
+        assert compute_brier_score(preds) == pytest.approx(1.0)
+
+
+class TestBrierScoreQueryGroupingSets:
+    """Verify _brier_score_query produces a GROUPING SETS clause with all required combos."""
+
+    def test_query_contains_grouping_sets(self):
+        sql = _brier_score_query("my-project", season_year_filter=2025)
+        assert "GROUPING SETS" in sql.upper()
+
+    def test_query_contains_all_five_grouping_combos(self):
+        sql = _brier_score_query("my-project", season_year_filter=None)
+        # All five GROUPING SETS combinations should appear
+        assert "season_year, entity_class, claim_type" in sql
+        assert "season_year, entity_class" in sql
+        assert "season_year, claim_type" in sql
+
+    def test_season_year_filter_injected(self):
+        sql = _brier_score_query("test-project", season_year_filter=2025)
+        assert "l.season_year = 2025" in sql
+
+    def test_no_season_year_filter_when_none(self):
+        sql = _brier_score_query("test-project", season_year_filter=None)
+        assert "l.season_year =" not in sql
+
+    def test_murphy_decomposition_terms_present(self):
+        sql = _brier_score_query("test-project", season_year_filter=None)
+        # uncertainty = p_bar * (1 - p_bar)
+        assert "uncertainty" in sql.lower()
+        # resolution and reliability derived terms
+        assert "resolution" in sql.lower()
+        assert "reliability" in sql.lower()
+
+
+class TestComputeCalibrationMocked:
+    """Test compute_calibration() with a mocked BQ client — no real BigQuery calls."""
+
+    def _make_mock_db(self, rows: list[dict]) -> MagicMock:
+        """Return a DBManager mock whose client.query().to_dataframe() returns rows."""
+        db = MagicMock()
+        df = pd.DataFrame(rows) if rows else pd.DataFrame()
+        query_job = MagicMock()
+        query_job.to_dataframe.return_value = df
+        query_job.result.return_value = None
+        db.client.query.return_value = query_job
+        db.client.load_table_from_dataframe.return_value = query_job
+        db.client.delete_table.return_value = None
+        return db
+
+    def test_empty_result_returns_empty_list(self):
+        db = self._make_mock_db([])
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-proj"}):
+            result = compute_calibration(db_manager=db, season_year=2025)
+        assert result == []
+
+    def test_grouping_sets_all_combos_present(self):
+        """Given mock rows with all five GROUPING SET combinations, verify they are returned."""
+        rows = [
+            # (pundit_id, season_year, entity_class, claim_type) — full
+            {
+                "pundit_id": "adam_schefter",
+                "pundit_name": "Adam Schefter",
+                "season_year": 2025,
+                "entity_class": "PLAYER",
+                "claim_type": "trade",
+                "sport": "nfl",
+                "brier_score": 0.1,
+                "reliability": 0.05,
+                "resolution": 0.2,
+                "uncertainty": 0.25,
+                "accuracy_rate": 0.8,
+                "total_claims": 10,
+                "resolved_claims": 10,
+                "correct_claims": 8,
+                "anomaly_flag": False,
+                "last_updated": pd.Timestamp("2026-05-08"),
+            },
+            # (pundit_id, season_year, entity_class) — entity rollup
+            {
+                "pundit_id": "adam_schefter",
+                "pundit_name": "Adam Schefter",
+                "season_year": 2025,
+                "entity_class": "PLAYER",
+                "claim_type": None,
+                "sport": "nfl",
+                "brier_score": 0.12,
+                "reliability": 0.06,
+                "resolution": 0.19,
+                "uncertainty": 0.24,
+                "accuracy_rate": 0.75,
+                "total_claims": 20,
+                "resolved_claims": 20,
+                "correct_claims": 15,
+                "anomaly_flag": False,
+                "last_updated": pd.Timestamp("2026-05-08"),
+            },
+            # (pundit_id, season_year, claim_type) — claim type rollup
+            {
+                "pundit_id": "adam_schefter",
+                "pundit_name": "Adam Schefter",
+                "season_year": 2025,
+                "entity_class": None,
+                "claim_type": "trade",
+                "sport": "nfl",
+                "brier_score": 0.11,
+                "reliability": 0.055,
+                "resolution": 0.195,
+                "uncertainty": 0.245,
+                "accuracy_rate": 0.78,
+                "total_claims": 12,
+                "resolved_claims": 12,
+                "correct_claims": 9,
+                "anomaly_flag": False,
+                "last_updated": pd.Timestamp("2026-05-08"),
+            },
+            # (pundit_id, season_year) — season total
+            {
+                "pundit_id": "adam_schefter",
+                "pundit_name": "Adam Schefter",
+                "season_year": 2025,
+                "entity_class": None,
+                "claim_type": None,
+                "sport": "nfl",
+                "brier_score": 0.15,
+                "reliability": 0.07,
+                "resolution": 0.17,
+                "uncertainty": 0.23,
+                "accuracy_rate": 0.72,
+                "total_claims": 50,
+                "resolved_claims": 50,
+                "correct_claims": 36,
+                "anomaly_flag": False,
+                "last_updated": pd.Timestamp("2026-05-08"),
+            },
+            # (pundit_id) — all-time
+            {
+                "pundit_id": "adam_schefter",
+                "pundit_name": "Adam Schefter",
+                "season_year": None,
+                "entity_class": None,
+                "claim_type": None,
+                "sport": "nfl",
+                "brier_score": 0.16,
+                "reliability": 0.08,
+                "resolution": 0.16,
+                "uncertainty": 0.22,
+                "accuracy_rate": 0.70,
+                "total_claims": 200,
+                "resolved_claims": 200,
+                "correct_claims": 140,
+                "anomaly_flag": False,
+                "last_updated": pd.Timestamp("2026-05-08"),
+            },
+        ]
+        db = self._make_mock_db(rows)
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-proj"}):
+            result = compute_calibration(db_manager=db, season_year=2025)
+
+        assert len(result) == 5
+
+        # Verify the five GROUPING SET combinations are present
+        season_entity_claim = [
+            r
+            for r in result
+            if r["season_year"] == 2025
+            and r["entity_class"] == "PLAYER"
+            and r["claim_type"] == "trade"
+        ]
+        season_entity_only = [
+            r
+            for r in result
+            if r["season_year"] == 2025
+            and r["entity_class"] == "PLAYER"
+            and r["claim_type"] is None
+        ]
+        season_claim_only = [
+            r
+            for r in result
+            if r["season_year"] == 2025
+            and r["entity_class"] is None
+            and r["claim_type"] == "trade"
+        ]
+        season_total = [
+            r
+            for r in result
+            if r["season_year"] == 2025
+            and r["entity_class"] is None
+            and r["claim_type"] is None
+        ]
+        alltime = [
+            r
+            for r in result
+            if r["season_year"] is None
+            and r["entity_class"] is None
+            and r["claim_type"] is None
+        ]
+
+        assert len(season_entity_claim) == 1, "Missing full breakdown row"
+        assert len(season_entity_only) == 1, "Missing entity_class rollup row"
+        assert len(season_claim_only) == 1, "Missing claim_type rollup row"
+        assert len(season_total) == 1, "Missing season total row"
+        assert len(alltime) == 1, "Missing all-time row"

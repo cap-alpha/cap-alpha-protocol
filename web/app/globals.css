@@ -4,6 +4,18 @@
 
 @layer base {
   :root {
+    /* V1 Data Editorial design tokens */
+    --navy: #1A2744;
+    --navy-light: #253660;
+    --gold: #B8860B;
+    --gold-light: #D4A017;
+    --bg: #F7F4EF;
+    --bg-card: #FFFFFF;
+    --border-editorial: #DDD8D0;
+    --pos: #1A7A4A;
+    --neg: #B91C1C;
+    --warn: #92400E;
+
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
 
@@ -78,4 +90,45 @@
 
 .animate-alpha-marquee:hover {
   animation-play-state: paused;
+}
+
+/* V1 Data Editorial utility classes */
+.font-display {
+  font-family: var(--font-display), Georgia, serif;
+}
+
+.font-body {
+  font-family: var(--font-body), system-ui, sans-serif;
+}
+
+.font-mono {
+  font-family: var(--font-mono), 'Courier New', monospace;
+}
+
+.score-pos {
+  color: var(--pos);
+}
+
+.score-neg {
+  color: var(--neg);
+}
+
+.score-warn {
+  color: var(--warn);
+}
+
+.claim-quote {
+  font-family: var(--font-display), Georgia, serif;
+  font-style: italic;
+}
+
+/* Logo mark: Cap + α */
+.logo-mark {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.logo-mark .logo-alpha {
+  color: var(--gold-light);
 }

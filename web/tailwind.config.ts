@@ -19,9 +19,13 @@ const config = {
         },
         extend: {
             fontFamily: {
-                serif: ['Instrument Serif', 'Georgia', 'serif'],
-                sans: ['Inter', 'system-ui', 'sans-serif'],
-                mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
+                // V1 Data Editorial fonts (via CSS variables from next/font/google)
+                display: ['var(--font-display)', 'Playfair Display', 'Georgia', 'serif'],
+                body: ['var(--font-body)', 'Source Sans 3', 'system-ui', 'sans-serif'],
+                mono: ['var(--font-mono)', 'JetBrains Mono', 'Fira Code', 'monospace'],
+                // Legacy aliases — kept for backward compatibility
+                serif: ['var(--font-display)', 'Playfair Display', 'Georgia', 'serif'],
+                sans: ['var(--font-body)', 'Source Sans 3', 'system-ui', 'sans-serif'],
             },
             fontSize: {
                 'display-xl': ['3.75rem', { lineHeight: '1.05', letterSpacing: '-0.02em', fontWeight: '900' }],
@@ -84,6 +88,17 @@ const config = {
                 canvas: 'hsl(var(--color-canvas))',
                 surface: 'hsl(var(--color-surface))',
                 elevated: 'hsl(var(--color-elevated))',
+                // V1 Data Editorial palette
+                navy: 'var(--navy)',
+                'navy-light': 'var(--navy-light)',
+                gold: 'var(--gold)',
+                'gold-light': 'var(--gold-light)',
+                'editorial-bg': 'var(--bg)',
+                'editorial-card': 'var(--bg-card)',
+                'editorial-border': 'var(--border-editorial)',
+                pos: 'var(--pos)',
+                neg: 'var(--neg)',
+                warn: 'var(--warn)',
             },
             borderRadius: {
                 lg: "var(--radius)",

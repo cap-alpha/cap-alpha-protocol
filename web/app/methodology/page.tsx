@@ -44,7 +44,7 @@ function SectionHeader({
                     {label}
                 </span>
             )}
-            <h2 className="text-3xl sm:text-4xl font-black tracking-tight text-white">
+            <h2 className="font-display text-3xl sm:text-4xl font-black tracking-tight text-white">
                 {title}
             </h2>
             {subtitle && (
@@ -149,7 +149,7 @@ export default function MethodologyPage() {
                         <Eye className="w-3.5 h-3.5" />
                         Methodology
                     </span>
-                    <h1 className="text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+                    <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
                         How We Score{" "}
                         <span className="text-emerald-400">Pundits</span>
                     </h1>

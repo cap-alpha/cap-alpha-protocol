@@ -29,36 +29,37 @@ export function Navbar() {
         <header
             className={`sticky top-0 z-50 w-full transition-all duration-300 ${
                 isScrolled || !isRoot
-                    ? "border-b border-white/10 bg-black/80 backdrop-blur-md"
-                    : "border-b-transparent bg-transparent"
+                    ? "border-b-[3px] border-b-gold-light bg-navy/95 backdrop-blur-md"
+                    : "border-b-[3px] border-b-transparent bg-navy/80"
             }`}
+            style={{ borderBottomColor: isScrolled || !isRoot ? 'var(--gold-light)' : 'transparent', backgroundColor: 'var(--navy)' }}
         >
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-6">
                     <Link href="/" className="flex items-center gap-2">
-                        <span className="font-black text-xl tracking-tighter uppercase text-emerald-500">
-                            Pundit Ledger
+                        <span className="logo-mark text-xl text-white">
+                            Cap<span className="logo-alpha">α</span>
                         </span>
                     </Link>
 
                     {/* Public navigation */}
-                    <nav className="hidden md:flex items-center gap-6 text-sm font-medium tracking-wide">
+                    <nav className="hidden md:flex items-center gap-6 text-sm font-body font-semibold tracking-wide">
                         <Link
                             href="/ledger"
-                            className={`transition-colors hover:text-emerald-400 ${
+                            className={`transition-colors hover:text-yellow-300 ${
                                 pathname?.startsWith("/ledger")
-                                    ? "text-emerald-500"
-                                    : "text-slate-400"
+                                    ? "text-yellow-300"
+                                    : "text-white/80"
                             }`}
                         >
                             LEADERBOARD
                         </Link>
                         <Link
                             href="/methodology"
-                            className={`transition-colors hover:text-emerald-400 ${
+                            className={`transition-colors hover:text-yellow-300 ${
                                 pathname?.startsWith("/methodology")
-                                    ? "text-emerald-500"
-                                    : "text-slate-400"
+                                    ? "text-yellow-300"
+                                    : "text-white/80"
                             }`}
                         >
                             METHODOLOGY
@@ -68,22 +69,22 @@ export function Navbar() {
                             <>
                                 <Link
                                     href="/dashboard"
-                                    className={`transition-colors hover:text-emerald-400 ${
+                                    className={`transition-colors hover:text-yellow-300 ${
                                         pathname?.startsWith("/dashboard") &&
                                         !pathname?.startsWith("/dashboard/usage")
-                                            ? "text-emerald-500"
-                                            : "text-slate-400"
+                                            ? "text-yellow-300"
+                                            : "text-white/80"
                                     }`}
                                 >
                                     DASHBOARD
                                 </Link>
                                 <Link
                                     href="/account"
-                                    className={`transition-colors hover:text-emerald-400 ${
+                                    className={`transition-colors hover:text-yellow-300 ${
                                         pathname?.includes("/account") ||
                                         pathname?.startsWith("/dashboard/usage")
-                                            ? "text-emerald-500"
-                                            : "text-slate-400"
+                                            ? "text-yellow-300"
+                                            : "text-white/80"
                                     }`}
                                 >
                                     ACCOUNT

@@ -116,6 +116,22 @@ Inside any agent worktree, run `scripts/configure_agent_identity.sh` (or `make a
 ### Worktree hygiene
 Run `make prune-worktrees` (calls `scripts/prune_worktrees.sh`) periodically to clean up worktrees whose branch has already merged into `main`. Stale worktrees accumulate fast across many agent runs.
 
+### Rebase safety — always fetch PR branch first
+
+**Never** run `git rebase origin/main` + `git push --force-with-lease` without first
+fetching the PR branch. Third parties (e.g. `copilot-swe-agent`) may push commits to
+the branch between your last local fetch and the force-push; a bare rebase will silently
+orphan those commits.
+
+**Always use `scripts/git-rebase-safe.sh <worktree-path> <branch>` instead of a bare
+rebase+push.** The script:
+1. Fetches `origin/<branch>` to bring the remote tip up to date.
+2. Detects any orphaned commits on `origin/<branch>` not yet in local HEAD.
+3. Cherry-picks orphans (oldest-first) before rebasing.
+4. Rebases onto `origin/main` and pushes with `--force-with-lease`.
+
+Observed failures without this guard: PR #704 (b27cd08), #725 (7c3e697), #729 (3e10cf7).
+
 ### Parallel dispatch protocol (prevent API surface collisions)
 
 Worktrees + merge queue prevent *file edit* conflicts. They do **not** prevent

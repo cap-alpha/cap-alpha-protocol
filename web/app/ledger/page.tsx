@@ -1483,7 +1483,7 @@ function SemanticClusterSection({
                 className="w-full flex items-center gap-2 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors py-1 group"
                 onClick={() => setCollapsed((v) => !v)}
                 aria-expanded={!collapsed}
-                aria-label={`Toggle ${cluster.label} group`}
+                aria-label={`Similar predictions (${total}) – toggle ${cluster.label} group`}
             >
                 <span className="text-zinc-700">──</span>
                 <span className="uppercase tracking-widest">

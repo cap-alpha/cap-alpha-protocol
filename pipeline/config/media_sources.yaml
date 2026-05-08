@@ -291,6 +291,58 @@ sources:
       name: "Yahoo Sports Staff"
     pundits: []
 
+  # ── Politics / Political Pundit Feeds ────────────────────────────────────────
+  # Cook Political Report (403 — blocks bot fetches), RealClearPolitics (403),
+  # and Ballotpedia (403) tested 2026-05-07 and excluded. Only feeds returning
+  # 2xx/3xx are included.
+  - id: silver_bulletin
+    name: "Silver Bulletin (Nate Silver)"
+    sport: politics
+    type: rss
+    scrape_full_text: true
+    url: "https://www.natesilver.net/feed"
+    enabled: true
+    priority_tier: 1  # Tier 1: quantitative election analysis + predictions; very high prediction density
+    default_pundit:
+      id: nate_silver
+      name: "Nate Silver"
+    pundits:
+      - id: nate_silver
+        name: "Nate Silver"
+        match_authors: ["Nate Silver", "nsilver"]
+
+  - id: crystal_ball
+    name: "Larry Sabato Crystal Ball"
+    sport: politics
+    type: rss
+    scrape_full_text: true
+    url: "https://centerforpolitics.org/crystalball/feed/"
+    enabled: true
+    priority_tier: 1  # Tier 1: election forecasting + race ratings; high prediction density
+    default_pundit:
+      id: larry_sabato
+      name: "Larry Sabato"
+    pundits:
+      - id: larry_sabato
+        name: "Larry Sabato"
+        match_authors: ["Larry Sabato", "J. Miles Coleman", "Miles Coleman", "Kyle Kondik", "Alan Abramowitz"]
+
+  - id: political_wire
+    name: "Political Wire"
+    sport: politics
+    type: rss
+    scrape_full_text: true
+    url: "https://politicalwire.com/feed/"
+    enabled: true
+    priority_tier: 2  # Tier 2: political news aggregator with pundit takes; medium prediction density
+    default_pundit:
+      id: taegan_goddard
+      name: "Taegan Goddard"
+    pundits:
+      - id: taegan_goddard
+        name: "Taegan Goddard"
+        match_authors: ["Taegan Goddard", "tgoddard"]
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

@@ -15,7 +15,7 @@ import { CutCalculator } from './cut-calculator';
 import { IntelligenceFeed } from './intelligence-feed';
 import { VisualTimeline } from './visual-timeline';
 import { VerifiableAudit } from './verifiable-audit';
-import { TimelineEvent, IntelligenceEvent, AuditEntry, DeadMoneyMath, FmvHistoryPoint, PositionalComp } from "@/app/actions";
+import { TimelineEvent, IntelligenceEvent, IntelligenceFeedResult, AuditEntry, DeadMoneyMath, FmvHistoryPoint, PositionalComp } from "@/app/actions";
 
 const ValueTrajectoryChart = dynamic(
     () => import('./value-trajectory-chart').then(m => m.ValueTrajectoryChart),
@@ -39,6 +39,7 @@ interface PlayerDetailViewProps {
     distributionData?: any[];
     timeline?: TimelineEvent[];
     feed?: IntelligenceEvent[];
+    feedResult?: IntelligenceFeedResult;
     ledger?: AuditEntry[];
     deadMoneyMath?: DeadMoneyMath;
     hasHeadshot?: boolean;
@@ -46,7 +47,9 @@ interface PlayerDetailViewProps {
     positionalComps?: PositionalComp[];
 }
 
-export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed = [], ledger = [], deadMoneyMath, hasHeadshot = false, fmvHistory = [], positionalComps = [] }: PlayerDetailViewProps) {
+export default function PlayerDetailView({ player, distributionData = [], timeline = [], feed, feedResult, ledger = [], deadMoneyMath, hasHeadshot = false, fmvHistory = [], positionalComps = [] }: PlayerDetailViewProps) {
+    // Prefer feedResult (typed discriminated union) over legacy feed array.
+    const resolvedFeedResult: IntelligenceFeedResult = feedResult ?? { ok: true, data: feed ?? [] };
     // State for Cut Calculator
     const [isPostJune1, setIsPostJune1] = useState(false);
 
@@ -356,7 +359,7 @@ export default function PlayerDetailView({ player, distributionData = [], timeli
 
                                 <TabsContent value="intelligence" className="mt-4">
                                     <div className="h-[450px]">
-                                        <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} feedEvents={feed} />
+                                        <IntelligenceFeed playerName={player.player_name} riskScore={player.risk_score} feedResult={resolvedFeedResult} />
                                     </div>
                                 </TabsContent>
 

@@ -49,7 +49,7 @@ export default async function PlayerPage({ params }: { params: { id: string } })
 
     return (
         <main className="min-h-screen bg-zinc-950 text-white p-6">
-            <PlayerDetailView player={player} timeline={timeline} feed={feed} ledger={ledger} deadMoneyMath={deadMoneyMath || undefined} hasHeadshot={hasHeadshot} fmvHistory={fmvHistory} positionalComps={positionalComps} />
+            <PlayerDetailView player={player} timeline={timeline} feedResult={feed} ledger={ledger} deadMoneyMath={deadMoneyMath || undefined} hasHeadshot={hasHeadshot} fmvHistory={fmvHistory} positionalComps={positionalComps} />
         </main>
     );
 }

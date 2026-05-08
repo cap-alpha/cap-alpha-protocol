@@ -411,7 +411,8 @@ export type IntelligenceEvent = {
 async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
   const feed: IntelligenceEvent[] = [];
 
-  // 1. Predictions
+  // 1. Predictions — failure here is a real BQ error (not a missing optional table).
+  //    Let the exception propagate so getIntelligenceFeed can surface it as an error state.
   const [predJob] = await bigquery.createQueryJob({
     query: `
       SELECT year, 0 as week, predicted_risk_score, 0 as high_uncertainty_flag
@@ -432,7 +433,7 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
     }
   }
 
-  // 2. Media Consensus
+  // 2. Media Consensus — failure here is a real BQ error. Let it propagate.
   const [mediaJob] = await bigquery.createQueryJob({
     query: `
       SELECT media_date_approx as date_of_event, rationale, source_url
@@ -487,23 +488,29 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
     console.warn('[Data] raw_media_mentions error (table may not exist yet):', e);
   }
 
-  // No, we let the UI handle empty state. No filler.
+  // Return the feed. Empty array = legitimate no-data state (player not in DB yet).
   return feed;
 }
 
-export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
+export type IntelligenceFeedResult =
+  | { ok: true; data: IntelligenceEvent[] }
+  | { ok: false; error: string };
+
+export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceFeedResult> {
   // try/catch is OUTSIDE the cache so transient BQ errors are never cached.
   // Only a successful fetch result gets stored for the revalidate window.
   try {
     const cachedFn = unstable_cache(
       async () => fetchIntelligenceFeed(playerName),
-      [`intelligence-feed-v5-${playerName}`],
+      [`intelligence-feed-v6-${playerName}`],
       { revalidate: 3600 }
     );
-    return await cachedFn();
+    const data = await cachedFn();
+    return { ok: true, data };
   } catch (error) {
-    console.error('[getIntelligenceFeed] BQ error, returning empty feed:', error);
-    return [];
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('[getIntelligenceFeed] BQ error:', message);
+    return { ok: false, error: 'Intelligence feed unavailable — BigQuery connection failed. Please try again shortly.' };
   }
 }
 

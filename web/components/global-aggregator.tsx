@@ -92,14 +92,14 @@ export function GlobalAggregator() {
 
                         {/* Rendering Intelligence Feeds (The synthesized output) */}
                         <div className="h-full space-y-4">
-                            <IntelligenceFeed 
-                                playerName="Rashee Rice" 
+                            <IntelligenceFeed
+                                playerName="Rashee Rice"
                                 riskScore={88}
-                                feedEvents={[
+                                feedResult={[
                                     { text: "WR age curve model flags immediate regression risk beginning Year 3 of new extension.", type: "PERFORMANCE DECAY", icon: "TrendingDown", color: "text-rose-500" },
                                     { text: "For The Sharp: Chiefs SB odds marginally decrease; implied win total (11.5) remains static despite $65M commitment.", type: "VEGAS IMPACT", icon: "AlertCircle", color: "text-orange-400" },
                                     { text: "For The Suit: Extension structurally locks Kansas City into significant dead cap hit in 2028 if player is released.", type: "CAP LIABILITY", icon: "FileText", color: "text-blue-400" }
-                                ]} 
+                                ]}
                             />
                             
                             {/* The Pundit Index Teaser */}

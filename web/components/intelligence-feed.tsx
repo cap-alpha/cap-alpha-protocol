@@ -8,16 +8,30 @@ import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { IntelligenceEvent } from "@/app/actions";
+import { IntelligenceEvent, IntelligenceFeedResult } from "@/app/actions";
 import { ProvenanceSnapshot } from "./provenance-snapshot";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
 
-export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { playerName: string, riskScore: number, feedEvents?: IntelligenceEvent[] }) {
+export function IntelligenceFeed({ playerName, riskScore, feedResult }: { playerName: string, riskScore: number, feedResult?: IntelligenceFeedResult | IntelligenceEvent[] }) {
 
     const [criticalOnly, setCriticalOnly] = useState(false);
 
-    const displayedEvents = criticalOnly 
+    // Support both legacy IntelligenceEvent[] callers and the new discriminated union.
+    const feedError: string | null =
+        feedResult && !Array.isArray(feedResult) && !feedResult.ok
+            ? feedResult.error
+            : null;
+    const feedEvents: IntelligenceEvent[] =
+        feedResult === undefined
+            ? []
+            : Array.isArray(feedResult)
+            ? feedResult
+            : feedResult.ok
+            ? feedResult.data
+            : [];
+
+    const displayedEvents = criticalOnly
         ? feedEvents.filter(e => e.type === 'Warning' || e.type === 'High Uncertainty' || e.color.includes('rose') || e.color.includes('amber'))
         : feedEvents;
 
@@ -64,7 +78,15 @@ export function IntelligenceFeed({ playerName, riskScore, feedEvents = [] }: { p
                         <p className="text-sm text-slate-400 mb-4">
                             Synthesized intelligence from unstructured scouting reports and contract telemetry.
                         </p>
-                        {displayedEvents.length === 0 ? (
+                        {feedError ? (
+                            <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-rose-800/50 rounded-lg bg-rose-950/20">
+                                <AlertCircle className="h-8 w-8 text-rose-500 mb-3" />
+                                <h4 className="text-sm font-semibold text-rose-300">Feed Unavailable</h4>
+                                <p className="text-xs text-slate-500 mt-1 max-w-[200px]">
+                                    {feedError}
+                                </p>
+                            </div>
+                        ) : displayedEvents.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-10 text-center border border-dashed border-slate-800 rounded-lg bg-slate-950/30">
                                 <Info className="h-8 w-8 text-slate-600 mb-3" />
                                 <h4 className="text-sm font-semibold text-slate-300">No {criticalOnly ? "Critical " : ""}Intelligence Events</h4>

@@ -152,7 +152,7 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
 
                     <div className="lg:col-span-1 h-[600px] lg:h-auto">
                         {/* RAG Risk Explainer (Use Case A placeholder) */}
-                        <IntelligenceFeed playerName={`${teamName} Franchise`} riskScore={riskPercentage / 100} feedEvents={feedEvents} />
+                        <IntelligenceFeed playerName={`${teamName} Franchise`} riskScore={riskPercentage / 100} feedResult={feedEvents} />
                     </div>
                 </div>
             </div>

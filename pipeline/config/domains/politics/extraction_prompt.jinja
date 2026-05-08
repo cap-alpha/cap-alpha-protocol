@@ -10,7 +10,7 @@ For EACH utterance, classify it and score its testability.
 Political domain guidance:
 - HIGH testability political claims: "X will win the Y primary/general", "The Z bill will pass/fail in the Senate", "X will be nominated for Y position", "X will poll above/below Y% by [date]"
 - LOW testability: "X is a disaster for the country" (opinion), "the economy will suffer" (vague), "X looks vulnerable heading into the election" (analysis, not prediction)
-- target_player = candidate name (or null if the claim is about a party/institution, not a person)
+- target_entity = candidate name, party name, or institution name (the primary subject of the claim; null only if entirely ambiguous)
 - target_team = null (unused in politics domain — use subject + predicate_args instead)
 - season_year = election year, congressional session year, or null
 

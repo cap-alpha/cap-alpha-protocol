@@ -94,6 +94,15 @@ jobs:
             exit 0
           fi
 
+          # Gate: Copilot must have reviewed (login has no [bot] suffix)
+          COPILOT_REVIEWED=$(gh pr view "$PR" --repo "$REPO" --json reviews \
+            --jq '[.reviews[] | select(.author.login == "copilot-pull-request-reviewer")] | length' 2>/dev/null)
+          if [ "${COPILOT_REVIEWED:-0}" -eq "0" ]; then
+            echo "PR #$PR not yet reviewed by Copilot — skipping"
+            exit 0
+          fi
+          echo "Copilot review found for PR #$PR"
+
           # Skip if already approved
           ALREADY_APPROVED=$(gh pr view "$PR" --repo "$REPO" --json reviews \
             --jq '[.reviews[] | select(.state == "APPROVED")] | length' 2>/dev/null)

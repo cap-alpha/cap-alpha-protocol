@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildPlayerCacheKey, buildPositionCacheKey } from '../app/actions';
+import { buildPlayerCacheKey, buildPositionCacheKey } from '../lib/cache-keys';
 
 // ---------------------------------------------------------------------------
 // buildPlayerCacheKey

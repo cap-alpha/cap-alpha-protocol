@@ -2,6 +2,7 @@
 
 import { z } from 'zod';
 import { slugify } from '@/lib/utils';
+import { buildPlayerCacheKey, buildPositionCacheKey } from '@/lib/cache-keys';
 import { BigQuery } from '@google-cloud/bigquery';
 import historicalData from '../data/historical_predictions.json';
 import { unstable_cache } from 'next/cache';
@@ -296,25 +297,6 @@ export async function getSearchIndex() {
     { revalidate: 3600 } // Cache for 1 hour
   );
   return await cachedFn();
-}
-
-// --- CACHE KEY HELPERS ---
-
-/**
- * Normalise a player name for use in unstable_cache keys.
- * Trims whitespace and lowercases so "Patrick Mahomes" and
- * "  patrick mahomes  " produce the same cache key.
- */
-export function buildPlayerCacheKey(name: string): string {
-  return name.trim().toLowerCase();
-}
-
-/**
- * Normalise a position string for use in unstable_cache keys.
- * Lowercases so "QB" and "qb" produce the same cache key.
- */
-export function buildPositionCacheKey(position: string): string {
-  return position.trim().toLowerCase();
 }
 
 // --- BENCHMARKING ACTIONS ---

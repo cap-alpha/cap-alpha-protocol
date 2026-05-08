@@ -377,7 +377,7 @@ def backfill_calibration(db: Optional[DBManager] = None) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 
-def get_current_nfl_season() -> int:
+def get_current_nfl_season(today_fn=date.today) -> int:
     """
     Returns the current NFL season year.
 
@@ -389,7 +389,7 @@ def get_current_nfl_season() -> int:
     Examples (given May 2026):   → 2025
     Examples (given September 2026): → 2026
     """
-    today = date.today()
+    today = today_fn()
     if today.month < 8:
         return today.year - 1
     return today.year

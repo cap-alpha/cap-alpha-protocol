@@ -7,7 +7,7 @@ import Link from "next/link";
  */
 export function AffiliateDisclosure() {
     return (
-        <p className="text-xs text-zinc-500 leading-relaxed">
+        <p className="text-xs text-zinc-400 leading-relaxed">
             <span className="font-semibold text-zinc-400">Affiliate link:</span>{" "}
             Cap Alpha may earn a commission if you sign up through this link, at no additional cost to you.{" "}
             <Link href="/legal/disclosure" className="underline hover:text-emerald-500 transition-colors">

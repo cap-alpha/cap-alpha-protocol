@@ -1,12 +1,6 @@
 import { Metadata } from "next";
-import { CheckCircle2, XCircle, AlertTriangle, Activity, BarChart3, Database, Shield } from "lucide-react";
+import { CheckCircle2, XCircle, AlertTriangle, Activity, BarChart3, Database, Shield, TrendingUp } from "lucide-react";
 import type { QualityResponse, WaitlistGate } from "@/app/api/quality/route";
-import {
-    TestabilityTrendChart,
-    ClaimPromotionChart,
-    ResolutionAccuracyChart,
-    PunditStatsTable,
-} from "@/components/quality-charts";
 
 export const revalidate = 3600;
 
@@ -16,15 +10,61 @@ export const metadata: Metadata = {
         "Live extraction quality metrics — testability scores, claim promotion rates, and waitlist-removal gate status.",
 };
 
-const API_BASE =
+const INTERNAL_API_BASE =
     process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.VERCEL_URL
+    (process.env.VERCEL_URL
         ? `https://${process.env.VERCEL_URL}`
-        : "http://localhost:3000";
+        : "http://localhost:3000");
+
+const FASTAPI_BASE =
+    process.env.NEXT_PUBLIC_API_URL ||
+    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+
+// ---------------------------------------------------------------------------
+// Types for FastAPI backend responses
+// ---------------------------------------------------------------------------
+
+interface ExtractionHealthDay {
+    run_date: string;
+    utterances_written: number;
+    claims_promoted: number;
+    zero_output: boolean;
+    mean_testability_score: number;
+}
+
+interface ExtractionHealthResponse {
+    last_30_days: ExtractionHealthDay[];
+    zero_output_rate_pct: number;
+    testability_trend: "improving" | "declining" | "stable";
+}
+
+interface CategoryStat {
+    category: string;
+    count: number;
+    resolution_rate_pct: number;
+    void_rate_pct: number;
+}
+
+interface WeeklyBrier {
+    week: string;
+    mean_brier_score: number;
+    n: number;
+}
+
+interface ResolutionStatsResponse {
+    resolution_rate_pct: number;
+    void_rate_pct: number;
+    by_category: CategoryStat[];
+    weekly_brier: WeeklyBrier[];
+}
+
+// ---------------------------------------------------------------------------
+// Data fetchers
+// ---------------------------------------------------------------------------
 
 async function getQualityData(): Promise<QualityResponse> {
     try {
-        const res = await fetch(`${API_BASE}/api/quality`, {
+        const res = await fetch(`${INTERNAL_API_BASE}/api/quality`, {
             next: { revalidate: 3600 },
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -46,6 +86,36 @@ async function getQualityData(): Promise<QualityResponse> {
         };
     }
 }
+
+async function getExtractionHealth(): Promise<ExtractionHealthResponse | null> {
+    try {
+        const res = await fetch(
+            `${FASTAPI_BASE}/v1/quality/extraction-health`,
+            { next: { revalidate: 300 } }
+        );
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+}
+
+async function getResolutionStats(): Promise<ResolutionStatsResponse | null> {
+    try {
+        const res = await fetch(
+            `${FASTAPI_BASE}/v1/quality/resolution-stats`,
+            { next: { revalidate: 300 } }
+        );
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 function GateCard({ gate }: { gate: WaitlistGate }) {
     const Icon = gate.pass ? CheckCircle2 : XCircle;
@@ -117,7 +187,15 @@ function StatTile({
     );
 }
 
-function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementType; title: string; subtitle?: string }) {
+function SectionHeader({
+    icon: Icon,
+    title,
+    subtitle,
+}: {
+    icon: React.ElementType;
+    title: string;
+    subtitle?: string;
+}) {
     return (
         <div className="flex items-center gap-3 mb-5">
             <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center">
@@ -133,8 +211,279 @@ function SectionHeader({ icon: Icon, title, subtitle }: { icon: React.ElementTyp
     );
 }
 
+function TrendBadge({ trend }: { trend: string }) {
+    const map: Record<string, { label: string; cls: string }> = {
+        improving: { label: "Improving", cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" },
+        declining: { label: "Declining", cls: "text-red-400 bg-red-500/10 border-red-500/30" },
+        stable: { label: "Stable", cls: "text-zinc-400 bg-zinc-800 border-zinc-700" },
+    };
+    const { label, cls } = map[trend] ?? map.stable;
+    return (
+        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-mono font-semibold ${cls}`}>
+            {label}
+        </span>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Panel 1 — Extraction Health (from FastAPI)
+// ---------------------------------------------------------------------------
+
+function ExtractionHealthPanel({ data }: { data: ExtractionHealthResponse }) {
+    const days = data.last_30_days.slice(-14); // show last 14 for readability
+
+    return (
+        <section>
+            <SectionHeader
+                icon={Activity}
+                title="Extraction Health (last 30 days)"
+                subtitle="From silver_v2_claims.extraction_run — 5 min cache"
+            />
+
+            {/* Summary row */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+                <StatTile
+                    label="Zero-output rate"
+                    value={`${data.zero_output_rate_pct}%`}
+                    sub="days with 0 utterances written"
+                    ok={data.zero_output_rate_pct === 0}
+                />
+                <StatTile
+                    label="Testability trend"
+                    value={data.testability_trend.charAt(0).toUpperCase() + data.testability_trend.slice(1)}
+                    sub="week-over-week direction"
+                    ok={data.testability_trend !== "declining"}
+                />
+                <StatTile
+                    label="Days in window"
+                    value={String(data.last_30_days.length)}
+                    sub="run days in last 30 days"
+                />
+            </div>
+
+            {/* Table */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                        <thead>
+                            <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                                <th className="px-4 py-3">Date</th>
+                                <th className="px-4 py-3 text-right">Utterances</th>
+                                <th className="px-4 py-3 text-right">Claims</th>
+                                <th className="px-4 py-3 text-right">Testability</th>
+                                <th className="px-4 py-3">Zero Output</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-900">
+                            {days.map((day) => (
+                                <tr key={day.run_date} className="text-zinc-300 hover:bg-zinc-900/40">
+                                    <td className="px-4 py-2.5 font-mono text-zinc-400">
+                                        {day.run_date}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono">
+                                        <span className={day.utterances_written === 0 ? "text-red-400 font-bold" : ""}>
+                                            {day.utterances_written.toLocaleString()}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono">
+                                        {day.claims_promoted.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono">
+                                        <span className={
+                                            day.mean_testability_score >= 0.65
+                                                ? "text-emerald-400"
+                                                : day.mean_testability_score >= 0.5
+                                                ? "text-amber-400"
+                                                : "text-red-400"
+                                        }>
+                                            {(day.mean_testability_score * 100).toFixed(1)}%
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2.5">
+                                        {day.zero_output ? (
+                                            <span className="inline-flex items-center gap-1 text-red-400 font-mono">
+                                                <XCircle className="w-3 h-3" /> Yes
+                                            </span>
+                                        ) : (
+                                            <span className="text-zinc-600 font-mono">—</span>
+                                        )}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="px-4 py-3 border-t border-zinc-800 text-xs text-zinc-600">
+                    Showing last {days.length} of {data.last_30_days.length} run days.
+                    Trend: <TrendBadge trend={data.testability_trend} />
+                </div>
+            </div>
+        </section>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Panel 2 — Resolution Rate (from FastAPI)
+// ---------------------------------------------------------------------------
+
+function ResolutionRatePanel({ data }: { data: ResolutionStatsResponse }) {
+    return (
+        <section>
+            <SectionHeader
+                icon={Shield}
+                title="Resolution Rate by Category"
+                subtitle="From gold_layer.prediction_ledger + prediction_resolutions — 5 min cache"
+            />
+
+            {/* Header stats */}
+            <div className="grid grid-cols-2 gap-4 mb-6">
+                <StatTile
+                    label="Overall resolution rate"
+                    value={`${data.resolution_rate_pct}%`}
+                    sub="predictions resolved / total"
+                    ok={data.resolution_rate_pct >= 50}
+                />
+                <StatTile
+                    label="Void rate"
+                    value={`${data.void_rate_pct}%`}
+                    sub="voided predictions / total"
+                    ok={data.void_rate_pct <= 10}
+                />
+            </div>
+
+            {/* Per-category table */}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                        <thead>
+                            <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                                <th className="px-4 py-3">Category</th>
+                                <th className="px-4 py-3 text-right">Count</th>
+                                <th className="px-4 py-3 text-right">Resolution %</th>
+                                <th className="px-4 py-3 text-right">Void %</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-900">
+                            {data.by_category.map((cat) => (
+                                <tr key={cat.category} className="text-zinc-300 hover:bg-zinc-900/40">
+                                    <td className="px-4 py-2.5 font-mono text-zinc-200 capitalize">
+                                        {cat.category.replace(/_/g, " ")}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono text-zinc-400">
+                                        {cat.count.toLocaleString()}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono">
+                                        <span className={
+                                            cat.resolution_rate_pct >= 70
+                                                ? "text-emerald-400"
+                                                : cat.resolution_rate_pct >= 40
+                                                ? "text-amber-400"
+                                                : "text-zinc-400"
+                                        }>
+                                            {cat.resolution_rate_pct}%
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono">
+                                        <span className={cat.void_rate_pct > 15 ? "text-amber-400" : "text-zinc-500"}>
+                                            {cat.void_rate_pct}%
+                                        </span>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Panel 3 — Brier Score Trend (from FastAPI)
+// ---------------------------------------------------------------------------
+
+function BrierTrendPanel({ data }: { data: ResolutionStatsResponse }) {
+    const weeks = data.weekly_brier.slice(-12);
+
+    if (weeks.length === 0) {
+        return (
+            <section>
+                <SectionHeader
+                    icon={TrendingUp}
+                    title="Brier Score Trend (last 12 weeks)"
+                    subtitle="Mean Brier score per week — lower is better"
+                />
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-10 text-center space-y-3">
+                    <Database className="w-8 h-8 text-zinc-600 mx-auto" />
+                    <p className="text-zinc-400 font-medium">No Brier data yet</p>
+                    <p className="text-sm text-zinc-600">
+                        Appears once predictions are resolved with confidence scores.
+                    </p>
+                </div>
+            </section>
+        );
+    }
+
+    return (
+        <section>
+            <SectionHeader
+                icon={TrendingUp}
+                title="Brier Score Trend (last 12 weeks)"
+                subtitle="Mean Brier score per week — lower is better (0 = perfect)"
+            />
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-xs text-left">
+                        <thead>
+                            <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                                <th className="px-4 py-3">Week of</th>
+                                <th className="px-4 py-3 text-right">Mean Brier</th>
+                                <th className="px-4 py-3 text-right">n</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-900">
+                            {weeks.map((w) => (
+                                <tr key={w.week} className="text-zinc-300 hover:bg-zinc-900/40">
+                                    <td className="px-4 py-2.5 font-mono text-zinc-400">
+                                        {w.week}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono">
+                                        <span className={
+                                            w.mean_brier_score <= 0.1
+                                                ? "text-emerald-400 font-semibold"
+                                                : w.mean_brier_score <= 0.2
+                                                ? "text-amber-400"
+                                                : "text-red-400"
+                                        }>
+                                            {w.mean_brier_score.toFixed(4)}
+                                        </span>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono text-zinc-500">
+                                        {w.n.toLocaleString()}
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="px-4 py-3 border-t border-zinc-800 text-xs text-zinc-600">
+                    Brier score: 0 = perfect, 0.25 = random, 1 = perfectly wrong. Cached 5 min.
+                </div>
+            </div>
+        </section>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default async function QualityPage() {
-    const data = await getQualityData();
+    const [data, extractionHealth, resolutionStats] = await Promise.all([
+        getQualityData(),
+        getExtractionHealth(),
+        getResolutionStats(),
+    ]);
 
     const totalUtterances = data.dailyTrend.reduce(
         (s, d) => s + d.utterances,
@@ -273,56 +622,19 @@ export default async function QualityPage() {
                     </div>
                 )}
 
-                {data.hasData && (
-                    <>
-                        {/* Trend charts */}
-                        <section>
-                            <SectionHeader
-                                icon={BarChart3}
-                                title="Trends (90 days)"
-                                subtitle="Daily extraction metrics"
-                            />
-                            <div className="grid gap-8 lg:grid-cols-2">
-                                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-3">
-                                    <h3 className="text-sm font-semibold text-zinc-200">
-                                        Testability Score
-                                    </h3>
-                                    <TestabilityTrendChart
-                                        data={data.dailyTrend}
-                                    />
-                                </div>
-                                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-3">
-                                    <h3 className="text-sm font-semibold text-zinc-200">
-                                        Claim Promotion Rate
-                                    </h3>
-                                    <ClaimPromotionChart
-                                        data={data.dailyTrend}
-                                    />
-                                </div>
-                                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-3 lg:col-span-2">
-                                    <h3 className="text-sm font-semibold text-zinc-200">
-                                        Resolution Accuracy (top pundits with
-                                        resolved predictions)
-                                    </h3>
-                                    <ResolutionAccuracyChart
-                                        data={data.punditStats}
-                                    />
-                                </div>
-                            </div>
-                        </section>
+                {/* Panel 1 — Extraction Health (from FastAPI backend) */}
+                {extractionHealth && (
+                    <ExtractionHealthPanel data={extractionHealth} />
+                )}
 
-                        {/* Per-pundit table */}
-                        <section>
-                            <SectionHeader
-                                icon={BarChart3}
-                                title="Top 25 Pundits by Volume"
-                                subtitle="Ranked by total utterances extracted (last 12 months)"
-                            />
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5">
-                                <PunditStatsTable data={data.punditStats} />
-                            </div>
-                        </section>
-                    </>
+                {/* Panel 2 — Resolution Rate (from FastAPI backend) */}
+                {resolutionStats && (
+                    <ResolutionRatePanel data={resolutionStats} />
+                )}
+
+                {/* Panel 3 — Brier Score Trend (from FastAPI backend) */}
+                {resolutionStats && (
+                    <BrierTrendPanel data={resolutionStats} />
                 )}
 
                 {/* Footer note */}

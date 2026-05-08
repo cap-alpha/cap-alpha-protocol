@@ -26,9 +26,11 @@ from pydantic import BaseModel
 
 try:
     from api.pundit_router import router as pundit_router
+    from api.quality_router import router as quality_router
 except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from api.pundit_router import router as pundit_router
+    from api.quality_router import router as quality_router
 
 try:
     from src.adversarial_engine import AdversarialEngine
@@ -60,6 +62,7 @@ app.add_middleware(
 )
 
 app.include_router(pundit_router)
+app.include_router(quality_router)
 
 # Initialize Engine (only if trade modules loaded successfully)
 if _TRADE_AVAILABLE:

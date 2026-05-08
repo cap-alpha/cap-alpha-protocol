@@ -50,7 +50,7 @@ export default function LandingPage() {
                     <div className="flex items-center justify-between mb-6">
                         <div>
                             <h2 className="text-lg font-bold text-white">Pundit Leaderboard</h2>
-                            <p className="text-sm text-zinc-400">Live accuracy scores across all tracked predictions</p>
+                            <p className="text-sm text-zinc-500">Live accuracy scores across all tracked predictions</p>
                         </div>
                         <Link
                             href="/ledger"
@@ -123,7 +123,7 @@ export default function LandingPage() {
                     {/* Free */}
                     <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-8 space-y-4">
                         <div className="flex items-center justify-between">
-                            <span className="text-sm font-mono uppercase tracking-widest text-zinc-400">Free</span>
+                            <span className="text-sm font-mono uppercase tracking-widest text-zinc-500">Free</span>
                             <span className="text-2xl font-black text-white">$0</span>
                         </div>
                         <ul className="space-y-2 text-sm text-zinc-400">
@@ -154,7 +154,7 @@ export default function LandingPage() {
                             <span className="text-sm font-mono uppercase tracking-widest text-emerald-400">Pro</span>
                             <div className="text-right">
                                 <span className="text-2xl font-black text-white">$14.99</span>
-                                <span className="text-zinc-400 text-sm">/mo</span>
+                                <span className="text-zinc-500 text-sm">/mo</span>
                             </div>
                         </div>
                         <ul className="space-y-2 text-sm text-zinc-400">
@@ -183,7 +183,7 @@ export default function LandingPage() {
             <section className="w-full px-6 py-16 border-t border-zinc-900">
                 <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
                     <div className="space-y-1">
-                        <div className="flex items-center gap-2 text-sm font-mono text-zinc-400">
+                        <div className="flex items-center gap-2 text-sm font-mono text-zinc-500">
                             <Shield className="w-4 h-4" />
                             API Access
                         </div>

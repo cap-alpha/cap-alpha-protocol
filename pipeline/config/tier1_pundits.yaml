@@ -1,0 +1,84 @@
+# Tier-1 Pundit List — Published on Launch
+#
+# Pundits in this list are marked published=TRUE in the pundit_registry table.
+# Scores are calculated for all tracked pundits regardless of this flag; only
+# published pundits are surfaced via the API and UI.
+#
+# Criteria for tier-1 inclusion:
+#   - Named NFL/NBA beat reporters with national platforms
+#   - Minimum track record: established T2+ sourcing reputation
+#   - Sufficient historical content to seed the ledger
+#
+# To mark these pundits published, run:
+#   python -m src.publish_tier1_pundits
+#
+# Issue #830 adjudication decision Q1: 5 resolved claims minimum + published flag.
+
+pundits:
+  # NFL Reporters
+  - pundit_id: adam_schefter
+    pundit_name: "Adam Schefter"
+    sport: NFL
+    tier: 1
+    affiliation: ESPN
+
+  - pundit_id: ian_rapoport
+    pundit_name: "Ian Rapoport"
+    sport: NFL
+    tier: 1
+    affiliation: NFL Network
+
+  - pundit_id: tom_pelissero
+    pundit_name: "Tom Pelissero"
+    sport: NFL
+    tier: 1
+    affiliation: NFL Network
+
+  - pundit_id: mike_garafolo
+    pundit_name: "Mike Garafolo"
+    sport: NFL
+    tier: 1
+    affiliation: NFL Network
+
+  - pundit_id: jeremy_fowler
+    pundit_name: "Jeremy Fowler"
+    sport: NFL
+    tier: 1
+    affiliation: ESPN
+
+  - pundit_id: chris_mortensen
+    pundit_name: "Chris Mortensen"
+    sport: NFL
+    tier: 1
+    affiliation: ESPN
+
+  - pundit_id: field_yates
+    pundit_name: "Field Yates"
+    sport: NFL
+    tier: 1
+    affiliation: ESPN
+
+  - pundit_id: jay_glazer
+    pundit_name: "Jay Glazer"
+    sport: NFL
+    tier: 1
+    affiliation: Fox Sports
+
+  - pundit_id: pat_mcafee
+    pundit_name: "Pat McAfee"
+    sport: NFL
+    tier: 1
+    affiliation: ESPN/Pat McAfee Show
+
+  # NBA Reporters
+  - pundit_id: adrian_wojnarowski
+    pundit_name: "Adrian Wojnarowski"
+    sport: NBA
+    tier: 1
+    affiliation: ESPN
+
+  - pundit_id: shams_charania
+    pundit_name: "Shams Charania"
+    sport: NBA
+    tier: 1
+    affiliation: The Athletic / Stadium

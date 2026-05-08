@@ -460,13 +460,26 @@ def get_pundit_accuracy_summary(
     sport: Optional[str] = None,
     db: Optional[DBManager] = None,
     min_quality: Optional[float] = None,
+    min_resolved_claims: int = 0,
+    published_only: bool = False,
 ) -> pd.DataFrame:
     """
     Returns per-pundit accuracy metrics from resolved predictions.
     Used by the Scorecard API to power leaderboard and pundit profiles.
-    Pass sport='NFL' to filter to a specific sport; omit for cross-sport summary.
-    Pass min_quality=0.7 to restrict to high-quality predictions only (requires
-    gold_layer.assertion_quality to be populated).
+
+    Args:
+        sport:               Filter to a specific sport (e.g. 'NFL'); omit for all.
+        db:                  Optional shared DBManager; created and closed if None.
+        min_quality:         Restrict to predictions with quality >= this score.
+                             Requires gold_layer.assertion_quality to be populated.
+        min_resolved_claims: Minimum number of resolved (CORRECT|INCORRECT) claims
+                             a pundit must have for their accuracy to be returned.
+                             Pundits below this threshold are excluded from results
+                             so the API can return null rather than misleading stats.
+                             Default 0 (no filter). Issue #830: public API uses 5.
+        published_only:      If True, restrict to pundits with published=TRUE in
+                             pundit_registry. Use for public-facing API endpoints.
+                             Default False (admin / internal use).
 
     VOID treatment (Issue #686): VOID predictions are excluded from
     accuracy_rate and avg_brier_score.  They are counted in total_predictions
@@ -492,6 +505,14 @@ def get_pundit_accuracy_summary(
                 f"ON l.prediction_hash = q.prediction_hash "
                 f"AND q.quality_score >= {float(min_quality)}"
             )
+
+        published_join = ""
+        if published_only:
+            published_join = (
+                f"INNER JOIN `{project_id}.nfl_dead_money.pundit_registry` pr "
+                f"ON l.pundit_id = pr.pundit_id AND pr.published = TRUE"
+            )
+        min_resolved = max(0, int(min_resolved_claims))
         query = f"""
             SELECT
                 l.pundit_id,
@@ -510,8 +531,10 @@ def get_pundit_accuracy_summary(
             LEFT JOIN `{project_id}.{RESOLUTIONS_TABLE}` r
                 ON l.prediction_hash = r.prediction_hash
             {quality_join}
+            {published_join}
             {where_sql}
             GROUP BY l.pundit_id, l.pundit_name, sport
+            HAVING COUNTIF(r.resolution_status IN ('CORRECT', 'INCORRECT')) >= {min_resolved}
             ORDER BY avg_weighted_score DESC NULLS LAST
         """
         query_parameters = (
@@ -521,3 +544,70 @@ def get_pundit_accuracy_summary(
     finally:
         if close_db:
             db.close()
+
+
+# ---------------------------------------------------------------------------
+# Retraction-aware resolution (Issue #830)
+# ---------------------------------------------------------------------------
+
+
+def resolve_with_retraction_check(
+    prediction_hash: str,
+    retracted_at: datetime,
+    resolution_horizon: datetime,
+    correct: bool,
+    outcome_source: str,
+    outcome_reference_id: Optional[str] = None,
+    outcome_notes: Optional[str] = None,
+    prediction_ts: Optional[datetime] = None,
+    outcome_ts: Optional[datetime] = None,
+    db: Optional[DBManager] = None,
+) -> ResolutionResult:
+    """
+    Resolve a prediction that carries a retraction timestamp.
+
+    Adjudication rule (Issue #830 decision):
+      - If retracted_at < resolution_horizon:
+          The source retracted the claim *before* the outcome window closed.
+          This means the pundit themselves withdrew the prediction; mark VOID.
+      - If retracted_at >= resolution_horizon:
+          The retraction came after the resolution horizon — the prediction
+          was already in play when the outcome was decided.  Score it normally
+          as CORRECT or INCORRECT.
+
+    Args:
+        prediction_hash:     SHA-256 identifier of the prediction ledger row.
+        retracted_at:        Timezone-aware datetime when the pundit retracted.
+        resolution_horizon:  Timezone-aware datetime marking the end of the
+                             valid prediction window (e.g. season start, draft day).
+        correct:             Whether the prediction ultimately proved correct.
+        outcome_source:      Data source that determined correctness.
+        outcome_reference_id: Optional reference ID in that source.
+        outcome_notes:       Human-readable resolution note.
+        prediction_ts:       When the prediction was first made (for timeliness).
+        outcome_ts:          When the outcome occurred (for timeliness).
+        db:                  Optional shared DBManager (created + closed if None).
+
+    Returns:
+        ResolutionResult with status VOID (early retraction) or
+        CORRECT / INCORRECT (late retraction scored normally).
+    """
+    if retracted_at < resolution_horizon:
+        # Retraction before horizon → VOID
+        void_reason = (
+            f"Retracted at {retracted_at.isoformat()} before resolution horizon "
+            f"{resolution_horizon.isoformat()}. " + (outcome_notes or "")
+        ).strip()
+        return void_prediction(prediction_hash, void_reason, db=db)
+    else:
+        # Retraction at or after horizon → score normally
+        return resolve_binary(
+            prediction_hash,
+            correct,
+            outcome_source,
+            outcome_reference_id=outcome_reference_id,
+            outcome_notes=outcome_notes,
+            prediction_ts=prediction_ts,
+            outcome_ts=outcome_ts,
+            db=db,
+        )

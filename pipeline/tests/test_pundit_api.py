@@ -15,6 +15,7 @@ with patch("src.db_manager.DBManager._initialize_connection"):
     from api.main import app
     from api.api_key_auth import verify_api_key
     from api.pundit_router import get_db
+    from api.quality_router import get_db as quality_get_db, _CACHE as _QUALITY_CACHE
 
 FAKE_HASH = "a" * 64
 FAKE_HASH2 = "b" * 64
@@ -56,6 +57,7 @@ def client(mock_db):
     # Override both the pundit DB dependency and the auth dependency so tests
     # don't need a real BigQuery connection or a valid API key.
     app.dependency_overrides[get_db] = lambda: mock_db
+    app.dependency_overrides[quality_get_db] = lambda: mock_db
     app.dependency_overrides[verify_api_key] = lambda: _STUB_KEY_INFO
     with TestClient(app) as c:
         yield c
@@ -570,3 +572,194 @@ class TestTradeEndpointsGuarded:
     def test_find_partner_returns_503(self, client):
         resp = client.get("/api/trade/find_partner/P_MAHOMES?cap_hit=45.0")
         assert resp.status_code == 503
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/quality/extraction-health
+# ---------------------------------------------------------------------------
+
+
+def make_extraction_run_df():
+    """Minimal extraction_run rows — one run per day for two days."""
+    return pd.DataFrame(
+        [
+            {
+                "run_date": "2026-05-06",
+                "utterances_written": 42,
+                "claims_promoted": 10,
+                "zero_output": False,
+                "mean_testability_score": 0.72,
+            },
+            {
+                "run_date": "2026-05-07",
+                "utterances_written": 0,
+                "claims_promoted": 0,
+                "zero_output": True,
+                "mean_testability_score": 0.0,
+            },
+        ]
+    )
+
+
+@pytest.fixture(autouse=True)
+def clear_quality_cache():
+    """Clear the quality router's TTL cache before each test to prevent bleed-through."""
+    _QUALITY_CACHE.clear()
+    yield
+    _QUALITY_CACHE.clear()
+
+
+class TestExtractionHealth:
+    def _setup(self, mock_db, df=None):
+        """Wire mock_db.client.query to return extraction health rows."""
+        mock_db.client.query.return_value = _mock_bq_job(
+            df if df is not None else make_extraction_run_df()
+        )
+
+    def test_returns_200(self, client, mock_db):
+        self._setup(mock_db)
+        resp = client.get("/v1/quality/extraction-health")
+        assert resp.status_code == 200
+
+    def test_response_shape(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/extraction-health").json()
+        assert "last_30_days" in data
+        assert "zero_output_rate_pct" in data
+        assert "testability_trend" in data
+
+    def test_last_30_days_entries(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/extraction-health").json()
+        assert len(data["last_30_days"]) == 2
+        entry = data["last_30_days"][0]
+        assert "run_date" in entry
+        assert "utterances_written" in entry
+        assert "claims_promoted" in entry
+        assert "zero_output" in entry
+        assert "mean_testability_score" in entry
+
+    def test_zero_output_rate_calculated(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/extraction-health").json()
+        # 1 of 2 days has zero_output=True → 50%
+        assert data["zero_output_rate_pct"] == 50.0
+
+    def test_empty_result_returns_defaults(self, client, mock_db):
+        mock_db.client.query.return_value = _mock_bq_job(pd.DataFrame())
+        data = client.get("/v1/quality/extraction-health").json()
+        assert data["last_30_days"] == []
+        assert data["zero_output_rate_pct"] == 0.0
+        assert data["testability_trend"] == "stable"
+
+    def test_db_error_returns_500(self, client, mock_db):
+        mock_db.client.query.side_effect = Exception("BQ down")
+        resp = client.get("/v1/quality/extraction-health")
+        assert resp.status_code == 500
+
+
+# ---------------------------------------------------------------------------
+# GET /v1/quality/resolution-stats
+# ---------------------------------------------------------------------------
+
+
+def make_overall_resolution_df():
+    return pd.DataFrame(
+        [
+            {
+                "total_count": 100,
+                "resolved_count": 70,
+                "void_count": 5,
+                "resolution_rate": 0.70,
+                "void_rate": 0.05,
+            }
+        ]
+    )
+
+
+def make_category_df():
+    return pd.DataFrame(
+        [
+            {
+                "category": "player_performance",
+                "count": 60,
+                "resolved_count": 45,
+                "void_count": 3,
+                "resolution_rate": 0.75,
+                "void_rate": 0.05,
+            },
+            {
+                "category": "game_outcome",
+                "count": 40,
+                "resolved_count": 25,
+                "void_count": 2,
+                "resolution_rate": 0.625,
+                "void_rate": 0.05,
+            },
+        ]
+    )
+
+
+def make_brier_df():
+    return pd.DataFrame(
+        [
+            {"week": "2026-04-28", "mean_brier_score": 0.12, "n": 20},
+            {"week": "2026-05-05", "mean_brier_score": 0.09, "n": 18},
+        ]
+    )
+
+
+class TestResolutionStats:
+    def _setup(self, mock_db):
+        mock_db.client.query.side_effect = [
+            _mock_bq_job(make_overall_resolution_df()),
+            _mock_bq_job(make_category_df()),
+            _mock_bq_job(make_brier_df()),
+        ]
+
+    def test_returns_200(self, client, mock_db):
+        self._setup(mock_db)
+        resp = client.get("/v1/quality/resolution-stats")
+        assert resp.status_code == 200
+
+    def test_response_shape(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/resolution-stats").json()
+        assert "resolution_rate_pct" in data
+        assert "void_rate_pct" in data
+        assert "by_category" in data
+        assert "weekly_brier" in data
+
+    def test_resolution_rate_pct(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/resolution-stats").json()
+        assert data["resolution_rate_pct"] == 70.0
+
+    def test_void_rate_pct(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/resolution-stats").json()
+        assert data["void_rate_pct"] == 5.0
+
+    def test_by_category_entries(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/resolution-stats").json()
+        assert len(data["by_category"]) == 2
+        cat = data["by_category"][0]
+        assert "category" in cat
+        assert "count" in cat
+        assert "resolution_rate_pct" in cat
+        assert "void_rate_pct" in cat
+
+    def test_weekly_brier_entries(self, client, mock_db):
+        self._setup(mock_db)
+        data = client.get("/v1/quality/resolution-stats").json()
+        assert len(data["weekly_brier"]) == 2
+        week = data["weekly_brier"][0]
+        assert "week" in week
+        assert "mean_brier_score" in week
+        assert "n" in week
+
+    def test_db_error_returns_500(self, client, mock_db):
+        mock_db.client.query.side_effect = Exception("BQ down")
+        resp = client.get("/v1/quality/resolution-stats")
+        assert resp.status_code == 500

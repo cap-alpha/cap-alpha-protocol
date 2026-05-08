@@ -107,22 +107,22 @@ def extraction_health(
         query = f"""
             WITH daily_runs AS (
                 SELECT
-                    CAST(run_date AS STRING) AS run_date,
-                    SUM(utterances_written)  AS utterances_written,
-                    SUM(claims_promoted)     AS claims_promoted,
-                    LOGICAL_OR(
+                    CAST(DATE(started_at) AS STRING) AS run_date,
+                    SUM(utterances_written)           AS utterances_written,
+                    SUM(claims_promoted)              AS claims_promoted,
+                    LOGICAL_AND(
                         utterances_written = 0 OR utterances_written IS NULL
                     ) AS zero_output
                 FROM {_full(EXTRACTION_RUN_TABLE)}
-                WHERE run_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
+                WHERE DATE(started_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)
                 GROUP BY run_date
             ),
             daily_scores AS (
                 SELECT
-                    CAST(DATE(published_at) AS STRING) AS run_date,
-                    AVG(testability_score)             AS mean_testability_score
+                    CAST(DATE(uttered_at) AS STRING) AS run_date,
+                    AVG(testability_score)            AS mean_testability_score
                 FROM {_full(RAW_UTTERANCE_TABLE)}
-                WHERE published_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
+                WHERE uttered_at >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY)
                   AND testability_score IS NOT NULL
                 GROUP BY run_date
             )
@@ -209,20 +209,20 @@ def resolution_stats(
         # Overall resolution + void rates
         overall_query = f"""
             SELECT
-                COUNT(l.ledger_id)                                           AS total_count,
+                COUNT(l.prediction_hash)                                     AS total_count,
                 COUNTIF(r.resolution_status IN ('CORRECT', 'INCORRECT'))     AS resolved_count,
                 COUNTIF(r.resolution_status = 'VOID')                        AS void_count,
                 SAFE_DIVIDE(
                     COUNTIF(r.resolution_status IN ('CORRECT', 'INCORRECT')),
-                    COUNT(l.ledger_id)
+                    COUNT(l.prediction_hash)
                 )                                                             AS resolution_rate,
                 SAFE_DIVIDE(
                     COUNTIF(r.resolution_status = 'VOID'),
-                    COUNT(l.ledger_id)
+                    COUNT(l.prediction_hash)
                 )                                                             AS void_rate
             FROM {_full(LEDGER_TABLE)} l
             LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
-                ON l.ledger_id = r.ledger_id
+                ON l.prediction_hash = r.prediction_hash
         """
         overall_df = db.client.query(overall_query).to_dataframe()
         overall_row = overall_df.iloc[0] if not overall_df.empty else None
@@ -238,20 +238,20 @@ def resolution_stats(
         category_query = f"""
             SELECT
                 l.claim_category                                             AS category,
-                COUNT(l.ledger_id)                                           AS count,
+                COUNT(l.prediction_hash)                                     AS count,
                 COUNTIF(r.resolution_status IN ('CORRECT', 'INCORRECT'))     AS resolved_count,
                 COUNTIF(r.resolution_status = 'VOID')                        AS void_count,
                 SAFE_DIVIDE(
                     COUNTIF(r.resolution_status IN ('CORRECT', 'INCORRECT')),
-                    COUNT(l.ledger_id)
+                    COUNT(l.prediction_hash)
                 )                                                             AS resolution_rate,
                 SAFE_DIVIDE(
                     COUNTIF(r.resolution_status = 'VOID'),
-                    COUNT(l.ledger_id)
+                    COUNT(l.prediction_hash)
                 )                                                             AS void_rate
             FROM {_full(LEDGER_TABLE)} l
             LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
-                ON l.ledger_id = r.ledger_id
+                ON l.prediction_hash = r.prediction_hash
             WHERE l.claim_category IS NOT NULL
             GROUP BY l.claim_category
             ORDER BY count DESC
@@ -274,12 +274,12 @@ def resolution_stats(
         # Weekly Brier score — last 12 weeks (84 days)
         brier_query = f"""
             SELECT
-                CAST(DATE_TRUNC(r.resolution_date, WEEK(MONDAY)) AS STRING) AS week,
-                AVG(r.brier_score)                                            AS mean_brier_score,
-                COUNT(*)                                                      AS n
+                CAST(DATE_TRUNC(DATE(r.resolved_at), WEEK(MONDAY)) AS STRING) AS week,
+                AVG(r.brier_score)                                              AS mean_brier_score,
+                COUNT(*)                                                        AS n
             FROM {_full(RESOLUTIONS_TABLE)} r
             WHERE r.brier_score IS NOT NULL
-              AND r.resolution_date >= DATE_SUB(CURRENT_DATE(), INTERVAL 84 DAY)
+              AND DATE(r.resolved_at) >= DATE_SUB(CURRENT_DATE(), INTERVAL 84 DAY)
             GROUP BY week
             ORDER BY week ASC
         """

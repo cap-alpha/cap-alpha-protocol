@@ -147,6 +147,7 @@ def main():
         ("bq_data_quality", "python -m src.bq_data_quality"),
         ("market_timing", "python -m src.market_timing"),
         ("coi_detection", "python -m src.coi_engine"),
+        ("rolling_windows", "python -m src.rolling_windows"),
     ]
 
     results = []

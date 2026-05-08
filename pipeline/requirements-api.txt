@@ -10,3 +10,4 @@ pandas-gbq
 python-dotenv
 httpx
 python-multipart
+fastmcp>=3.0,<4.0

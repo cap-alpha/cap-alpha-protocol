@@ -492,19 +492,19 @@ async function fetchIntelligenceFeed(playerName: string): Promise<IntelligenceEv
 }
 
 export async function getIntelligenceFeed(playerName: string): Promise<IntelligenceEvent[]> {
-  // try/catch is OUTSIDE the cache so transient BQ errors are never cached.
-  // Only a successful fetch result gets stored for the revalidate window.
-  try {
-    const cachedFn = unstable_cache(
-      async () => fetchIntelligenceFeed(playerName),
-      [`intelligence-feed-v5-${playerName}`],
-      { revalidate: 3600 }
-    );
-    return await cachedFn();
-  } catch (error) {
-    console.error('[getIntelligenceFeed] BQ error, returning empty feed:', error);
-    return [];
-  }
+  // No outer try/catch here: BigQuery connection errors and outer query failures
+  // must propagate so Next.js renders an error boundary instead of a misleading
+  // empty "No Critical Intelligence Events" state during a BQ outage.
+  //
+  // The only swallowed error is inside fetchIntelligenceFeed, scoped to the
+  // raw_media_mentions sub-query — that table is optional and may not exist in
+  // all environments.
+  const cachedFn = unstable_cache(
+    async () => fetchIntelligenceFeed(playerName),
+    [`intelligence-feed-v5-${playerName}`],
+    { revalidate: 3600 }
+  );
+  return await cachedFn();
 }
 
 // --- WAR ROOM ACTIONS ---

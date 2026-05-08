@@ -18,6 +18,7 @@ from src.assertion_extractor import (
     _apply_priority_sort,
     _deduplicate_claims,
     _resolve_speaker_entity_id,
+    _sport_to_domain,
     _validate_source_id,
     check_content_quality,
     extract_assertions,
@@ -732,6 +733,75 @@ class TestShouldFilterArticle:
 
         provider.classify.return_value = "No"
         assert should_filter_article("text", filter_provider=provider) is True
+
+    def test_politics_sport_bypasses_filter_without_llm_call(self):
+        """Politics articles must never hit the sports content filter (issue #683).
+
+        The filter prompt asks about sports predictions — a political article will
+        always get 'no', causing silent drop of ALL political content.  The fix
+        bypasses the filter entirely for non-sports domains.
+        """
+        provider = MagicMock()
+        provider.classify.return_value = "no"  # LLM would say no if called
+        result = should_filter_article(
+            "Senator X will win the election",
+            filter_provider=provider,
+            sport="politics",
+        )
+        assert result is False, "Politics articles must pass through (not be filtered)"
+        provider.classify.assert_not_called()
+
+    def test_finance_sport_bypasses_filter_without_llm_call(self):
+        """Finance articles must also bypass the sports content filter."""
+        provider = MagicMock()
+        provider.classify.return_value = "no"
+        result = should_filter_article(
+            "Stock market will rally next quarter",
+            filter_provider=provider,
+            sport="finance",
+        )
+        assert result is False
+        provider.classify.assert_not_called()
+
+    def test_nfl_sport_still_uses_filter(self):
+        """NFL articles should still go through the filter as before."""
+        provider = MagicMock()
+        provider.classify.return_value = "no"
+        result = should_filter_article(
+            "Game recap from last week",
+            filter_provider=provider,
+            sport="NFL",
+        )
+        assert result is True
+        provider.classify.assert_called_once()
+
+    def test_unknown_non_sports_domain_bypasses_filter(self):
+        """Any unrecognised domain (not nfl/nba/mlb/nhl/sports) should bypass the filter."""
+        provider = MagicMock()
+        provider.classify.return_value = "no"
+        result = should_filter_article(
+            "Some general content",
+            filter_provider=provider,
+            sport="entertainment",
+        )
+        assert result is False
+        provider.classify.assert_not_called()
+
+
+class TestSportToDomain:
+    """Tests for the _sport_to_domain helper (issue #683)."""
+
+    def test_nfl_maps_to_nfl(self):
+        assert _sport_to_domain("NFL") == "nfl"
+
+    def test_politics_maps_to_politics(self):
+        assert _sport_to_domain("politics") == "politics"
+
+    def test_finance_maps_to_finance(self):
+        assert _sport_to_domain("Finance") == "finance"
+
+    def test_strips_whitespace(self):
+        assert _sport_to_domain("  nfl  ") == "nfl"
 
 
 class TestCheckContentQuality:

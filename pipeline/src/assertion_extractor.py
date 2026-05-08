@@ -1476,6 +1476,18 @@ Article (first 1500 chars):
 Answer:"""
 
 
+_SPORTS_DOMAINS: frozenset[str] = frozenset({"nfl", "nba", "mlb", "nhl", "sports"})
+
+
+def _sport_to_domain(sport: str) -> str:
+    """Map a sport/topic string to a canonical domain name.
+
+    Returns the lowercased sport value, which is compared against
+    _SPORTS_DOMAINS to decide whether the sports content filter applies.
+    """
+    return sport.strip().lower()
+
+
 def should_filter_article(
     text: str,
     filter_provider=None,
@@ -1484,8 +1496,19 @@ def should_filter_article(
     """Return True if the article should be filtered out (no predictions), False to keep.
 
     Fail-open: errors or missing provider always return False (keep the article).
+
+    Non-sports domains (politics, finance, etc.) bypass the filter entirely and
+    always return False (keep the article).  The sports content filter is a
+    cost-saving gate that is only meaningful for NFL/sports content — applying it
+    to political articles would silently drop all of them because the LLM will
+    correctly answer "no" to "does this contain a testable sports prediction?"
+    See issue #683.
     """
     if filter_provider is None:
+        return False
+    # Bypass the sports-only filter for non-sports domains so political,
+    # finance, and other domain articles are never silently dropped.
+    if _sport_to_domain(sport) not in _SPORTS_DOMAINS:
         return False
     try:
         prompt = FILTER_PROMPT.format(sport=sport, text=text[:1500])

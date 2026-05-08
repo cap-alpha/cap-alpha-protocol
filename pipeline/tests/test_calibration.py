@@ -17,7 +17,6 @@ from src.calibration import (
     get_current_nfl_season,
 )
 
-
 # ---------------------------------------------------------------------------
 # compute_brier_score
 # ---------------------------------------------------------------------------
@@ -230,53 +229,29 @@ class TestComputeOverconfidenceScore:
 class TestGetCurrentNflSeason:
     """Test the NFL season calendar boundary helper."""
 
-    def test_may_returns_prior_year(self, monkeypatch):
+    def test_may_returns_prior_year(self):
         """May is off-season → current season is year-1."""
-        import src.calibration as cal_module
         from datetime import date
 
-        monkeypatch.setattr(
-            cal_module,
-            "date",
-            type("_D", (), {"today": staticmethod(lambda: date(2026, 5, 8))})(),
-        )
-        assert get_current_nfl_season() == 2025
+        assert get_current_nfl_season(today_fn=lambda: date(2026, 5, 8)) == 2025
 
-    def test_january_returns_prior_year(self, monkeypatch):
+    def test_january_returns_prior_year(self):
         """January (playoffs) still belongs to the previous season year."""
-        import src.calibration as cal_module
         from datetime import date
 
-        monkeypatch.setattr(
-            cal_module,
-            "date",
-            type("_D", (), {"today": staticmethod(lambda: date(2026, 1, 15))})(),
-        )
-        assert get_current_nfl_season() == 2025
+        assert get_current_nfl_season(today_fn=lambda: date(2026, 1, 15)) == 2025
 
-    def test_august_returns_current_year(self, monkeypatch):
+    def test_august_returns_current_year(self):
         """August (pre-season) starts the new season."""
-        import src.calibration as cal_module
         from datetime import date
 
-        monkeypatch.setattr(
-            cal_module,
-            "date",
-            type("_D", (), {"today": staticmethod(lambda: date(2026, 8, 1))})(),
-        )
-        assert get_current_nfl_season() == 2026
+        assert get_current_nfl_season(today_fn=lambda: date(2026, 8, 1)) == 2026
 
-    def test_september_returns_current_year(self, monkeypatch):
+    def test_september_returns_current_year(self):
         """September (week 1) is in the new season."""
-        import src.calibration as cal_module
         from datetime import date
 
-        monkeypatch.setattr(
-            cal_module,
-            "date",
-            type("_D", (), {"today": staticmethod(lambda: date(2026, 9, 10))})(),
-        )
-        assert get_current_nfl_season() == 2026
+        assert get_current_nfl_season(today_fn=lambda: date(2026, 9, 10)) == 2026
 
 
 class TestBrierScorePerfectAndWorst:

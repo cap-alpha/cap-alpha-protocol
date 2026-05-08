@@ -507,9 +507,8 @@ export async function getIntelligenceFeed(playerName: string): Promise<Intellige
     );
     const data = await cachedFn();
     return { ok: true, data };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    console.error('[getIntelligenceFeed] BQ error:', message);
+  } catch (err) {
+    console.error('[getIntelligenceFeed] BQ error:', err);
     return { ok: false, error: 'Intelligence feed unavailable — BigQuery connection failed. Please try again shortly.' };
   }
 }

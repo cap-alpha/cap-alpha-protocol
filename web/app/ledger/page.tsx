@@ -1483,7 +1483,6 @@ function SemanticClusterSection({
                 className="w-full flex items-center gap-2 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors py-1 group"
                 onClick={() => setCollapsed((v) => !v)}
                 aria-expanded={!collapsed}
-                aria-label={`Toggle ${cluster.label} group`}
             >
                 <span className="text-zinc-700">──</span>
                 <span className="uppercase tracking-widest">
@@ -1598,7 +1597,7 @@ function PredictionGroupRow({
                         <button
                             className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
                             onClick={() => setExpanded((v) => !v)}
-                            aria-label={expanded ? "Collapse repeat occurrences" : "Show repeat occurrences"}
+                            aria-expanded={expanded}
                         >
                             {repeatOccurrences.length} repeat{repeatOccurrences.length !== 1 ? "s" : ""}
                             {expanded ? (

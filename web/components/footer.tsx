@@ -58,7 +58,7 @@ const Footer = () => {
                             href={`https://github.com/ucalegon206/cap-alpha-protocol/commit/${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            aria-label="View source commit on GitHub"
+                            title="View source commit on GitHub"
                             className="font-mono text-slate-400 hover:text-emerald-500 transition-colors"
                         >
                             v{process.env.NEXT_PUBLIC_COMMIT_SHA?.substring(0, 7) || 'local'}

@@ -7,7 +7,7 @@
 
 import { clerkClient } from "@clerk/nextjs/server";
 
-export type Tier = "free" | "pro" | "agent" | "api_starter" | "api_growth" | "enterprise";
+export type Tier = "free" | "pro" | "agent" | "api_starter" | "api_growth" | "agent_standard" | "agent_pro" | "enterprise";
 
 interface TierConfig {
     maxKeys: number;
@@ -19,6 +19,8 @@ const TIER_CONFIGS: Record<Tier, TierConfig> = {
     agent: { maxKeys: 10 },
     api_starter: { maxKeys: 10 },
     api_growth: { maxKeys: 20 },
+    agent_standard: { maxKeys: 10 },
+    agent_pro: { maxKeys: 25 },
     enterprise: { maxKeys: 25 },
 };
 

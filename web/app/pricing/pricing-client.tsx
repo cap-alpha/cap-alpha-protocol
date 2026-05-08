@@ -9,7 +9,7 @@ import Link from "next/link";
 // Types
 // ---------------------------------------------------------------------------
 
-export type TierKey = "free" | "pro" | "api_starter" | "api_growth";
+export type TierKey = "free" | "pro" | "api_starter" | "api_growth" | "agent_standard" | "agent_pro";
 
 export interface Tier {
     key: TierKey;
@@ -87,6 +87,38 @@ export const TIERS: Tier[] = [
             "Dedicated support + SLA",
         ],
         cta: { plan: "api_growth", label: "Get API Growth" },
+        highlight: false,
+    },
+    {
+        key: "agent_standard",
+        name: "Agent Standard",
+        monthlyPrice: 199,
+        period: "/mo",
+        features: [
+            "MCP server access",
+            "Query claims + pundit profiles",
+            "Entity relationship graph",
+            "Semantic search",
+            "Cluster membership",
+            "10,000 calls/day",
+        ],
+        cta: { plan: "agent_standard", label: "Get Agent Standard" },
+        highlight: false,
+    },
+    {
+        key: "agent_pro",
+        name: "Agent Pro",
+        monthlyPrice: 299,
+        period: "/mo",
+        features: [
+            "Everything in Agent Standard",
+            "Anomaly detection signals",
+            "Lead-time scoring",
+            "Coordinated narrative flags",
+            "Bulk export",
+            "50,000 calls/day",
+        ],
+        cta: { plan: "agent_pro", label: "Get Agent Pro" },
         highlight: false,
     },
 ];
@@ -203,55 +235,75 @@ interface MatrixRow {
 export const MATRIX_ROWS: MatrixRow[] = [
     {
         label: "Pundit leaderboard (public)",
-        cells: { free: "✓", pro: "✓", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "✓", pro: "✓", api_starter: "✓", api_growth: "✓", agent_standard: "✓", agent_pro: "✓" },
     },
     {
         label: "Top-line accuracy scores",
-        cells: { free: "✓", pro: "✓", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "✓", pro: "✓", api_starter: "✓", api_growth: "✓", agent_standard: "✓", agent_pro: "✓" },
     },
     {
         label: "Full prediction history",
-        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓", agent_standard: "✓", agent_pro: "✓" },
     },
     {
         label: "6-axis Credit Score",
-        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓", agent_standard: "✓", agent_pro: "✓" },
     },
     {
         label: "Brier score + calibration",
-        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓", agent_standard: "✓", agent_pro: "✓" },
     },
     {
         label: "Prediction search & filter",
-        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓", agent_standard: "✓", agent_pro: "✓" },
     },
     {
         label: "CSV / JSON export",
-        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "—", pro: "✓", api_starter: "✓", api_growth: "✓", agent_standard: "—", agent_pro: "Bulk" },
     },
     {
         label: "API access",
-        cells: { free: "—", pro: "—", api_starter: "50k/mo", api_growth: "Unlimited" },
+        cells: { free: "—", pro: "—", api_starter: "50k/mo", api_growth: "Unlimited", agent_standard: "—", agent_pro: "—" },
     },
     {
         label: "Webhooks",
-        cells: { free: "—", pro: "—", api_starter: "✓", api_growth: "✓" },
+        cells: { free: "—", pro: "—", api_starter: "✓", api_growth: "✓", agent_standard: "—", agent_pro: "—" },
+    },
+    {
+        label: "MCP server (graph tools)",
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "—", agent_standard: "10k/day", agent_pro: "50k/day" },
+    },
+    {
+        label: "Semantic search + clusters",
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "—", agent_standard: "✓", agent_pro: "✓" },
+    },
+    {
+        label: "Anomaly detection signals",
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "—", agent_standard: "—", agent_pro: "✓" },
+    },
+    {
+        label: "Lead-time scoring",
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "—", agent_standard: "—", agent_pro: "✓" },
+    },
+    {
+        label: "Coordinated narrative flags",
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "—", agent_standard: "—", agent_pro: "✓" },
     },
     {
         label: "Custom pundit lists",
-        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "✓" },
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "✓", agent_standard: "—", agent_pro: "—" },
     },
     {
         label: "Team collaboration",
-        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "10 seats" },
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "10 seats", agent_standard: "—", agent_pro: "—" },
     },
     {
         label: "White-label embed",
-        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "✓" },
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "✓", agent_standard: "—", agent_pro: "—" },
     },
     {
         label: "Dedicated support",
-        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "✓" },
+        cells: { free: "—", pro: "—", api_starter: "—", api_growth: "✓", agent_standard: "—", agent_pro: "✓" },
     },
 ];
 
@@ -259,8 +311,8 @@ export const MATRIX_ROWS: MatrixRow[] = [
 // Quiz types and reducer
 // ---------------------------------------------------------------------------
 
-type UserType = "fan" | "fantasy" | "bettor" | "developer" | "organization";
-type CareAbout = "leaderboard" | "tracking" | "api" | "team";
+type UserType = "fan" | "fantasy" | "bettor" | "developer" | "organization" | "ai_builder";
+type CareAbout = "leaderboard" | "tracking" | "api" | "team" | "mcp";
 type ApiVolume = "low" | "mid" | "high";
 
 interface QuizState {
@@ -282,6 +334,10 @@ function computeRecommendation(
     careAbout: CareAbout,
     apiVolume: ApiVolume | null,
 ): TierKey {
+    if (careAbout === "mcp" || userType === "ai_builder") {
+        if (apiVolume === "high") return "agent_pro";
+        return "agent_standard";
+    }
     if (careAbout === "team" || userType === "organization") return "api_growth";
     if (careAbout === "api") {
         if (apiVolume === "high") return "api_growth";
@@ -298,7 +354,7 @@ function quizReducer(state: QuizState, action: QuizAction): QuizState {
             return { ...state, userType: action.payload, step: 2 };
         case "SET_CARE_ABOUT": {
             const careAbout = action.payload;
-            if (careAbout === "api") {
+            if (careAbout === "api" || careAbout === "mcp") {
                 return { ...state, careAbout, step: 3 };
             }
             const recommendation = computeRecommendation(state.userType!, careAbout, null);
@@ -402,6 +458,7 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
                             ["fantasy", "Fantasy player"],
                             ["bettor", "Bettor"],
                             ["developer", "Developer / Builder"],
+                            ["ai_builder", "AI / Agent Builder"],
                             ["organization", "Team / Organization"],
                         ] as [UserType, string][]
                     ).map(([value, label]) => (
@@ -429,6 +486,7 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
                                 ["leaderboard", "Browsing the leaderboard"],
                                 ["tracking", "Tracking specific pundits"],
                                 ["api", "API access"],
+                                ["mcp", "MCP / AI agent tools"],
                                 ["team", "Team workflows"],
                             ] as [CareAbout, string][]
                         ).map(([value, label]) => (
@@ -484,7 +542,7 @@ interface FeatureMatrixProps {
 }
 
 function FeatureMatrix({ annual, recommendedTier }: FeatureMatrixProps) {
-    const tierOrder: TierKey[] = ["free", "pro", "api_starter", "api_growth"];
+    const tierOrder: TierKey[] = ["free", "pro", "api_starter", "api_growth", "agent_standard", "agent_pro"];
 
     return (
         <div className="overflow-x-auto rounded-2xl border border-zinc-800">
@@ -621,7 +679,7 @@ export function PricingClient() {
             </div>
 
             {/* ── Card grid (existing, preserved) ── */}
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
                 {TIERS.map((tier) => {
                     const isRecommended = recommendedTier === tier.key;
                     return (

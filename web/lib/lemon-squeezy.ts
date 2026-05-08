@@ -46,10 +46,12 @@ export function tierFromVariantId(variantId: string | number | null | undefined)
     const id = String(variantId ?? "");
     if (id && id === process.env.LEMONSQUEEZY_PRO_VARIANT_ID) return "pro";
     if (id && id === process.env.LEMONSQUEEZY_AGENT_VARIANT_ID) return "agent";
+    if (id && id === process.env.LEMONSQUEEZY_AGENT_STANDARD_VARIANT_ID) return "agent_standard";
+    if (id && id === process.env.LEMONSQUEEZY_AGENT_PRO_VARIANT_ID) return "agent_pro";
     if (id) {
         console.warn(
             `[LemonSqueezy] Unknown variantId "${id}" — defaulting to "free". ` +
-                "Add the variant ID to LEMONSQUEEZY_PRO_VARIANT_ID / LEMONSQUEEZY_AGENT_VARIANT_ID."
+                "Add the variant ID to LEMONSQUEEZY_PRO_VARIANT_ID / LEMONSQUEEZY_AGENT_VARIANT_ID / LEMONSQUEEZY_AGENT_STANDARD_VARIANT_ID / LEMONSQUEEZY_AGENT_PRO_VARIANT_ID."
         );
     }
     return "free";

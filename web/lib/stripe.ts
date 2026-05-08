@@ -48,6 +48,8 @@ function buildPriceMap(): Record<string, Tier> {
     const entries: [string | undefined, Tier][] = [
         [process.env.STRIPE_PRICE_PRO, "pro"],
         [process.env.STRIPE_PRICE_API_STARTER, "api_starter"],
+        [process.env.STRIPE_PRICE_AGENT_STANDARD, "agent_standard"],
+        [process.env.STRIPE_PRICE_AGENT_PRO, "agent_pro"],
         [process.env.STRIPE_PRICE_ENTERPRISE, "enterprise"],
     ];
     for (const [priceId, tier] of entries) {
@@ -65,7 +67,7 @@ export function tierFromPriceId(priceId: string | null | undefined): Tier {
     // mapping can be fixed via env vars (never silently grant paid access).
     console.warn(
         `[Stripe] Unknown priceId "${priceId}" — defaulting to "free". ` +
-            "Add the price ID to STRIPE_PRICE_PRO / STRIPE_PRICE_API_STARTER / STRIPE_PRICE_ENTERPRISE."
+            "Add the price ID to STRIPE_PRICE_PRO / STRIPE_PRICE_API_STARTER / STRIPE_PRICE_AGENT_STANDARD / STRIPE_PRICE_AGENT_PRO / STRIPE_PRICE_ENTERPRISE."
     );
     return "free";
 }

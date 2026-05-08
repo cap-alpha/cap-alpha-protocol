@@ -10,6 +10,8 @@
  *   STRIPE_PRO_PRICE_ID
  *   STRIPE_API_STARTER_PRICE_ID
  *   STRIPE_API_GROWTH_PRICE_ID
+ *   STRIPE_PRICE_AGENT_STANDARD
+ *   STRIPE_PRICE_AGENT_PRO
  */
 
 import Stripe from "stripe";
@@ -50,6 +52,22 @@ const PRODUCTS: ProductSpec[] = [
             "High-volume REST API access. 100,000 requests/month plus priority support.",
         unitAmount: 49900, // $499/mo
         envVar: "STRIPE_API_GROWTH_PRICE_ID",
+    },
+    {
+        key: "agent_standard",
+        name: "CapAlpha Agent Standard",
+        description:
+            "MCP read-only graph tools: query claims, pundit profiles, entity relationships, semantic search, and cluster membership. 10,000 calls/day.",
+        unitAmount: 19900, // $199/mo
+        envVar: "STRIPE_PRICE_AGENT_STANDARD",
+    },
+    {
+        key: "agent_pro",
+        name: "CapAlpha Agent Pro",
+        description:
+            "Everything in Agent Standard plus anomaly detection signals, lead-time scoring, coordinated narrative flags, and bulk export. 50,000 calls/day.",
+        unitAmount: 29900, // $299/mo
+        envVar: "STRIPE_PRICE_AGENT_PRO",
     },
 ];
 

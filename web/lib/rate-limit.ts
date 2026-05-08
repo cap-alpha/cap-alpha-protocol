@@ -29,6 +29,8 @@ export const TIER_RATE_LIMITS: Record<Tier, number> = {
     agent: 10_000,
     api_starter: 10_000,
     api_growth: 100_000,
+    agent_standard: 10_000,  // 10,000 calls/day; burst ceiling per-minute
+    agent_pro: 50_000,       // 50,000 calls/day; burst ceiling per-minute
     enterprise: 1_000_000, // effectively unlimited
 };
 

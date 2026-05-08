@@ -7,10 +7,12 @@
  * POST /api/webhooks/lemon-squeezy.
  *
  * Required env vars:
- *   LEMONSQUEEZY_API_KEY          — LS API key
- *   LEMONSQUEEZY_STORE_ID         — numeric store ID from LS dashboard
- *   LEMONSQUEEZY_PRO_VARIANT_ID   — variant ID for the Pro plan
- *   LEMONSQUEEZY_AGENT_VARIANT_ID — variant ID for the Agent plan
+ *   LEMONSQUEEZY_API_KEY                      — LS API key
+ *   LEMONSQUEEZY_STORE_ID                     — numeric store ID from LS dashboard
+ *   LEMONSQUEEZY_PRO_VARIANT_ID               — variant ID for the Pro plan
+ *   LEMONSQUEEZY_AGENT_VARIANT_ID             — variant ID for the Agent plan
+ *   LEMONSQUEEZY_AGENT_STANDARD_VARIANT_ID    — variant ID for the Agent Standard plan ($199/mo)
+ *   LEMONSQUEEZY_AGENT_PRO_VARIANT_ID         — variant ID for the Agent Pro plan ($299/mo)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,6 +23,8 @@ import { createCheckout } from "@/lib/lemon-squeezy";
 const VARIANT_IDS: Record<string, string | undefined> = {
     pro: process.env.LEMONSQUEEZY_PRO_VARIANT_ID,
     agent: process.env.LEMONSQUEEZY_AGENT_VARIANT_ID,
+    agent_standard: process.env.LEMONSQUEEZY_AGENT_STANDARD_VARIANT_ID,
+    agent_pro: process.env.LEMONSQUEEZY_AGENT_PRO_VARIANT_ID,
 };
 
 export async function POST(req: NextRequest) {

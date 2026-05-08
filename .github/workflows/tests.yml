@@ -139,11 +139,14 @@ jobs:
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             BASE="${{ github.event.pull_request.base.sha }}"
             HEAD="${{ github.event.pull_request.head.sha }}"
-            git fetch origin "$BASE" --depth=1 2>/dev/null || true
+            # fetch-depth: 0 above already fetches full history; fetching BASE
+            # without --depth=1 ensures it's never grafted shallow, which would
+            # break the three-dot merge-base calculation below.
+            git fetch origin "$BASE" 2>/dev/null || true
             # Three-dot diff: compares from merge-base(BASE, HEAD) to HEAD, so only
             # files the PR itself changed are counted, not files that diverged from
             # main (e.g. new files added to main that aren't in a stale PR branch).
-            CHANGED=$(git diff --name-only "$BASE"..."$HEAD")
+            CHANGED=$(git diff --name-only "$BASE"..."$HEAD" 2>/dev/null || echo "")
           elif [[ "${{ github.event_name }}" == "merge_group" ]]; then
             BASE="${{ github.event.merge_group.base_sha }}"
             CHANGED=$(git diff --name-only "$BASE"...HEAD 2>/dev/null || echo "")

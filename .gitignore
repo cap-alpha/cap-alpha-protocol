@@ -67,6 +67,7 @@ node_modules/
 .npm-cache/
 web/.npm-cache/
 web/node_modules/
+web/node_modules  # no trailing slash — matches symlinks created by configure_agent_identity.sh
 web/.next/
 web/out/
 web/build/

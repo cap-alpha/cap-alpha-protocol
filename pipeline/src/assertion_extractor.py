@@ -497,6 +497,36 @@ PROMPT_VERSION = hashlib.sha256(EXTRACTION_PROMPT.encode("utf-8")).hexdigest()[:
 _NFL_DOMAIN = "nfl"
 
 
+def _sport_to_domain(sport: str) -> str:
+    """Map raw_pundit_media.sport to a domain template directory name.
+
+    Args:
+        sport: Value from raw_pundit_media.sport (e.g. "NFL", "politics", None).
+
+    Returns:
+        A domain key that maps to config/domains/<domain>/ templates.
+        Defaults to "nfl" for any unrecognised or empty sport value.
+    """
+    sport_lower = (sport or "").lower().strip()
+    if sport_lower in {"politics", "political"}:
+        return "politics"
+    if sport_lower in {"finance", "financial", "markets", "investing"}:
+        return "finance"
+    return _NFL_DOMAIN
+
+
+def _get_prompt_version_for_sport(sport: str) -> str:
+    """Return the Jinja-template-based prompt version for the domain derived from sport.
+
+    Falls back to the legacy PROMPT_VERSION if the templates are missing
+    (e.g. in unit tests that stub the filesystem or a new domain without templates yet).
+    """
+    try:
+        return get_prompt_version(_sport_to_domain(sport))
+    except Exception:
+        return PROMPT_VERSION
+
+
 def _get_nfl_prompt_version() -> str:
     """Return the Jinja-template-based prompt version for the NFL domain.
 
@@ -1045,7 +1075,7 @@ def extract_assertions(
     # (so existing unit tests that don't care about templates still pass).
     try:
         prompt, _tpl_version = render_extraction_prompt(
-            domain=_NFL_DOMAIN,
+            domain=_sport_to_domain(sport),
             sport=sport,
             published_date=published_date or "Unknown",
             source_name=source_name or "Unknown",
@@ -1882,7 +1912,9 @@ def run_extraction(
                         ),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
-                        prompt_version=_get_nfl_prompt_version(),
+                        prompt_version=_get_prompt_version_for_sport(
+                            str(row.get("sport", sport))
+                        ),
                         llm_provider=provider_type,
                         llm_model=str(llm_model) if llm_model else None,
                     )

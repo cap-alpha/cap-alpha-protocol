@@ -224,3 +224,181 @@ class TestRenderExtractionPrompt:
         assert "Patrick Mahomes" in rendered
         assert "Philadelphia Eagles" in rendered
         assert "Baltimore Ravens" in rendered
+
+
+# ---------------------------------------------------------------------------
+# Tests for _sport_to_domain (Issue #683 — domain routing)
+# ---------------------------------------------------------------------------
+
+
+class TestSportToDomain:
+    """Unit tests for the _sport_to_domain helper in assertion_extractor."""
+
+    def _fn(self):
+        from src.assertion_extractor import _sport_to_domain
+
+        return _sport_to_domain
+
+    def test_politics_maps_to_politics(self):
+        fn = self._fn()
+        assert fn("politics") == "politics"
+
+    def test_politics_case_insensitive(self):
+        fn = self._fn()
+        assert fn("Politics") == "politics"
+        assert fn("POLITICS") == "politics"
+
+    def test_politics_with_whitespace(self):
+        fn = self._fn()
+        assert fn("  politics  ") == "politics"
+
+    def test_finance_maps_to_finance(self):
+        fn = self._fn()
+        assert fn("finance") == "finance"
+
+    def test_finance_aliases_map_to_finance(self):
+        fn = self._fn()
+        assert fn("financial") == "finance"
+        assert fn("markets") == "finance"
+        assert fn("investing") == "finance"
+
+    def test_finance_case_insensitive(self):
+        fn = self._fn()
+        assert fn("Finance") == "finance"
+        assert fn("FINANCE") == "finance"
+        assert fn("MARKETS") == "finance"
+
+    def test_nfl_uppercase_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("NFL") == "nfl"
+
+    def test_nfl_lowercase_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("nfl") == "nfl"
+
+    def test_empty_string_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("") == "nfl"
+
+    def test_none_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn(None) == "nfl"
+
+    def test_unknown_sport_maps_to_nfl(self):
+        fn = self._fn()
+        assert fn("baseball") == "nfl"
+        assert fn("basketball") == "nfl"
+
+
+# ---------------------------------------------------------------------------
+# Tests for finance domain template rendering (Issue #683)
+# ---------------------------------------------------------------------------
+
+
+FINANCE_CLAIM_CATEGORIES = [
+    "earnings_prediction",
+    "price_target",
+    "rate_decision",
+    "merger_acquisition",
+    "macro_indicator",
+    "sector_call",
+]
+
+
+class TestFinanceDomainRender:
+    def test_finance_render_returns_string(self):
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, version = render_extraction_prompt(
+            domain="finance",
+            sport="finance",
+            published_date="2025-09-01",
+            source_name="CNBC",
+            author="Jim Cramer",
+            title="Mad Money",
+            text="Apple will beat EPS estimates this quarter.",
+        )
+        assert isinstance(rendered, str)
+        assert len(rendered) > 100
+
+    def test_finance_render_contains_required_fields(self):
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, _ = render_extraction_prompt(
+            domain="finance",
+            sport="finance",
+            published_date="2025-09-01",
+            source_name="CNBC",
+            author="Jim Cramer",
+            title="Mad Money",
+            text="The Fed will cut rates.",
+        )
+        for field in REQUIRED_FIELDS:
+            assert field in rendered, (
+                f"Required field {field!r} missing from rendered finance prompt"
+            )
+
+    def test_finance_render_contains_all_claim_categories(self):
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, _ = render_extraction_prompt(
+            domain="finance",
+            sport="finance",
+            published_date="2025-09-01",
+            source_name="CNBC",
+            author="A",
+            title="T",
+            text="test",
+        )
+        for cat in FINANCE_CLAIM_CATEGORIES:
+            assert cat in rendered, (
+                f"Claim category {cat!r} missing from rendered finance prompt"
+            )
+
+    def test_finance_render_contains_domain_guidance(self):
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, _ = render_extraction_prompt(
+            domain="finance",
+            sport="finance",
+            published_date="2025-09-01",
+            source_name="Bloomberg",
+            author="A",
+            title="T",
+            text="test",
+        )
+        assert "financial pundit" in rendered
+        assert "target_team = null" in rendered
+
+    def test_finance_render_contains_examples(self):
+        from src.prompt_renderer import render_extraction_prompt
+
+        rendered, _ = render_extraction_prompt(
+            domain="finance",
+            sport="finance",
+            published_date="2025-09-01",
+            source_name="CNBC",
+            author="A",
+            title="T",
+            text="test",
+        )
+        # Key entities from finance examples
+        assert "Apple" in rendered
+        assert "Bitcoin" in rendered
+        assert "Federal Reserve" in rendered
+
+    def test_finance_version_is_deterministic(self):
+        from src.prompt_renderer import get_prompt_version
+
+        v1 = get_prompt_version("finance")
+        v2 = get_prompt_version("finance")
+        assert v1 == v2
+
+    def test_finance_version_differs_from_nfl_version(self):
+        from src.prompt_renderer import get_prompt_version
+
+        nfl_v = get_prompt_version("nfl")
+        fin_v = get_prompt_version("finance")
+        assert nfl_v != fin_v, (
+            "Finance and NFL domains must have distinct prompt versions"
+        )

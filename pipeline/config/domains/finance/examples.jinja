@@ -1,0 +1,185 @@
+--- FEW-SHOT EXAMPLES ---
+
+Example 1 — earnings_prediction (PROMOTED to ledger):
+Input: "Apple will beat Wall Street's EPS consensus of $1.85 in the September quarter."
+Output:
+{
+  "text": "Apple will beat Wall Street's EPS consensus of $1.85 in the September quarter.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.9, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2024-11-01T23:59:59Z",
+  "predicate": "will_beat_consensus",
+  "subject": "Apple",
+  "predicate_args": {"metric": "EPS", "consensus": 1.85, "direction": "beat", "ticker": "AAPL", "quarter": "Q4 FY2024"},
+  "extracted_claim": "Apple will beat EPS consensus of $1.85 in Q4 FY2024",
+  "claim_category": "earnings_prediction",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific ticker, metric, numeric threshold, and quarter",
+  "prediction_horizon_days": 45,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Apple Q4 FY2024 EPS reported above $1.85 by a major financial data source",
+  "hedge_level": "strong"
+}
+
+Example 2 — price_target (PROMOTED to ledger):
+Input: "Bitcoin will hit $100,000 before the end of 2024."
+Output:
+{
+  "text": "Bitcoin will hit $100,000 before the end of 2024.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 1.0,
+  "resolution_horizon": "2024-12-31T23:59:59Z",
+  "predicate": "will_reach_price",
+  "subject": "Bitcoin",
+  "predicate_args": {"price": 100000.0, "currency": "USD", "direction": "above", "ticker": "BTC"},
+  "extracted_claim": "Bitcoin will trade above $100,000 before 2025",
+  "claim_category": "price_target",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific asset, exact price threshold, explicit year-end deadline",
+  "prediction_horizon_days": 90,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "BTC/USD spot price reaches or exceeds $100,000 on any major exchange before 2025-01-01",
+  "hedge_level": "strong"
+}
+
+Example 3 — rate_decision (PROMOTED to ledger):
+Input: "The Fed will cut rates by 25 basis points at the September meeting."
+Output:
+{
+  "text": "The Fed will cut rates by 25 basis points at the September meeting.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 1.0,
+  "resolution_horizon": "2024-09-30T23:59:59Z",
+  "predicate": "will_cut_rates",
+  "subject": "Federal Reserve",
+  "predicate_args": {"institution": "Fed", "action": "cut", "by_bps": 25},
+  "extracted_claim": "Fed will cut rates by 25bps at September 2024 FOMC meeting",
+  "claim_category": "rate_decision",
+  "stance": "bearish",
+  "season_year": 2024,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "named institution, specific action, exact magnitude, and meeting date",
+  "prediction_horizon_days": 60,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Fed publishes a 25bps rate cut decision at the September 2024 FOMC meeting",
+  "hedge_level": "strong"
+}
+
+Example 4 — merger_acquisition (PROMOTED to ledger):
+Input: "I think Microsoft will complete the Activision acquisition by the end of Q2."
+Output:
+{
+  "text": "I think Microsoft will complete the Activision acquisition by the end of Q2.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.9, "resolution_horizon_defined": 0.9, "evidence_accessibility": 1.0},
+  "testability_score": 0.96,
+  "resolution_horizon": "2024-06-30T23:59:59Z",
+  "predicate": "will_complete_acquisition",
+  "subject": "Microsoft",
+  "predicate_args": {"acquirer": "Microsoft", "target": "Activision", "ticker_acquirer": "MSFT", "ticker_target": "ATVI", "deadline": "Q2 2024"},
+  "extracted_claim": "Microsoft will complete Activision acquisition by end of Q2 2024",
+  "claim_category": "merger_acquisition",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "named companies, specific transaction, Q2 deadline",
+  "prediction_horizon_days": 90,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Microsoft and Activision announce deal close by 2024-06-30 per SEC filing or major outlet",
+  "hedge_level": "moderate"
+}
+
+Example 5 — macro_indicator (PROMOTED to ledger):
+Input: "US inflation will fall below 3% by the end of this year."
+Output:
+{
+  "text": "US inflation will fall below 3% by the end of this year.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 0.9, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2024-12-31T23:59:59Z",
+  "predicate": "will_fall_below",
+  "subject": "US CPI inflation",
+  "predicate_args": {"metric": "CPI YoY", "threshold": 3.0, "direction": "below", "unit": "percent"},
+  "extracted_claim": "US CPI inflation will fall below 3% by end of 2024",
+  "claim_category": "macro_indicator",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific metric, numeric threshold, year-end deadline",
+  "prediction_horizon_days": 180,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "US BLS CPI YoY reading falls below 3.0% in any month-end report by December 2024",
+  "hedge_level": "strong"
+}
+
+Example 6 — sector_call (PROMOTED to ledger):
+Input: "Energy stocks will outperform the broader market through the rest of the year."
+Output:
+{
+  "text": "Energy stocks will outperform the broader market through the rest of the year.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 0.8, "predicate_falsifiability": 0.9, "threshold_concreteness": 0.6, "resolution_horizon_defined": 0.8, "evidence_accessibility": 0.9},
+  "testability_score": 0.80,
+  "resolution_horizon": "2024-12-31T23:59:59Z",
+  "predicate": "will_outperform",
+  "subject": "Energy sector",
+  "predicate_args": {"sector": "Energy", "benchmark": "S&P 500", "direction": "outperform"},
+  "extracted_claim": "Energy sector will outperform S&P 500 by year-end 2024",
+  "claim_category": "sector_call",
+  "stance": "bullish",
+  "season_year": 2024,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "sector named, benchmark implied by 'broader market', year-end horizon",
+  "prediction_horizon_days": 120,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "XLE or comparable energy ETF total return exceeds SPY total return by 2024-12-31",
+  "hedge_level": "moderate"
+}
+
+Example 7 — Calibration: vague market commentary scores ~0.2 (NOT promoted):
+Input: "The market looks really overvalued right now."
+Output:
+{
+  "text": "The market looks really overvalued right now.",
+  "speech_act_type": "opinion",
+  "testability_subscores": {"subject_specificity": 0.5, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.3},
+  "testability_score": 0.18,
+  "resolution_horizon": null,
+  "predicate": "",
+  "subject": "stock market",
+  "predicate_args": {},
+  "extracted_claim": "",
+  "claim_category": "sector_call",
+  "stance": "bearish",
+  "season_year": null,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "vague — no threshold, no instrument specified, no time horizon",
+  "prediction_horizon_days": -1,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "",
+  "hedge_level": "strong"
+}
+
+--- END EXAMPLES ---

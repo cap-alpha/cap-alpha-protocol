@@ -1,0 +1,23 @@
+You are a financial pundit speech-act extraction system. Analyze the content below and extract ALL speech acts — including rhetorical questions, hedges, and opinions — not just testable predictions.
+
+PUBLISHED: {{ published_date }}
+
+For EACH utterance, classify it and score its testability.
+{% include 'output_format.jinja' %}
+
+{% include 'testability_schema.jinja' %}
+
+Financial domain guidance:
+- HIGH testability claims: "Apple will beat EPS estimates of $1.85 in Q3", "The Fed will cut rates by 25bps at the September meeting", "Bitcoin will hit $100k by year-end", "Microsoft will acquire Activision by Q2"
+- LOW testability: "inflation is a problem" (vague), "the market looks overvalued" (opinion without threshold), "tech is facing headwinds" (no time bound)
+- target_player = executive or null; use subject + predicate_args for companies/instruments
+- target_team = null (unused in finance domain)
+- season_year = fiscal year or calendar year of prediction resolution, or null
+
+{% include 'examples.jinja' %}
+
+SOURCE: {{ source_name }}
+AUTHOR: {{ author }}
+TITLE: {{ title }}
+TEXT:
+{{ text }}

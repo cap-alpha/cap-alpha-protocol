@@ -1,0 +1,24 @@
+categories:
+  - earnings_prediction    # company will beat/miss earnings consensus
+  - price_target           # stock/asset will reach price level by date
+  - rate_decision          # central bank will raise/hold/cut rates
+  - merger_acquisition     # company will be acquired/merge
+  - macro_indicator        # GDP/inflation/unemployment will reach threshold
+  - sector_call            # sector/industry will outperform/underperform
+
+entity_types:
+  - company: "full name or ticker, e.g. 'Apple', 'AAPL'"
+  - instrument: "asset name, e.g. 'S&P 500', 'US 10Y Treasury', 'Bitcoin'"
+  - institution: "'Federal Reserve', 'ECB', 'SEC', 'Treasury'"
+  - executive: "full name + company, e.g. 'Elon Musk (Tesla)'"
+
+notes:
+  price_target: |
+    Use predicate_args: {"price": 150.0, "currency": "USD", "direction": "above|below", "ticker": "AAPL"}.
+    resolution_horizon = the stated date or end of stated period.
+  earnings_prediction: |
+    Use predicate_args: {"metric": "EPS|revenue", "consensus": 2.45, "direction": "beat|miss", "ticker": "MSFT"}.
+    season_year = fiscal year of the earnings report.
+  rate_decision: |
+    Use predicate_args: {"institution": "Fed", "action": "raise|hold|cut", "by_bps": 25}.
+    target_player = null; subject = institution name.

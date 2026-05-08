@@ -150,6 +150,13 @@ make test-e2e
 - Inform the user what you're doing, then do it. Don't wait for permission on routine work.
 - Prefer small, focused PRs. One concern per commit.
 
+### One-concern-per-PR rule
+**Every PR must address exactly one logical change.** A PR may touch multiple files but must be about a single coherent fix or feature.
+
+- If you discover a second bug while fixing the first, open a new issue and a separate PR — never fold it in.
+- Bundled PRs make reverts exponentially harder: reverting C4 should not undo C3, M7, and M8.
+- The PR template has a required checkbox enforcing this; fill it out before opening.
+
 ### Decision authority — what to do without asking
 - **Code changes**: refactor, fix bugs, add features described in an issue — just do it.
 - **File creation/deletion**: create new modules, tests, migrations as needed.

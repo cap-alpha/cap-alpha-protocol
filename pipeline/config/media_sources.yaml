@@ -291,6 +291,106 @@ sources:
       name: "Yahoo Sports Staff"
     pundits: []
 
+# ── Finance / Financial Pundit Feeds ─────────────────────────────────────
+  - id: ritholtz_big_picture
+    name: "The Big Picture (Barry Ritholtz)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://ritholtz.com/feed/"
+    enabled: true
+    priority_tier: 1
+    default_pundit:
+      id: barry_ritholtz
+      name: "Barry Ritholtz"
+    pundits:
+      - id: barry_ritholtz
+        name: "Barry Ritholtz"
+        match_authors: ["Barry Ritholtz", "brinholtz", "ritholtz"]
+
+  - id: abnormal_returns
+    name: "Abnormal Returns (Tadas Viskanta)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://abnormalreturns.com/feed/"
+    enabled: true
+    priority_tier: 1
+    default_pundit:
+      id: tadas_viskanta
+      name: "Tadas Viskanta"
+    pundits:
+      - id: tadas_viskanta
+        name: "Tadas Viskanta"
+        match_authors: ["Tadas Viskanta", "viskanta", "abnormalreturns"]
+
+  - id: calculated_risk
+    name: "Calculated Risk (Bill McBride)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://calculatedrisk.blogspot.com/feeds/posts/default"
+    enabled: true
+    priority_tier: 1
+    default_pundit:
+      id: bill_mcbride
+      name: "Bill McBride"
+    pundits:
+      - id: bill_mcbride
+        name: "Bill McBride"
+        match_authors: ["Bill McBride", "CalculatedRisk", "calculatedrisk"]
+
+  - id: noahpinion
+    name: "Noahpinion (Noah Smith)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.noahpinion.blog/feed"
+    enabled: true
+    priority_tier: 2
+    default_pundit:
+      id: noah_smith
+      name: "Noah Smith"
+    pundits:
+      - id: noah_smith
+        name: "Noah Smith"
+        match_authors: ["Noah Smith", "noahsmith", "Noahpinion"]
+
+  - id: reformed_broker
+    name: "The Reformed Broker (Josh Brown)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://thereformedbroker.com/feed/"
+    enabled: true
+    priority_tier: 2
+    default_pundit:
+      id: josh_brown
+      name: "Josh Brown"
+    pundits:
+      - id: josh_brown
+        name: "Josh Brown"
+        match_authors: ["Josh Brown", "joshbrown", "Reformed Broker"]
+
+  - id: marginal_revolution
+    name: "Marginal Revolution (Tyler Cowen)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://marginalrevolution.com/feed"
+    enabled: true
+    priority_tier: 2
+    default_pundit:
+      id: tyler_cowen
+      name: "Tyler Cowen"
+    pundits:
+      - id: tyler_cowen
+        name: "Tyler Cowen"
+        match_authors: ["Tyler Cowen", "tylercowen", "Cowen"]
+      - id: alex_tabarrok
+        name: "Alex Tabarrok"
+        match_authors: ["Alex Tabarrok", "tabarrok"]
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

@@ -58,6 +58,26 @@ else
     echo "Proceeding without tests — CI will catch failures."
 fi
 
+echo "=== Pre-commit: TypeScript type check ==="
+
+# Run tsc --noEmit when any web/ file is staged to catch type errors before CI.
+CHANGED=$(git diff --cached --name-only)
+if echo "$CHANGED" | grep -q "^web/"; then
+    # Resolve web/ directory relative to the main repo root so this works in worktrees.
+    WEB_DIR="$MAIN_REPO/web"
+    if [ -d "$WEB_DIR/node_modules" ]; then
+        echo "web/ files staged — running tsc --noEmit..."
+        (cd "$WEB_DIR" && npx --no-install tsc --noEmit) || {
+            echo ""
+            echo "TypeScript errors found. Fix them before committing."
+            echo "Run: cd web && npx tsc --noEmit"
+            exit 1
+        }
+    else
+        echo "Warning: web/node_modules not found — skipping tsc. Run: cd web && npm ci"
+    fi
+fi
+
 echo "=== Pre-commit: CODEBASE.md staleness check ==="
 
 # Warn (don't block) if structural files changed but CODEBASE.md wasn't touched.

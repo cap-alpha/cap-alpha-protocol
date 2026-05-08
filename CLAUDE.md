@@ -143,6 +143,11 @@ make up
 make test-e2e
 ```
 
+### Frontend shipping checklist
+Before committing any `web/` changes:
+1. Run `cd web && npx tsc --noEmit` — fix all reported errors before pushing.
+2. This is also enforced by the pre-commit hook (`.githooks/pre-commit`) and by CI (`frontend_preflight.yml`). All three layers catch the same errors; the local check saves a ~5-minute CI round-trip.
+
 ## Working style
 
 ### Autonomy defaults

@@ -84,8 +84,17 @@ const staticRoutes: MetadataRoute.Sitemap = [
 
 async function getPunditRoutes(): Promise<MetadataRoute.Sitemap> {
     try {
+        const internalApiKey = process.env.CAP_ALPHA_INTERNAL_API_KEY;
+        const headers: Record<string, string> = { Accept: "application/json" };
+        if (internalApiKey) {
+            headers["x-api-key"] = internalApiKey;
+        } else {
+            console.warn(
+                "[sitemap] CAP_ALPHA_INTERNAL_API_KEY is not set — pundits fetch may return 401"
+            );
+        }
         const res = await fetch(`${API_URL}/v1/pundits/`, {
-            headers: { Accept: "application/json" },
+            headers,
             // next.js fetch cache options
             next: { revalidate: 86400 },
         });

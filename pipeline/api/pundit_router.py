@@ -176,7 +176,9 @@ def leaderboard(
     Accepts ?min_quality=0.7 to restrict to high-quality predictions only.
     """
     try:
-        df = get_pundit_accuracy_summary(db=db, min_quality=min_quality)
+        df = get_pundit_accuracy_summary(
+            db=db, min_quality=min_quality, min_resolved_claims=5, published_only=True
+        )
         if df.empty:
             return {"leaderboard": [], "total": 0}
 
@@ -226,7 +228,9 @@ def list_pundits(
     Accepts ?min_quality=0.7 to compute stats using only high-quality predictions.
     """
     try:
-        df = get_pundit_accuracy_summary(db=db, min_quality=min_quality)
+        df = get_pundit_accuracy_summary(
+            db=db, min_quality=min_quality, min_resolved_claims=5, published_only=True
+        )
 
         # Left-join calibration metrics (brier_score, overconfidence_score)
         try:
@@ -290,7 +294,9 @@ def pundit_detail(
         params = [ScalarQueryParameter("pundit_id", "STRING", pundit_id)]
         breakdown_df = _parameterized_query(db, query, params)
 
-        summary_df = get_pundit_accuracy_summary(db=db)
+        # Individual pundit detail bypasses the global 5-claim gate so we can
+        # still return raw counts; the 404 check below handles the "not found" case.
+        summary_df = get_pundit_accuracy_summary(db=db, min_resolved_claims=0)
         pundit_row = summary_df[summary_df["pundit_id"] == pundit_id]
         if pundit_row.empty:
             raise HTTPException(

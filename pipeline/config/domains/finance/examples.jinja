@@ -1,0 +1,211 @@
+--- FEW-SHOT EXAMPLES ---
+
+Example 1 — earnings_prediction (PROMOTED to ledger):
+Input: "Microsoft will beat EPS estimates of $2.93 in Q3 FY2026."
+Output:
+{
+  "text": "Microsoft will beat EPS estimates of $2.93 in Q3 FY2026.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.99,
+  "resolution_horizon": "2026-04-30T23:59:59Z",
+  "predicate": "will_beat",
+  "subject": "Microsoft",
+  "predicate_args": {"metric": "EPS", "consensus": 2.93, "direction": "beat", "ticker": "MSFT"},
+  "extracted_claim": "Microsoft will beat EPS consensus of $2.93 in Q3 FY2026",
+  "claim_category": "earnings_prediction",
+  "stance": "bullish",
+  "season_year": 2026,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific ticker, metric, consensus figure, and quarter",
+  "prediction_horizon_days": 90,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Microsoft Q3 FY2026 reported EPS exceeds $2.93 per share",
+  "hedge_level": "strong"
+}
+
+Example 2 — price_target (PROMOTED to ledger):
+Input: "Nvidia will trade above $200 before the end of 2026."
+Output:
+{
+  "text": "Nvidia will trade above $200 before the end of 2026.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.99,
+  "resolution_horizon": "2026-12-31T23:59:59Z",
+  "predicate": "will_trade_above",
+  "subject": "Nvidia",
+  "predicate_args": {"price": 200.0, "currency": "USD", "direction": "above", "ticker": "NVDA"},
+  "extracted_claim": "Nvidia (NVDA) will trade above $200 before end of 2026",
+  "claim_category": "price_target",
+  "stance": "bullish",
+  "season_year": 2026,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific ticker, price threshold, and deadline",
+  "prediction_horizon_days": 238,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "NVDA closing price exceeds $200.00 on any trading day before 2026-12-31",
+  "hedge_level": "strong"
+}
+
+Example 3 — rate_decision (PROMOTED to ledger):
+Input: "The Fed will cut rates by 25 basis points at the September 2026 meeting."
+Output:
+{
+  "text": "The Fed will cut rates by 25 basis points at the September 2026 meeting.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.99,
+  "resolution_horizon": "2026-09-30T23:59:59Z",
+  "predicate": "will_cut",
+  "subject": "Federal Reserve",
+  "predicate_args": {"institution": "Fed", "action": "cut", "by_bps": 25},
+  "extracted_claim": "Federal Reserve will cut rates by 25bps at September 2026 FOMC meeting",
+  "claim_category": "rate_decision",
+  "stance": "dovish",
+  "season_year": 2026,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific institution, action, magnitude, and meeting date",
+  "prediction_horizon_days": 145,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "FOMC announces 25bps rate cut at its September 2026 scheduled meeting",
+  "hedge_level": "strong"
+}
+
+Example 4 — merger_acquisition (PROMOTED to ledger):
+Input: "Google will acquire Anthropic by the end of Q1 2027."
+Output:
+{
+  "text": "Google will acquire Anthropic by the end of Q1 2027.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.9, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2027-03-31T23:59:59Z",
+  "predicate": "will_acquire",
+  "subject": "Google",
+  "predicate_args": {"acquirer": "Google", "target": "Anthropic", "deal_type": "acquisition"},
+  "extracted_claim": "Google will acquire Anthropic by end of Q1 2027",
+  "claim_category": "merger_acquisition",
+  "stance": "bullish",
+  "season_year": 2027,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "named acquirer, named target, and quarter deadline",
+  "prediction_horizon_days": 329,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Acquisition of Anthropic by Google announced and closed before 2027-03-31",
+  "hedge_level": "strong"
+}
+
+Example 5 — product_launch (PROMOTED to ledger):
+Input: "Apple will ship the Vision Pro 2 before WWDC 2026."
+Output:
+{
+  "text": "Apple will ship the Vision Pro 2 before WWDC 2026.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.9, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2026-06-10T23:59:59Z",
+  "predicate": "will_ship",
+  "subject": "Apple",
+  "predicate_args": {"product": "Vision Pro 2", "company": "Apple", "milestone": "ship", "deadline": "WWDC 2026"},
+  "extracted_claim": "Apple will ship Vision Pro 2 before WWDC 2026",
+  "claim_category": "product_launch",
+  "stance": "bullish",
+  "season_year": 2026,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific product, company, and deadline",
+  "prediction_horizon_days": 60,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Apple publicly ships or begins consumer sales of Vision Pro 2 before June 10, 2026",
+  "hedge_level": "strong"
+}
+
+Example 6 — leadership_change (PROMOTED to ledger):
+Input: "Sam Altman will step down as CEO of OpenAI before the end of Q3 2026."
+Output:
+{
+  "text": "Sam Altman will step down as CEO of OpenAI before the end of Q3 2026.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 0.9, "resolution_horizon_defined": 1.0, "evidence_accessibility": 1.0},
+  "testability_score": 0.98,
+  "resolution_horizon": "2026-09-30T23:59:59Z",
+  "predicate": "will_step_down",
+  "subject": "Sam Altman",
+  "predicate_args": {"executive": "CEO", "company": "OpenAI", "change": "resign"},
+  "extracted_claim": "Sam Altman will step down as OpenAI CEO before end of Q3 2026",
+  "claim_category": "leadership_change",
+  "stance": "bearish",
+  "season_year": 2026,
+  "target_player": "Sam Altman",
+  "target_team": null,
+  "confidence_note": "named executive, named company, specific role, and quarter deadline",
+  "prediction_horizon_days": 146,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "Sam Altman publicly departs or is replaced as CEO of OpenAI before 2026-09-30",
+  "hedge_level": "strong"
+}
+
+Example 7 — market_share (PROMOTED to ledger):
+Input: "Android will surpass 80% global smartphone market share by end of 2026."
+Output:
+{
+  "text": "Android will surpass 80% global smartphone market share by end of 2026.",
+  "speech_act_type": "assertion",
+  "testability_subscores": {"subject_specificity": 1.0, "predicate_falsifiability": 1.0, "threshold_concreteness": 1.0, "resolution_horizon_defined": 1.0, "evidence_accessibility": 0.9},
+  "testability_score": 0.98,
+  "resolution_horizon": "2026-12-31T23:59:59Z",
+  "predicate": "will_surpass",
+  "subject": "Android",
+  "predicate_args": {"metric": "market_share", "threshold": 80.0, "unit": "percent", "segment": "global smartphone"},
+  "extracted_claim": "Android will surpass 80% global smartphone market share by end of 2026",
+  "claim_category": "market_share",
+  "stance": "bullish",
+  "season_year": 2026,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "specific platform, numeric threshold, market segment, and year deadline",
+  "prediction_horizon_days": 238,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "A major industry tracker (IDC, Gartner, Counterpoint) reports Android at >80% global smartphone market share for any quarter in 2026",
+  "hedge_level": "strong"
+}
+
+Example 8 — Calibration: vague market commentary scores ~0.2 (NOT 0.0 or 1.0):
+Input: "Tech is facing serious headwinds right now."
+Output:
+{
+  "text": "Tech is facing serious headwinds right now.",
+  "speech_act_type": "opinion",
+  "testability_subscores": {"subject_specificity": 0.4, "predicate_falsifiability": 0.1, "threshold_concreteness": 0.0, "resolution_horizon_defined": 0.0, "evidence_accessibility": 0.2},
+  "testability_score": 0.14,
+  "resolution_horizon": null,
+  "predicate": "",
+  "subject": "tech sector",
+  "predicate_args": {},
+  "extracted_claim": "",
+  "claim_category": "sector_call",
+  "stance": "bearish",
+  "season_year": null,
+  "target_player": null,
+  "target_team": null,
+  "confidence_note": "vague — no company, no metric, no time bound, no threshold",
+  "prediction_horizon_days": -1,
+  "speech_act": "authored",
+  "originating_speaker": null,
+  "resolution_condition": "",
+  "hedge_level": "strong"
+}
+
+--- END EXAMPLES ---

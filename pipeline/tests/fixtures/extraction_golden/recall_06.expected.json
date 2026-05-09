@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "recall",
+  "testability_score_expected": 0.65,
+  "claim_count_expected": 1,
+  "notes": "Speaker recalls an earlier prediction and reaffirms it \u2014 receiving yard leader verifiable"
+}

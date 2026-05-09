@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "recall",
+  "testability_score_expected": 0.66,
+  "claim_count_expected": 1,
+  "notes": "Recall with numeric benchmark and current pace update \u2014 highly specific recall"
+}

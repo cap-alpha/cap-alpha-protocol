@@ -148,8 +148,8 @@ class TestExtractorGolden:
 
     def test_fixture_count(self):
         fixtures = _load_fixtures()
-        assert len(fixtures) >= 30, (
-            f"Expected >= 30 golden fixtures, got {len(fixtures)}"
+        assert len(fixtures) >= 50, (
+            f"Expected >= 50 golden fixtures, got {len(fixtures)}"
         )
 
     def test_fixture_coverage_per_type(self):
@@ -169,8 +169,8 @@ class TestExtractorGolden:
         )
         for sat in required_types:
             count = type_counts.get(sat, 0)
-            assert count >= 5, (
-                f"Need >= 5 fixtures for speech_act_type={sat!r}, got {count}"
+            assert count >= 10, (
+                f"Need >= 10 fixtures for speech_act_type={sat!r}, got {count}"
             )
 
     def test_fixture_schema(self):

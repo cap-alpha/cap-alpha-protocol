@@ -291,6 +291,185 @@ sources:
       name: "Yahoo Sports Staff"
     pundits: []
 
+
+  # ── NFL Network / Analyst Feeds (issue #824 — corpus expansion) ─────────────
+  # NFL Network insider reporters with high-density trade/signing/draft predictions
+  - id: nfl_network_insiders
+    name: "NFL Network Insiders"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.nfl.com/rss/rsslanding?searchString=news"
+    enabled: false  # TODO: verify feed returns insider content, not general news
+    priority_tier: 1  # Tier 1: insider reporters (Rapoport, Pelissero, Garafolo) — high claim density
+    keyword_filter:
+      - "trade"
+      - "sign"
+      - "draft"
+      - "contract"
+      - "free agent"
+      - "cut"
+      - "release"
+      - "deal"
+    pundits:
+      - id: ian_rapoport
+        name: "Ian Rapoport"
+        match_authors: ["Ian Rapoport", "Rapoport", "RapSheet"]
+      - id: tom_pelissero
+        name: "Tom Pelissero"
+        match_authors: ["Tom Pelissero", "Pelissero"]
+      - id: mike_garafolo
+        name: "Mike Garafolo"
+        match_authors: ["Mike Garafolo", "Garafolo"]
+      - id: james_palmer
+        name: "James Palmer"
+        match_authors: ["James Palmer"]
+      - id: kyle_brandt
+        name: "Kyle Brandt"
+        match_authors: ["Kyle Brandt", "Brandt"]
+
+  # Football Morning in America — Pete King's weekly long-form analysis
+  # High prediction density: draft grades, free-agent assessments, SB picks
+  - id: pete_king_fmia
+    name: "Football Morning in America (Pete King)"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.nbcsports.com/nfl/profootballtalk/fmia/rss"
+    enabled: false  # TODO: verify FMIA-specific feed URL (may require scraping FMIA tag)
+    priority_tier: 1  # Tier 1: long-form weekly column with dense predictions
+    pundits:
+      - id: pete_king
+        name: "Pete King"
+        match_authors: ["Pete King", "PeteKing"]
+
+  # Bleacher Report NFL — high-volume pundit opinions and power rankings
+  - id: bleacher_report_nfl
+    name: "Bleacher Report NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://bleacherreport.com/articles/feed?tag_id=16"
+    enabled: false  # TODO: verify Bleacher Report NFL feed still active
+    priority_tier: 2  # Tier 2: opinion-heavy; good for claim volume but variable quality
+    default_pundit:
+      id: br_nfl_staff
+      name: "Bleacher Report NFL Staff"
+    pundits:
+      - id: mike_freeman_br
+        name: "Mike Freeman"
+        match_authors: ["Mike Freeman"]
+      - id: brad_gagnon
+        name: "Brad Gagnon"
+        match_authors: ["Brad Gagnon"]
+
+  # Good Morning Football (YouTube) — daily NFL debate/analysis show on NFL Network
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: good_morning_football
+    name: "Good Morning Football"
+    sport: "NFL"
+    type: youtube_transcript
+    # NFL Network YouTube channel — filter GMFB episodes by title keyword
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCUgkjUEMZwIrRh6ETjSqNKA"
+    enabled: false  # TODO: verify channel_id for NFL Network / GMFB
+    priority_tier: 1  # Tier 1: daily studio show with dense first-person predictions
+    keyword_filter:
+      - "good morning football"
+      - "GMFB"
+    pundits:
+      - id: kyle_brandt
+        name: "Kyle Brandt"
+        match_authors: ["Kyle Brandt", "Brandt"]
+      - id: peter_schrager
+        name: "Peter Schrager"
+        match_authors: ["Peter Schrager", "Schrager"]
+      - id: nate_burleson
+        name: "Nate Burleson"
+        match_authors: ["Nate Burleson"]
+
+  # Around the NFL Podcast — official NFL podcast with weekly predictions
+  # Episodes published as YouTube videos; transcripts via yt-dlp
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: around_the_nfl_podcast
+    name: "Around the NFL Podcast"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCBR8-60-B28hp2BmDPdntcQ"
+    enabled: false  # TODO: confirm this is the correct channel for ATN podcast episodes
+    priority_tier: 1  # Tier 1: dedicated prediction/analysis podcast; dense testable claims
+    pundits:
+      - id: marc_sessler
+        name: "Marc Sessler"
+        match_authors: ["Marc Sessler", "Sessler"]
+      - id: gregg_rosenthal
+        name: "Gregg Rosenthal"
+        match_authors: ["Gregg Rosenthal", "Rosenthal"]
+      - id: chris_wesseling
+        name: "Chris Wesseling"
+        match_authors: ["Chris Wesseling", "Wesseling"]
+
+  # The Bill Barnwell Podcast (ESPN) — analytical long-form NFL predictions
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: bill_barnwell_podcast
+    name: "Bill Barnwell Podcast (ESPN)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=ESPN_BILL_BARNWELL"
+    enabled: false  # TODO: verify channel — Barnwell episodes may be embedded in ESPN Audio
+    priority_tier: 1  # Tier 1: analytical predictions with quantified claims
+    pundits:
+      - id: bill_barnwell
+        name: "Bill Barnwell"
+        match_authors: ["Bill Barnwell", "Barnwell"]
+
+  # Football Outsiders — advanced analytics site with season predictions
+  - id: football_outsiders
+    name: "Football Outsiders"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.footballoutsiders.com/rss.xml"
+    enabled: false  # TODO: verify RSS feed; site may require scraping
+    priority_tier: 1  # Tier 1: analytics-driven season projections; high testability scores expected
+    pundits:
+      - id: aaron_schatz
+        name: "Aaron Schatz"
+        match_authors: ["Aaron Schatz", "Schatz"]
+      - id: rivers_mccown
+        name: "Rivers McCown"
+        match_authors: ["Rivers McCown"]
+
+  # Fansided NFL — high-volume opinion + breaking news
+  - id: fansided_nfl
+    name: "FanSided NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://fansided.com/nfl/feed/"
+    enabled: false  # TODO: verify FanSided NFL-specific RSS feed URL
+    priority_tier: 2  # Tier 2: high volume, mixed quality; good for claim diversity
+    default_pundit:
+      id: fansided_nfl_staff
+      name: "FanSided NFL Staff"
+    pundits: []
+
+  # The MMQB / Sports Illustrated FMIA successor feed
+  - id: si_mmqb
+    name: "Sports Illustrated MMQB"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.si.com/rss/si_mmqb.rss"
+    enabled: false  # TODO: verify si.com MMQB-specific feed URL
+    priority_tier: 2  # Tier 2: long-form weekly analysis, moderate prediction density
+    pundits:
+      - id: albert_breer
+        name: "Albert Breer"
+        match_authors: ["Albert Breer", "Breer"]
+      - id: conor_orr
+        name: "Conor Orr"
+        match_authors: ["Conor Orr", "Orr"]
+
 # ── Finance / Financial Pundit Feeds ─────────────────────────────────────
   - id: ritholtz_big_picture
     name: "The Big Picture (Barry Ritholtz)"

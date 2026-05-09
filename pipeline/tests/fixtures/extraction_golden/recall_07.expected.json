@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "recall",
+  "testability_score_expected": 0.62,
+  "claim_count_expected": 1,
+  "notes": "Recall of past numeric prediction now claimed as resolved \u2014 historical validation"
+}

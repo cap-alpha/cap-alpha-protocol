@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "recall",
+  "testability_score_expected": 0.58,
+  "claim_count_expected": 1,
+  "notes": "Qualitative recall ('franchise QB') \u2014 lower testability due to vague predicate"
+}

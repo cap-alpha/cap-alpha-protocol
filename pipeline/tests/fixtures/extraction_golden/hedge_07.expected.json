@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "hedge",
+  "testability_score_expected": 0.32,
+  "claim_count_expected": 1,
+  "notes": "Explicit disclaimer ('not saying') + conditional hedge; lower bar than conditional_01"
+}

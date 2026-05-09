@@ -1,0 +1,31 @@
+version: 2
+
+sources:
+  - name: gold_layer
+    description: >
+      Gold-layer BigQuery tables managed via SQL migrations in pipeline/migrations/.
+      These are not dbt models — they are referenced here as dbt sources so that
+      singular not_empty tests can assert they have been populated after migration.
+    schema: gold_layer
+
+    tables:
+      - name: entities
+        description: >
+          Entity registry for all named entities referenced in predictions
+          (players, teams, coaches, etc.). Created by migration 022 (target_entity
+          column) and extended by PR #856 schema changes.
+
+      - name: pundit_calibration
+        description: >
+          Pundit calibration scores computed from resolved predictions.
+          Created by migration 024.
+
+      - name: pundit_accuracy_windows
+        description: >
+          Rolling accuracy windows for pundits over configurable time horizons.
+          Created by migration 026 (PR #855).
+
+      - name: pundit_market_timing
+        description: >
+          Market-timing scores measuring how early pundits make correct predictions.
+          Created by migration 025 (PR #854).

@@ -1,4 +1,4 @@
--- Migration 015: Create gold_layer.pundit_accuracy_windows
+-- Migration 026: Create gold_layer.pundit_accuracy_windows
 --
 -- Rolling accuracy windows for pundits across 3 time horizons:
 --   30d         — last 30 days (displayable if resolved_count >= 5)

@@ -6,6 +6,12 @@
 #
 # Adding a new source: just add an entry here. No code changes needed.
 # sport field: NFL|MLB|NBA|NHL|NCAAF|NCAAB — defaults to NFL if omitted.
+#
+# Proxy support (issue #676):
+#   proxy_required: true   — route this source through HTTP_PROXY env var.
+#                            If HTTP_PROXY is not set, the source is skipped
+#                            with a warning rather than crashing the run.
+#   proxy_required: false  — (default) use direct connection.
 
 sources:
   # ── NFL RSS Feeds ───────────────────────────────────────────────────────────

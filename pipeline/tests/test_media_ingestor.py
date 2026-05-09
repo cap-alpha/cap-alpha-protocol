@@ -731,3 +731,151 @@ class TestIngestFromUrls:
         items = ingest_from_urls([self.WEB_URL], source_id="backfill_test", db=mock_db)
         assert items[0].match_method == "unmatched"
         assert items[0].matched_pundit_id is None
+
+
+# ---------------------------------------------------------------------------
+# Proxy strategy (Issue #676)
+# ---------------------------------------------------------------------------
+
+
+class TestProxyStrategy:
+    """Tests for proxy_required source config and HTTP_PROXY env var routing."""
+
+    PROXY_SOURCE = {
+        "id": "proxy_feed",
+        "name": "Proxy-Required Feed",
+        "type": "rss",
+        "url": "https://example.com/proxy-feed",
+        "enabled": True,
+        "proxy_required": True,
+        "pundits": [],
+    }
+    NON_PROXY_SOURCE = {
+        "id": "direct_feed",
+        "name": "Direct Feed",
+        "type": "rss",
+        "url": "https://example.com/direct-feed",
+        "enabled": True,
+        "proxy_required": False,
+        "pundits": [],
+    }
+
+    def test_get_proxy_dict_returns_dict_when_env_set(self, monkeypatch):
+        """_get_proxy_dict() returns both http and https when HTTP_PROXY is set."""
+        import src.media_ingestor as mi
+
+        monkeypatch.setattr(mi, "_HTTP_PROXY", "http://proxy.example.com:8080")
+        result = mi._get_proxy_dict()
+        assert result == {
+            "http": "http://proxy.example.com:8080",
+            "https": "http://proxy.example.com:8080",
+        }
+
+    def test_get_proxy_dict_returns_none_when_env_unset(self, monkeypatch):
+        """_get_proxy_dict() returns None when HTTP_PROXY is not set."""
+        import src.media_ingestor as mi
+
+        monkeypatch.setattr(mi, "_HTTP_PROXY", None)
+        result = mi._get_proxy_dict()
+        assert result is None
+
+    def test_ingest_source_skips_gracefully_when_proxy_required_but_not_configured(
+        self, mock_db, monkeypatch
+    ):
+        """
+        When proxy_required=true and HTTP_PROXY is absent, ingest_source records
+        a warning error and returns without crashing or fetching.
+        """
+        import src.media_ingestor as mi
+
+        monkeypatch.setattr(mi, "_HTTP_PROXY", None)
+        mock_fetcher = MagicMock()
+
+        with patch.dict("src.media_ingestor.FETCHERS", {"rss": mock_fetcher}):
+            result = ingest_source(
+                self.PROXY_SOURCE, SAMPLE_CONFIG["defaults"], mock_db
+            )
+
+        assert result.error is not None
+        assert "HTTP_PROXY" in result.error
+        # Fetcher must NOT have been called — no network attempt
+        mock_fetcher.assert_not_called()
+        mock_db.append_dataframe_to_table.assert_not_called()
+
+    def test_ingest_source_proceeds_when_proxy_required_and_configured(
+        self, mock_db, monkeypatch
+    ):
+        """
+        When proxy_required=true and HTTP_PROXY is set, ingest_source calls the fetcher.
+        """
+        import src.media_ingestor as mi
+
+        monkeypatch.setattr(mi, "_HTTP_PROXY", "http://proxy.example.com:8080")
+        mock_fetcher = MagicMock(return_value=[])
+
+        with patch.dict("src.media_ingestor.FETCHERS", {"rss": mock_fetcher}):
+            result = ingest_source(
+                self.PROXY_SOURCE, SAMPLE_CONFIG["defaults"], mock_db
+            )
+
+        assert result.error is None
+        mock_fetcher.assert_called_once()
+
+    def test_ingest_source_proceeds_normally_when_proxy_not_required(
+        self, mock_db, monkeypatch
+    ):
+        """
+        Sources without proxy_required proceed regardless of HTTP_PROXY.
+        """
+        import src.media_ingestor as mi
+
+        monkeypatch.setattr(mi, "_HTTP_PROXY", None)
+        mock_fetcher = MagicMock(return_value=[])
+
+        with patch.dict("src.media_ingestor.FETCHERS", {"rss": mock_fetcher}):
+            result = ingest_source(
+                self.NON_PROXY_SOURCE, SAMPLE_CONFIG["defaults"], mock_db
+            )
+
+        assert result.error is None
+        mock_fetcher.assert_called_once()
+
+    def test_scrape_article_text_passes_proxies_to_requests(self):
+        """_scrape_article_text forwards the proxies dict to requests.get."""
+        from src.media_ingestor import _scrape_article_text
+
+        proxies = {
+            "http": "http://proxy.example.com:8080",
+            "https": "http://proxy.example.com:8080",
+        }
+        captured = {}
+
+        def fake_get(url, timeout=None, headers=None, proxies=None):
+            captured["proxies"] = proxies
+            raise Exception("stop early — we only care about the call args")
+
+        with patch("src.media_ingestor.requests.get", side_effect=fake_get):
+            try:
+                _scrape_article_text("https://example.com/article", proxies=proxies)
+            except Exception:
+                pass
+
+        assert captured.get("proxies") == proxies
+
+    def test_scrape_article_text_no_proxies_by_default(self):
+        """_scrape_article_text passes proxies=None when called with default args."""
+        from src.media_ingestor import _scrape_article_text
+
+        captured = {}
+
+        def fake_get(url, timeout=None, headers=None, proxies=None):
+            captured["proxies"] = proxies
+            raise Exception("stop early")
+
+        with patch("src.media_ingestor.requests.get", side_effect=fake_get):
+            try:
+                _scrape_article_text("https://example.com/article")
+            except Exception:
+                pass
+
+        assert captured.get("proxies") is None

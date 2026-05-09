@@ -429,7 +429,7 @@ class TestFinanceDomainRender:
             title="T",
             text="test",
         )
-        assert "financial pundit" in rendered
+        assert "financial and business pundit" in rendered
         assert "target_team = null" in rendered
 
     def test_finance_render_contains_examples(self):
@@ -444,9 +444,9 @@ class TestFinanceDomainRender:
             title="T",
             text="test",
         )
-        # Key entities from finance examples
+        # Key entities from finance examples (main's expanded template set)
         assert "Apple" in rendered
-        assert "Bitcoin" in rendered
+        assert "Microsoft" in rendered
         assert "Federal Reserve" in rendered
 
     def test_finance_version_is_deterministic(self):

@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'web/**'
+      - 'pipeline/api/**'
     tags:
       - 'v*' # Also trigger on semantic version tags for manual versioned releases
   workflow_dispatch:

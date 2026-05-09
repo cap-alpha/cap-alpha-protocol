@@ -550,38 +550,6 @@ def _get_nfl_prompt_version() -> str:
         return PROMPT_VERSION
 
 
-def _sport_to_extraction_domain(sport: str) -> str:
-    """Map raw_pundit_media.sport to a domain template directory name.
-
-    Used to route the Jinja2 template render to the correct
-    config/domains/<domain>/ directory during extraction.
-
-    Args:
-        sport: Value from raw_pundit_media.sport (e.g. "NFL", "politics", None).
-
-    Returns:
-        A domain key that maps to config/domains/<domain>/ templates.
-        Defaults to "nfl" for any unrecognised or empty sport value.
-    """
-    sport_lower = (sport or "").lower().strip()
-    if sport_lower == "politics":
-        return "politics"
-    # All other sport variants (nfl, NFL, "", None, …) use the NFL/sports template.
-    return _NFL_DOMAIN
-
-
-def _get_prompt_version_for_sport(sport: str) -> str:
-    """Return the Jinja-template-based prompt version for the domain derived from sport.
-
-    Falls back to the legacy PROMPT_VERSION if the templates are missing
-    (e.g. in unit tests that stub the filesystem or a new domain without templates yet).
-    """
-    try:
-        return get_prompt_version(_sport_to_extraction_domain(sport))
-    except Exception:
-        return PROMPT_VERSION
-
-
 @dataclass
 class ExtractionResult:
     content_hash: str

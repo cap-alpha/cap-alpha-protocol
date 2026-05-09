@@ -25,6 +25,15 @@ Closes #
 
 ---
 
+## Data migration
+<!-- If this PR creates or modifies a BigQuery table/column, answer these: -->
+- [ ] No schema changes in this PR
+- **OR** this PR adds/modifies schema:
+  - Data state at t=0: <!-- empty | pre-populated by DEFAULT | requires backfill -->
+  - Backfill: <!-- "not needed", "included in this PR as script/migration", or "tracked in issue #NNN" -->
+
+---
+
 ## Extraction risk
 
 > **Required if your diff touches any of these paths:**

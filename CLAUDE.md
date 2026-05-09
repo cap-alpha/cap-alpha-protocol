@@ -184,8 +184,9 @@ web/app/layout.tsx
 
 ## Frontend shipping checklist (mandatory, closes #672)
 
-Before marking any UI/frontend task done, an agent MUST verify all three:
+Before marking any UI/frontend task done, an agent MUST verify all four:
 
+0. **TypeScript check** — before committing any `web/` changes, run `cd web && npx tsc --noEmit` (or `make type-check`). Fix all reported errors before pushing. The pre-commit hook (`.githooks/pre-commit`) and CI (`frontend_preflight.yml`) enforce this automatically; running it locally saves a ~5-minute CI round-trip.
 1. **Deploy pipeline fired** — confirm `production.yml` triggered on the merge (check `gh run list --workflow=production.yml --limit=3`). If it didn't fire, run `cd web && vercel --prod` manually.
 2. **Change is live at cap-alpha.co** — fetch the changed route and confirm it returns 200 and the feature is present. Use `curl -I https://cap-alpha.co/<route>` or the Vercel MCP `web_fetch_vercel_url` tool.
 3. **E2E coverage** — if Playwright tests exist for the changed route, confirm they passed in CI. If no tests exist, file a follow-up issue for coverage (do not block the PR, but do not skip this step).

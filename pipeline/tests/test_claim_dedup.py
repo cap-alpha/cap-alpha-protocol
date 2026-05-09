@@ -83,7 +83,14 @@ def make_raw_media_df(n=1):
                 "content_hash": f"hash_{i}",
                 "source_id": "espn_nfl",
                 "title": f"Article {i}",
-                "raw_text": "Mahomes will win MVP this season for sure.",
+                "raw_text": (
+                    "Patrick Mahomes will almost certainly win the NFL MVP award "
+                    "this season based on his outstanding performance throughout "
+                    "the year. The Kansas City Chiefs quarterback has posted "
+                    "remarkable numbers week after week, and league analysts "
+                    "widely agree that no other player comes close to matching "
+                    "his production and leadership on the field this campaign."
+                ),
                 "source_url": f"https://espn.com/article/{i}",
                 "author": "Adam Schefter",
                 "matched_pundit_id": "adam_schefter",

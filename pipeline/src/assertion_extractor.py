@@ -509,6 +509,38 @@ def _get_nfl_prompt_version() -> str:
         return PROMPT_VERSION
 
 
+def _sport_to_extraction_domain(sport: str) -> str:
+    """Map raw_pundit_media.sport to a domain template directory name.
+
+    Used to route the Jinja2 template render to the correct
+    config/domains/<domain>/ directory during extraction.
+
+    Args:
+        sport: Value from raw_pundit_media.sport (e.g. "NFL", "politics", None).
+
+    Returns:
+        A domain key that maps to config/domains/<domain>/ templates.
+        Defaults to "nfl" for any unrecognised or empty sport value.
+    """
+    sport_lower = (sport or "").lower().strip()
+    if sport_lower == "politics":
+        return "politics"
+    # All other sport variants (nfl, NFL, "", None, …) use the NFL/sports template.
+    return _NFL_DOMAIN
+
+
+def _get_prompt_version_for_sport(sport: str) -> str:
+    """Return the Jinja-template-based prompt version for the domain derived from sport.
+
+    Falls back to the legacy PROMPT_VERSION if the templates are missing
+    (e.g. in unit tests that stub the filesystem or a new domain without templates yet).
+    """
+    try:
+        return get_prompt_version(_sport_to_extraction_domain(sport))
+    except Exception:
+        return PROMPT_VERSION
+
+
 @dataclass
 class ExtractionResult:
     content_hash: str
@@ -1242,12 +1274,12 @@ def extract_assertions(
 
         provider = GeminiProvider()
 
-    # Render the prompt from Jinja2 templates for the NFL domain.
-    # Falls back to the legacy hardcoded string if templates are unavailable
-    # (so existing unit tests that don't care about templates still pass).
+    # Render the prompt from Jinja2 templates, routing to the correct domain
+    # based on the sport field.  Falls back to the legacy hardcoded string if
+    # templates are unavailable (so existing unit tests still pass).
     try:
         prompt, _tpl_version = render_extraction_prompt(
-            domain=_NFL_DOMAIN,
+            domain=_sport_to_extraction_domain(sport),
             sport=sport,
             published_date=published_date or "Unknown",
             source_name=source_name or "Unknown",
@@ -2125,7 +2157,9 @@ def run_extraction(
                         ),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
-                        prompt_version=_get_nfl_prompt_version(),
+                        prompt_version=_get_prompt_version_for_sport(
+                            str(row.get("sport", sport))
+                        ),
                         llm_provider=provider_type,
                         llm_model=str(llm_model) if llm_model else None,
                     )
@@ -2189,7 +2223,7 @@ def run_extraction(
                 finished_at=_finished_at,
                 provider=_run_provider,
                 model=_run_model,
-                prompt_version=_get_nfl_prompt_version(),
+                prompt_version=_get_prompt_version_for_sport(sport),
                 articles_processed=summary["total_processed"],
                 utterances_written=summary["utterances_written"],
                 claims_promoted=summary["predictions_ingested"],

@@ -108,7 +108,6 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
         run: |
           ONLINE=$(gh api /repos/${{ github.repository }}/actions/runners \
             --jq '[.runners[] | select(.status == "online")] | length')
@@ -116,54 +115,9 @@ jobs:
             --jq '.runners | length')
           echo "Runners: ${ONLINE} online / ${TOTAL} total"
           if [[ "${ONLINE}" -eq 0 ]]; then
-            echo "ERROR: no self-hosted runners online" >&2
+            echo "WARNING: no self-hosted runners online — pipeline jobs will queue" >&2
             exit 1
           fi
-
-      - name: Open runner incident issue
-        if: steps.runner_check.outcome == 'failure'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: |
-          gh label create "incident:runner" \
-            --description "Self-hosted runner offline" \
-            --color "E4E669" \
-            --force || true
-
-          OPEN_COUNT=$(gh issue list \
-            --label "incident:runner" \
-            --state open \
-            --limit 1 \
-            --json number \
-            --jq 'length')
-          if [[ "${OPEN_COUNT}" -gt 0 ]]; then
-            echo "Open runner incident issue already exists — skipping"
-            exit 0
-          fi
-
-          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          TITLE="incident: self-hosted runner offline $(date -u '+%Y-%m-%dT%H:%MZ')"
-          BODY="## Self-hosted runner is offline
-
-All self-hosted runners are offline — the pipeline cannot execute. See the [workflow run]($WORKFLOW_URL).
-
-**Impact:** The \`pundit_pipeline\` workflow will queue runs until a runner comes back online. No new predictions will be ingested.
-
-**Runbook:**
-1. Check that the Mac running the GitHub Actions runner is on and awake
-2. Verify the runner service is running: \`pgrep -f Runner.Listener\`
-3. If not running, restart it:
-   \`cd /path/to/nfl-dead-money/actions-runner && ./run.sh\`
-4. Or install as a persistent service: \`sudo ./svc.sh install && sudo ./svc.sh start\`
-5. Close this issue once a runner shows online
-
-@king-hrothgar"
-
-          gh issue create \
-            --title "$TITLE" \
-            --label "incident:runner" \
-            --body "$BODY"
 
       - name: Open incident issue
         if: steps.health_check.outcome == 'failure'

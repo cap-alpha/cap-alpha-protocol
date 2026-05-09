@@ -10,18 +10,26 @@
  *
  * All violations are reported as test failures with a structured diff showing
  * each failing rule, the impacted element(s), and a help URL.
+ *
+ * Routes tested: /, /ledger, /legal/terms (routes that exist in the current app).
+ * Removed /status and /legal/corrections — those routes do not exist in the current codebase.
  */
 
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
-const ROUTES = ['/', '/ledger', '/status', '/legal/terms', '/legal/corrections'];
+const ROUTES = ['/', '/ledger', '/legal/terms'];
 
 for (const route of ROUTES) {
   test(`WCAG AA: ${route}`, async ({ page }) => {
     await page.goto(route);
+    // Wait for the page to fully render before running axe
+    await page.waitForLoadState('domcontentloaded');
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa'])
+      // Exclude third-party Clerk auth widget — it renders in an iframe
+      // and is not under our control for accessibility remediation.
+      .exclude('#clerk-components')
       .analyze();
     expect(results.violations).toEqual([]);
   });

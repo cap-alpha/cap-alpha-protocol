@@ -24,7 +24,9 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from apply_migrations import (  # noqa: E402
+    _creates_table,
     _discover_migrations,
+    _parse_backfill_declaration,
     _sha256,
     _split_statements,
     apply_migrations,
@@ -88,6 +90,58 @@ class TestSha256:
 
     def test_different_inputs(self):
         assert _sha256("hello") != _sha256("world")
+
+
+class TestParseBackfillDeclaration:
+    def test_returns_value_when_present(self):
+        sql = "-- backfill: issue #874\nCREATE TABLE foo (id INT64)"
+        assert _parse_backfill_declaration(sql) == "issue #874"
+
+    def test_returns_none_when_absent(self):
+        sql = "CREATE TABLE foo (id INT64)"
+        assert _parse_backfill_declaration(sql) is None
+
+    def test_case_insensitive_prefix(self):
+        sql = "-- BACKFILL: none\nCREATE TABLE foo (id INT64)"
+        assert _parse_backfill_declaration(sql) == "none"
+
+    def test_strips_whitespace_from_value(self):
+        sql = "--   backfill :   not needed  \nCREATE TABLE foo (id INT64)"
+        assert _parse_backfill_declaration(sql) == "not needed"
+
+    def test_only_scans_first_10_lines(self):
+        # backfill header on line 11 — should not be detected
+        lines = ["-- some comment"] * 10 + ["-- backfill: issue #999"]
+        sql = "\n".join(lines)
+        assert _parse_backfill_declaration(sql) is None
+
+    def test_detects_header_on_line_10(self):
+        lines = ["-- some comment"] * 9 + ["-- backfill: issue #999"]
+        sql = "\n".join(lines)
+        assert _parse_backfill_declaration(sql) == "issue #999"
+
+
+class TestCreatesTable:
+    def test_detects_create_table(self):
+        assert _creates_table("CREATE TABLE foo (id INT64)")
+
+    def test_detects_create_or_replace_table(self):
+        assert _creates_table("CREATE OR REPLACE TABLE foo (id INT64)")
+
+    def test_case_insensitive(self):
+        assert _creates_table("create table foo (id INT64)")
+
+    def test_returns_false_for_alter(self):
+        assert not _creates_table("ALTER TABLE foo ADD COLUMN bar STRING")
+
+    def test_returns_false_for_insert(self):
+        assert not _creates_table("INSERT INTO foo VALUES (1)")
+
+    def test_returns_false_for_select(self):
+        assert not _creates_table("SELECT 1")
+
+    def test_detects_create_table_if_not_exists(self):
+        assert _creates_table("CREATE TABLE IF NOT EXISTS foo (id INT64)")
 
 
 class TestDiscoverMigrations:
@@ -304,3 +358,119 @@ class TestDryRun:
         with patch("apply_migrations.bigquery") as mock_bq_module:
             apply_migrations(dry_run=True)
             mock_bq_module.Client.assert_not_called()
+
+    def test_dry_run_shows_backfill_declared(self, tmp_path, monkeypatch, caplog):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_create.sql").write_text(
+            "-- backfill: issue #874\nCREATE TABLE foo (id INT64)"
+        )
+
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        with patch("apply_migrations.bigquery"):
+            with caplog.at_level(logging.INFO, logger="apply_migrations"):
+                apply_migrations(dry_run=True)
+
+        assert any("[backfill: issue #874]" in r.message for r in caplog.records)
+
+    def test_dry_run_shows_backfill_undeclared(self, tmp_path, monkeypatch, caplog):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_create.sql").write_text("CREATE TABLE foo (id INT64)")
+
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        with patch("apply_migrations.bigquery"):
+            with caplog.at_level(logging.INFO, logger="apply_migrations"):
+                apply_migrations(dry_run=True)
+
+        assert any("[BACKFILL UNDECLARED]" in r.message for r in caplog.records)
+
+    def test_dry_run_no_backfill_marker_for_non_create(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_alter.sql").write_text("ALTER TABLE foo ADD COLUMN bar STRING")
+
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        with patch("apply_migrations.bigquery"):
+            with caplog.at_level(logging.INFO, logger="apply_migrations"):
+                apply_migrations(dry_run=True)
+
+        assert not any("[BACKFILL" in r.message for r in caplog.records)
+
+
+class TestBackfillWarning:
+    """After applying a migration, warn if CREATE TABLE has no backfill header."""
+
+    def _make_client_mock(self, tmp_path):
+        """Return a mock BQ client that simulates empty applied_migrations."""
+        mock_client = MagicMock()
+        empty_result = MagicMock()
+        empty_result.__iter__ = MagicMock(return_value=iter([]))
+        exec_job = MagicMock()
+        exec_job.result.return_value = empty_result
+        exec_job.job_id = "job-123"
+        mock_client.query.return_value = exec_job
+        mock_client.create_dataset = MagicMock()
+        return mock_client
+
+    def test_warns_when_create_table_lacks_backfill_header(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_create.sql").write_text("CREATE TABLE foo (id INT64)")
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        mock_client = self._make_client_mock(tmp_path)
+        with patch("apply_migrations.bigquery") as mock_bq_module:
+            mock_bq_module.Client.return_value = mock_client
+            mock_bq_module.Dataset = MagicMock()
+            with caplog.at_level(logging.WARNING, logger="apply_migrations"):
+                apply_migrations(dry_run=False, mark_applied=False)
+
+        assert any("BACKFILL UNDECLARED" in r.message for r in caplog.records)
+
+    def test_no_warning_when_create_table_has_backfill_header(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_create.sql").write_text(
+            "-- backfill: none\nCREATE TABLE foo (id INT64)"
+        )
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        mock_client = self._make_client_mock(tmp_path)
+        with patch("apply_migrations.bigquery") as mock_bq_module:
+            mock_bq_module.Client.return_value = mock_client
+            mock_bq_module.Dataset = MagicMock()
+            with caplog.at_level(logging.WARNING, logger="apply_migrations"):
+                apply_migrations(dry_run=False, mark_applied=False)
+
+        assert not any("BACKFILL UNDECLARED" in r.message for r in caplog.records)
+
+    def test_no_warning_for_non_create_migration(self, tmp_path, monkeypatch, caplog):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_alter.sql").write_text("ALTER TABLE foo ADD COLUMN bar STRING")
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        mock_client = self._make_client_mock(tmp_path)
+        with patch("apply_migrations.bigquery") as mock_bq_module:
+            mock_bq_module.Client.return_value = mock_client
+            mock_bq_module.Dataset = MagicMock()
+            with caplog.at_level(logging.WARNING, logger="apply_migrations"):
+                apply_migrations(dry_run=False, mark_applied=False)
+
+        assert not any("BACKFILL UNDECLARED" in r.message for r in caplog.records)

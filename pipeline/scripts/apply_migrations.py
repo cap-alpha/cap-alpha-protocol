@@ -11,6 +11,17 @@ Features:
 - --dry-run flag to preview pending migrations without executing
 - --mark-applied flag to bootstrap tracking for existing production DB
 - GITHUB_SHA env var recorded with each applied migration for traceability
+- Backfill declaration enforcement: any migration that creates a table must
+  include a ``-- backfill:`` header in the first 10 lines declaring the data
+  migration plan (e.g. ``-- backfill: issue #874`` or ``-- backfill: none``).
+  A WARNING is logged if this header is missing.
+
+Backfill header format (first 10 lines of the SQL file)::
+
+    -- backfill: issue #874
+    -- backfill: none
+    -- backfill: not needed
+    CREATE TABLE IF NOT EXISTS ...
 
 Usage:
     python pipeline/scripts/apply_migrations.py              # apply pending
@@ -61,6 +72,36 @@ CREATE TABLE IF NOT EXISTS `{project_id}.infra.applied_migrations` (
 # ---------------------------------------------------------------------------
 # SQL utilities
 # ---------------------------------------------------------------------------
+
+
+def _parse_backfill_declaration(content: str) -> str | None:
+    """
+    Scan the first 10 lines of a SQL file for a ``-- backfill: <value>`` header.
+
+    Returns the declared value (e.g. ``"issue #874"``, ``"none"``) or ``None``
+    if no backfill header is present.  The prefix match is case-insensitive.
+
+    Example headers::
+
+        -- backfill: issue #874
+        -- backfill: none
+        -- backfill: not needed
+    """
+    for line in content.splitlines()[:10]:
+        m = re.match(r"--\s*backfill\s*:\s*(.+)", line, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
+def _creates_table(content: str) -> bool:
+    """
+    Return True if *content* contains a CREATE TABLE or CREATE OR REPLACE TABLE
+    statement (case-insensitive).
+    """
+    return bool(
+        re.search(r"CREATE\s+(OR\s+REPLACE\s+)?TABLE", content, re.IGNORECASE)
+    )
 
 
 def _split_statements(sql: str) -> list[str]:
@@ -208,7 +249,15 @@ def apply_migrations(dry_run: bool = False, mark_applied: bool = False) -> None:
         for f in files:
             content = f.read_text()
             sha = _sha256(content)
-            log.info("  [DRY-RUN] %s  sha256=%s", f.name, sha[:12])
+            creates = _creates_table(content)
+            backfill = _parse_backfill_declaration(content) if creates else None
+            if creates and backfill is None:
+                backfill_str = " [BACKFILL UNDECLARED]"
+            elif backfill:
+                backfill_str = f" [backfill: {backfill}]"
+            else:
+                backfill_str = ""
+            log.info("  [DRY-RUN] %s  sha256=%s%s", f.name, sha[:12], backfill_str)
         return
 
     client = bigquery.Client(project=project_id)
@@ -281,6 +330,19 @@ def apply_migrations(dry_run: bool = False, mark_applied: bool = False) -> None:
 
         _record_applied(client, project_id, migration_id, sha, git_sha)
         log.info("  RECORDED  %s", migration_id)
+
+        if _creates_table(content):
+            backfill = _parse_backfill_declaration(content)
+            if backfill is None:
+                log.warning(
+                    "  BACKFILL UNDECLARED  %s creates a table but has no "
+                    "'-- backfill: <issue #NNN | none>' header. "
+                    "Add one to declare the data migration plan.",
+                    migration_id,
+                )
+            else:
+                log.info("  BACKFILL  %s declared: %s", migration_id, backfill)
+
         total_applied += 1
 
     action = "marked-applied" if mark_applied else "applied"

@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "hedge",
+  "testability_score_expected": 0.25,
+  "claim_count_expected": 1,
+  "notes": "Maximum vagueness: 'could potentially', 'one of those teams', 'I suppose', no resolution criteria"
+}

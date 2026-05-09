@@ -1,0 +1,6 @@
+{
+  "speech_act_type": "assertion",
+  "testability_score_expected": 0.72,
+  "claim_count_expected": 1,
+  "notes": "Relative ranking claim (top-5 QB) \u2014 testable but requires ranking methodology"
+}

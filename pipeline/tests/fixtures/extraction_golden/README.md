@@ -18,13 +18,15 @@ corresponding `.expected.json` files contain hand-labeled expected extraction re
 
 | Prefix | Count | Speech act type | Expected testability range |
 |---|---|---|---|
-| `assertion_0*.txt` | 5 | `assertion` | 0.78–0.90 |
-| `conditional_0*.txt` | 5 | `conditional` | 0.68–0.75 |
-| `recall_0*.txt` | 5 | `recall` | 0.60–0.68 |
-| `rhetorical_0*.txt` | 5 | `rhetorical_question` | 0.10–0.16 |
-| `hedge_0*.txt` | 5 | `hedge` | 0.28–0.35 |
+| `assertion_0*.txt` | 10 | `assertion` | 0.72–0.90 |
+| `conditional_0*.txt` | 10 | `conditional` | 0.68–0.75 |
+| `recall_0*.txt` | 10 | `recall` | 0.58–0.68 |
+| `rhetorical_0*.txt` | 10 | `rhetorical_question` | 0.10–0.16 |
+| `hedge_0*.txt` | 10 | `hedge` | 0.25–0.35 |
 | `adversarial_0*.txt` | 5 | mixed (see notes) | varies |
-| **Total** | **30** | — | — |
+| **Total** | **55** | — | — |
+
+Target: expand to 200+ fixtures (issue #824 — A/B testing harness requires larger golden set)
 
 ## Expected JSON schema
 
@@ -76,3 +78,4 @@ When adding fixtures:
 | Date | Author | Change |
 |---|---|---|
 | 2026-05-03 | Claude Code (agent) | Initial set of 30 fixtures across 5 speech act types + 5 adversarial |
+| 2026-05-08 | Claude Code (agent) | Expanded to 55 fixtures — added assertion_06–10, conditional_06–10, recall_06–10, rhetorical_06–10, hedge_06–10 (issue #824 corpus expansion) |

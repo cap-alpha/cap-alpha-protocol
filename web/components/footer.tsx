@@ -47,6 +47,7 @@ const Footer = () => {
                         <Link href="/legal/responsible-gambling" className="hover:text-amber-400 transition-colors text-amber-500">Responsible Gambling</Link>
                         <Link href="/legal/disclosure" className="hover:text-white transition-colors">Affiliate Disclosure</Link>
                         <Link href="/legal/corrections" className="hover:text-white transition-colors">Corrections</Link>
+                        <Link href="/verify" className="hover:text-emerald-400 transition-colors">Verify Ledger</Link>
                         <Link href="/status" className="hover:text-emerald-400 transition-colors">Status</Link>
                     </div>
                     <div className="flex items-center space-x-2 text-slate-400 text-xs">

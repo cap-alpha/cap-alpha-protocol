@@ -385,15 +385,22 @@ def pundit_predictions(
                 l.season_year,
                 l.target_player_id,
                 l.target_team,
+                l.llm_provider,
+                l.llm_model,
+                l.prompt_version,
                 COALESCE(r.resolution_status, 'PENDING') AS resolution_status,
                 r.resolved_at,
                 r.binary_correct,
                 r.brier_score,
                 r.weighted_score,
-                r.outcome_notes
+                r.outcome_source,
+                r.outcome_notes,
+                q.quality_score
             FROM {_full(LEDGER_TABLE)} l
             LEFT JOIN {_full(RESOLUTIONS_TABLE)} r
                 ON l.prediction_hash = r.prediction_hash
+            LEFT JOIN {_full(QUALITY_TABLE)} q
+                ON l.prediction_hash = q.prediction_hash
             WHERE l.pundit_id = @pundit_id
             {status_clause}
             ORDER BY l.ingestion_timestamp DESC
@@ -447,20 +454,29 @@ def recent_predictions(
                 l.pundit_id,
                 l.pundit_name,
                 l.ingestion_timestamp,
+                l.source_url,
+                l.raw_assertion_text,
                 l.extracted_claim,
                 l.claim_category,
                 l.season_year,
                 l.target_player_id,
                 l.target_team,
+                l.llm_provider,
+                l.llm_model,
+                l.prompt_version,
                 r.resolution_status,
                 r.resolved_at,
                 r.binary_correct,
                 r.brier_score,
                 r.weighted_score,
-                r.outcome_notes
+                r.outcome_source,
+                r.outcome_notes,
+                q.quality_score
             FROM {_full(LEDGER_TABLE)} l
             INNER JOIN {_full(RESOLUTIONS_TABLE)} r
                 ON l.prediction_hash = r.prediction_hash
+            LEFT JOIN {_full(QUALITY_TABLE)} q
+                ON l.prediction_hash = q.prediction_hash
             WHERE r.resolution_status IN ('CORRECT', 'INCORRECT')
             ORDER BY r.resolved_at DESC
             LIMIT @lim

@@ -18,6 +18,7 @@ import {
     Info,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ProvenanceBadge } from "@/components/provenance-badge";
 import { PredictionShareButton } from "@/components/prediction-share-button";
 import { PunditSearchBar } from "@/components/pundit-search-bar";
 import { PunditCard, type PunditCardProps } from "@/components/pundit-card";
@@ -87,6 +88,12 @@ interface RecentPrediction {
     weighted_score: number | null;
     source_url?: string | null;
     raw_assertion_text?: string | null;
+    llm_provider?: string | null;
+    llm_model?: string | null;
+    prompt_version?: string | null;
+    quality_score?: number | null;
+    outcome_source?: string | null;
+    outcome_notes?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -454,6 +461,20 @@ function PredictionDrawer({
                             </div>
                         </div>
                     )}
+
+                    {/* Provenance */}
+                    <ProvenanceBadge
+                        data={{
+                            raw_assertion_text: prediction.raw_assertion_text,
+                            extracted_claim: prediction.extracted_claim,
+                            llm_provider: prediction.llm_provider,
+                            llm_model: prediction.llm_model,
+                            prompt_version: prediction.prompt_version,
+                            quality_score: prediction.quality_score,
+                            outcome_source: prediction.outcome_source,
+                            outcome_notes: prediction.outcome_notes,
+                        }}
+                    />
 
                     {/* Hash */}
                     <div className="pt-1">

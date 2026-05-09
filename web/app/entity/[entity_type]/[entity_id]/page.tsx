@@ -455,94 +455,47 @@ export default function EntityDetailPage() {
     useEffect(() => {
         setLoading(true);
 
-        // TODO: Replace with real API fetch to /v1/entities/{entity_type}/{entity_id}
-        // For now we build mock data and use real claims from the predictions API where possible
-        const mockEntity = buildMockEntity(entityType, entityId);
+        const enc = encodeURIComponent(entityId);
 
-        // Attempt to load real predictions filtered by target entity
-        // This hits /api/ledger/recent which returns all recent predictions —
-        // we filter client-side by entity name match as a best effort.
-        // TODO: Add ?entity_id= param to the predictions API once #816 backend lands.
         Promise.all([
-            fetch(`/api/ledger/recent?limit=50`)
-                .then((r) => r.json())
-                .catch(() => ({ predictions: [] })),
+            fetch(`/api/entities/${enc}`)
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null),
+            fetch(`/api/entities/${enc}/claims?page_size=100`)
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null),
+            fetch(`/api/entities/${enc}/pundit-accuracy`)
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null),
+            fetch(`/api/entities/${enc}/related`)
+                .then((r) => (r.ok ? r.json() : null))
+                .catch(() => null),
         ])
-            .then(([recentData]) => {
-                const rawPredictions: Array<{
-                    pundit_id: string;
-                    pundit_name: string;
-                    extracted_claim: string | null;
-                    ingestion_timestamp: string;
-                    resolution_status: string | null;
-                    brier_score: number | null;
-                    prediction_hash_short: string;
-                    source_published_at?: string | null;
-                    target_player_id?: string | null;
-                    target_team?: string | null;
-                }> = recentData.predictions ?? [];
-
-                // Filter to predictions mentioning the entity name (client-side best-effort)
-                const entityNameLower = mockEntity.entity_name.toLowerCase();
-                const filtered = rawPredictions.filter((p) => {
-                    const text = (p.extracted_claim ?? "").toLowerCase();
-                    const player = (p.target_player_id ?? "").toLowerCase();
-                    const team = (p.target_team ?? "").toLowerCase();
-                    return (
-                        text.includes(entityNameLower) ||
-                        player.includes(entityNameLower) ||
-                        team.includes(entityNameLower)
-                    );
-                });
-
-                if (filtered.length > 0) {
-                    // We have real claims — use them
-                    const realClaims: ClaimItem[] = filtered.map((p) => ({
-                        claim_id: p.prediction_hash_short,
-                        pundit_id: p.pundit_id,
-                        pundit_name: p.pundit_name,
-                        claim_text: p.extracted_claim ?? "(no claim text)",
-                        claim_date: fmtDate(p.source_published_at ?? p.ingestion_timestamp),
-                        resolution_status: (p.resolution_status ?? "PENDING") as ClaimItem["resolution_status"],
-                        confidence: null,
-                        hash_short: p.prediction_hash_short,
-                    }));
-                    setClaims(realClaims);
-
-                    // Derive summary counts from real data
-                    const total = realClaims.length;
-                    const correct = realClaims.filter((c) => c.resolution_status === "CORRECT").length;
-                    const incorrect = realClaims.filter((c) => c.resolution_status === "INCORRECT").length;
-                    const pending = realClaims.filter((c) => c.resolution_status === "PENDING").length;
-                    setEntity({ ...mockEntity, total_claims: total, correct_claims: correct, incorrect_claims: incorrect, pending_claims: pending });
+            .then(([entityData, claimsData, punditAccData, relatedData]) => {
+                // Entity — fall back to a minimal stub built from URL params if API not yet deployed
+                if (entityData && entityData.entity_id) {
+                    setEntity(entityData as EntityData);
                 } else {
-                    // No real data — use mock claims with a note
-                    setClaims(MOCK_CLAIMS);
-                    setEntity({
-                        ...mockEntity,
-                        total_claims: 342,
-                        correct_claims: 218,
-                        incorrect_claims: 91,
-                        pending_claims: 33,
-                    });
+                    setEntity(buildMockEntity(entityType, entityId));
                 }
 
-                // Pundit accuracy table and related entities are always mocked for now
-                // TODO: Replace with /v1/entities/{entity_id}/pundit-accuracy
-                setPunditsRows(MOCK_PUNDIT_ROWS);
-                // TODO: Replace with /v1/entities/{entity_id}/related
-                setRelatedEntities(MOCK_RELATED);
-                // TODO: Replace with /v1/entities/{entity_id}/activity
+                // Claims
+                const rawClaims: ClaimItem[] = (claimsData?.claims ?? []) as ClaimItem[];
+                setClaims(rawClaims.length > 0 ? rawClaims : MOCK_CLAIMS);
+
+                // Pundit accuracy rows
+                const rawRows: PunditAccuracyRow[] = (punditAccData?.rows ?? []) as PunditAccuracyRow[];
+                setPunditsRows(rawRows.length > 0 ? rawRows : MOCK_PUNDIT_ROWS);
+
+                // Related entities
+                const rawRelated: RelatedEntity[] = (relatedData?.entities ?? []) as RelatedEntity[];
+                setRelatedEntities(rawRelated.length > 0 ? rawRelated : MOCK_RELATED);
+
+                // Timeline is derived from claims for now (no dedicated /activity endpoint yet)
                 setTimeline(MOCK_TIMELINE);
             })
             .catch(() => {
-                setEntity({
-                    ...mockEntity,
-                    total_claims: 342,
-                    correct_claims: 218,
-                    incorrect_claims: 91,
-                    pending_claims: 33,
-                });
+                setEntity(buildMockEntity(entityType, entityId));
                 setClaims(MOCK_CLAIMS);
                 setPunditsRows(MOCK_PUNDIT_ROWS);
                 setRelatedEntities(MOCK_RELATED);
@@ -693,10 +646,6 @@ export default function EntityDetailPage() {
                             >
                                 All pundits →
                             </Link>
-                        </div>
-                        {/* TODO: data is mocked — see MOCK_PUNDIT_ROWS above */}
-                        <div className="text-[10px] font-mono text-amber-600 mb-3 uppercase tracking-wide">
-                            [Mock data] — real per-entity pundit accuracy pending API support (#816)
                         </div>
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse">

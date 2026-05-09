@@ -49,6 +49,7 @@ jobs:
       # Blocks merge if any chain hash computation or verification logic is broken.
       run: |
         pytest pipeline/tests/test_cryptographic_ledger.py -x -v --tb=short \
+          --no-cov \
           -k "not Integration"
       env:
         PYTHONPATH: ${{ github.workspace }}/pipeline

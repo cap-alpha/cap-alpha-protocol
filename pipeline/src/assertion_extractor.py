@@ -36,7 +36,7 @@ import re
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Optional
@@ -549,6 +549,187 @@ def compute_testability_score(subscores: dict) -> float:
     return round(sum(values) / len(values), 4)
 
 
+# Default claim_category for utterances where the LLM omits the field.
+DEFAULT_CLAIM_CATEGORY = "general"
+
+# Default testability_score for Phase C responses where the LLM explicitly returns
+# null / omits the field — distinct from legacy Phase B (which defaults to 1.0).
+DEFAULT_TESTABILITY_SCORE = 0.5
+
+# Current NFL season year — used by resolution_horizon inference.
+_CURRENT_YEAR = datetime.now().year
+
+
+def infer_resolution_horizon(
+    text: str,
+    uttered_at: Optional[datetime] = None,
+) -> Optional[str]:
+    """
+    Rule-based inference of resolution_horizon from claim text.
+
+    Returns an ISO-8601 string (UTC) or None when no pattern matches.
+    This is applied only when the LLM returns null/missing for
+    resolution_horizon — it is never applied on top of an LLM-provided value.
+
+    Pattern priority (first match wins):
+      1. "unresolvable" patterns (ever/never/all-time) → sentinel string
+         "UNRESOLVABLE" which is treated as NULL in BigQuery but logged.
+      2. Draft / pre-draft patterns → April 30 of current or next year.
+      3. Week N patterns → estimate based on NFL season schedule.
+      4. "before the season" / "before training camp" → July 31 of current year.
+      5. "this season" / "this year" / "current season" → Dec 31 of current year.
+      6. "next season" / "next year" → Dec 31 of next year.
+      7. "by end of [month]" → last day of that month in current year.
+      8. "off-season" / "this offseason" → April 30 of current year.
+      9. "playoffs" / "postseason" → January 15 of next year.
+      10. "super bowl" → February 10 of next year.
+    """
+    if not text:
+        return None
+
+    now = uttered_at or datetime.now(timezone.utc)
+    current_year = now.year
+    text_lower = text.lower()
+
+    # Pattern 1 — unresolvable / lifetime claims
+    _UNRESOLVABLE_PATTERNS = (
+        "ever",
+        "never",
+        "all time",
+        "all-time",
+        "career",
+        "lifetime",
+        "before he retires",
+        "before she retires",
+        "before retiring",
+        "hall of fame",
+    )
+    if any(p in text_lower for p in _UNRESOLVABLE_PATTERNS):
+        # Return None — these legitimately have no resolution date
+        return None
+
+    # Pattern 2 — draft / pre-draft
+    _DRAFT_PATTERNS = (
+        "before the draft",
+        "by the draft",
+        "draft day",
+        "nfl draft",
+        "pre-draft",
+        "predraft",
+    )
+    if any(p in text_lower for p in _DRAFT_PATTERNS):
+        # NFL draft is typically in late April
+        draft_year = current_year if now.month <= 4 else current_year + 1
+        return f"{draft_year}-04-30T23:59:59Z"
+
+    # Pattern 3 — Week N (e.g. "by Week 10", "before Week 8")
+    week_match = re.search(
+        r"(?:by|before|after|week)\s+week\s*(\d{1,2})|week\s*(\d{1,2})", text_lower
+    )
+    if week_match:
+        week_num = int(week_match.group(1) or week_match.group(2))
+        week_num = max(1, min(18, week_num))
+        # NFL regular season starts first Thursday of September
+        # Approximate: Sep 5 + (week_num - 1) * 7 days
+        season_year = current_year if now.month >= 7 else current_year - 1
+        approx_date = datetime(season_year, 9, 5, tzinfo=timezone.utc) + timedelta(
+            weeks=week_num
+        )
+        return approx_date.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # Pattern 4 — before the season / training camp
+    _PRE_SEASON_PATTERNS = (
+        "before the season",
+        "before training camp",
+        "before camp",
+        "by training camp",
+        "this offseason",
+        "this off-season",
+        "in the offseason",
+        "in the off-season",
+        "off-season",
+        "offseason",
+    )
+    if any(p in text_lower for p in _PRE_SEASON_PATTERNS):
+        # Training camp starts in late July; offseason resolution by July 31
+        offseason_year = current_year if now.month <= 7 else current_year + 1
+        return f"{offseason_year}-07-31T23:59:59Z"
+
+    # Pattern 5 — playoffs / postseason (before "this season" to avoid false match
+    # when text contains both "make the playoffs this year")
+    _PLAYOFF_PATTERNS = (
+        "playoffs",
+        "postseason",
+        "post-season",
+        "make the playoffs",
+        "wild card",
+        "divisional round",
+        "conference championship",
+    )
+    if any(p in text_lower for p in _PLAYOFF_PATTERNS):
+        # NFL playoffs conclude in January; use Jan 15 of the following year
+        playoff_year = current_year + 1 if now.month >= 7 else current_year
+        return f"{playoff_year}-01-15T23:59:59Z"
+
+    # Pattern 6 — Super Bowl (before "this season" for same reason)
+    if "super bowl" in text_lower:
+        # Super Bowl is in early February
+        sb_year = current_year + 1 if now.month >= 7 else current_year
+        return f"{sb_year}-02-10T23:59:59Z"
+
+    # Pattern 7 — this season / this year / current season
+    _THIS_SEASON_PATTERNS = (
+        "this season",
+        "this year",
+        "current season",
+        "the season",
+        "the 2025 season",
+        "the 2026 season",
+        "the 2027 season",
+    )
+    if any(p in text_lower for p in _THIS_SEASON_PATTERNS):
+        return f"{current_year}-12-31T23:59:59Z"
+
+    # Pattern 8 — next season / next year
+    _NEXT_SEASON_PATTERNS = (
+        "next season",
+        "next year",
+    )
+    if any(p in text_lower for p in _NEXT_SEASON_PATTERNS):
+        return f"{current_year + 1}-12-31T23:59:59Z"
+
+    # Pattern 9 — "by end of [month]" / "before [month]"
+    _MONTHS = {
+        "january": 1,
+        "february": 2,
+        "march": 3,
+        "april": 4,
+        "may": 5,
+        "june": 6,
+        "july": 7,
+        "august": 8,
+        "september": 9,
+        "october": 10,
+        "november": 11,
+        "december": 12,
+    }
+    month_match = re.search(
+        r"(?:by end of|before|by|in)\s+(january|february|march|april|may|june|july|august|september|october|november|december)",
+        text_lower,
+    )
+    if month_match:
+        month_num = _MONTHS[month_match.group(1)]
+        # Pick the nearest future occurrence of that month
+        target_year = current_year if month_num >= now.month else current_year + 1
+        # Last day of the month (28-31)
+        import calendar
+
+        last_day = calendar.monthrange(target_year, month_num)[1]
+        return f"{target_year}-{month_num:02d}-{last_day:02d}T23:59:59Z"
+
+    return None
+
+
 def _is_promotable(utterance: dict, threshold: float) -> bool:
     """
     Return True if an utterance should be promoted to prediction_ledger.
@@ -756,8 +937,11 @@ def write_raw_utterances(
             else:
                 try:
                     score = float(raw_score)
+                    # Clamp to valid range
+                    score = max(0.0, min(1.0, score))
                 except (TypeError, ValueError):
-                    score = 0.0
+                    # LLM returned a non-numeric value — use neutral default
+                    score = DEFAULT_TESTABILITY_SCORE
 
         # speech_act_type: Phase C → explicit value (invalid → "commentary");
         # Phase B (absent entirely) → "assertion" for backward compat.
@@ -774,6 +958,24 @@ def write_raw_utterances(
         rh = u.get("resolution_horizon")
         if isinstance(rh, (dict, list, bool)):
             rh = None
+
+        # Metadata completeness: when LLM omits resolution_horizon, attempt
+        # rule-based inference from claim text.  Only applied when rh is None
+        # (i.e. the LLM explicitly returned null or omitted the field) so we
+        # never overwrite a real LLM-provided timestamp.
+        if rh is None:
+            inferred = infer_resolution_horizon(
+                text_val,
+                uttered_at=uttered_at
+                if uttered_at.tzinfo
+                else uttered_at.replace(tzinfo=timezone.utc),
+            )
+            if inferred:
+                rh = inferred
+                logger.debug(
+                    f"resolution_horizon inferred from text: {inferred!r} "
+                    f"(utterance text={text_val[:60]!r})"
+                )
 
         # speech_act (authored|quoted|commentary): Issue #366 authorship dimension.
         # Absent in pre-366 responses → default "authored" for backward compat.
@@ -1085,6 +1287,23 @@ def extract_assertions(
             subscores = u.get("testability_subscores") or {}
             if subscores:
                 u["testability_score"] = compute_testability_score(subscores)
+
+        # Metadata completeness: apply defaults to any field the LLM omitted.
+        # These are applied in extract_assertions (before promotability check)
+        # so downstream callers always get complete records.
+        #
+        # NOTE: testability_score is deliberately NOT defaulted here.
+        # _is_promotable() already handles the None case with legacy 1.0
+        # backward compat, and write_raw_utterances() applies DEFAULT_TESTABILITY_SCORE
+        # only for un-parseable values (not None).
+        for u in all_utterances:
+            # speech_act_type default — already in _is_promotable but enforce here too
+            if not u.get("speech_act_type"):
+                u["speech_act_type"] = "assertion"
+
+            # claim_category default
+            if not u.get("claim_category"):
+                u["claim_category"] = DEFAULT_CLAIM_CATEGORY
 
         threshold = get_testability_threshold()
 
@@ -1894,7 +2113,8 @@ def run_extraction(
                         source_url=source_url,
                         raw_assertion_text=_raw_text[:2000],
                         extracted_claim=pred["extracted_claim"],
-                        claim_category=pred["claim_category"],
+                        claim_category=pred.get("claim_category")
+                        or DEFAULT_CLAIM_CATEGORY,
                         season_year=pred.get("season_year"),
                         target_player_id=None,
                         target_player_name=player_name,

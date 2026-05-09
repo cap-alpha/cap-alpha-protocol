@@ -26,6 +26,9 @@ jobs:
   ingest-extract-resolve:
     runs-on: self-hosted
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation OIDC token request
 
     steps:
       - name: Checkout Repository
@@ -69,7 +72,22 @@ jobs:
           echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
           echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH
 
-      - name: Authenticate to GCP
+      - name: Authenticate to GCP (Workload Identity)
+        # Preferred path: workload identity federation — no key file written to disk.
+        # Falls back to JSON key if vars.WORKLOAD_IDENTITY_PROVIDER is not configured.
+        # See GCP setup instructions in issue #709.
+        if: vars.WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Authenticate to GCP (JSON key fallback)
+        # Legacy fallback used until the Workload Identity Pool is provisioned.
+        # Writes the key to a temp file that is cleaned up in the Cleanup step.
+        # Shell injection risk is mitigated by single-quoting the expansion so
+        # the shell never interprets the JSON content.
+        if: vars.WORKLOAD_IDENTITY_PROVIDER == ''
         run: |
           echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/gcp-key.json
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV

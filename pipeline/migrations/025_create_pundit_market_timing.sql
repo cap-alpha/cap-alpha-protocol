@@ -1,4 +1,4 @@
--- Migration: 015_create_pundit_market_timing
+-- Migration: 025_create_pundit_market_timing
 -- Issue: #811 — Market Correlation Phase 1: publication lead-time analysis
 -- Description: Stores per-pundit × entity_class × claim_type median lead hours,
 --              measuring how far in advance claims arrive relative to resolution.

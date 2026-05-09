@@ -79,6 +79,7 @@ class TestScrapeArticleText:
             "https://example.com/article/1",
             timeout=15,
             headers={"User-Agent": "PunditLedger/1.0"},
+            proxies=None,
         )
 
     @patch("src.media_ingestor.requests.get")
@@ -119,6 +120,7 @@ class TestScrapeArticleText:
             "https://example.com/article",
             timeout=5,
             headers={"User-Agent": "PunditLedger/1.0"},
+            proxies=None,
         )
 
 
@@ -143,7 +145,7 @@ class TestEnrichWithFullText:
             enriched[0].raw_text
             == "Full article text from the website with enough content."
         )
-        mock_scrape.assert_called_once_with(item.source_url)
+        mock_scrape.assert_called_once_with(item.source_url, proxies=None)
 
     @patch("src.media_ingestor._scrape_article_text")
     def test_keeps_original_text_when_scrape_fails(self, mock_scrape):

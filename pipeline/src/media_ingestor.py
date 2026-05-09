@@ -37,6 +37,24 @@ from bs4 import BeautifulSoup
 from google.cloud import bigquery
 from youtube_transcript_api import YouTubeTranscriptApi
 
+# ---------------------------------------------------------------------------
+# Proxy support
+# ---------------------------------------------------------------------------
+# When HTTP_PROXY is set, requests.get/feedparser will route through it.
+# Individual sources can opt in via proxy_required: true in media_sources.yaml.
+# If a source requires a proxy but HTTP_PROXY is not configured, the source is
+# skipped with a warning rather than crashing the run.
+
+_HTTP_PROXY = os.environ.get("HTTP_PROXY", "").strip() or None
+
+
+def _get_proxy_dict() -> dict | None:
+    """Return a requests-compatible proxies dict, or None if HTTP_PROXY is unset."""
+    if _HTTP_PROXY:
+        return {"http": _HTTP_PROXY, "https": _HTTP_PROXY}
+    return None
+
+
 try:
     _yt_client = YouTubeTranscriptApi()
     _YT_API_V1 = True
@@ -650,13 +668,18 @@ def fetch_youtube_transcripts(source: dict, defaults: dict) -> list[MediaItem]:
     return items
 
 
-def _scrape_article_text(url: str, timeout: int = 15) -> Optional[str]:
+def _scrape_article_text(
+    url: str, timeout: int = 15, proxies: dict | None = None
+) -> Optional[str]:
     """Fetch a URL and extract article body text using readability-lxml."""
     try:
         from readability import Document
 
         resp = requests.get(
-            url, timeout=timeout, headers={"User-Agent": "PunditLedger/1.0"}
+            url,
+            timeout=timeout,
+            headers={"User-Agent": "PunditLedger/1.0"},
+            proxies=proxies,
         )
         resp.raise_for_status()
         doc = Document(resp.text)
@@ -675,10 +698,11 @@ def _enrich_with_full_text(items: list[MediaItem], source: dict) -> list[MediaIt
     if not source.get("scrape_full_text"):
         return items
 
+    proxies = _get_proxy_dict() if source.get("proxy_required") else None
     scrape_delay = source.get("scrape_delay_seconds", 0.5)
     enriched = []
     for i, item in enumerate(items):
-        full_text = _scrape_article_text(item.source_url)
+        full_text = _scrape_article_text(item.source_url, proxies=proxies)
         if full_text:
             item = replace(item, raw_text=full_text)
         enriched.append(item)
@@ -990,6 +1014,16 @@ def ingest_source(
 
     result = SourceResult(source_id=source_id, source_name=source_name)
     start = time.time()
+
+    # Proxy guard: if this source requires a proxy and HTTP_PROXY is not set, skip it.
+    if source.get("proxy_required") and not _HTTP_PROXY:
+        result.error = (
+            "Source requires HTTP_PROXY but it is not configured — skipping. "
+            "Set the HTTP_PROXY environment variable to enable this source."
+        )
+        logger.warning(f"[{source_id}] {result.error}")
+        result.duration_seconds = time.time() - start
+        return result
 
     fetcher = FETCHERS.get(source_type)
     if not fetcher:

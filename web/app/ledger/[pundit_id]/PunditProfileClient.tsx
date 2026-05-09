@@ -488,6 +488,191 @@ function ClaimCard({ p }: { p: Prediction }) {
                     {p.outcome_notes}
                 </div>
             )}
+
+            {/* Provenance toggle */}
+            <ClaimProvenance p={p} />
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// ClaimProvenance — collapsible source & provenance section for ClaimCard
+// ---------------------------------------------------------------------------
+
+function formatModelLabel(provider: string | null, model: string | null): string | null {
+    if (!provider && !model) return null;
+    if (!model) return provider;
+    const pLow = (provider ?? "").toLowerCase();
+    const mLow = (model ?? "").toLowerCase();
+    if (pLow === "ollama") {
+        const m = model.match(/(\d+)b/i);
+        if (mLow.includes("qwen2.5")) return `Qwen 2.5${m ? " " + m[1] + "B" : ""} (Ollama)`;
+        if (mLow.includes("llama")) return "Llama (Ollama)";
+        return `${model} (Ollama)`;
+    }
+    if (pLow === "google" || pLow === "gemini") {
+        if (mLow.includes("gemini-1.5")) return "Gemini 1.5";
+        if (mLow.includes("gemini-2")) return "Gemini 2";
+        return model ?? "Gemini";
+    }
+    if (pLow === "anthropic") return `Claude (${model})`;
+    return model;
+}
+
+function formatOutcomeSrc(source: string | null): string | null {
+    if (!source) return null;
+    const map: Record<string, string> = {
+        sportsdataio: "SportsData.io",
+        pfr: "Pro Football Reference",
+        spotrac: "Spotrac",
+        manual: "Manual review",
+        "official-team": "Official team report",
+    };
+    return map[source.toLowerCase()] ?? source;
+}
+
+function qualityBadge(score: number): { label: string; color: string } {
+    if (score >= 0.7) return { label: "HIGH", color: DS.pos };
+    if (score >= 0.4) return { label: "MED", color: DS.warn };
+    return { label: "LOW", color: DS.neg };
+}
+
+function ClaimProvenance({ p }: { p: Prediction }) {
+    const [open, setOpen] = useState(false);
+
+    const model = formatModelLabel(p.llm_provider, p.llm_model);
+    const src = formatOutcomeSrc(p.outcome_source);
+    const rawDiffers =
+        p.raw_assertion_text &&
+        p.extracted_claim &&
+        p.raw_assertion_text.trim() !== p.extracted_claim.trim();
+
+    const hasData = model || (p.quality_score !== null && p.quality_score !== undefined) || src;
+    if (!hasData) return null;
+
+    return (
+        <div style={{ marginTop: 10 }}>
+            <button
+                onClick={() => setOpen((v) => !v)}
+                style={{
+                    background: "none",
+                    border: `1px solid ${DS.borderLt}`,
+                    color: DS.textLt,
+                    fontSize: 10,
+                    fontWeight: 600,
+                    padding: "3px 10px",
+                    cursor: "pointer",
+                    letterSpacing: "0.5px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                }}
+                aria-expanded={open}
+            >
+                ⓘ Source &amp; Provenance {open ? "▲" : "▼"}
+            </button>
+
+            {open && (
+                <div
+                    style={{
+                        marginTop: 8,
+                        padding: "12px 14px",
+                        background: DS.raised,
+                        border: `1px solid ${DS.borderLt}`,
+                        fontSize: 12,
+                        lineHeight: 1.5,
+                    }}
+                >
+                    {/* Raw quote — only shown if different from extracted_claim */}
+                    {rawDiffers && p.raw_assertion_text && (
+                        <div style={{ marginBottom: 10 }}>
+                            <div
+                                style={{
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    letterSpacing: 1.5,
+                                    textTransform: "uppercase",
+                                    color: DS.gold,
+                                    marginBottom: 4,
+                                }}
+                            >
+                                Raw Quote
+                            </div>
+                            <div
+                                style={{
+                                    fontStyle: "italic",
+                                    color: DS.textMd,
+                                    borderLeft: `2px solid ${DS.borderLt}`,
+                                    paddingLeft: 8,
+                                }}
+                            >
+                                &ldquo;{p.raw_assertion_text}&rdquo;
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Extraction model + quality */}
+                    {(model || (p.quality_score !== null && p.quality_score !== undefined)) && (
+                        <div style={{ marginBottom: src ? 10 : 0 }}>
+                            <div
+                                style={{
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    letterSpacing: 1.5,
+                                    textTransform: "uppercase",
+                                    color: DS.gold,
+                                    marginBottom: 4,
+                                }}
+                            >
+                                Extraction
+                            </div>
+                            <div style={{ color: DS.textMd, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                                {model && <span>{model}</span>}
+                                {p.prompt_version && (
+                                    <span style={{ color: DS.textLt }}>· Prompt {p.prompt_version}</span>
+                                )}
+                                {p.quality_score !== null && p.quality_score !== undefined && (() => {
+                                    const q = qualityBadge(p.quality_score);
+                                    return (
+                                        <span>
+                                            · Quality:{" "}
+                                            <span style={{ color: q.color, fontWeight: 700 }}>
+                                                {p.quality_score.toFixed(2)} ({q.label})
+                                            </span>
+                                        </span>
+                                    );
+                                })()}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Resolution source */}
+                    {src && (
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    letterSpacing: 1.5,
+                                    textTransform: "uppercase",
+                                    color: DS.gold,
+                                    marginBottom: 4,
+                                }}
+                            >
+                                Resolution Source
+                            </div>
+                            <div style={{ color: DS.textMd }}>
+                                Resolved via {src}
+                                {p.outcome_notes && p.resolution_status !== "INCORRECT" && (
+                                    <span style={{ color: DS.textLt, fontStyle: "italic" }}>
+                                        {" "}— {p.outcome_notes}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

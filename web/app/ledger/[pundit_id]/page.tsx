@@ -40,13 +40,18 @@ export interface Prediction {
     season_year: number | null;
     target_player_id: string | null;
     target_team: string | null;
+    llm_provider: string | null;
+    llm_model: string | null;
+    prompt_version: string | null;
     resolution_status: string;
     resolved_at: string | null;
     binary_correct: boolean | null;
     brier_score: number | null;
     weighted_score: number | null;
     confidence: number | null;
+    outcome_source: string | null;
     outcome_notes: string | null;
+    quality_score: number | null;
 }
 
 export interface PredictionsResponse {

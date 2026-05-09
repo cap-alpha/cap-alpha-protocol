@@ -1,4 +1,5 @@
-pandas
+numpy>=2.0
+pandas>=2.0
 pandas-gbq
 nfl-data-py>=0.3.3
 db-dtypes

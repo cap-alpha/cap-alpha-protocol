@@ -206,7 +206,7 @@ def _check_confidence_coverage(db: DBManager) -> float:
     """Return fraction of ledger rows with non-NULL confidence."""
     query = (
         "SELECT COUNTIF(confidence IS NOT NULL) / COUNT(*) AS overall_coverage"
-        f" FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}`"
+        f" FROM `{db.project_id}.{LEDGER_TABLE}`"
     )
     try:
         result = db.fetch_df(query)
@@ -245,7 +245,7 @@ def run_signal1_confidence_spike(
         f"    AVG(confidence) AS mu,"
         f"    STDDEV_SAMP(confidence) AS sigma,"
         f"    COUNT(*) AS n_claims"
-        f"  FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}`"
+        f"  FROM `{db.project_id}.{LEDGER_TABLE}`"
         f"  WHERE confidence IS NOT NULL"
         f"    AND ingestion_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(),"
         f"        INTERVAL {SIGNAL1_BASELINE_WINDOW_DAYS} DAY)"
@@ -254,7 +254,7 @@ def run_signal1_confidence_spike(
         f"),"
         f"recent AS ("
         f"  SELECT l.prediction_hash, l.pundit_id, l.confidence, l.ingestion_timestamp"
-        f"  FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}` l"
+        f"  FROM `{db.project_id}.{LEDGER_TABLE}` l"
         f"  WHERE l.confidence IS NOT NULL"
         f"    AND l.confidence >= {SIGNAL1_ABS_THRESHOLD}"
         f"    AND l.ingestion_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(),"
@@ -348,8 +348,8 @@ def run_signal2_entity_bias(
         f"      WHEN 'INCORRECT' THEN 0.0"
         f"      ELSE NULL"
         f"    END AS binary_correct"
-        f"  FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}` l"
-        f"  INNER JOIN `{db.project_id}.nfl_dead_money.{RESOLUTIONS_TABLE}` r"
+        f"  FROM `{db.project_id}.{LEDGER_TABLE}` l"
+        f"  INNER JOIN `{db.project_id}.{RESOLUTIONS_TABLE}` r"
         f"    ON r.prediction_hash = l.prediction_hash"
         f"  WHERE r.resolution_status IN ('CORRECT', 'INCORRECT')"
         f"    AND COALESCE(l.target_player, l.target_team) IS NOT NULL"
@@ -367,13 +367,13 @@ def run_signal2_entity_bias(
         f"),"
         f"pundit_total AS ("
         f"  SELECT pundit_id, COUNT(*) AS n_total"
-        f"  FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}` GROUP BY pundit_id"
+        f"  FROM `{db.project_id}.{LEDGER_TABLE}` GROUP BY pundit_id"
         f"),"
         f"entity_all_claims AS ("
         f"  SELECT l.pundit_id,"
         f"    COALESCE(l.target_player, l.target_team) AS entity_key,"
         f"    COUNT(*) AS n_entity_all"
-        f"  FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}` l"
+        f"  FROM `{db.project_id}.{LEDGER_TABLE}` l"
         f"  WHERE COALESCE(l.target_player, l.target_team) IS NOT NULL"
         f"  GROUP BY l.pundit_id, COALESCE(l.target_player, l.target_team)"
         f"),"
@@ -394,8 +394,8 @@ def run_signal2_entity_bias(
         f"  END AS delta_threshold,"
         f"  ARRAY("
         f"    SELECT l.prediction_hash"
-        f"    FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}` l"
-        f"    INNER JOIN `{db.project_id}.nfl_dead_money.{RESOLUTIONS_TABLE}` r"
+        f"    FROM `{db.project_id}.{LEDGER_TABLE}` l"
+        f"    INNER JOIN `{db.project_id}.{RESOLUTIONS_TABLE}` r"
         f"      ON r.prediction_hash = l.prediction_hash"
         f"    WHERE l.pundit_id = gc.pundit_id"
         f"      AND COALESCE(l.target_player, l.target_team) = gc.entity_key"
@@ -510,7 +510,7 @@ def run_signal3_narrative_cluster(
         f"  l.claim_category, l.stance,"
         f"  COALESCE(l.target_player, l.target_team) AS entity_key,"
         f"  l.ingestion_timestamp, l.source_url"
-        f" FROM `{db.project_id}.nfl_dead_money.{LEDGER_TABLE}` l"
+        f" FROM `{db.project_id}.{LEDGER_TABLE}` l"
         f" WHERE l.ingestion_timestamp >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(),"
         f"     INTERVAL {window_hours + 24} HOUR)"
         f"   AND COALESCE(l.target_player, l.target_team) IS NOT NULL"
@@ -645,7 +645,7 @@ def _ensure_table(db: DBManager) -> None:
     """Create gold_layer.coi_flags if it does not already exist."""
     ddl = (
         f"CREATE TABLE IF NOT EXISTS"
-        f" `{db.project_id}.nfl_dead_money.{COI_FLAGS_TABLE}`"
+        f" `{db.project_id}.{COI_FLAGS_TABLE}`"
         f" ("
         f"   flag_id            STRING    NOT NULL,"
         f"   pundit_id          STRING    NOT NULL,"
@@ -705,7 +705,7 @@ def write_flags(db: DBManager, flags: list, dry_run: bool = False) -> int:
         load_job.result()
 
         merge_sql = (
-            f"MERGE `{db.project_id}.nfl_dead_money.{COI_FLAGS_TABLE}` AS T"
+            f"MERGE `{db.project_id}.{COI_FLAGS_TABLE}` AS T"
             f" USING `{temp_ref}` AS S ON T.flag_id = S.flag_id"
             f" WHEN NOT MATCHED THEN"
             f"   INSERT (flag_id, pundit_id, signal_type, severity, detected_at,"
@@ -810,7 +810,7 @@ def _print_summary(db: DBManager) -> None:
         f"SELECT signal_type, severity, COUNT(*) AS n_flags,"
         f"  COUNTIF(suppressed) AS n_suppressed,"
         f"  MIN(detected_at) AS earliest, MAX(detected_at) AS latest"
-        f" FROM `{db.project_id}.nfl_dead_money.{COI_FLAGS_TABLE}`"
+        f" FROM `{db.project_id}.{COI_FLAGS_TABLE}`"
         f" GROUP BY signal_type, severity ORDER BY signal_type, severity"
     )
     try:

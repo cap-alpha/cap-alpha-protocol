@@ -82,12 +82,17 @@ cat .agent/current.md
 
 # 4. Do your work, commit, push, open the PR
 
-# 5. Before queueing: verify zero non-advisory FAILURE checks
+# 5. Rebase onto current main before queueing — always, no exceptions.
+#    Empty commits do NOT re-trigger CI (bot pushes are ignored by GitHub Actions).
+#    Only a real rebase guarantees a clean merge state and fresh CI.
+scripts/git-rebase-safe.sh $(pwd) <branch-name>
+
+# 6. Before queueing: verify zero non-advisory FAILURE checks
 #    Run this and confirm the output is "0". If not, investigate — do NOT merge anyway.
 scripts/gh-lars pr view <pr-number> --json statusCheckRollup \
   | jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" and (.name | test("\\[advisory\\]") | not))] | length'
 
-# 6. Queue the PR for landing — never direct merge. Always rebase.
+# 7. Queue the PR for landing — never direct merge. Always rebase.
 scripts/gh-lars pr merge <pr-number> --rebase --auto
 
 # 7. After the PR lands on main, release locks

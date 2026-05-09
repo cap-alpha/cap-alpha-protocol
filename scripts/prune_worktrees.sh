@@ -16,6 +16,9 @@
 
 set -euo pipefail
 
+REPO_OWNER=$(gh repo view --json owner -q '.owner.login' 2>/dev/null || echo "cap-alpha")
+REPO_NAME=$(gh repo view --json name -q '.name' 2>/dev/null || echo "cap-alpha-protocol")
+
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
@@ -101,7 +104,7 @@ if [[ ${#PENDING_BRANCHES[@]} -gt 0 ]]; then
         }
       }
     }
-  ' -f owner="andrewsmith" -f repo="nfl-dead-money" 2>/dev/null || echo "")
+  ' -f owner="$REPO_OWNER" -f repo="$REPO_NAME" 2>/dev/null || echo "")
 
   if [[ -n "$PR_JSON" ]]; then
     # Parse open PRs

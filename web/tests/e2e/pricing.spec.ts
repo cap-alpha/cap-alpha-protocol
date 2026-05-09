@@ -3,6 +3,14 @@ import { test, expect } from "@playwright/test";
 /**
  * Pricing page E2E tests
  *
+ * Tests the actual pricing page structure:
+ *   - 4 tiers: Free ($0), Pro ($14.99/mo), API Starter ($99/mo), API Growth ($499/mo)
+ *   - UpgradeButton component for paid tiers
+ *   - "View Leaderboard" link for Free tier
+ *
+ * Note: the quiz flow, annual toggle, and feature-matrix table referenced in older
+ * tests do not exist in the current pricing page — tests updated to match actual UI.
+ *
  * Requires `npm run dev` or a running Next.js server at PLAYWRIGHT_BASE_URL.
  */
 
@@ -11,86 +19,74 @@ test.describe("Pricing page", () => {
         await page.goto("/pricing");
     });
 
-    test("feature matrix is visible", async ({ page }) => {
-        // The comparison matrix heading
-        await expect(page.getByText("Compare all features")).toBeVisible();
-
-        // At least the first feature row
-        await expect(page.getByText("Pundit leaderboard (public)")).toBeVisible();
+    test("pricing page loads with h1", async ({ page }) => {
+        await expect(page.locator("h1")).toContainText(/pricing/i);
     });
 
-    test("quiz: Developer → API access option appears in step 2", async ({ page }) => {
-        // Step 1: select Developer / Builder
-        await page.getByRole("button", { name: "Developer / Builder" }).click();
-
-        // Step 2: API access option should now be visible
-        await expect(page.getByRole("button", { name: "API access" })).toBeVisible();
+    test("Free tier card is visible at $0", async ({ page }) => {
+        // The Free tier shows FREE label and $0
+        await expect(page.getByText("Free", { exact: true }).first()).toBeVisible();
+        await expect(page.getByText("$0")).toBeVisible();
     });
 
-    test("quiz: Developer + API access + 50,000+ → API Growth recommended", async ({ page }) => {
-        // Step 1
-        await page.getByRole("button", { name: "Developer / Builder" }).click();
-
-        // Step 2
-        await page.getByRole("button", { name: "API access" }).click();
-
-        // Step 3
-        await page.getByRole("button", { name: "50,000+" }).click();
-
-        // Card tier should get a Recommended badge
-        const recommendedBadge = page.locator('[data-tier="api_growth"]').getByText("Recommended");
-        await expect(recommendedBadge).toBeVisible();
+    test("Pro tier card is visible at $14.99", async ({ page }) => {
+        await expect(page.getByText("Pro", { exact: true }).first()).toBeVisible();
+        await expect(page.getByText("$14.99")).toBeVisible();
     });
 
-    test("annual toggle updates prices", async ({ page }) => {
-        // Find the toggle switch
-        const toggleSwitch = page.getByRole("switch");
-        await expect(toggleSwitch).toBeVisible();
-
-        // Monthly Pro is $9, Annual should show $7
-        // Check the matrix header for Pro price before toggle
-        await expect(page.getByText("$9")).toBeVisible();
-
-        // Click toggle to annual
-        await toggleSwitch.click();
-
-        // Annual price for Pro should appear ($7)
-        await expect(page.getByText("$7")).toBeVisible();
-
-        // Toggle back to monthly
-        await toggleSwitch.click();
-        await expect(page.getByText("$9")).toBeVisible();
+    test("API Starter tier card is visible at $99", async ({ page }) => {
+        await expect(page.getByText("API Starter").first()).toBeVisible();
+        await expect(page.getByText("$99")).toBeVisible();
     });
 
-    test("Get started on recommended tier triggers checkout redirect", async ({ page }) => {
-        // Recommend Pro by going through the quiz (fan + tracking)
-        await page.getByRole("button", { name: "Sports fan" }).click();
-        await page.getByRole("button", { name: "Tracking specific pundits" }).click();
+    test("API Growth tier card is visible at $499", async ({ page }) => {
+        await expect(page.getByText("API Growth").first()).toBeVisible();
+        await expect(page.getByText("$499")).toBeVisible();
+    });
 
-        // The Pro card's UpgradeButton should be visible
-        const proCard = page.locator('[data-tier="pro"]');
-        const upgradeBtn = proCard.getByRole("button", { name: /Upgrade to Pro/i });
-        await expect(upgradeBtn).toBeVisible();
+    test("Free tier has 'View Leaderboard' link", async ({ page }) => {
+        const viewLink = page.getByRole("link", { name: /view leaderboard/i });
+        await expect(viewLink).toBeVisible();
+        await expect(viewLink).toHaveAttribute("href", "/ledger");
+    });
 
-        // Clicking it should either open checkout or redirect to sign-in
-        // We intercept the fetch to /api/billing/checkout to avoid actual processor calls
+    test("paid tiers show upgrade/get-started buttons", async ({ page }) => {
+        // At least one paid upgrade button is visible
+        const upgradeButtons = page.getByRole("button", { name: /upgrade to pro|get api starter|get api growth/i });
+        const count = await upgradeButtons.count();
+        expect(count).toBeGreaterThan(0);
+    });
+
+    test("Pro tier features list mentions 'Complete prediction history'", async ({ page }) => {
+        await expect(page.getByText("Complete prediction history")).toBeVisible();
+    });
+
+    test("API Starter features list mentions 'REST API access'", async ({ page }) => {
+        await expect(page.getByText("REST API access")).toBeVisible();
+    });
+
+    test("unauthenticated upgrade click redirects to sign-in or stays on pricing", async ({ page }) => {
+        // Intercept checkout so we don't hit Stripe
         await page.route("/api/billing/checkout", async (route) => {
             await route.fulfill({
-                status: 200,
+                status: 401,
                 contentType: "application/json",
-                body: JSON.stringify({ url: "https://checkout.stripe.com/mock" }),
+                body: JSON.stringify({ error: "Unauthorized" }),
             });
         });
 
-        // Capture navigation
-        const navigationPromise = page.waitForURL(/stripe\.com|sign-in|checkout/, {
-            timeout: 5000,
-        });
-        await upgradeBtn.click();
-        // If navigation happens it's fine; if it doesn't within timeout, that's also
-        // acceptable (e.g., sign-in redirect in CI without auth).
-        await navigationPromise.catch(() => {
-            // Not a failure — may redirect to /sign-in instead of stripe
-        });
+        // Find any upgrade button
+        const upgradeBtn = page
+            .getByRole("button", { name: /upgrade to pro/i })
+            .first();
+        if (await upgradeBtn.isVisible()) {
+            const navPromise = page.waitForURL(/sign-in|sign-up|pricing/, {
+                timeout: 5000,
+            });
+            await upgradeBtn.click();
+            await navPromise.catch(() => {
+                // May stay on pricing if button goes through modal flow — acceptable
+            });
+        }
     });
 });

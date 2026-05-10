@@ -1,0 +1,115 @@
+name: Migration backfill gate [advisory]
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+    paths:
+      - 'pipeline/migrations/**'
+
+jobs:
+  check-backfill-declared:
+    name: Check backfill declared [advisory]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect CREATE TABLE in new migrations
+        id: detect
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          git fetch origin "$BASE" "$HEAD" --depth=1 2>/dev/null || true
+
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD" -- 'pipeline/migrations/*.sql')
+
+          CREATE_TABLE_FOUND=false
+          for f in $CHANGED; do
+            if [ -f "$f" ] && grep -qiE 'CREATE[[:space:]]+(OR[[:space:]]+REPLACE[[:space:]]+)?TABLE' "$f"; then
+              echo "Found CREATE TABLE in: $f"
+              CREATE_TABLE_FOUND=true
+            fi
+          done
+
+          echo "create_table_found=$CREATE_TABLE_FOUND" >> "$GITHUB_OUTPUT"
+
+      - name: Check PR description has backfill declaration
+        if: steps.detect.outputs.create_table_found == 'true'
+        id: backfill_check
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          UNFILLED=false
+          REASON=""
+
+          # Warn if the "No schema changes" checkbox is still unchecked (unfilled template)
+          if echo "$PR_BODY" | grep -qF '- [ ] No schema changes'; then
+            UNFILLED=true
+            REASON="The 'No schema changes' checkbox is unchecked — tick the box that applies and fill in the backfill plan."
+          fi
+
+          # Warn if the Backfill field still contains the HTML comment placeholder
+          if echo "$PR_BODY" | grep -qE 'Backfill:[[:space:]]*<!--'; then
+            UNFILLED=true
+            REASON="The Backfill field still contains a placeholder comment. Replace it with: 'not needed', 'included in this PR', or 'tracked in issue #NNN'."
+          fi
+
+          echo "unfilled=$UNFILLED" >> "$GITHUB_OUTPUT"
+          echo "reason=$REASON" >> "$GITHUB_OUTPUT"
+
+      - name: Warn — backfill declaration missing
+        if: steps.detect.outputs.create_table_found == 'true' && steps.backfill_check.outputs.unfilled == 'true'
+        uses: actions/github-script@v7
+        env:
+          REASON: ${{ steps.backfill_check.outputs.reason }}
+        with:
+          script: |
+            const reason = process.env.REASON;
+
+            const body = `### Advisory: Data migration section appears unfilled
+
+            This PR adds a \`CREATE TABLE\` (or \`CREATE OR REPLACE TABLE\`) migration but the **Data migration** section of the PR description looks incomplete.
+
+            **${reason}**
+
+            Please update the Data migration section before this PR lands:
+            - Check **one** of the boxes that applies (no schema changes, OR schema added/modified).
+            - If schema is modified: fill in *Data state at t=0* and *Backfill* fields.
+              - Backfill must be one of: \`not needed\`, \`included in this PR\`, or \`tracked in issue #NNN\`.
+
+            > This check is **advisory** — it will not block the merge, but the PR author is expected to address it.`;
+
+            // Only post if no existing advisory comment from this workflow
+            const comments = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.data.find(c =>
+              c.body.includes('Advisory: Data migration section appears unfilled')
+            );
+
+            if (!existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+            // Emit a workflow warning (shows in Actions summary) and exit 1 to mark check amber/red
+            core.warning(
+              'CREATE TABLE migration detected but Data migration section appears unfilled. ' +
+              reason
+            );
+
+            // Exit non-zero so the advisory check shows as failed (amber) in the PR
+            process.exitCode = 1;

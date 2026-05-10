@@ -21,6 +21,7 @@ describe("PunditCard — prop types", () => {
             name: "Stephen A. Smith",
             accuracy: 0.72,
             correctCount: 18,
+            resolvedCount: 25,
             totalCount: 25,
             variant: "hof",
         };
@@ -35,6 +36,7 @@ describe("PunditCard — prop types", () => {
             name: "Skip Bayless",
             accuracy: 0.22,
             correctCount: 5,
+            resolvedCount: 23,
             totalCount: 23,
             variant: "hos",
         };
@@ -47,6 +49,7 @@ describe("PunditCard — prop types", () => {
             name: "A",
             accuracy: 0.8,
             correctCount: 8,
+            resolvedCount: 10,
             totalCount: 10,
             variant: "hof",
         };
@@ -60,6 +63,7 @@ describe("PunditCard — prop types", () => {
             name: "B",
             accuracy: 0.2,
             correctCount: 2,
+            resolvedCount: 10,
             totalCount: 10,
             variant: "hos",
         };
@@ -73,6 +77,7 @@ describe("PunditCard — prop types", () => {
             name: "C",
             accuracy: 0.5,
             correctCount: 5,
+            resolvedCount: 10,
             totalCount: 10,
             variant: "hof",
             featuredPrediction: {
@@ -89,6 +94,7 @@ describe("PunditCard — prop types", () => {
             name: "D",
             accuracy: 0.5,
             correctCount: 5,
+            resolvedCount: 10,
             totalCount: 10,
             variant: "hof",
         };
@@ -110,9 +116,10 @@ interface MockPunditStat {
     accuracy_rate: number | null;
 }
 
+const HOF_MIN_RESOLVED = 5;
 function pickHof(pundits: MockPunditStat[]): MockPunditStat[] {
     return [...pundits]
-        .filter((p) => p.resolved_predictions > 0 && p.accuracy_rate !== null)
+        .filter((p) => p.resolved_predictions >= HOF_MIN_RESOLVED && p.accuracy_rate !== null)
         .sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0))
         .slice(0, 10);
 }
@@ -148,21 +155,21 @@ describe("HOF selection", () => {
         }
     });
 
-    it("excludes pundits with no resolved predictions", () => {
+    it("excludes pundits with fewer than 5 resolved predictions", () => {
         const mixed: MockPunditStat[] = [
             ...pundits,
             {
-                pundit_id: "unresolved",
-                pundit_name: "Unresolved",
-                total_predictions: 5,
-                resolved_predictions: 0,
-                correct_predictions: 0,
+                pundit_id: "low-sample",
+                pundit_name: "Low Sample",
+                total_predictions: 4,
+                resolved_predictions: 4,
+                correct_predictions: 4,
                 incorrect_predictions: 0,
-                accuracy_rate: null,
+                accuracy_rate: 1.0,
             },
         ];
         const hof = pickHof(mixed);
-        expect(hof.every((p) => p.resolved_predictions > 0)).toBe(true);
+        expect(hof.every((p) => p.resolved_predictions >= HOF_MIN_RESOLVED)).toBe(true);
     });
 });
 

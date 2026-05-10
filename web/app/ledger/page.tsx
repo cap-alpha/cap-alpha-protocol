@@ -695,6 +695,7 @@ function hofCardProps(p: PunditStat): PunditCardProps {
         name: p.pundit_name,
         accuracy: p.accuracy_rate ?? 0,
         correctCount: p.correct_predictions,
+        resolvedCount: p.resolved_predictions,
         totalCount: p.total_predictions,
         variant: "hof",
     };
@@ -706,6 +707,7 @@ function hosCardProps(p: PunditStat): PunditCardProps {
         name: p.pundit_name,
         accuracy: p.accuracy_rate ?? 0,
         correctCount: p.correct_predictions,
+        resolvedCount: p.resolved_predictions,
         totalCount: p.total_predictions,
         variant: "hos",
     };
@@ -724,7 +726,7 @@ function HofHosGrid({
         return (
             <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
                 {variant === "hof"
-                    ? "No pundits with resolved predictions yet."
+                    ? "No pundits with 5+ resolved predictions yet — check back soon."
                     : "Not enough pundits with 10+ resolved predictions yet."}
             </div>
         );
@@ -909,9 +911,10 @@ export default function LedgerPage() {
 
     const SPORTS = ["ALL", "NFL", "NBA", "MLB"];
 
-    // HOF: top 10 by accuracy (must have resolved predictions)
+    // HOF: top 10 by accuracy — require ≥5 resolved picks so a 1/1 pundit can't show 100%
+    const HOF_MIN_RESOLVED = 5;
     const hofPundits = sorted
-        .filter((p) => p.resolved_predictions > 0 && p.accuracy_rate !== null)
+        .filter((p) => p.resolved_predictions >= HOF_MIN_RESOLVED && p.accuracy_rate !== null)
         .slice(0, 10);
 
     // HOS: bottom 10 by accuracy with min 10 predictions
@@ -980,13 +983,13 @@ export default function LedgerPage() {
                         </div>
                     </div>
 
-                    {/* Pundit search — primary navigation */}
-                    <div className="mt-6 max-w-md">
+                    {/* Pundit search — primary navigation, sits above sport filter */}
+                    <div className="mt-5 max-w-md">
                         <PunditSearchBar placeholder="Search pundits..." />
                     </div>
 
-                    {/* Sport filter — applies to all views */}
-                    <div className="flex items-center gap-2 mt-4">
+                    {/* Sport filter — secondary filter below search */}
+                    <div className="flex items-center gap-2 mt-3">
                         <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1">
                             Sport:
                         </span>
@@ -1019,9 +1022,9 @@ export default function LedgerPage() {
                     <div className="flex gap-0" role="tablist" aria-label="Ledger view">
                         {(
                             [
-                                { id: "hof", label: "Hall of Fame" },
+                                { id: "hof", label: "Leaders" },
                                 { id: "hos", label: "Hall of Shame" },
-                                { id: "all", label: "All" },
+                                { id: "all", label: "Full Ledger" },
                             ] as { id: TopLevelView; label: string }[]
                         ).map(({ id, label }) => (
                             <button
@@ -1239,7 +1242,12 @@ function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
                 <span>Accuracy</span>
                 <span className="text-right">Correct</span>
                 <span className="text-right">Wrong</span>
-                <span className="text-right">Brier ↓</span>
+                <span
+                    className="text-right cursor-help underline decoration-dotted decoration-zinc-700"
+                    title="Brier score measures calibration (0 = perfect, 1 = worst). Lower is better. Rewards pundits who are right AND confident."
+                >
+                    Brier ↓
+                </span>
                 <span className="text-right">Picks</span>
                 <span className="text-right"></span>
             </div>

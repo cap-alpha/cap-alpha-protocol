@@ -14,6 +14,7 @@ export interface PunditCardProps {
     name: string;
     accuracy: number; // 0-1
     correctCount: number;
+    resolvedCount: number;
     totalCount: number;
     featuredPrediction?: {
         text: string;
@@ -120,10 +121,12 @@ export function PunditCard({
     name,
     accuracy,
     correctCount,
+    resolvedCount,
     totalCount,
     featuredPrediction,
     variant,
 }: PunditCardProps) {
+    const lowSample = resolvedCount < 10;
     const accentBorder =
         variant === "hof" ? "border-emerald-500/20" : "border-red-500/20";
     const accentText =
@@ -155,13 +158,25 @@ export function PunditCard({
                 </div>
             </div>
 
-            {/* Correct / total count */}
-            <div className="text-xs font-mono text-zinc-400">
-                <span className="text-emerald-400 font-semibold">{correctCount}</span>
-                <span className="text-zinc-600"> correct / </span>
-                <span className="font-semibold text-zinc-300">{totalCount}</span>
-                <span className="text-zinc-600"> total</span>
+            {/* Correct / resolved count + sample size label */}
+            <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-mono text-zinc-400">
+                    <span className="text-emerald-400 font-semibold">{correctCount}</span>
+                    <span className="text-zinc-600"> correct / </span>
+                    <span className="font-semibold text-zinc-300">{resolvedCount}</span>
+                    <span className="text-zinc-600"> resolved</span>
+                </div>
+                {lowSample && (
+                    <span className="text-[10px] font-mono text-amber-500/80 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5 shrink-0">
+                        small sample
+                    </span>
+                )}
             </div>
+            {totalCount > resolvedCount && (
+                <div className="text-[10px] font-mono text-zinc-600">
+                    {totalCount - resolvedCount} more picks awaiting resolution
+                </div>
+            )}
 
             {/* Featured prediction */}
             {featuredPrediction && (

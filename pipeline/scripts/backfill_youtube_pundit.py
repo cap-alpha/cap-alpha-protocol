@@ -42,6 +42,7 @@ import json
 import logging
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -188,6 +189,13 @@ def main() -> None:
         help="Max number of videos to process (useful for testing)",
     )
     parser.add_argument(
+        "--delay",
+        type=float,
+        default=4.0,
+        metavar="SECONDS",
+        help="Seconds to wait between each video fetch (default: 4 — stays under YouTube rate limits)",
+    )
+    parser.add_argument(
         "--dry-run",
         action="store_true",
         help="Preview without writing to BigQuery",
@@ -223,40 +231,40 @@ def main() -> None:
         logger.info("No videos to process — exiting.")
         return
 
+    eta_minutes = len(video_urls) * args.delay / 60
     logger.info(
         f"Backfilling {len(video_urls)} video(s) for "
-        f"source={args.source_id} pundit={args.pundit_id}"
+        f"source={args.source_id} pundit={args.pundit_id} "
+        f"(delay={args.delay}s, ETA ~{eta_minutes:.0f} min)"
     )
 
     db = None if args.dry_run else DBManager()
+    total_new = 0
     try:
-        new_items = ingest_from_urls(
-            urls=video_urls,
-            source_id=args.source_id,
-            pundit_id=args.pundit_id,
-            pundit_name=args.pundit_name,
-            sport=args.sport,
-            db=db,
-            dry_run=args.dry_run,
-        )
+        for i, url in enumerate(video_urls):
+            batch = ingest_from_urls(
+                urls=[url],
+                source_id=args.source_id,
+                pundit_id=args.pundit_id,
+                pundit_name=args.pundit_name,
+                sport=args.sport,
+                db=db,
+                dry_run=args.dry_run,
+            )
+            total_new += len(batch)
+            if (i + 1) % 10 == 0 or (i + 1) == len(video_urls):
+                logger.info(f"[{i + 1}/{len(video_urls)}] {total_new} new items so far")
+            if i < len(video_urls) - 1:
+                time.sleep(args.delay)
     finally:
         if db is not None:
             db.close()
 
     status = "DRY RUN — " if args.dry_run else ""
     logger.info(
-        f"{status}Backfill complete: {len(new_items)} new item(s) ingested "
+        f"{status}Backfill complete: {total_new} new item(s) ingested "
         f"for {args.pundit_name} ({args.source_id})"
     )
-
-    if args.dry_run and new_items:
-        sample = new_items[0]
-        print("\nSample item (dry run):")
-        print(f"  source_url : {sample.source_url}")
-        print(f"  title      : {sample.title}")
-        print(f"  pundit     : {sample.matched_pundit_name}")
-        print(f"  sport      : {sample.sport}")
-        print(f"  text_len   : {len(sample.raw_text or '')} chars")
 
 
 if __name__ == "__main__":

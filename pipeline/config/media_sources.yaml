@@ -628,6 +628,36 @@ sources:
         name: "Taegan Goddard"
         match_authors: ["Taegan Goddard", "tgoddard"]
 
+  # ── Politics / Geopolitics YouTube (issue #880) ──────────────────────────────
+  # High-density geopolitical predictions via YouTube transcripts.
+  # Backfill: pipeline/scripts/backfill_youtube_pundit.py
+  - id: ian_bremmer_gzero
+    name: "GZERO World with Ian Bremmer"
+    sport: politics
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=GZERO_CHANNEL_ID"
+    enabled: false  # TODO: replace GZERO_CHANNEL_ID with verified UC... ID, then enable
+    priority_tier: 1  # High-density geopolitical predictions; testable against world events
+    pundits:
+      - id: ian_bremmer
+        name: "Ian Bremmer"
+        match_authors: ["Ian Bremmer", "Bremmer", "gzeromedia"]
+
+  - id: nouriel_roubini
+    name: "Nouriel Roubini (Bloomberg TV)"
+    sport: politics
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=ROUBINI_CHANNEL_ID"
+    enabled: false  # Use backfill script with explicit video URLs
+    priority_tier: 1  # High-density macro/geopolitical predictions
+    keyword_filter:
+      - "Roubini"
+      - "Dr. Doom"
+    pundits:
+      - id: nouriel_roubini
+        name: "Nouriel Roubini"
+        match_authors: ["Nouriel Roubini", "Roubini", "Dr. Doom"]
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

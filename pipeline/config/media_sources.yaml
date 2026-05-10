@@ -635,8 +635,8 @@ sources:
     name: "GZERO World with Ian Bremmer"
     sport: politics
     type: youtube_transcript
-    url: "https://www.youtube.com/feeds/videos.xml?channel_id=GZERO_CHANNEL_ID"
-    enabled: false  # TODO: replace GZERO_CHANNEL_ID with verified UC... ID, then enable
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC-8_qAhNVG8G1wxONMnYr3Q"
+    enabled: true
     priority_tier: 1  # High-density geopolitical predictions; testable against world events
     pundits:
       - id: ian_bremmer
@@ -647,8 +647,10 @@ sources:
     name: "Nouriel Roubini (Bloomberg TV)"
     sport: politics
     type: youtube_transcript
-    url: "https://www.youtube.com/feeds/videos.xml?channel_id=ROUBINI_CHANNEL_ID"
-    enabled: false  # Use backfill script with explicit video URLs
+    # Bloomberg Television main channel — keyword_filter picks only Roubini appearances.
+    # Roubini appears frequently here; no dedicated personal channel exists.
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIALMKvObZNtJ6AmdCLP7Lg"
+    enabled: true
     priority_tier: 1  # High-density macro/geopolitical predictions
     keyword_filter:
       - "Roubini"

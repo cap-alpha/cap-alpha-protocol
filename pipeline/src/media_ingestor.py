@@ -449,27 +449,35 @@ def _is_youtube_short(url: str) -> bool:
 
 
 def _fetch_transcript_ytdlp(video_id: str) -> str:
-    """Fallback: use yt-dlp to download auto-generated subtitles as VTT, return plain text."""
+    """Fallback: use yt-dlp to download auto-generated subtitles as VTT, return plain text.
+
+    Respects YOUTUBE_COOKIES_FILE env var — set it to an exported Netscape-format
+    cookies file (e.g. from the browser extension "Get cookies.txt LOCALLY") to
+    bypass IP-based rate limits and access age-restricted content.
+    """
     import subprocess
     import tempfile
     from pathlib import Path as _Path
 
     url = f"https://www.youtube.com/watch?v={video_id}"
+    cookies_file = os.environ.get("YOUTUBE_COOKIES_FILE", "").strip()
+
+    cmd = [
+        "yt-dlp",
+        "--write-auto-sub",
+        "--sub-lang",
+        "en",
+        "--skip-download",
+        "--convert-subs",
+        "vtt",
+    ]
+    if cookies_file and _Path(cookies_file).exists():
+        cmd += ["--cookies", cookies_file]
+
     with tempfile.TemporaryDirectory() as tmpdir:
         out_template = str(_Path(tmpdir) / "%(id)s.%(ext)s")
         subprocess.run(
-            [
-                "yt-dlp",
-                "--write-auto-sub",
-                "--sub-lang",
-                "en",
-                "--skip-download",
-                "--convert-subs",
-                "vtt",
-                "-o",
-                out_template,
-                url,
-            ],
+            cmd + ["-o", out_template, url],
             check=True,
             capture_output=True,
             timeout=60,

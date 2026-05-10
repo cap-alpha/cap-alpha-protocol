@@ -4,8 +4,12 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'web/**'
+      - 'pipeline/api/**'
     tags:
       - 'v*' # Also trigger on semantic version tags for manual versioned releases
+  workflow_dispatch:
 
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
@@ -37,3 +41,7 @@ jobs:
           PROD_URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
           echo "Vercel Production URL: $PROD_URL"
           echo "prod_url=$PROD_URL" >> $GITHUB_OUTPUT
+
+      - name: Alias cap-alpha.co to new deployment
+        working-directory: web
+        run: vercel alias set ${{ steps.deploy.outputs.prod_url }} cap-alpha.co --token=${{ secrets.VERCEL_TOKEN }}

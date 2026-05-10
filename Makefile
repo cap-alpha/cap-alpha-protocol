@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2
+.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2
 
 PYTHON ?= python3
 # Resolve VENV to the main repo root — works from both the main checkout and worktrees.
@@ -61,6 +61,9 @@ lint-fix:
 		ruff format pipeline/src/ pipeline/tests/
 
 check: lint test
+
+type-check:
+	cd web && npx tsc --noEmit
 
 # -----------------------------------------------------------------------------
 # AGENT HOUSEKEEPING

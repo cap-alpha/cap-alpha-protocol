@@ -1,0 +1,91 @@
+name: Mobile Viewport Tests
+
+# Issue #499: [Gate 1] [Launch P1] Mobile pass — iPhone 14 Pro (390px)
+#
+# Runs Playwright mobile-viewport spec against a built Next.js app.
+# Advisory: failures are tracked but do not block merge while the suite
+# stabilises. Promote to blocking once green for 2+ consecutive days.
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'web/**'
+  merge_group:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  mobile-viewport:
+    name: Run E2E Mobile Viewport Tests (Docker) [advisory]
+    runs-on: ubuntu-latest
+    continue-on-error: true  # advisory — failures tracked but do not block merge
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Install Playwright browsers (Chromium only)
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Build Next.js app
+        working-directory: web
+        env:
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_Y2xlcmsuZXhhbXBsZS5jb20k' }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || 'sk_test_placeholder_for_ci_build' }}
+        run: npm run build
+
+      - name: Start Next.js server
+        working-directory: web
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || 'pk_test_Y2xlcmsuZXhhbXBsZS5jb20k' }}
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || 'sk_test_placeholder_for_ci_build' }}
+        run: |
+          npm run start &
+          # Poll until the server responds (up to 60s)
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:3000 > /dev/null 2>&1 && break
+            echo "Waiting for server... attempt $i/30"
+            sleep 2
+          done
+          curl -sf http://localhost:3000 > /dev/null || (echo "Server failed to start" && exit 1)
+
+      - name: Run mobile viewport Playwright tests
+        working-directory: web
+        env:
+          PLAYWRIGHT_BASE_URL: http://localhost:3000
+        run: |
+          npx playwright test tests/e2e/mobile-viewport.spec.ts \
+            --project=chromium \
+            --reporter=html
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-viewport-playwright-report
+          path: web/playwright-report/
+          retention-days: 14
+
+      - name: Upload mobile screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: mobile-viewport-screenshots
+          path: web/playwright-report/mobile-screenshots/
+          retention-days: 14

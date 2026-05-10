@@ -77,6 +77,6 @@ exclude_lines = [
     "@abstractmethod",
 ]
 precision = 2
-# Baseline set at 25% — many src modules are scrapers/BQ clients with no unit tests.
-# Raise this incrementally as coverage improves.
-fail_under = 25
+# Baseline measured at 44.33% (2026-05-09). Threshold set to 40% (nearest 5% floor)
+# to establish a floor without blocking CI. Raise incrementally as coverage improves.
+fail_under = 40

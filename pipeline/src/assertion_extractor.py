@@ -44,8 +44,13 @@ from typing import Optional
 import pandas as pd
 import yaml
 from google.api_core.exceptions import NotFound
+from google.cloud import bigquery as _bigquery
 from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter
-from src.cryptographic_ledger import PunditPrediction, ingest_batch
+from src.cryptographic_ledger import (
+    PunditPrediction,
+    compute_prediction_hash,
+    ingest_batch,
+)
 from src.db_manager import DBManager
 from src.llm_provider import (
     LLMProvider,
@@ -69,6 +74,8 @@ logger = logging.getLogger(__name__)
 
 RAW_MEDIA_TABLE = "raw_pundit_media"
 PROCESSED_TABLE = "processed_media_hashes"
+DEDUP_LOG_TABLE = "gold_layer.claim_dedup_log"
+LEDGER_TABLE = "gold_layer.prediction_ledger"
 
 # ---------------------------------------------------------------------------
 # Phase C — speech-act + testability constants
@@ -495,6 +502,40 @@ PROMPT_VERSION = hashlib.sha256(EXTRACTION_PROMPT.encode("utf-8")).hexdigest()[:
 
 # Domain used when sport maps to NFL (the only domain with templates so far).
 _NFL_DOMAIN = "nfl"
+
+
+def _sport_to_extraction_domain(sport: str) -> str:
+    """Map raw_pundit_media.sport to a domain template directory name.
+
+    Used for routing to the correct extraction prompt templates in
+    config/domains/<domain>/. Distinct from _sport_to_domain (which
+    lowercases the sport string for the content filter).
+
+    Args:
+        sport: Value from raw_pundit_media.sport (e.g. "NFL", "politics", None).
+
+    Returns:
+        A domain key that maps to config/domains/<domain>/ templates.
+        Defaults to "nfl" for any unrecognised or empty sport value.
+    """
+    sport_lower = (sport or "").lower().strip()
+    if sport_lower in {"politics", "political"}:
+        return "politics"
+    if sport_lower in {"finance", "financial", "markets", "investing"}:
+        return "finance"
+    return _NFL_DOMAIN
+
+
+def _get_prompt_version_for_sport(sport: str) -> str:
+    """Return the Jinja-template-based prompt version for the domain derived from sport.
+
+    Falls back to the legacy PROMPT_VERSION if the templates are missing
+    (e.g. in unit tests that stub the filesystem or a new domain without templates yet).
+    """
+    try:
+        return get_prompt_version(_sport_to_extraction_domain(sport))
+    except Exception:
+        return PROMPT_VERSION
 
 
 def _get_nfl_prompt_version() -> str:
@@ -1183,6 +1224,122 @@ def _write_extraction_run(
         logger.warning(f"Failed to write extraction_run row (non-fatal): {exc}")
 
 
+# ---------------------------------------------------------------------------
+# Exact-match claim deduplication (Issue #808 Phase 0)
+# ---------------------------------------------------------------------------
+
+
+def compute_claim_norm_key(
+    claim_category: Optional[str],
+    target_player_name: Optional[str],
+    target_team: Optional[str],
+    season_year: Optional[int],
+) -> str:
+    """
+    Compute the exact-match deduplication key for a prediction.
+
+    SHA-256 of LOWER(TRIM(claim_category | target_player_name | target_team | season_year)).
+    NULL fields are treated as empty string to produce a deterministic key.
+    This is the Phase 0 exact-match gate; Phase 1+ will layer semantic embeddings on top.
+    """
+    parts = [
+        claim_category or "",
+        target_player_name or "",
+        target_team or "",
+        str(season_year) if season_year is not None else "",
+    ]
+    raw = "|".join(parts).lower().strip()
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+
+def check_claim_is_duplicate(
+    norm_key: str,
+    db: "DBManager",
+) -> Optional[str]:
+    """
+    Query prediction_ledger for an existing claim with the given norm_key.
+
+    Returns the canonical prediction_hash if a duplicate is found, or None if
+    this is a new unique claim.  Uses a LIMIT 1 query so it is O(1) in BigQuery
+    with the CLUSTER BY on claim_norm_key (added by migration 015).
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    if not project_id:
+        logger.warning("GCP_PROJECT_ID not set; skipping dedup check")
+        return None
+
+    query = f"""
+        SELECT prediction_hash
+        FROM `{project_id}.{LEDGER_TABLE}`
+        WHERE claim_norm_key = @norm_key
+        LIMIT 1
+    """
+    try:
+        job_config = QueryJobConfig(
+            query_parameters=[ScalarQueryParameter("norm_key", "STRING", norm_key)]
+        )
+        df = db.fetch_df(query, job_config=job_config)
+        if df.empty:
+            return None
+        return str(df.iloc[0]["prediction_hash"])
+    except Exception as exc:
+        # Fail-open: if the dedup check errors (e.g. column not yet migrated),
+        # treat it as a non-duplicate so ingestion can proceed.
+        logger.warning(
+            "Dedup check failed (fail-open — treating as non-duplicate): %s", exc
+        )
+        return None
+
+
+def log_duplicate_claim(
+    dupe_hash: str,
+    canonical_hash: str,
+    norm_key: str,
+    pundit_id: str,
+    db: "DBManager",
+) -> None:
+    """
+    Write a dedup event to gold_layer.claim_dedup_log.
+
+    Called when an incoming claim is suppressed as an exact match of an existing
+    ledger entry.  The claim is NOT written to prediction_ledger; only this log
+    row is created, preserving a full audit trail.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    now = datetime.now(timezone.utc)
+    df = pd.DataFrame(
+        [
+            {
+                "dupe_hash": dupe_hash,
+                "canonical_hash": canonical_hash,
+                "norm_key": norm_key,
+                "pundit_id": pundit_id,
+                "ingested_at": now,
+                "match_type": "exact",
+            }
+        ]
+    )
+    try:
+        # DEDUP_LOG_TABLE is in the gold_layer dataset; use the BQ client directly
+        # (same pattern as cryptographic_ledger._append_to_ledger).
+        table_ref = f"{project_id}.{DEDUP_LOG_TABLE}"
+        job_config = _bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
+        job = db.client.load_table_from_dataframe(df, table_ref, job_config=job_config)
+        job.result()
+        logger.info(
+            "Dedup: logged duplicate claim dupe_hash=%s canonical_hash=%s pundit_id=%s",
+            dupe_hash[:16],
+            canonical_hash[:16],
+            pundit_id,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Dedup: failed to write dedup log row (dupe_hash=%s): %s",
+            dupe_hash[:16],
+            exc,
+        )
+
+
 def _deduplicate_claims(predictions: list[dict], threshold: float = 0.75) -> list[dict]:
     """
     Remove near-duplicate claims from a single article's extraction.
@@ -1242,12 +1399,12 @@ def extract_assertions(
 
         provider = GeminiProvider()
 
-    # Render the prompt from Jinja2 templates for the NFL domain.
-    # Falls back to the legacy hardcoded string if templates are unavailable
-    # (so existing unit tests that don't care about templates still pass).
+    # Render the prompt from Jinja2 templates, routing to the correct domain
+    # based on the sport field.  Falls back to the legacy hardcoded string if
+    # templates are unavailable (so existing unit tests still pass).
     try:
         prompt, _tpl_version = render_extraction_prompt(
-            domain=_NFL_DOMAIN,
+            domain=_sport_to_extraction_domain(sport),
             sport=sport,
             published_date=published_date or "Unknown",
             source_name=source_name or "Unknown",
@@ -1853,6 +2010,7 @@ def run_extraction(
         "triage_filtered_out": 0,
         "skipped_low_yield": 0,
         "testability_threshold": threshold,
+        "duplicates_suppressed": 0,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
 
@@ -2090,6 +2248,57 @@ def run_extraction(
                     else "neutral"
                 )
 
+                # --- Phase 0 exact-match dedup gate (Issue #808) ---
+                norm_key = compute_claim_norm_key(
+                    claim_category=pred.get("claim_category"),
+                    target_player_name=player_name,
+                    target_team=pred.get("target_team"),
+                    season_year=pred.get("season_year"),
+                )
+                canonical_hash = check_claim_is_duplicate(norm_key, db)
+                if canonical_hash is not None:
+                    # Duplicate found: log it and skip ingestion into the ledger.
+                    # We compute a hash for the incoming (suppressed) claim so the
+                    # dedup log row is self-contained.
+                    incoming = PunditPrediction(
+                        pundit_id=str(pundit_id),
+                        pundit_name=str(pundit_name),
+                        source_url=source_url,
+                        raw_assertion_text=str(row.get("raw_text", ""))[:2000],
+                        extracted_claim=pred["extracted_claim"],
+                        claim_category=pred.get("claim_category"),
+                        season_year=pred.get("season_year"),
+                        target_player_id=None,
+                        target_player_name=player_name,
+                        target_team=pred.get("target_team"),
+                        stance=stance,
+                        sport=str(row.get("sport", sport)),
+                        prompt_version=PROMPT_VERSION,
+                        llm_provider=provider_type,
+                        llm_model=str(llm_model) if llm_model else None,
+                        claim_norm_key=norm_key,
+                    )
+                    dupe_hash = compute_prediction_hash(incoming)
+                    log_duplicate_claim(
+                        dupe_hash=dupe_hash,
+                        canonical_hash=canonical_hash,
+                        norm_key=norm_key,
+                        pundit_id=str(pundit_id),
+                        db=db,
+                    )
+                    summary["duplicates_suppressed"] = (
+                        summary.get("duplicates_suppressed", 0) + 1
+                    )
+                    logger.info(
+                        "Dedup (exact): suppressed claim norm_key=%s…  "
+                        "canonical=%s…  pundit=%s",
+                        norm_key[:16],
+                        canonical_hash[:16],
+                        pundit_id,
+                    )
+                    continue
+                # --- end dedup gate ---
+
                 # Issue #366 — speech-act routing:
                 # quoted → score credited to originating_speaker, not the transmitter.
                 # commentary → current speaker authors an agree/disagree claim;
@@ -2125,9 +2334,12 @@ def run_extraction(
                         ),
                         stance=stance,
                         sport=str(row.get("sport", sport)),
-                        prompt_version=_get_nfl_prompt_version(),
+                        prompt_version=_get_prompt_version_for_sport(
+                            str(row.get("sport", sport))
+                        ),
                         llm_provider=provider_type,
                         llm_model=str(llm_model) if llm_model else None,
+                        claim_norm_key=norm_key,
                     )
                 )
 
@@ -2165,6 +2377,7 @@ def run_extraction(
             f"(testability_score >= {threshold}), "
             f"{summary['suppressed']} suppressed (rhetorical/hedge/etc.), "
             f"{summary['predictions_ingested']} ingested, "
+            f"{summary['duplicates_suppressed']} exact-match duplicates suppressed, "
             f"{summary['skipped_low_yield']} skipped (low-yield source), "
             f"{summary['errors']} errors"
         )
@@ -2189,7 +2402,7 @@ def run_extraction(
                 finished_at=_finished_at,
                 provider=_run_provider,
                 model=_run_model,
-                prompt_version=_get_nfl_prompt_version(),
+                prompt_version=_get_prompt_version_for_sport(sport),
                 articles_processed=summary["total_processed"],
                 utterances_written=summary["utterances_written"],
                 claims_promoted=summary["predictions_ingested"],

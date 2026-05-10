@@ -71,6 +71,9 @@ class PunditPrediction:
     target_entity: Optional[str] = (
         None  # Issue #688 — JSON string, polymorphic entity envelope
     )
+    claim_norm_key: Optional[str] = (
+        None  # SHA-256 of normalised category|player|team|season (Issue #808)
+    )
 
 
 def _canonical_payload(prediction: PunditPrediction) -> str:
@@ -295,6 +298,7 @@ def ingest_batch(
                         "resolution_status": "PENDING",
                         "resolved_at": None,
                         "resolution_notes": None,
+                        "claim_norm_key": prediction.claim_norm_key,
                     }
                 )
                 hashes.append(prediction_hash)

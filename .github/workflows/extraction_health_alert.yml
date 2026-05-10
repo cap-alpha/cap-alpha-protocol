@@ -1,12 +1,13 @@
 name: Extraction Health Alert
 
-# Hourly job: queries last 4h of silver_v2_claims.extraction_run and fails if:
-#   (a) zero rows   — pipeline may have stopped running
-#   (b) error rate  > 20%   (errors / articles_processed)
-#   (c) any run has metadata_completeness_pct < 100
+# Hourly job. Opens a deduplicated GitHub issue (+ @mention) on any failure:
+#   Extraction check — queries last 4h of silver_v2_claims.extraction_run:
+#     (a) zero rows   — pipeline may have stopped running
+#     (b) error rate  > 20%   (errors / articles_processed)
+#     (c) any run has metadata_completeness_pct < 100
+#   Runner check — verifies at least one self-hosted runner is online
 #
-# Job runtime budget: < 3 min (BQ query + issue creation)
-# On failure: opens a GitHub issue with label "incident:extraction"
+# Job runtime budget: < 3 min; timeout at 5 to allow for GCP auth latency
 
 on:
   schedule:
@@ -18,6 +19,9 @@ jobs:
     runs-on: ubuntu-latest
     # Runtime budget < 3 min; timeout at 5 to allow for GCP auth latency
     timeout-minutes: 5
+    permissions:
+      issues: write
+      actions: read  # needed to query self-hosted runner status
     # Do not run on fork PRs that lack repo secrets
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
 
@@ -99,58 +103,74 @@ jobs:
           )
           PY
 
-      - name: Install GitHub App PEM
-        if: steps.health_check.outcome == 'failure' && secrets.GH_APP_PEM_CONTENT != ''
+      - name: Check runner health
+        id: runner_check
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          mkdir -p ~/.ghconfig
-          printf '%s' '${{ secrets.GH_APP_PEM_CONTENT }}' > ~/.ghconfig/triage-app.pem
-          chmod 600 ~/.ghconfig/triage-app.pem
+          ONLINE=$(gh api /repos/${{ github.repository }}/actions/runners \
+            --jq '[.runners[] | select(.status == "online")] | length')
+          TOTAL=$(gh api /repos/${{ github.repository }}/actions/runners \
+            --jq '.runners | length')
+          echo "Runners: ${ONLINE} online / ${TOTAL} total"
+          if [[ "${ONLINE}" -eq 0 ]]; then
+            echo "WARNING: no self-hosted runners online — pipeline jobs will queue" >&2
+            exit 1
+          fi
 
       - name: Open incident issue
         if: steps.health_check.outcome == 'failure'
         env:
-          GH_APP_ID: ${{ secrets.GH_APP_ID }}
-          GH_INSTALLATION_ID: ${{ secrets.GH_INSTALLATION_ID }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
-          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          TITLE="incident: extraction health check failed $(date -u '+%Y-%m-%dT%H:%MZ')"
-          BODY="$(cat <<EOF
-          ## Extraction health check failed
+          # Ensure the incident label exists (idempotent; --force = update if exists)
+          gh label create "incident:extraction" \
+            --description "Extraction pipeline health incident" \
+            --color "D93F0B" \
+            --force || true
 
-          The hourly extraction health check detected an issue. Check the [workflow run]($WORKFLOW_URL) for details.
-
-          **Conditions checked:**
-          - Zero extraction_run rows in last 4h → pipeline may have stopped
-          - Error rate > 20% (errors / articles_processed)
-          - metadata_completeness_pct < 100 on any run in last 4h
-
-          **Runbook:**
-          1. Check \`silver_v2_claims.extraction_run\` for recent rows
-          2. Check \`pundit_pipeline\` workflow for failures
-          3. Resolve and close this issue once healthy
-
-          /cc @king-hrothgar
-          EOF
-          )"
-          # Use gh-lars (GitHub App token) if credentials available; fall back to
-          # GITHUB_TOKEN when GH_APP_ID is not configured as a CI secret.
-          if [[ -n "${GH_APP_ID:-}" && -n "${GH_INSTALLATION_ID:-}" ]]; then
-            scripts/gh-lars issue create \
-              --title "$TITLE" \
-              --label "incident:extraction" \
-              --body "$BODY"
-          else
-            gh issue create \
-              --title "$TITLE" \
-              --label "incident:extraction" \
-              --body "$BODY"
+          # Deduplicate: skip if an open incident issue already exists
+          OPEN_COUNT=$(gh issue list \
+            --label "incident:extraction" \
+            --state open \
+            --limit 1 \
+            --json number \
+            --jq 'length')
+          if [[ "${OPEN_COUNT}" -gt 0 ]]; then
+            echo "Open incident issue already exists — skipping duplicate creation"
+            exit 0
           fi
 
+          WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          TITLE="incident: extraction health check failed $(date -u '+%Y-%m-%dT%H:%MZ')"
+          BODY="## Extraction health check failed
+
+The hourly extraction health check detected an issue. See the [workflow run]($WORKFLOW_URL) for details.
+
+**Conditions checked:**
+- Zero \`extraction_run\` rows in last 4h → pipeline may have stopped
+- Error rate > 20% (errors / articles_processed)
+- \`metadata_completeness_pct\` < 100 on any run in last 4h
+
+**Runbook:**
+1. Check \`silver_v2_claims.extraction_run\` for recent rows in BigQuery
+2. Check the \`pundit_pipeline\` workflow for failures
+3. Resolve root cause and close this issue once healthy
+
+@king-hrothgar"
+
+          gh issue create \
+            --title "$TITLE" \
+            --label "incident:extraction" \
+            --body "$BODY"
+
       - name: Assert healthy
-        if: steps.health_check.outcome == 'failure'
+        if: steps.health_check.outcome == 'failure' || steps.runner_check.outcome == 'failure'
         run: |
-          echo "Extraction health check failed — incident issue opened"
+          [[ "${{ steps.health_check.outcome }}" == "failure" ]] && echo "Extraction health check failed"
+          [[ "${{ steps.runner_check.outcome }}" == "failure" ]] && echo "Runner health check failed"
           exit 1
 
       - name: Cleanup

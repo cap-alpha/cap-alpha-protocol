@@ -26,10 +26,14 @@ if _SENTRY_DSN:
 from pydantic import BaseModel
 
 try:
+    from api.entity_router import router as entity_router
+    from api.integrity_router import router as integrity_router
     from api.pundit_router import router as pundit_router
     from api.quality_router import router as quality_router
 except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+    from api.entity_router import router as entity_router
+    from api.integrity_router import router as integrity_router
     from api.pundit_router import router as pundit_router
     from api.quality_router import router as quality_router
 
@@ -92,6 +96,8 @@ app.add_middleware(
 
 app.include_router(pundit_router)
 app.include_router(quality_router)
+app.include_router(integrity_router)
+app.include_router(entity_router)
 
 # -----------------------------------------------------------------------------
 # Mount the MCP server at /mcp (issue #814 Phase 1).

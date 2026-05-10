@@ -82,12 +82,17 @@ cat .agent/current.md
 
 # 4. Do your work, commit, push, open the PR
 
-# 5. Before queueing: verify zero non-advisory FAILURE checks
+# 5. Rebase onto current main before queueing — always, no exceptions.
+#    Empty commits do NOT re-trigger CI (bot pushes are ignored by GitHub Actions).
+#    Only a real rebase guarantees a clean merge state and fresh CI.
+scripts/git-rebase-safe.sh $(pwd) <branch-name>
+
+# 6. Before queueing: verify zero non-advisory FAILURE checks
 #    Run this and confirm the output is "0". If not, investigate — do NOT merge anyway.
 scripts/gh-lars pr view <pr-number> --json statusCheckRollup \
   | jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" and (.name | test("\\[advisory\\]") | not))] | length'
 
-# 6. Queue the PR for landing — never direct merge. Always rebase.
+# 7. Queue the PR for landing — never direct merge. Always rebase.
 scripts/gh-lars pr merge <pr-number> --rebase --auto
 
 # 7. After the PR lands on main, release locks
@@ -184,8 +189,9 @@ web/app/layout.tsx
 
 ## Frontend shipping checklist (mandatory, closes #672)
 
-Before marking any UI/frontend task done, an agent MUST verify all three:
+Before marking any UI/frontend task done, an agent MUST verify all four:
 
+0. **TypeScript check** — before committing any `web/` changes, run `cd web && npx tsc --noEmit` (or `make type-check`). Fix all reported errors before pushing. The pre-commit hook (`.githooks/pre-commit`) and CI (`frontend_preflight.yml`) enforce this automatically; running it locally saves a ~5-minute CI round-trip.
 1. **Deploy pipeline fired** — confirm `production.yml` triggered on the merge (check `gh run list --workflow=production.yml --limit=3`). If it didn't fire, run `cd web && vercel --prod` manually.
 2. **Change is live at cap-alpha.co** — fetch the changed route and confirm it returns 200 and the feature is present. Use `curl -I https://cap-alpha.co/<route>` or the Vercel MCP `web_fetch_vercel_url` tool.
 3. **E2E coverage** — if Playwright tests exist for the changed route, confirm they passed in CI. If no tests exist, file a follow-up issue for coverage (do not block the PR, but do not skip this step).
@@ -232,6 +238,13 @@ make test-e2e
 - If multiple paths forward exist and they're roughly equal, pick one. Don't ask.
 - Inform the user what you're doing, then do it. Don't wait for permission on routine work.
 - Prefer small, focused PRs. One concern per commit.
+
+### One-concern-per-PR rule
+**Every PR must address exactly one logical change.** A PR may touch multiple files but must be about a single coherent fix or feature.
+
+- If you discover a second bug while fixing the first, open a new issue and a separate PR — never fold it in.
+- Bundled PRs make reverts exponentially harder: reverting C4 should not undo C3, M7, and M8.
+- The PR template has a required checkbox enforcing this; fill it out before opening.
 
 ### Decision authority — what to do without asking
 - **Code changes**: refactor, fix bugs, add features described in an issue — just do it.

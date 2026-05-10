@@ -50,10 +50,11 @@ else
   echo "  user.email = $CLAUDE_EMAIL"
 fi
 
-# Symlink .venv from the main checkout into this worktree so `make check`
-# and direct `source .venv/bin/activate` calls work without cd-ing to repo root.
 REPO_ROOT="$(cd "$(git rev-parse --git-common-dir)/.." && pwd)"
 WORKTREE_ROOT="$(git rev-parse --show-toplevel)"
+
+# Symlink .venv from the main checkout into this worktree so `make check`
+# and direct `source .venv/bin/activate` calls work without cd-ing to repo root.
 if [ ! -e "$WORKTREE_ROOT/.venv" ]; then
   ln -sf "$REPO_ROOT/.venv" "$WORKTREE_ROOT/.venv"
   echo "  .venv symlink -> $REPO_ROOT/.venv"

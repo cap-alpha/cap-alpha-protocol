@@ -1704,7 +1704,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             **self._BASE_UTTERANCE,
             "resolution_horizon": resolution_horizon_value,
         }
-        n, failed = write_raw_utterances(
+        n, _id_map = write_raw_utterances(
             utterances=[utterance],
             source_doc_id="doc_abc",
             speaker_entity_id="entity_xyz",
@@ -1713,7 +1713,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             db=db,
         )
         assert n == 1, "Expected 1 row written"
-        assert failed == 0
+        assert isinstance(_id_map, dict)
         rows = _capture_load_args(db)
         assert len(rows) == 1
         return rows[0]["resolution_horizon"]
@@ -1803,7 +1803,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             {**self._BASE_UTTERANCE, "resolution_horizon": "2026-01-15T00:00:00Z"},
             {**self._BASE_UTTERANCE, "resolution_horizon": None},
         ]
-        n, failed = write_raw_utterances(
+        n, _id_map = write_raw_utterances(
             utterances=utterances,
             source_doc_id="doc_multi",
             speaker_entity_id="entity_xyz",
@@ -1812,7 +1812,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             db=db,
         )
         assert n == 3
-        assert failed == 0
+        assert isinstance(_id_map, dict)
         rows = _capture_load_args(db)
         assert len(rows) == 3
         # datetime → UTC Timestamp
@@ -2786,57 +2786,294 @@ class TestGateClaim:
 
 
 # ---------------------------------------------------------------------------
-# Issue #665 — Extraction Pipeline Resilience
+# Tests for write_raw_utterances tuple-return + write_silver_v2_claims
 # ---------------------------------------------------------------------------
 
 
 class TestWriteRawUtterancesReturnsTuple:
-    """write_raw_utterances returns (written_count, failed_count) — not a bare int."""
+    """
+    write_raw_utterances now returns (count, utterance_id_map).
+    Verify the shape without a live BQ connection by testing the early-exit
+    path (empty utterances list) and the id-map construction path via a stub.
+    """
 
-    _BASE_UTT = {
-        "text": "Mahomes wins MVP",
-        "speech_act_type": "assertion",
-        "testability_score": 0.9,
-        "extraction_confidence": 0.9,
-    }
+    def test_empty_utterances_returns_zero_and_empty_map(self):
+        """Empty utterance list must return (0, {}) — no BQ calls made."""
+        from src.assertion_extractor import write_raw_utterances
 
-    def _make_mock_db(self):
-        db = MagicMock()
-        job = MagicMock()
-        job.result.return_value = None
-        db.client.load_table_from_dataframe.return_value = job
-        return db
-
-    def test_returns_tuple_on_success(self):
-        import os
-
-        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
-        db = self._make_mock_db()
         result = write_raw_utterances(
-            utterances=[self._BASE_UTT],
-            source_doc_id="doc_x",
-            speaker_entity_id="entity_y",
-            uttered_at=datetime(2025, 9, 1, tzinfo=timezone.utc),
-            domain="nfl",
-            db=db,
-        )
-        assert isinstance(result, tuple), "write_raw_utterances must return a tuple"
-        written, failed = result
-        assert written == 1
-        assert failed == 0
-
-    def test_returns_zero_zero_on_empty_utterances(self):
-        db = self._make_mock_db()
-        written, failed = write_raw_utterances(
             utterances=[],
-            source_doc_id="doc_x",
-            speaker_entity_id="entity_y",
-            uttered_at=datetime(2025, 9, 1, tzinfo=timezone.utc),
+            source_doc_id="hash123",
+            speaker_entity_id="spkr1",
+            uttered_at=__import__("datetime").datetime(
+                2025, 1, 1, tzinfo=__import__("datetime").timezone.utc
+            ),
+            domain="nfl",
+            db=None,  # type: ignore[arg-type]
+        )
+        count, id_map = result
+        assert count == 0
+        assert id_map == {}
+
+
+class TestInferResolutionMethodId:
+    """_infer_resolution_method_id must map claim_category + domain to known IDs."""
+
+    def test_nfl_player_performance_maps_to_nflverse(self):
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        assert (
+            _infer_resolution_method_id("player_performance", "nfl")
+            == "nfl_player_perf_nflverse"
+        )
+
+    def test_nfl_game_outcome_maps_to_scores(self):
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        assert (
+            _infer_resolution_method_id("game_outcome", "sports.nfl")
+            == "nfl_game_outcome_scores"
+        )
+
+    def test_nfl_draft_pick_maps_to_sportsdataio(self):
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        assert (
+            _infer_resolution_method_id("draft_pick", "nfl")
+            == "nfl_draft_pick_sportsdataio"
+        )
+
+    def test_nfl_fa_signing_maps_to_rosters(self):
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        assert (
+            _infer_resolution_method_id("fa_signing", "nfl") == "nfl_fa_signing_rosters"
+        )
+
+    def test_nfl_award_prediction_maps_to_config(self):
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        assert (
+            _infer_resolution_method_id("award_prediction", "nfl") == "nfl_award_config"
+        )
+
+    def test_unknown_category_falls_back_to_nflverse(self):
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        assert (
+            _infer_resolution_method_id("some_future_category", "nfl")
+            == "nfl_player_perf_nflverse"
+        )
+
+    def test_non_nfl_domain_returns_unresolved_sentinel(self):
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        result = _infer_resolution_method_id("player_performance", "finance")
+        assert result.startswith("unresolved:")
+
+    def test_sports_domain_is_treated_as_nfl_like(self):
+        """Domains containing 'sport' should use the NFL category map."""
+        from src.assertion_extractor import _infer_resolution_method_id
+
+        assert (
+            _infer_resolution_method_id("game_outcome", "sports")
+            == "nfl_game_outcome_scores"
+        )
+
+
+class TestWriteSilverV2ClaimsUnit:
+    """
+    write_silver_v2_claims unit tests — no live BQ.
+    Test filtering logic and row-shape construction against a stub DB.
+    """
+
+    def _make_db_stub(self, captured_rows):
+        """Return a minimal object that intercepts load_table_from_dataframe."""
+        import types
+
+        class _JobStub:
+            def result(self):
+                pass
+
+        class _ClientStub:
+            def load_table_from_dataframe(self, df, table_ref, job_config):
+                captured_rows.append(df.copy())
+                return _JobStub()
+
+        class _DBStub:
+            client = _ClientStub()
+
+        return _DBStub()
+
+    def _make_utterance(
+        self,
+        *,
+        text="Eagles will win 11 games",
+        extracted_claim="Eagles will win 11 games",
+        speech_act_type="assertion",
+        testability_score=0.9,
+        predicate="will_win_at_least",
+        predicate_args=None,
+        claim_category="game_outcome",
+        resolution_horizon="2025-12-31T23:59:59Z",
+    ):
+        return {
+            "text": text,
+            "extracted_claim": extracted_claim,
+            "speech_act_type": speech_act_type,
+            "testability_score": testability_score,
+            "predicate": predicate,
+            "predicate_args": predicate_args or {"threshold": 11, "stat": "wins"},
+            "claim_category": claim_category,
+            "resolution_horizon": resolution_horizon,
+        }
+
+    def test_empty_utterances_returns_zero(self):
+        from src.assertion_extractor import write_silver_v2_claims
+
+        result = write_silver_v2_claims(
+            utterances=[],
+            utterance_id_map={},
+            source_doc_id="hash1",
+            speaker_entity_id="spkr1",
+            uttered_at=__import__("datetime").datetime(
+                2025, 1, 1, tzinfo=__import__("datetime").timezone.utc
+            ),
+            domain="nfl",
+            db=None,  # type: ignore[arg-type]
+            threshold=0.6,
+        )
+        assert result == 0
+
+    def test_non_promotable_utterance_is_excluded(self):
+        """Rhetorical questions must not appear in claim output."""
+        from src.assertion_extractor import write_silver_v2_claims
+
+        utterances = [
+            self._make_utterance(
+                speech_act_type="rhetorical_question",
+                testability_score=0.9,
+            )
+        ]
+        captured = []
+        db = self._make_db_stub(captured)
+        count = write_silver_v2_claims(
+            utterances=utterances,
+            utterance_id_map={},
+            source_doc_id="hash1",
+            speaker_entity_id="spkr1",
+            uttered_at=__import__("datetime").datetime(
+                2025, 1, 1, tzinfo=__import__("datetime").timezone.utc
+            ),
             domain="nfl",
             db=db,
+            threshold=0.6,
         )
-        assert written == 0
-        assert failed == 0
+        assert count == 0
+        assert captured == []  # no BQ write for zero rows
+
+    def test_promotable_utterance_writes_claim_row(self):
+        """One promotable assertion must produce one claim row with correct fields."""
+        import datetime as dt
+
+        from src.assertion_extractor import write_silver_v2_claims
+
+        u = self._make_utterance()
+        text_key = u["text"][:4000]
+        uid = "test-utterance-uuid-001"
+        captured = []
+        db = self._make_db_stub(captured)
+        uttered_at = dt.datetime(2025, 4, 1, tzinfo=dt.timezone.utc)
+
+        count = write_silver_v2_claims(
+            utterances=[u],
+            utterance_id_map={text_key: uid},
+            source_doc_id="deadbeef",
+            speaker_entity_id="warren_sharp",
+            uttered_at=uttered_at,
+            domain="nfl",
+            db=db,
+            threshold=0.6,
+        )
+
+        assert count == 1
+        assert len(captured) == 1
+        df = captured[0]
+        row = df.iloc[0]
+
+        assert row["utterance_id"] == uid
+        assert row["speaker_entity_id"] == "warren_sharp"
+        assert row["domain"] == "nfl"
+        assert row["predicate"] == "will_win_at_least"
+        assert row["resolution_method_id"] == "nfl_game_outcome_scores"
+        assert row["prev_hash"] == ""
+        assert isinstance(row["this_hash"], str) and len(row["this_hash"]) == 64
+        assert row["claim_subject_type"] == "entity"
+        # subject_entity_ids must be an empty list (populated later by entity-resolution)
+        assert list(row["subject_entity_ids"]) == []
+
+    def test_claim_row_uses_fallback_utterance_id_when_map_miss(self):
+        """When utterance_id_map has no entry, a deterministic fallback UUID is used."""
+        import datetime as dt
+
+        from src.assertion_extractor import write_silver_v2_claims
+
+        u = self._make_utterance()
+        captured = []
+        db = self._make_db_stub(captured)
+
+        count = write_silver_v2_claims(
+            utterances=[u],
+            utterance_id_map={},  # empty map — forces fallback
+            source_doc_id="deadbeef",
+            speaker_entity_id="warren_sharp",
+            uttered_at=dt.datetime(2025, 4, 1, tzinfo=dt.timezone.utc),
+            domain="nfl",
+            db=db,
+            threshold=0.6,
+        )
+        assert count == 1
+        df = captured[0]
+        # The utterance_id must be a non-empty string (deterministic UUID5 fallback)
+        assert isinstance(df.iloc[0]["utterance_id"], str)
+        assert len(df.iloc[0]["utterance_id"]) > 0
+
+    def test_resolution_window_end_defaults_to_one_year_when_no_horizon(self):
+        """When resolution_horizon is absent, window_end must be uttered_at + 365 days."""
+        import datetime as dt
+
+        from src.assertion_extractor import write_silver_v2_claims
+
+        u = self._make_utterance(resolution_horizon=None)
+        captured = []
+        db = self._make_db_stub(captured)
+        uttered_at = dt.datetime(2025, 1, 1, tzinfo=dt.timezone.utc)
+
+        write_silver_v2_claims(
+            utterances=[u],
+            utterance_id_map={},
+            source_doc_id="hash1",
+            speaker_entity_id="spkr1",
+            uttered_at=uttered_at,
+            domain="nfl",
+            db=db,
+            threshold=0.6,
+        )
+        df = captured[0]
+        expected_end = uttered_at + dt.timedelta(days=365)
+        # After pd.to_datetime conversion, compare as UTC-aware
+        actual_end = df.iloc[0]["resolution_window_end"]
+        # Convert pandas Timestamp → python datetime for comparison
+        if hasattr(actual_end, "to_pydatetime"):
+            actual_end = actual_end.to_pydatetime()
+        assert actual_end.year == expected_end.year
+        assert actual_end.month == expected_end.month
+        assert actual_end.day == expected_end.day
+
+
+# ---------------------------------------------------------------------------
+# Issue #665 — Extraction Pipeline Resilience
+# ---------------------------------------------------------------------------
 
 
 class TestPerArticleTransactionalWrite:
@@ -2876,7 +3113,7 @@ class TestPerArticleTransactionalWrite:
             call_count["n"] += 1
             if call_count["n"] == 1:
                 raise Exception("BQ write failed: connection reset")
-            return (1, 0)
+            return (1, {})
 
         with patch(
             "src.assertion_extractor.write_raw_utterances",

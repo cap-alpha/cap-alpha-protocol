@@ -1,5 +1,7 @@
 import React from "react";
 import { getRosterData, getWarRoomData } from "../../actions";
+
+export const dynamic = 'force-dynamic';
 import { Activity, TrendingDown } from "lucide-react";
 import { GlobalSearch } from "@/components/global-search";
 import PersonaSwitcher from "@/components/persona-switcher";

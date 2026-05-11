@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Home, Search } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 export default function NotFound() {
     return (
         <div className="flex min-h-[80vh] flex-col items-center justify-center p-4 text-center">

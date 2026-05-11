@@ -1,5 +1,7 @@
 import React from "react";
 import { getRosterData, getTeamCapSummary } from "../../actions";
+
+export const dynamic = 'force-dynamic';
 import { RosterGrid } from "@/components/roster-grid";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Briefcase, DollarSign } from "lucide-react";

@@ -4,7 +4,7 @@ import { Metadata } from "next";
 import { AlertTriangle, Database, ExternalLink } from "lucide-react";
 import { BigQuery } from "@google-cloud/bigquery";
 
-export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = {
     title: "Extraction Runs | Admin | Pundit Ledger",

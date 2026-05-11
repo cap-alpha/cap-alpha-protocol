@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
     title: "Account | Pundit Ledger",
     description: "Your usage, tier, and API settings.",

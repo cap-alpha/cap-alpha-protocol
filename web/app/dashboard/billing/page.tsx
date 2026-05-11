@@ -3,6 +3,8 @@ import { UpgradeButton } from "@/components/upgrade-button";
 import { ManageBillingButton } from "@/components/manage-billing-button";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
     title: "Billing | Pundit Ledger",
 };

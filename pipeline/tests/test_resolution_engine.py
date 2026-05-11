@@ -138,7 +138,10 @@ class TestRecordResolution:
             outcome_source="sportsdataio",
         )
         record_resolution(result, db=mock_db)
-        mock_db.execute.assert_called_once()
+        # record_resolution makes two db.execute calls:
+        #   1. MERGE into prediction_resolutions
+        #   2. UPDATE prediction_ledger.resolution_status (ledger sync)
+        assert mock_db.execute.call_count == 2
 
     def test_merge_sql_contains_hash(self, mock_db):
         result = ResolutionResult(
@@ -148,8 +151,9 @@ class TestRecordResolution:
         )
         record_resolution(result, db=mock_db)
         # Values are now passed as query_parameters (not inlined in SQL) to prevent SQL injection.
-        call_kwargs = mock_db.execute.call_args[1]
-        param_values = {p.name: p.value for p in call_kwargs["query_parameters"]}
+        # First call is the MERGE into prediction_resolutions.
+        first_call_kwargs = mock_db.execute.call_args_list[0][1]
+        param_values = {p.name: p.value for p in first_call_kwargs["query_parameters"]}
         assert param_values["prediction_hash"] == FAKE_HASH
 
     def test_void_uses_null_scores(self, mock_db):
@@ -161,9 +165,28 @@ class TestRecordResolution:
         )
         record_resolution(result, db=mock_db)
         # Values are now passed as query_parameters (not inlined in SQL) to prevent SQL injection.
-        call_kwargs = mock_db.execute.call_args[1]
-        param_values = {p.name: p.value for p in call_kwargs["query_parameters"]}
+        first_call_kwargs = mock_db.execute.call_args_list[0][1]
+        param_values = {p.name: p.value for p in first_call_kwargs["query_parameters"]}
         assert param_values["resolution_status"] == "VOID"
+
+    def test_ledger_sync_is_called(self, mock_db):
+        """record_resolution must also UPDATE prediction_ledger.resolution_status."""
+        result = ResolutionResult(
+            prediction_hash=FAKE_HASH,
+            resolution_status="CORRECT",
+            resolver="auto",
+            binary_correct=True,
+        )
+        record_resolution(result, db=mock_db)
+        # Second call is the ledger UPDATE
+        second_call_args = mock_db.execute.call_args_list[1]
+        ledger_sql = second_call_args[0][0]
+        second_call_kwargs = second_call_args[1]
+        param_values = {p.name: p.value for p in second_call_kwargs["query_parameters"]}
+        assert "prediction_ledger" in ledger_sql
+        assert "UPDATE" in ledger_sql
+        assert param_values["prediction_hash"] == FAKE_HASH
+        assert param_values["resolution_status"] == "CORRECT"
 
 
 # ---------------------------------------------------------------------------

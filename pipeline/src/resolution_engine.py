@@ -193,8 +193,12 @@ def _compute_weighted_score(
 
 def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) -> None:
     """
-    Writes or updates a resolution record in gold_layer.prediction_resolutions.
+    Writes or updates a resolution record in gold_layer.prediction_resolutions
+    AND syncs the status back to gold_layer.prediction_ledger.resolution_status.
+
     Uses MERGE to upsert — resolutions can be updated as new evidence arrives.
+    The ledger sync ensures prediction_ledger.resolution_status reflects the
+    actual outcome so dashboard queries against the ledger are accurate.
     """
     close_db = db is None
     if db is None:
@@ -275,6 +279,36 @@ def record_resolution(result: ResolutionResult, db: Optional[DBManager] = None) 
         logger.info(
             f"Recorded resolution for {result.prediction_hash[:16]}…: "
             f"{result.resolution_status} (resolver={result.resolver})"
+        )
+
+        # Sync resolution_status back to the ledger so dashboard queries that read
+        # prediction_ledger.resolution_status directly return accurate counts.
+        # VOID maps to 'VOID' in the ledger; CORRECT/INCORRECT map directly.
+        ledger_status = result.resolution_status  # CORRECT | INCORRECT | VOID
+        ledger_sync_sql = f"""
+            UPDATE `{project_id}.{LEDGER_TABLE}`
+            SET resolution_status = @resolution_status,
+                resolved_at       = @resolved_at,
+                resolution_notes  = @resolution_notes
+            WHERE prediction_hash = @prediction_hash
+        """
+        db.execute(
+            ledger_sync_sql,
+            query_parameters=[
+                bigquery.ScalarQueryParameter(
+                    "resolution_status", "STRING", ledger_status
+                ),
+                bigquery.ScalarQueryParameter("resolved_at", "TIMESTAMP", now),
+                bigquery.ScalarQueryParameter(
+                    "resolution_notes", "STRING", result.outcome_notes
+                ),
+                bigquery.ScalarQueryParameter(
+                    "prediction_hash", "STRING", result.prediction_hash
+                ),
+            ],
+        )
+        logger.debug(
+            f"Synced ledger status for {result.prediction_hash[:16]}…: {ledger_status}"
         )
     finally:
         if close_db:

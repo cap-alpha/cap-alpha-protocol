@@ -587,7 +587,7 @@ class TestWriteRawUtterances:
         ]
 
         with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
-            n, failed = write_raw_utterances(
+            n, _id_map = write_raw_utterances(
                 utterances=utterances,
                 source_doc_id="hash_abc",
                 speaker_entity_id="entity_123",
@@ -597,7 +597,7 @@ class TestWriteRawUtterances:
             )
 
         assert n == 2
-        assert failed == 0
+        assert isinstance(_id_map, dict)
         mock_db.client.load_table_from_dataframe.assert_called_once()
         df_written = mock_db.client.load_table_from_dataframe.call_args[0][0]
         assert len(df_written) == 2
@@ -615,7 +615,7 @@ class TestWriteRawUtterances:
         }
 
     def test_returns_zero_on_empty_list(self, mock_db):
-        n, failed = write_raw_utterances(
+        n, _id_map = write_raw_utterances(
             utterances=[],
             source_doc_id="hash_abc",
             speaker_entity_id="entity_123",
@@ -624,7 +624,7 @@ class TestWriteRawUtterances:
             db=mock_db,
         )
         assert n == 0
-        assert failed == 0
+        assert isinstance(_id_map, dict)
         mock_db.client.load_table_from_dataframe.assert_not_called()
 
     def test_recomputes_score_from_subscores(self, mock_db):
@@ -729,7 +729,7 @@ class TestWriteRawUtterances:
         """No ValueError when all required fields are present."""
         utterances = [make_utterance()]
         with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
-            n, failed = write_raw_utterances(
+            n, _id_map = write_raw_utterances(
                 utterances=utterances,
                 source_doc_id="h",
                 speaker_entity_id="e",
@@ -738,7 +738,7 @@ class TestWriteRawUtterances:
                 db=mock_db,
             )
         assert n == 1
-        assert failed == 0
+        assert isinstance(_id_map, dict)
 
     def test_raises_before_bq_write(self, mock_db):
         """BQ client must not be called when the invariant is violated."""
@@ -789,7 +789,7 @@ class TestRunExtractionSpeechAct:
             utterances=all_utterances,
         )
         mock_ingest.return_value = ["pred_hash_1"]
-        mock_write.return_value = (2, 0)
+        mock_write.return_value = (2, {})
 
         summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
@@ -828,7 +828,7 @@ class TestRunExtractionSpeechAct:
             utterances=all_utterances,
         )
         mock_ingest.return_value = ["pred_hash_1"]
-        mock_write.return_value = (3, 0)
+        mock_write.return_value = (3, {})
 
         summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
@@ -855,7 +855,7 @@ class TestRunExtractionSpeechAct:
                 )
             ],
         )
-        mock_write.return_value = (1, 0)
+        mock_write.return_value = (1, {})
 
         with patch("src.assertion_extractor.ingest_batch") as mock_ingest:
             summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
@@ -893,7 +893,7 @@ class TestRunExtractionSpeechAct:
             utterances=low_score_assertions,
         )
         mock_ingest.return_value = ["h1", "h2"]
-        mock_write.return_value = (2, 0)
+        mock_write.return_value = (2, {})
 
         with patch.dict(os.environ, {"TESTABILITY_THRESHOLD": "0.0"}):
             summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)

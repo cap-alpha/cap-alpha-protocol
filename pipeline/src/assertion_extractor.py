@@ -1030,12 +1030,15 @@ def write_raw_utterances(
     uttered_at: datetime,
     domain: str,
     db: "DBManager",
-) -> tuple[int, int]:
+) -> tuple[int, dict]:
     """
     Write all utterances to silver_v2_claims.raw_utterance.
-    Returns (written_count, failed_count).
+    Returns (number of rows written, utterance_id_map).
 
-    On success: (len(utterances), 0).
+    utterance_id_map maps utterance text[:4000] → utterance_id for every
+    row written.  This is consumed by write_silver_v2_claims() to set the
+    FK without an extra BigQuery lookup.
+
     On BQ write failure: raises so the caller (per-article try/except in
     run_extraction) can log the article ID and continue to the next article
     without aborting the entire batch.
@@ -1046,7 +1049,7 @@ def write_raw_utterances(
       extraction_confidence, created_at
     """
     if not utterances:
-        return 0, 0
+        return 0, {}
 
     now = datetime.now(timezone.utc)
     rows = []
@@ -1141,8 +1144,9 @@ def write_raw_utterances(
             ),
         )
 
+        utterance_id = str(uuid.uuid4())
         row = {
-            "utterance_id": str(uuid.uuid4()),
+            "utterance_id": utterance_id,
             "source_doc_id": source_doc_id,
             "speaker_entity_id": speaker_entity_id,
             "uttered_at": uttered_at,
@@ -1179,6 +1183,8 @@ def write_raw_utterances(
             "needs_review": u.get("needs_review"),
             # Issue #688 — polymorphic entity (Option D: alongside legacy columns)
             "target_entity": _build_target_entity(u, domain),
+            # FK lookup key for write_silver_v2_claims (not a BQ column)
+            "_text_key": text_val,
         }
         rows.append(row)
 
@@ -1201,7 +1207,17 @@ def write_raw_utterances(
             "Refusing to write batch with NULL metadata."
         )
 
-    df = pd.DataFrame(rows)
+    # Build text→utterance_id map for use by write_silver_v2_claims FK linking.
+    # Done before stripping _text_key so the map is available even when BQ write fails.
+    utterance_id_map: dict[str, str] = {
+        r["_text_key"]: r["utterance_id"]
+        for r in rows
+        if r.get("_text_key") and r.get("utterance_id")
+    }
+
+    # Remove the internal-only helper key before building the DataFrame for BQ.
+    bq_rows = [{k: v for k, v in r.items() if k != "_text_key"} for r in rows]
+    df = pd.DataFrame(bq_rows)
 
     # BQ schema: resolution_horizon is TIMESTAMP (nullable).
     # Convert string/None values to datetime64[ns, UTC] so pyarrow can serialize
@@ -1251,7 +1267,221 @@ def write_raw_utterances(
         # catch the failure, log the article ID, and continue to the next article
         # rather than aborting the entire batch.
         raise
-    return len(rows), 0  # (written_count, failed_count)
+    return len(rows), utterance_id_map
+
+
+def _infer_resolution_method_id(claim_category: str, domain: str) -> str:
+    """
+    Map a claim_category + domain to a silver_v2_claims.resolution_method_id.
+
+    Falls back to a generic sentinel when no mapping exists.  All valid
+    resolution_method_id values must have been seeded via migration 020.
+    """
+    # NFL domain claim-category → resolution_method_id map.
+    # Values here must exist in silver_v2_claims.resolution_method.
+    _NFL_CATEGORY_MAP = {
+        "player_performance": "nfl_player_perf_nflverse",
+        "game_outcome": "nfl_game_outcome_scores",
+        "fa_signing": "nfl_fa_signing_rosters",
+        "draft_pick": "nfl_draft_pick_sportsdataio",
+        "award_prediction": "nfl_award_config",
+        # No dedicated resolvers yet for these — use a generic placeholder
+        "trade": "nfl_player_perf_nflverse",
+        "injury": "nfl_player_perf_nflverse",
+        "contract": "nfl_player_perf_nflverse",
+        "general": "nfl_player_perf_nflverse",
+    }
+    domain_lower = (domain or "").lower()
+    cat = (claim_category or "general").lower()
+    if "nfl" in domain_lower or "sport" in domain_lower:
+        return _NFL_CATEGORY_MAP.get(cat, "nfl_player_perf_nflverse")
+    # Non-NFL: return a generic sentinel that can be resolved later
+    return f"unresolved:{domain_lower}"
+
+
+# Table name constant for silver_v2_claims.claim writes
+CLAIM_TABLE = "silver_v2_claims.claim"
+
+
+def write_silver_v2_claims(
+    utterances: list[dict],
+    utterance_id_map: dict,
+    source_doc_id: str,
+    speaker_entity_id: str,
+    uttered_at: datetime,
+    domain: str,
+    db: "DBManager",
+    threshold: Optional[float] = None,
+) -> int:
+    """
+    Promote qualifying utterances to silver_v2_claims.claim.
+
+    Only utterances that pass _is_promotable() (speech_act_type in
+    {assertion, conditional, recall} AND testability_score >= threshold AND
+    extracted_claim is non-empty) are written here.
+
+    Each claim row carries a prev_hash of "" (chain root — Phase B-2 will
+    implement the full per-claim hash chain once entity resolution is live)
+    and a this_hash computed from a deterministic canonical payload.
+
+    Returns the number of claim rows written.
+
+    Args:
+        utterances:        List of utterance dicts from the LLM response.
+                           May include predicate, predicate_args, claim_category
+                           from the LLM output.
+        utterance_id_map:  Mapping of utterance text ([:4000]) → utterance_id
+                           for rows already written to raw_utterance.
+                           Allows setting the FK without a BQ lookup.
+        source_doc_id:     content_hash of the originating raw_pundit_media row.
+        speaker_entity_id: Resolved speaker entity identifier.
+        uttered_at:        When the speaker made the utterance (published_at).
+        domain:            Domain string (e.g. "nfl", "sports.nfl").
+        db:                DBManager instance for BQ access.
+        threshold:         Testability threshold (default: get_testability_threshold()).
+    """
+    if not utterances:
+        return 0
+    if threshold is None:
+        threshold = get_testability_threshold()
+
+    now = datetime.now(timezone.utc)
+    rows = []
+
+    for u in utterances:
+        if not _is_promotable(u, threshold):
+            continue
+
+        # Retrieve the utterance_id written by write_raw_utterances.
+        # Use the 'text' field (or fallback 'extracted_claim') as the lookup key.
+        text_key = (u.get("text") or u.get("extracted_claim") or "")[:4000]
+        utterance_id = utterance_id_map.get(text_key)
+        if not utterance_id:
+            # Fallback: generate a deterministic ID so we don't silently drop the claim.
+            utterance_id = str(
+                uuid.uuid5(
+                    uuid.UUID("6ba7b810-9dad-11d1-80b4-00c04fd430c8"),
+                    f"claim/{source_doc_id}/{text_key[:200]}",
+                )
+            )
+
+        # Map claim_category to resolution_method_id
+        claim_category = (u.get("claim_category") or "general").lower()
+        resolution_method_id = _infer_resolution_method_id(claim_category, domain)
+
+        # predicate: from LLM output; default to "will_occur" when absent
+        predicate = (u.get("predicate") or "will_occur").strip() or "will_occur"
+
+        # predicate_args: from LLM output; default to {}
+        raw_args = u.get("predicate_args")
+        if isinstance(raw_args, dict):
+            predicate_args_json = json.dumps(raw_args, ensure_ascii=False)
+        elif isinstance(raw_args, str) and raw_args.strip():
+            predicate_args_json = raw_args
+        else:
+            predicate_args_json = "{}"
+
+        # resolution_window_start: when the speaker made the utterance
+        resolution_window_start = uttered_at
+        if resolution_window_start.tzinfo is None:
+            resolution_window_start = resolution_window_start.replace(
+                tzinfo=timezone.utc
+            )
+
+        # resolution_window_end: resolution_horizon from LLM, or uttered_at + 1 year
+        rh_raw = u.get("resolution_horizon")
+        resolution_window_end: Optional[datetime] = None
+        if rh_raw and isinstance(rh_raw, str) and rh_raw.upper() != "UNRESOLVABLE":
+            try:
+                resolution_window_end = datetime.fromisoformat(
+                    rh_raw.replace("Z", "+00:00")
+                )
+            except (ValueError, AttributeError):
+                pass
+        if resolution_window_end is None:
+            # Default: 365 days after utterance
+            resolution_window_end = resolution_window_start + timedelta(days=365)
+
+        # Canonical payload for this_hash (deterministic across reruns)
+        canonical = "|".join(
+            [
+                utterance_id,
+                source_doc_id,
+                speaker_entity_id,
+                predicate,
+                uttered_at.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+            ]
+        )
+        this_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+        claim_id = str(uuid.uuid4())
+
+        rows.append(
+            {
+                "claim_id": claim_id,
+                "utterance_id": utterance_id,
+                "speaker_entity_id": speaker_entity_id,
+                "domain": domain,
+                "claim_subject_type": "entity",
+                "subject_entity_ids": [],  # populated by entity-resolution job later
+                "subject_metric": None,
+                "predicate": predicate,
+                "predicate_args": predicate_args_json,
+                "resolution_window_start": resolution_window_start,
+                "resolution_window_end": resolution_window_end,
+                "resolution_method_id": resolution_method_id,
+                "asserted_at": uttered_at,
+                "ledger_locked_at": now,
+                "prior_claim_id": None,
+                "prev_hash": "",
+                "this_hash": this_hash,
+                "created_at": now,
+            }
+        )
+
+    if not rows:
+        return 0
+
+    df = pd.DataFrame(rows)
+
+    # resolution_window_start / resolution_window_end / asserted_at /
+    # ledger_locked_at / created_at must be TIMESTAMP.
+    for ts_col in (
+        "resolution_window_start",
+        "resolution_window_end",
+        "asserted_at",
+        "ledger_locked_at",
+        "created_at",
+    ):
+        df[ts_col] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
+
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    table_ref = f"{project_id}.{CLAIM_TABLE}"
+
+    try:
+        job_config = __import__(
+            "google.cloud.bigquery", fromlist=["LoadJobConfig"]
+        ).LoadJobConfig(write_disposition="WRITE_APPEND")
+        df_clean = df.copy()
+        for col in df_clean.columns:
+            if col in {"subject_entity_ids"}:
+                # ARRAY<STRING> — keep as list, do not object-coerce
+                continue
+            if df_clean[col].dtype == object:
+                df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
+        job = db.client.load_table_from_dataframe(
+            df_clean, table_ref, job_config=job_config
+        )
+        job.result()
+        logger.info(f"Wrote {len(rows)} claim rows to {table_ref}")
+    except Exception as exc:
+        logger.error(
+            f"BQ write failed for silver_v2_claims.claim → {table_ref}: {exc}",
+            exc_info=True,
+        )
+        raise
+
+    return len(rows)
 
 
 def _write_extraction_run(
@@ -2235,6 +2465,7 @@ def run_extraction(
         "predictions_extracted": 0,
         "predictions_ingested": 0,
         "utterances_written": 0,
+        "claims_written": 0,
         "suppressed": 0,
         "gated": 0,  # claims routed to shadow table (low testability_score)
         "errors": 0,
@@ -2500,7 +2731,7 @@ def run_extraction(
                 # abort the entire batch.  The article hash is deliberately NOT added
                 # to processed_hashes on failure so the next pipeline run retries it.
                 try:
-                    written, _ = write_raw_utterances(
+                    written, _utterance_id_map = write_raw_utterances(
                         utterances=verified_utterances,
                         source_doc_id=content_hash,
                         speaker_entity_id=speaker_entity_id,
@@ -2527,6 +2758,31 @@ def run_extraction(
 
                 suppressed_here = len(verified_utterances) - len(result.predictions)
                 summary["suppressed"] += max(0, suppressed_here)
+
+                # Phase C: promote qualifying utterances to silver_v2_claims.claim.
+                # This is the missing step that was designed in migration 016 but
+                # never wired up.  write_silver_v2_claims is non-fatal — a BQ write
+                # failure is logged and counted in errors but does not abort the run.
+                try:
+                    claims_written = write_silver_v2_claims(
+                        utterances=verified_utterances,
+                        utterance_id_map=_utterance_id_map,
+                        source_doc_id=content_hash,
+                        speaker_entity_id=speaker_entity_id,
+                        uttered_at=uttered_at,
+                        domain=article_sport.lower(),
+                        db=db,
+                        threshold=threshold,
+                    )
+                    summary.setdefault("claims_written", 0)
+                    summary["claims_written"] += claims_written
+                except Exception as _claim_exc:
+                    logger.error(
+                        f"write_silver_v2_claims failed for {content_hash[:16]}…: "
+                        f"{_claim_exc} — raw_utterance write succeeded, continuing",
+                        exc_info=True,
+                    )
+                    summary["errors"] += 1
 
                 # Issue #824 — testability gate: utterances with promotable
                 # speech_act_type + non-empty claim but low testability_score
@@ -2740,6 +2996,7 @@ def run_extraction(
             f"Extraction complete: {summary['total_processed']} processed, "
             f"{summary['triage_filtered_out']} triage-filtered, "
             f"{summary['utterances_written']} utterances → raw_utterance, "
+            f"{summary['claims_written']} claims → silver_v2_claims.claim, "
             f"{summary['predictions_extracted']} promoted to ledger "
             f"(testability_score >= {threshold}), "
             f"{summary['gated']} gated → shadow table (low testability), "

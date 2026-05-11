@@ -1630,22 +1630,26 @@ def expire_stale_predictions(db: DBManager, dry_run: bool = False) -> int:
     """
     Void PENDING predictions that have passed their resolution horizon.
 
-    A prediction is considered stale if any of the following is true:
-      - resolution_deadline < CURRENT_DATE() (if that column exists on the ledger), OR
+    A prediction is considered stale if:
       - season_year <= EXTRACT(YEAR FROM CURRENT_DATE()) - 2  (more than 2 seasons old)
+
+    Note: the prediction_ledger table does not have a resolution_deadline column.
+    The check is purely season_year-based.  Claims for seasons 2+ years in the
+    past are void'd as past_resolution_horizon.  Claims with NULL season_year
+    are left alone — they may still be resolved by the rule-based or LLM judge pass.
 
     Each stale prediction is voided with reason 'past_resolution_horizon'.
     Returns the count of predictions expired.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
     query = f"""
-        SELECT prediction_hash
-        FROM `{project_id}.gold_layer.prediction_ledger`
-        WHERE resolution_status = 'PENDING'
-          AND (
-            (resolution_deadline IS NOT NULL AND resolution_deadline < CURRENT_DATE())
-            OR season_year <= EXTRACT(YEAR FROM CURRENT_DATE()) - 2
-          )
+        SELECT l.prediction_hash
+        FROM `{project_id}.gold_layer.prediction_ledger` l
+        LEFT JOIN `{project_id}.gold_layer.prediction_resolutions` r
+            ON l.prediction_hash = r.prediction_hash
+        WHERE (r.prediction_hash IS NULL OR r.resolution_status = 'PENDING')
+          AND l.season_year IS NOT NULL
+          AND l.season_year <= EXTRACT(YEAR FROM CURRENT_DATE()) - 2
     """
     try:
         stale = db.fetch_df(query)

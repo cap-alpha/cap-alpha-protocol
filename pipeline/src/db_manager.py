@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import uuid
 from typing import Any, Dict, Optional
 
@@ -543,3 +544,622 @@ def get_db_manager(**kwargs):
 
         return DuckDBManager(**kwargs)
     return DBManager(**kwargs)
+
+
+# ---------------------------------------------------------------------------
+# LocalDBManager — DuckDB-backed drop-in for DBManager
+# Activated by USE_LOCAL_DB=1 (or "true"/"yes") env var.
+# ---------------------------------------------------------------------------
+
+_LOCAL_SCHEMA_DDL = """
+-- Schema setup for DuckDB local dev mode.
+-- All BQ-specific clauses (PARTITION BY, CLUSTER BY, OPTIONS, ARRAY<T>)
+-- have been stripped / translated.
+
+CREATE SCHEMA IF NOT EXISTS nfl_dead_money;
+CREATE SCHEMA IF NOT EXISTS silver_v2_claims;
+CREATE SCHEMA IF NOT EXISTS silver_v2_core;
+CREATE SCHEMA IF NOT EXISTS gold_layer;
+
+-- ---- bronze: raw_pundit_media ----
+CREATE TABLE IF NOT EXISTS nfl_dead_money.raw_pundit_media (
+  content_hash          VARCHAR    NOT NULL,
+  source_id             VARCHAR    NOT NULL,
+  title                 VARCHAR,
+  raw_text              VARCHAR,
+  source_url            VARCHAR    NOT NULL,
+  author                VARCHAR,
+  matched_pundit_id     VARCHAR,
+  matched_pundit_name   VARCHAR,
+  published_at          TIMESTAMP,
+  ingested_at           TIMESTAMP  NOT NULL,
+  content_type          VARCHAR,
+  fetch_source_type     VARCHAR,
+  raw_metadata          VARCHAR,
+  sport                 VARCHAR    DEFAULT 'NFL'
+);
+
+-- ---- pundit_registry ----
+CREATE TABLE IF NOT EXISTS nfl_dead_money.pundit_registry (
+  pundit_id         VARCHAR   NOT NULL,
+  pundit_name       VARCHAR   NOT NULL,
+  sport             VARCHAR   NOT NULL,
+  source_ids        VARCHAR[],
+  match_authors     VARCHAR[],
+  enabled           BOOLEAN   NOT NULL,
+  is_source_default BOOLEAN,
+  polling_cadence   VARCHAR   NOT NULL,
+  last_seen_at      TIMESTAMP,
+  posts_per_month   DOUBLE,
+  created_at        TIMESTAMP NOT NULL,
+  updated_at        TIMESTAMP NOT NULL
+);
+
+-- ---- source_registry ----
+CREATE TABLE IF NOT EXISTS nfl_dead_money.source_registry (
+  source_id         VARCHAR   NOT NULL,
+  source_name       VARCHAR   NOT NULL,
+  source_type       VARCHAR   NOT NULL,
+  url               VARCHAR   NOT NULL,
+  sport             VARCHAR   NOT NULL,
+  enabled           BOOLEAN   NOT NULL,
+  scrape_full_text  BOOLEAN,
+  keyword_filter    VARCHAR[],
+  default_pundit_id VARCHAR,
+  polling_cadence   VARCHAR   NOT NULL,
+  last_fetched_at   TIMESTAMP,
+  last_item_count   BIGINT,
+  created_at        TIMESTAMP NOT NULL,
+  updated_at        TIMESTAMP NOT NULL
+);
+
+-- ---- registry_audit_log ----
+CREATE TABLE IF NOT EXISTS nfl_dead_money.registry_audit_log (
+  log_id       VARCHAR   NOT NULL,
+  entity_type  VARCHAR   NOT NULL,
+  entity_id    VARCHAR   NOT NULL,
+  action       VARCHAR   NOT NULL,
+  old_value    VARCHAR,
+  new_value    VARCHAR,
+  reason       VARCHAR,
+  logged_at    TIMESTAMP NOT NULL
+);
+
+-- ---- entities ----
+CREATE TABLE IF NOT EXISTS nfl_dead_money.entities (
+  entity_id      VARCHAR   NOT NULL,
+  entity_type    VARCHAR   NOT NULL,
+  canonical_name VARCHAR   NOT NULL,
+  aliases        VARCHAR[],
+  domain         VARCHAR   NOT NULL,
+  metadata       VARCHAR,
+  first_seen_at  TIMESTAMP,
+  last_seen_at   TIMESTAMP,
+  claim_count    BIGINT,
+  created_at     TIMESTAMP
+);
+
+-- ---- prediction_ledger_graph_extension ----
+CREATE TABLE IF NOT EXISTS nfl_dead_money.prediction_ledger_graph_extension (
+  prediction_hash               VARCHAR   NOT NULL,
+  entity_ids                    VARCHAR[],
+  primary_entity_id             VARCHAR,
+  claim_type                    VARCHAR,
+  domain                        VARCHAR,
+  asserted_state                VARCHAR,
+  embedding                     DOUBLE[],
+  cluster_id                    VARCHAR,
+  entity_resolution_confidence  DOUBLE,
+  created_at                    TIMESTAMP,
+  updated_at                    TIMESTAMP
+);
+
+-- ---- gold_layer.prediction_ledger ----
+CREATE TABLE IF NOT EXISTS gold_layer.prediction_ledger (
+  prediction_hash     VARCHAR   NOT NULL,
+  chain_hash          VARCHAR   NOT NULL,
+  ingestion_timestamp TIMESTAMP NOT NULL,
+  source_url          VARCHAR   NOT NULL,
+  pundit_id           VARCHAR   NOT NULL,
+  pundit_name         VARCHAR   NOT NULL,
+  raw_assertion_text  VARCHAR   NOT NULL,
+  extracted_claim     VARCHAR,
+  claim_category      VARCHAR,
+  season_year         BIGINT,
+  target_player_id    VARCHAR,
+  target_player_name  VARCHAR,
+  target_team         VARCHAR,
+  target_entity       VARCHAR,
+  stance              VARCHAR,
+  sport               VARCHAR   DEFAULT 'NFL',
+  resolution_status   VARCHAR   DEFAULT 'PENDING',
+  resolved_at         TIMESTAMP,
+  resolution_notes    VARCHAR,
+  prompt_version      VARCHAR,
+  llm_provider        VARCHAR,
+  llm_model           VARCHAR
+);
+
+-- ---- gold_layer.prediction_resolutions ----
+CREATE TABLE IF NOT EXISTS gold_layer.prediction_resolutions (
+  prediction_hash       VARCHAR   NOT NULL,
+  resolution_status     VARCHAR   NOT NULL,
+  resolved_at           TIMESTAMP,
+  resolver              VARCHAR,
+  brier_score           DOUBLE,
+  binary_correct        BOOLEAN,
+  timeliness_weight     DOUBLE,
+  weighted_score        DOUBLE,
+  outcome_source        VARCHAR,
+  outcome_reference_id  VARCHAR,
+  outcome_notes         VARCHAR,
+  created_at            TIMESTAMP NOT NULL,
+  updated_at            TIMESTAMP NOT NULL
+);
+
+-- ---- silver_v2_claims.raw_utterance ----
+CREATE TABLE IF NOT EXISTS silver_v2_claims.raw_utterance (
+  utterance_id                        VARCHAR   NOT NULL,
+  source_doc_id                       VARCHAR   NOT NULL,
+  speaker_entity_id                   VARCHAR   NOT NULL,
+  uttered_at                          TIMESTAMP NOT NULL,
+  text                                VARCHAR   NOT NULL,
+  speech_act_type                     VARCHAR   NOT NULL,
+  testability_score                   DOUBLE    NOT NULL,
+  resolution_horizon                  TIMESTAMP,
+  domain                              VARCHAR   NOT NULL,
+  extraction_confidence               DOUBLE    NOT NULL,
+  created_at                          TIMESTAMP NOT NULL,
+  speech_act                          VARCHAR,
+  originating_speaker                 VARCHAR,
+  subscore_subject_specificity        DOUBLE,
+  subscore_predicate_falsifiability   DOUBLE,
+  subscore_threshold_concreteness     DOUBLE,
+  subscore_resolution_horizon_defined DOUBLE,
+  subscore_evidence_accessibility     DOUBLE,
+  stance                              VARCHAR,
+  prediction_horizon_days             BIGINT,
+  confidence_note                     VARCHAR,
+  resolution_condition                VARCHAR,
+  hedge_level                         VARCHAR,
+  claim_text_alignment                DOUBLE,
+  hallucination_risk                  VARCHAR,
+  verification_flags                  VARCHAR[],
+  quality_score                       DOUBLE,
+  needs_review                        BOOLEAN,
+  target_entity                       VARCHAR
+);
+
+-- ---- silver_v2_claims.extraction_run ----
+CREATE TABLE IF NOT EXISTS silver_v2_claims.extraction_run (
+  run_id                    VARCHAR   NOT NULL,
+  started_at                TIMESTAMP NOT NULL,
+  finished_at               TIMESTAMP,
+  provider                  VARCHAR   NOT NULL,
+  model                     VARCHAR   NOT NULL,
+  prompt_version            VARCHAR,
+  articles_processed        BIGINT,
+  utterances_written        BIGINT,
+  claims_promoted           BIGINT,
+  suppressed                BIGINT,
+  errors                    BIGINT,
+  mean_testability_score    DOUBLE,
+  metadata_completeness_pct DOUBLE,
+  git_sha                   VARCHAR,
+  workflow_run_url          VARCHAR
+);
+
+-- ---- silver_v2_core.entity ----
+CREATE TABLE IF NOT EXISTS silver_v2_core.entity (
+  entity_id          VARCHAR   NOT NULL,
+  entity_kind        VARCHAR   NOT NULL,
+  primary_domain     VARCHAR   NOT NULL,
+  birth_or_founded   DATE,
+  death_or_dissolved DATE,
+  external_ids       VARCHAR,
+  created_at         TIMESTAMP NOT NULL,
+  notes              VARCHAR
+);
+"""
+
+
+class _LocalResultProxy:
+    """Minimal result proxy compatible with BQResultProxy interface."""
+
+    def __init__(self, relation):
+        # relation is a duckdb.DuckDBPyRelation or None
+        self._relation = relation
+
+    def df(self):
+        if self._relation is None:
+            return pd.DataFrame()
+        return self._relation.df()
+
+    def fetchone(self):
+        if self._relation is None:
+            return None
+        rows = self._relation.fetchall()
+        return rows[0] if rows else None
+
+    def fetchall(self):
+        if self._relation is None:
+            return []
+        return self._relation.fetchall()
+
+
+class LocalDBManager:
+    """DuckDB-backed drop-in for DBManager. Activated by USE_LOCAL_DB=1.
+
+    Translates BigQuery SQL syntax to DuckDB on the fly:
+      - @param_name placeholders → literal substitution
+      - SAFE_CAST → TRY_CAST
+      - backtick identifiers → double-quoted identifiers
+      - project.dataset.table refs → dataset.table
+      - CURRENT_TIMESTAMP() → current_timestamp
+      - GENERATE_UUID() → gen_random_uuid()::VARCHAR
+      - STRING / INT64 / FLOAT64 / BOOL type names → DuckDB equivalents
+      - Options / PARTITION BY / CLUSTER BY clauses → stripped
+      - MERGE ... WHEN NOT MATCHED BY SOURCE → standard MERGE (BY SOURCE dropped)
+    """
+
+    def __init__(self, db_path: str = "pipeline/local_dev.duckdb"):
+        import duckdb  # local import so BQ-only installs aren't broken
+
+        self._duck = duckdb.connect(db_path)
+        self.dataset_id = "main"
+        self._setup_schema()
+        logger.info("[LOCAL MODE] DuckDB at %s", db_path)
+
+    def _setup_schema(self):
+        """Create all schemas and tables needed by the pipeline."""
+        for stmt in _LOCAL_SCHEMA_DDL.split(";"):
+            # Strip comment-only lines so that a statement like:
+            #   "-- comment\nCREATE SCHEMA ..." doesn't get skipped.
+            lines = [l for l in stmt.splitlines() if not l.strip().startswith("--")]
+            stmt = "\n".join(lines).strip()
+            if stmt:
+                try:
+                    self._duck.execute(stmt)
+                except Exception as e:
+                    logger.debug("Schema setup stmt skipped: %s — %s", stmt[:60], e)
+
+    # ------------------------------------------------------------------
+    # Query translation helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _substitute_params(query: str, query_parameters) -> str:
+        """Replace BigQuery @param_name placeholders with literal values."""
+        if not query_parameters:
+            return query
+        for param in query_parameters:
+            name = param.name
+            value = param.value
+            if value is None:
+                literal = "NULL"
+            elif isinstance(value, str):
+                escaped = value.replace("'", "''")
+                literal = f"'{escaped}'"
+            elif isinstance(value, bool):
+                literal = "TRUE" if value else "FALSE"
+            elif isinstance(value, float):
+                literal = repr(value)
+            else:
+                literal = str(value)
+            query = re.sub(rf"@{re.escape(name)}\b", literal, query)
+        return query
+
+    @staticmethod
+    def _translate_query(query: str, query_parameters=None) -> str:
+        """Translate BigQuery SQL to DuckDB SQL."""
+        q = LocalDBManager._substitute_params(query, query_parameters)
+
+        # Strip OPTIONS(...) — must go before other substitutions
+        q = re.sub(r"\bOPTIONS\s*\([^)]*\)", "", q, flags=re.IGNORECASE | re.DOTALL)
+
+        # Strip PARTITION BY ... clause at DDL level (up to next keyword or end)
+        q = re.sub(
+            r"\bPARTITION\s+BY\s+[^\n,;()]+(?:\([^)]*\))?",
+            "",
+            q,
+            flags=re.IGNORECASE,
+        )
+
+        # Strip CLUSTER BY ... clause
+        q = re.sub(r"\bCLUSTER\s+BY\s+[^\n,;()]+", "", q, flags=re.IGNORECASE)
+
+        # SAFE_CAST → TRY_CAST
+        q = re.sub(r"\bSAFE_CAST\b", "TRY_CAST", q, flags=re.IGNORECASE)
+
+        # CURRENT_TIMESTAMP() → current_timestamp
+        q = re.sub(
+            r"\bCURRENT_TIMESTAMP\s*\(\s*\)",
+            "current_timestamp",
+            q,
+            flags=re.IGNORECASE,
+        )
+
+        # GENERATE_UUID() → gen_random_uuid()::VARCHAR
+        q = re.sub(
+            r"\bGENERATE_UUID\s*\(\s*\)",
+            "gen_random_uuid()::VARCHAR",
+            q,
+            flags=re.IGNORECASE,
+        )
+
+        # BigQuery JSON type → VARCHAR
+        q = re.sub(r"\bJSON\b(?!\s*')", "VARCHAR", q, flags=re.IGNORECASE)
+
+        # BigQuery type names → DuckDB equivalents in DDL
+        q = re.sub(r"\bSTRING\b", "VARCHAR", q, flags=re.IGNORECASE)
+        q = re.sub(r"\bINT64\b", "BIGINT", q, flags=re.IGNORECASE)
+        q = re.sub(r"\bFLOAT64\b", "DOUBLE", q, flags=re.IGNORECASE)
+        q = re.sub(r"\bBOOL\b", "BOOLEAN", q, flags=re.IGNORECASE)
+        q = re.sub(r"\bARRAY<VARCHAR>\b", "VARCHAR[]", q, flags=re.IGNORECASE)
+        q = re.sub(r"\bARRAY<DOUBLE>\b", "DOUBLE[]", q, flags=re.IGNORECASE)
+        q = re.sub(r"\bARRAY<BIGINT>\b", "BIGINT[]", q, flags=re.IGNORECASE)
+
+        # WHEN NOT MATCHED BY SOURCE → unsupported in DuckDB — strip this clause
+        q = re.sub(
+            r"\bWHEN\s+NOT\s+MATCHED\s+BY\s+SOURCE\b.*?(?=WHEN\b|;|$)",
+            "",
+            q,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+
+        # project.dataset.table → dataset.table (strip project prefix in backtick refs)
+        # Handles: `project.dataset.table` → "dataset"."table"
+        q = re.sub(
+            r"`([^`]+)\.([^`]+)\.([^`]+)`",
+            lambda m: f'"{m.group(2)}"."{m.group(3)}"',
+            q,
+        )
+        # Handles: `dataset.table` → "dataset"."table"
+        q = re.sub(
+            r"`([^`]+)\.([^`]+)`",
+            lambda m: f'"{m.group(1)}"."{m.group(2)}"',
+            q,
+        )
+        # Handles remaining backtick identifiers: `identifier` → "identifier"
+        q = re.sub(r"`([^`]+)`", lambda m: f'"{m.group(1)}"', q)
+
+        return q
+
+    # ------------------------------------------------------------------
+    # Public interface (mirrors DBManager)
+    # ------------------------------------------------------------------
+
+    def execute(self, query: str, params=None, query_parameters=None):
+        try:
+            translated = self._translate_query(query, query_parameters)
+            rel = self._duck.execute(translated)
+            return _LocalResultProxy(rel)
+        except Exception as e:
+            logger.error("[LOCAL] execute failed: %s\nQuery: %s", e, query[:200])
+            raise
+
+    def fetch_df(self, query: str, params=None, query_parameters=None) -> pd.DataFrame:
+        try:
+            translated = self._translate_query(query, query_parameters)
+            return self._duck.execute(translated).df()
+        except Exception as e:
+            logger.error("[LOCAL] fetch_df failed: %s\nQuery: %s", e, query[:200])
+            raise
+
+    def append_dataframe_to_table(self, df: pd.DataFrame, table_name: str):
+        """Append a DataFrame to a DuckDB table.
+
+        table_name may be:
+          - simple: "raw_pundit_media"       → nfl_dead_money.raw_pundit_media
+          - qualified: "silver_v2_claims.raw_utterance"
+          - full: "project.dataset.table"    → dataset.table
+        """
+        if df.empty:
+            return
+
+        # Normalise table reference
+        parts = table_name.split(".")
+        if len(parts) == 3:
+            # project.dataset.table — drop project
+            schema, tbl = parts[1], parts[2]
+        elif len(parts) == 2:
+            schema, tbl = parts[0], parts[1]
+        else:
+            # bare table name — default to nfl_dead_money schema
+            schema, tbl = "nfl_dead_money", parts[0]
+
+        full_ref = f'"{schema}"."{tbl}"'
+
+        # Sanitise column names
+        df_clean = df.copy()
+        df_clean.columns = df_clean.columns.astype(str).str.replace(
+            r"[^a-zA-Z0-9_]", "_", regex=True
+        )
+
+        # Register as temp view and INSERT with explicit column list
+        tmp_view = f"_tmp_append_{uuid.uuid4().hex[:8]}"
+        self._duck.register(tmp_view, df_clean)
+        try:
+            col_list = ", ".join(f'"{c}"' for c in df_clean.columns)
+            self._duck.execute(
+                f"INSERT INTO {full_ref} ({col_list}) SELECT {col_list} FROM {tmp_view}"
+            )
+            logger.info("[LOCAL] Appended %d rows to %s", len(df_clean), full_ref)
+        finally:
+            self._duck.unregister(tmp_view)
+
+    def table_exists(self, table_name: str) -> bool:
+        parts = table_name.split(".")
+        if len(parts) >= 2:
+            schema, tbl = parts[-2], parts[-1]
+        else:
+            schema, tbl = "nfl_dead_money", parts[0]
+        try:
+            result = self._duck.execute(
+                "SELECT 1 FROM information_schema.tables "
+                "WHERE table_schema = ? AND table_name = ?",
+                [schema, tbl],
+            ).fetchone()
+            return result is not None
+        except Exception:
+            return False
+
+    # Stub graph methods — no-op in local mode (not needed for ingest/extract testing)
+    def upsert_entity(self, entity: dict) -> str:
+        required = {"entity_id", "entity_type", "canonical_name", "domain"}
+        missing = required - set(entity.keys())
+        if missing:
+            raise ValueError(f"upsert_entity: missing required keys: {missing}")
+        entity_id = entity["entity_id"]
+        entity_type = entity["entity_type"]
+        canonical_name = entity["canonical_name"]
+        domain = entity.get("domain", "SPORTS")
+        aliases = entity.get("aliases") or []
+        metadata = entity.get("metadata")
+        first_seen_at = entity.get("first_seen_at")
+        last_seen_at = entity.get("last_seen_at")
+
+        self._duck.execute(
+            """
+            INSERT INTO "nfl_dead_money"."entities"
+              (entity_id, entity_type, canonical_name, aliases, domain,
+               metadata, first_seen_at, last_seen_at, claim_count, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, current_timestamp)
+            ON CONFLICT (entity_id) DO UPDATE SET
+              canonical_name = excluded.canonical_name,
+              claim_count    = "nfl_dead_money"."entities".claim_count + 1,
+              last_seen_at   = COALESCE(excluded.last_seen_at,
+                                        "nfl_dead_money"."entities".last_seen_at)
+            """,
+            [
+                entity_id,
+                entity_type,
+                canonical_name,
+                aliases,
+                domain,
+                json.dumps(metadata) if metadata else None,
+                first_seen_at,
+                last_seen_at,
+            ],
+        )
+        return entity_id
+
+    def get_entity(self, entity_id: str) -> dict | None:
+        row = self._duck.execute(
+            'SELECT * FROM "nfl_dead_money"."entities" WHERE entity_id = ? LIMIT 1',
+            [entity_id],
+        ).fetchone()
+        if row is None:
+            return None
+        cols = [d[0] for d in self._duck.description]
+        return dict(zip(cols, row))
+
+    def get_entities_by_name(
+        self, canonical_name: str, entity_type: str | None = None
+    ) -> list[dict]:
+        if entity_type:
+            rows = self._duck.execute(
+                'SELECT * FROM "nfl_dead_money"."entities" WHERE lower(canonical_name) = lower(?) AND entity_type = ? ORDER BY claim_count DESC LIMIT 50',
+                [canonical_name, entity_type],
+            ).fetchall()
+        else:
+            rows = self._duck.execute(
+                'SELECT * FROM "nfl_dead_money"."entities" WHERE lower(canonical_name) = lower(?) ORDER BY claim_count DESC LIMIT 50',
+                [canonical_name],
+            ).fetchall()
+        cols = [d[0] for d in self._duck.description]
+        return [dict(zip(cols, r)) for r in rows]
+
+    def upsert_graph_extension(self, prediction_hash: str, extension: dict) -> None:
+        logger.debug(
+            "[LOCAL] upsert_graph_extension: %s (no-op in local mode)",
+            prediction_hash[:16],
+        )
+
+    def get_claim_edges(
+        self, pundit_id=None, entity_id=None, limit: int = 100
+    ) -> list[dict]:
+        return []
+
+    def close(self):
+        try:
+            self._duck.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+    # ------------------------------------------------------------------
+    # Direct client access shim (assertion_extractor uses db.client directly)
+    # ------------------------------------------------------------------
+
+    @property
+    def client(self):
+        """Return a shim that satisfies db.client.load_table_from_dataframe calls."""
+        return _DuckDBClientShim(self)
+
+
+class _DuckDBClientShim:
+    """Shim that makes LocalDBManager.client look enough like a BQ client
+    that assertion_extractor's direct-client write path works."""
+
+    def __init__(self, local_db: "LocalDBManager"):
+        self._local_db = local_db
+
+    def load_table_from_dataframe(self, df, table_ref: str, job_config=None):
+        """Write df to local DuckDB and return a no-op job object."""
+        self._local_db.append_dataframe_to_table(df, table_ref)
+        return _LocalJob(len(df))
+
+
+class _LocalJob:
+    """Minimal stand-in for a BigQuery job — result() is a no-op."""
+
+    def __init__(self, rows_written: int = 0):
+        self._rows = rows_written
+
+    def result(self, *args, **kwargs):
+        return self
+
+    def to_dataframe(self):
+        return pd.DataFrame()
+
+
+# ---------------------------------------------------------------------------
+# Wire USE_LOCAL_DB redirect into DBManager.__new__ so that:
+#   - DBManager() remains a *class* (not a function) — existing tests that
+#     patch("src.db_manager.DBManager._initialize_connection") keep working.
+#   - When USE_LOCAL_DB=1 is set, DBManager() returns a fully-initialised
+#     LocalDBManager without ever calling DBManager._initialize_connection.
+# ---------------------------------------------------------------------------
+
+
+def _dbmanager_new(cls, *args, **kwargs):
+    if os.environ.get("USE_LOCAL_DB", "").lower() in ("1", "true", "yes"):
+        db_path = os.environ.get("LOCAL_DB_PATH", "pipeline/local_dev.duckdb")
+        # Fully initialise LocalDBManager here and return it.
+        # Python will still call DBManager.__init__ on the returned object;
+        # we guard against that with the isinstance check in __init__.
+        instance = object.__new__(LocalDBManager)
+        LocalDBManager.__init__(instance, db_path=db_path)
+        return instance
+    return object.__new__(cls)
+
+
+DBManager.__new__ = _dbmanager_new
+
+_original_dbmanager_init = DBManager.__init__
+
+
+def _dbmanager_init(self, *args, **kwargs):
+    # When __new__ returned a LocalDBManager, skip DBManager.__init__ entirely.
+    if type(self) is LocalDBManager:
+        return
+    _original_dbmanager_init(self, *args, **kwargs)
+
+
+DBManager.__init__ = _dbmanager_init

@@ -91,3 +91,7 @@ docker_env.txt
 # Claude Code session runtime artifacts
 .claude/usage_log.jsonl
 .claude/worktrees/
+
+# DuckDB local database files
+pipeline/data/*.duckdb
+pipeline/data/duckdb/*.db

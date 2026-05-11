@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, CheckCircle2, XCircle } from "lucide-react";
+import Link from "next/link";
+import { Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/animated-counter";
 import { HoverableRow } from "@/components/hoverable-row";
@@ -17,35 +18,89 @@ interface PunditStat {
     avg_brier_score: number | null;
 }
 
-function AccuracyBar({ rate }: { rate: number | null }) {
-    if (rate === null) return <span className="text-xs text-zinc-600 font-mono">—</span>;
+const SPORTS = ["ALL", "NFL", "NBA", "MLB"] as const;
+type Sport = (typeof SPORTS)[number];
+
+function AccuracyDisplay({ rate }: { rate: number | null }) {
+    if (rate === null) return <span className="text-2xl font-black font-mono text-zinc-600 tabular-nums">—</span>;
     const pct = Math.round(rate * 100);
-    const color = pct >= 60 ? "bg-emerald-500" : pct >= 45 ? "bg-yellow-500" : "bg-red-500";
+    const colorClass = pct >= 60 ? "text-emerald-400" : pct >= 45 ? "text-yellow-400" : "text-red-400";
     return (
-        <div className="flex items-center gap-2">
-            <div className="w-20 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
-                <div className={cn("h-full rounded-full", color)} style={{ width: `${pct}%` }} />
-            </div>
-            <AnimatedCounter
-                value={pct}
-                suffix="%"
-                duration={900}
-                className={cn("text-xs font-mono font-semibold tabular-nums",
-                    pct >= 60 ? "text-emerald-400" : pct >= 45 ? "text-yellow-400" : "text-red-400"
-                )}
-            />
-        </div>
+        <AnimatedCounter
+            value={pct}
+            suffix="%"
+            duration={900}
+            className={cn("text-2xl font-black font-mono tabular-nums", colorClass)}
+        />
     );
 }
 
-export function PunditLeaderboardPreview() {
+function AccuracyBadge({ rate }: { rate: number | null }) {
+    if (rate === null) return <span className="text-lg font-black font-mono text-zinc-600 tabular-nums">—</span>;
+    const pct = Math.round(rate * 100);
+    const colorClass = pct >= 60 ? "text-emerald-400" : pct >= 45 ? "text-yellow-400" : "text-red-400";
+    return (
+        <AnimatedCounter
+            value={pct}
+            suffix="%"
+            duration={900}
+            className={cn("text-lg font-black font-mono tabular-nums", colorClass)}
+        />
+    );
+}
+
+/** Featured card for #1 ranked pundit — shown on mobile above fold */
+function FeaturedPunditCard({ pundit }: { pundit: PunditStat }) {
+    const pct = pundit.accuracy_rate !== null ? Math.round(pundit.accuracy_rate * 100) : null;
+    return (
+        <Link
+            href={`/ledger/${encodeURIComponent(pundit.pundit_id)}`}
+            className="block rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 hover:bg-emerald-500/8 transition-colors"
+        >
+            <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="font-mono text-xs font-black text-yellow-400">#1</span>
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400/70">Top Pundit</span>
+                    </div>
+                    <p className="font-display font-black text-xl text-white truncate">{pundit.pundit_name}</p>
+                    <p className="text-xs font-mono text-zinc-500 mt-1">
+                        {pundit.resolved_predictions} picks · verified
+                    </p>
+                </div>
+                <div className="shrink-0 text-right">
+                    <AccuracyDisplay rate={pundit.accuracy_rate} />
+                    <p className="text-[10px] font-mono text-zinc-600 mt-0.5">accuracy</p>
+                </div>
+            </div>
+            {pct !== null && (
+                <div className="mt-4 w-full h-1 rounded-full bg-zinc-800 overflow-hidden">
+                    <div
+                        className="h-full rounded-full bg-emerald-500 transition-all duration-700"
+                        style={{ width: `${pct}%` }}
+                    />
+                </div>
+            )}
+        </Link>
+    );
+}
+
+interface PunditLeaderboardPreviewProps {
+    /** Sport filter — "ALL" | "NFL" | "NBA" | "MLB". Default "ALL". */
+    sport?: string;
+}
+
+export function PunditLeaderboardPreview({ sport: sportProp = "ALL" }: PunditLeaderboardPreviewProps) {
+    const [activeSport, setActiveSport] = useState<Sport>(
+        SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "ALL"
+    );
     const [pundits, setPundits] = useState<PunditStat[]>([]);
     const [loading, setLoading] = useState(true);
-    const [totalPredictions, setTotalPredictions] = useState(0);
-    const [totalResolved, setTotalResolved] = useState(0);
 
     useEffect(() => {
-        fetch("/api/ledger/pundits")
+        setLoading(true);
+        const sportParam = activeSport !== "ALL" ? `?sport=${activeSport}` : "";
+        fetch(`/api/ledger/pundits${sportParam}`)
             .then((r) => {
                 if (!r.ok) {
                     console.error(`[Leaderboard] API returned ${r.status}`);
@@ -54,95 +109,125 @@ export function PunditLeaderboardPreview() {
                 return r.json();
             })
             .then((data) => {
-                const all: PunditStat[] = data.pundits || [];
-                setTotalPredictions(all.reduce((a, p) => a + p.total_predictions, 0));
-                setTotalResolved(all.reduce((a, p) => a + p.resolved_predictions, 0));
+                const all: PunditStat[] = (data.pundits || []).filter(
+                    (p: PunditStat) => p.resolved_predictions >= 5 && p.accuracy_rate !== null
+                );
+                // Sort by accuracy desc
+                all.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
                 setPundits(all.slice(0, 5));
             })
             .catch((err) => {
                 console.error("[Leaderboard] Fetch error:", err);
             })
             .finally(() => setLoading(false));
-    }, []);
+    }, [activeSport]);
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-40">
-                <div className="flex items-center gap-2 text-zinc-400">
-                    <Activity className="w-4 h-4 animate-pulse" />
-                    <span className="text-sm font-mono">Loading ledger…</span>
-                </div>
-            </div>
-        );
-    }
-
-    if (pundits.length === 0) {
-        return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-600 text-sm">
-                No pundit data yet — pipeline populating soon.
-            </div>
-        );
-    }
+    const rankColor = (idx: number) =>
+        idx === 0 ? "text-yellow-400"
+        : idx === 1 ? "text-zinc-300"
+        : idx === 2 ? "text-orange-400"
+        : "text-zinc-600";
 
     return (
-        <div className="space-y-3">
-            {/* Stats bar */}
-            <div className="flex gap-6 text-xs font-mono text-zinc-500 pb-2 border-b border-zinc-900">
-                <span>
-                    <AnimatedCounter value={pundits.length} suffix="+" duration={600} className="text-white font-semibold" /> pundits tracked
+        <div className="space-y-4">
+            {/* Sport filter pills */}
+            <div className="flex items-center gap-2">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1 hidden sm:inline">
+                    Sport:
                 </span>
-                <span>
-                    <AnimatedCounter value={totalPredictions} duration={1000} className="text-white font-semibold" /> predictions logged
-                </span>
-                <span>
-                    <AnimatedCounter value={totalResolved} duration={800} className="text-white font-semibold" /> resolved
-                </span>
+                {SPORTS.map((s) => (
+                    <button
+                        key={s}
+                        onClick={() => setActiveSport(s)}
+                        className={cn(
+                            "px-3 py-1 rounded text-xs font-mono font-semibold uppercase tracking-wide transition-colors border",
+                            activeSport === s
+                                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
+                                : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                        )}
+                    >
+                        {s}
+                    </button>
+                ))}
             </div>
 
-            {pundits.map((p, idx) => (
-                <HoverableRow
-                    key={p.pundit_id}
-                    className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3"
-                >
-                    {/* Rank */}
-                    <span className={cn(
-                        "font-mono text-base font-black w-6 shrink-0 tabular-nums",
-                        idx === 0 ? "text-yellow-400"
-                        : idx === 1 ? "text-zinc-300"
-                        : idx === 2 ? "text-orange-400"
-                        : "text-zinc-600"
-                    )}>
-                        {idx + 1}
-                    </span>
-
-                    {/* Name */}
-                    <span className="font-semibold text-white flex-1 truncate">{p.pundit_name}</span>
-
-                    {/* Accuracy bar */}
-                    <div className="hidden sm:block">
-                        <AccuracyBar rate={p.accuracy_rate} />
+            {loading ? (
+                <div className="flex items-center justify-center h-40">
+                    <div className="flex items-center gap-2 text-zinc-400">
+                        <Activity className="w-4 h-4 animate-pulse" />
+                        <span className="text-sm font-mono">Loading ledger…</span>
+                    </div>
+                </div>
+            ) : pundits.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-600 text-sm">
+                    No pundit data yet — pipeline populating soon.
+                </div>
+            ) : (
+                <>
+                    {/* Mobile: featured #1 card + compact list 2–5 */}
+                    <div className="sm:hidden space-y-3">
+                        <FeaturedPunditCard pundit={pundits[0]} />
+                        {pundits.slice(1).map((p, i) => (
+                            <Link
+                                key={p.pundit_id}
+                                href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                                className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3 hover:border-zinc-700 transition-colors"
+                            >
+                                <span className={cn("font-mono text-sm font-black w-5 shrink-0 tabular-nums", rankColor(i + 1))}>
+                                    {i + 2}
+                                </span>
+                                <span className="font-semibold text-white flex-1 truncate text-sm">{p.pundit_name}</span>
+                                <AccuracyBadge rate={p.accuracy_rate} />
+                                <span className="text-xs font-mono text-zinc-600 shrink-0">{p.resolved_predictions} picks</span>
+                            </Link>
+                        ))}
                     </div>
 
-                    {/* Correct / Incorrect */}
-                    {p.resolved_predictions > 0 && (
-                        <div className="flex items-center gap-3 text-xs font-mono shrink-0">
-                            <span className="flex items-center gap-1 text-emerald-400">
-                                <CheckCircle2 className="w-3 h-3" />
-                                {p.correct_predictions}
-                            </span>
-                            <span className="flex items-center gap-1 text-red-400">
-                                <XCircle className="w-3 h-3" />
-                                {p.incorrect_predictions}
-                            </span>
-                        </div>
-                    )}
+                    {/* Desktop: full table rows */}
+                    <div className="hidden sm:block space-y-2">
+                        {pundits.map((p, idx) => (
+                            <HoverableRow
+                                key={p.pundit_id}
+                                className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 px-5 py-4"
+                            >
+                                {/* Rank */}
+                                <span className={cn(
+                                    "font-mono text-base font-black w-6 shrink-0 tabular-nums",
+                                    rankColor(idx)
+                                )}>
+                                    {idx + 1}
+                                </span>
 
-                    {/* Total */}
-                    <span className="text-xs font-mono text-zinc-600 shrink-0 w-20 text-right">
-                        {p.total_predictions} picks
-                    </span>
-                </HoverableRow>
-            ))}
+                                {/* Name — linked */}
+                                <Link
+                                    href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                                    className="font-semibold text-white flex-1 truncate hover:text-emerald-400 transition-colors"
+                                >
+                                    {p.pundit_name}
+                                </Link>
+
+                                {/* Accuracy — large, emerald */}
+                                <AccuracyBadge rate={p.accuracy_rate} />
+
+                                {/* Pick count */}
+                                <span className="text-sm font-mono text-zinc-500 shrink-0 w-24 text-right">
+                                    {p.resolved_predictions} picks
+                                </span>
+                            </HoverableRow>
+                        ))}
+                    </div>
+                </>
+            )}
+
+            {/* "View full ledger" link */}
+            <div className="pt-1 text-center">
+                <Link
+                    href="/ledger"
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                >
+                    View full ledger →
+                </Link>
+            </div>
         </div>
     );
 }

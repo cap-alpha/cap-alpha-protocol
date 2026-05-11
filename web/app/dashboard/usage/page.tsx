@@ -3,6 +3,8 @@ import { auth } from "@clerk/nextjs/server";
 import { Activity } from "lucide-react";
 import { UsageDashboard } from "@/components/usage-dashboard";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata = {
     title: "Usage Dashboard | Pundit Ledger",
     description: "Monitor your API usage, quotas, and rate limits.",

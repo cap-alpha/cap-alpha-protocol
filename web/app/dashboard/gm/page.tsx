@@ -1,4 +1,6 @@
 import { getRosterData, getTeamCapSummary, getWarRoomData } from "../../actions";
+
+export const dynamic = 'force-dynamic';
 import { WarRoomDashboard } from "@/components/war-room-dashboard";
 import { TradeMachine } from "@/components/trade-machine";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

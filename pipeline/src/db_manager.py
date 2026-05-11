@@ -521,3 +521,25 @@ class DBManager:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+
+def get_db_manager(**kwargs):
+    """
+    Factory that returns the right DB manager based on the DB_BACKEND env var.
+
+    DB_BACKEND=duckdb   → DuckDBManager  (local DuckDB file, zero cloud cost)
+    DB_BACKEND=bigquery → DBManager      (Google BigQuery, default)
+
+    All keyword args are forwarded to the manager constructor unchanged so callers
+    can pass db_path, read_only, access_tier, etc.
+
+    Switch between backends:
+        export DB_BACKEND=duckdb    # use local DuckDB
+        unset  DB_BACKEND           # revert to BigQuery
+    """
+    backend = os.environ.get("DB_BACKEND", "bigquery").lower()
+    if backend == "duckdb":
+        from src.duckdb_manager import DuckDBManager
+
+        return DuckDBManager(**kwargs)
+    return DBManager(**kwargs)

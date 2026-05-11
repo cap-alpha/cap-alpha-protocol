@@ -18,6 +18,10 @@ LOG_FILE="/tmp/pundit_pipeline.log"
 
 echo "=== Pundit Pipeline run started at $(date -u +%Y-%m-%dT%H:%M:%SZ) ===" >> "${LOG_FILE}"
 
+if [[ "${USE_LOCAL_DB:-0}" == "1" ]]; then
+  echo "[LOCAL MODE] Using DuckDB — no BigQuery connectivity needed" >> "${LOG_FILE}"
+fi
+
 # Load environment variables from .env (BigQuery credentials, API keys, etc.)
 if [[ -f "${ENV_FILE}" ]]; then
     set -a

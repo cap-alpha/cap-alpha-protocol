@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2
+.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2 backfill-entities
 
 PYTHON ?= python3
 # Resolve VENV to the main repo root — works from both the main checkout and worktrees.
@@ -131,6 +131,12 @@ resolve-draft:
 
 backfill-silver-v2:
 	$(PY) python pipeline/scripts/backfill_silver_v2_sample.py
+
+backfill-entities:
+	@echo "Backfilling entities table from prediction_ledger..."
+	$(PY) DB_BACKEND=duckdb DUCKDB_PATH=$(REPO_ROOT)/pipeline/data/local.duckdb \
+		PYTHONPATH=$(REPO_ROOT)/pipeline \
+		python -m src.backfill_entities
 
 # -----------------------------------------------------------------------------
 # WEB

@@ -41,6 +41,7 @@ const Footer = () => {
                         </Link>
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-4 text-slate-400 text-xs">
+                        <Link href="/methodology" className="hover:text-emerald-400 transition-colors">Methodology</Link>
                         <Link href="/legal/terms" className="hover:text-white transition-colors">Terms</Link>
                         <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy</Link>
                         <Link href="/legal/acceptable-use" className="hover:text-white transition-colors">Acceptable Use</Link>

@@ -140,11 +140,87 @@ function getDraftRoutes(): MetadataRoute.Sitemap {
 }
 
 // ---------------------------------------------------------------------------
+// Dynamic: /team/[abbr]  (all 32 NFL teams — static list)
+// ---------------------------------------------------------------------------
+
+const NFL_TEAM_ABBRS = [
+    "ARI", "ATL", "BAL", "BUF", "CAR", "CHI", "CIN", "CLE",
+    "DAL", "DEN", "DET", "GB",  "HOU", "IND", "JAX", "KC",
+    "LAC", "LAR", "LV",  "MIA", "MIN", "NE",  "NO",  "NYG",
+    "NYJ", "PHI", "PIT", "SEA", "SF",  "TB",  "TEN", "WAS",
+];
+
+function getTeamRoutes(): MetadataRoute.Sitemap {
+    return NFL_TEAM_ABBRS.map((abbr) => ({
+        url: `${BASE_URL}/team/${abbr}`,
+        priority: 0.8,
+        changeFrequency: "weekly" as const,
+    }));
+}
+
+// ---------------------------------------------------------------------------
+// Dynamic: /player/[slug]  (top players by claims from entity API)
+// ---------------------------------------------------------------------------
+
+async function getPlayerRoutes(): Promise<MetadataRoute.Sitemap> {
+    try {
+        const internalApiKey = process.env.CAP_ALPHA_INTERNAL_API_KEY;
+        const headers: Record<string, string> = { Accept: "application/json" };
+        if (internalApiKey) {
+            headers["x-api-key"] = internalApiKey;
+        }
+        // Fetch top players by claim count from the entity leaderboard
+        const res = await fetch(`${API_URL}/v1/entities/leaderboard?entity_type=player&limit=100`, {
+            headers,
+            next: { revalidate: 86400 },
+        });
+
+        if (!res.ok) {
+            console.warn(
+                `[sitemap] Entity leaderboard returned ${res.status} — skipping player routes`
+            );
+            return [];
+        }
+
+        const data: { entities?: Array<{ entity_name?: string; slug?: string; total_claims?: number }> } =
+            await res.json();
+        const entities = data.entities ?? [];
+
+        return entities
+            .filter((e) => (e.total_claims ?? 0) >= 3 && (e.entity_name || e.slug))
+            .map((e) => {
+                const slug = e.slug ??
+                    encodeURIComponent(
+                        (e.entity_name ?? "").toLowerCase().replace(/\s+/g, "-")
+                    );
+                return {
+                    url: `${BASE_URL}/player/${slug}`,
+                    priority: 0.7,
+                    changeFrequency: "weekly" as const,
+                };
+            });
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[sitemap] Failed to fetch player entities — skipping: ${msg}`);
+        return [];
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Sitemap entry point
 // ---------------------------------------------------------------------------
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-    const [punditRoutes] = await Promise.all([getPunditRoutes()]);
+    const [punditRoutes, playerRoutes] = await Promise.all([
+        getPunditRoutes(),
+        getPlayerRoutes(),
+    ]);
 
-    return [...staticRoutes, ...punditRoutes, ...getDraftRoutes()];
+    return [
+        ...staticRoutes,
+        ...punditRoutes,
+        ...getDraftRoutes(),
+        ...getTeamRoutes(),
+        ...playerRoutes,
+    ];
 }

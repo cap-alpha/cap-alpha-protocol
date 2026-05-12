@@ -3,7 +3,11 @@ import type { Metadata } from "next";
 // ---------------------------------------------------------------------------
 // Server-side metadata generation for entity detail pages
 // Implements generateMetadata for per-entity OG tags (issue #816)
+// Phase 1 (#772): adds canonical URL so the entity page is indexable.
 // ---------------------------------------------------------------------------
+
+const BASE_URL =
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://cap-alpha.co";
 
 const ENTITY_TYPE_LABELS: Record<string, string> = {
     player: "Player",
@@ -34,16 +38,22 @@ export async function generateMetadata({
     const entityName = humanizeName(entity_id);
     const typeLabel = ENTITY_TYPE_LABELS[entity_type] ?? "Entity";
 
-    const title = `${entityName} — Pundit Predictions · CapAlpha`;
+    const canonicalUrl = `${BASE_URL}/entity/${encodeURIComponent(entity_type)}/${encodeURIComponent(entity_id)}`;
+
+    const title = `${entityName} — Pundit Predictions · Cap Alpha`;
     const description = `See every pundit prediction about ${entityName} (${typeLabel}). Accuracy scores, Brier ratings, and cryptographically verified claim history.`;
 
     return {
         title,
         description,
+        alternates: {
+            canonical: canonicalUrl,
+        },
         openGraph: {
             title,
             description,
             type: "website",
+            url: canonicalUrl,
         },
         twitter: {
             card: "summary",

@@ -48,6 +48,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Convert a player name to a URL slug for /player/[id] routes */
+function slugifyPlayer(name: string): string {
+    return encodeURIComponent(name.toLowerCase().replace(/\s+/g, "-"));
+}
+
 function getInitials(name: string): string {
     return name
         .split(" ")
@@ -367,10 +372,9 @@ function ClaimCard({ p }: { p: Prediction }) {
         }
     }
 
-    // Entity chips — derive from target_team and target_player_id
-    const entities: string[] = [];
-    if (p.target_player_id) entities.push(p.target_player_id);
-    if (p.target_team) entities.push(p.target_team);
+    // Entity chips — derive from target_player_name/target_team for linking
+    const playerName = p.target_player_name ?? p.target_player_id ?? null;
+    const teamAbbr = p.target_team ?? null;
 
     return (
         <div
@@ -429,11 +433,11 @@ function ClaimCard({ p }: { p: Prediction }) {
                     gap: 8,
                 }}
             >
-                {/* Entity chips */}
+                {/* Entity chips — linked to player/team pages */}
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {entities.map((ent) => (
-                        <span
-                            key={ent}
+                    {playerName && (
+                        <Link
+                            href={`/player/${slugifyPlayer(playerName)}`}
                             style={{
                                 fontSize: 11,
                                 fontWeight: 600,
@@ -441,11 +445,28 @@ function ClaimCard({ p }: { p: Prediction }) {
                                 background: `rgba(26,39,68,0.07)`,
                                 padding: "3px 10px",
                                 border: `1px solid rgba(26,39,68,0.12)`,
+                                textDecoration: "none",
                             }}
                         >
-                            {ent}
-                        </span>
-                    ))}
+                            {playerName}
+                        </Link>
+                    )}
+                    {teamAbbr && (
+                        <Link
+                            href={`/team/${encodeURIComponent(teamAbbr)}`}
+                            style={{
+                                fontSize: 11,
+                                fontWeight: 600,
+                                color: DS.navy,
+                                background: `rgba(26,39,68,0.07)`,
+                                padding: "3px 10px",
+                                border: `1px solid rgba(26,39,68,0.12)`,
+                                textDecoration: "none",
+                            }}
+                        >
+                            {teamAbbr}
+                        </Link>
+                    )}
                     {p.season_year && (
                         <span
                             style={{

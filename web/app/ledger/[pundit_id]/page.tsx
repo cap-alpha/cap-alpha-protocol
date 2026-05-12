@@ -39,6 +39,7 @@ export interface Prediction {
     claim_category: string;
     season_year: number | null;
     target_player_id: string | null;
+    target_player_name: string | null;
     target_team: string | null;
     llm_provider: string | null;
     llm_model: string | null;

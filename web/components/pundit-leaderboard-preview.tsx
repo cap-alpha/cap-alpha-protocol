@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity } from "lucide-react";
+import { Activity, Flame, Snowflake } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/animated-counter";
 import { HoverableRow } from "@/components/hoverable-row";
@@ -16,6 +16,8 @@ interface PunditStat {
     incorrect_predictions: number;
     accuracy_rate: number | null;
     avg_brier_score: number | null;
+    /** Optional 90-day rolling accuracy — populated once #831 lands */
+    accuracy_rate_90d?: number | null;
 }
 
 const SPORTS = ["ALL", "NFL", "NBA", "MLB"] as const;
@@ -49,6 +51,48 @@ function AccuracyBadge({ rate }: { rate: number | null }) {
     );
 }
 
+/**
+ * Hot/cold rolling accuracy badge.
+ * Uses 90-day accuracy if available (post-#831), otherwise derives a trend
+ * signal by comparing career accuracy to the 60% accuracy threshold as a proxy.
+ *
+ * - Hot (🔥): pundit is on a strong run (>= 65% career or 90d accuracy >= 65%)
+ * - Cold (❄): pundit is struggling (< 45% career or 90d accuracy < 45%)
+ * - null: within normal range — no badge shown
+ */
+function HotColdBadge({ pundit }: { pundit: PunditStat }) {
+    // Prefer 90-day accuracy when available (#831); fall back to career
+    const rateToUse = pundit.accuracy_rate_90d ?? pundit.accuracy_rate;
+    if (rateToUse === null) return null;
+    const pct = Math.round(rateToUse * 100);
+
+    if (pct >= 65) {
+        return (
+            <span
+                title={`${pundit.accuracy_rate_90d !== undefined ? "90-day" : "Career"} accuracy: ${pct}%`}
+                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/25 shrink-0"
+                aria-label="Hot — above-average accuracy"
+            >
+                <Flame className="w-2.5 h-2.5" />
+                HOT
+            </span>
+        );
+    }
+    if (pct < 45) {
+        return (
+            <span
+                title={`${pundit.accuracy_rate_90d !== undefined ? "90-day" : "Career"} accuracy: ${pct}%`}
+                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25 shrink-0"
+                aria-label="Cold — below-average accuracy"
+            >
+                <Snowflake className="w-2.5 h-2.5" />
+                COLD
+            </span>
+        );
+    }
+    return null;
+}
+
 /** Featured card for #1 ranked pundit — shown on mobile above fold */
 function FeaturedPunditCard({ pundit }: { pundit: PunditStat }) {
     const pct = pundit.accuracy_rate !== null ? Math.round(pundit.accuracy_rate * 100) : null;
@@ -62,6 +106,7 @@ function FeaturedPunditCard({ pundit }: { pundit: PunditStat }) {
                     <div className="flex items-center gap-2 mb-1">
                         <span className="font-mono text-xs font-black text-yellow-400">#1</span>
                         <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400/70">Top Pundit</span>
+                        <HotColdBadge pundit={pundit} />
                     </div>
                     <p className="font-display font-black text-xl text-white truncate">{pundit.pundit_name}</p>
                     <p className="text-xs font-mono text-zinc-500 mt-1">
@@ -86,21 +131,27 @@ function FeaturedPunditCard({ pundit }: { pundit: PunditStat }) {
 }
 
 interface PunditLeaderboardPreviewProps {
-    /** Sport filter — "ALL" | "NFL" | "NBA" | "MLB". Default "ALL". */
+    /**
+     * Default sport filter — "ALL" | "NFL" | "NBA" | "MLB".
+     * Defaults to "NFL" per issue #883 (topic-agnostic leaderboard with NFL as primary).
+     */
     sport?: string;
 }
 
-export function PunditLeaderboardPreview({ sport: sportProp = "ALL" }: PunditLeaderboardPreviewProps) {
+export function PunditLeaderboardPreview({ sport: sportProp = "NFL" }: PunditLeaderboardPreviewProps) {
     const [activeSport, setActiveSport] = useState<Sport>(
-        SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "ALL"
+        SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "NFL"
     );
     const [pundits, setPundits] = useState<PunditStat[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         setLoading(true);
-        const sportParam = activeSport !== "ALL" ? `?sport=${activeSport}` : "";
-        fetch(`/api/ledger/pundits${sportParam}`)
+        const params = new URLSearchParams({ limit: "20", sort: "accuracy" });
+        if (activeSport !== "ALL") {
+            params.set("sport", activeSport.toLowerCase());
+        }
+        fetch(`/api/ledger/pundits?${params.toString()}`)
             .then((r) => {
                 if (!r.ok) {
                     console.error(`[Leaderboard] API returned ${r.status}`);
@@ -114,13 +165,20 @@ export function PunditLeaderboardPreview({ sport: sportProp = "ALL" }: PunditLea
                 );
                 // Sort by accuracy desc
                 all.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
-                setPundits(all.slice(0, 5));
+                // Top 10 for table; featured card requires >= 20 resolved picks
+                setPundits(all.slice(0, 10));
             })
             .catch((err) => {
                 console.error("[Leaderboard] Fetch error:", err);
             })
             .finally(() => setLoading(false));
     }, [activeSport]);
+
+    /**
+     * Featured pundit = highest-accuracy pundit with >= 20 resolved picks.
+     * Falls back to #1 in the list if no pundit meets the threshold (sparse data).
+     */
+    const featuredPundit = pundits.find((p) => p.resolved_predictions >= 20) ?? pundits[0];
 
     const rankColor = (idx: number) =>
         idx === 0 ? "text-yellow-400"
@@ -145,6 +203,7 @@ export function PunditLeaderboardPreview({ sport: sportProp = "ALL" }: PunditLea
                                 ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
                                 : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
                         )}
+                        aria-pressed={activeSport === s}
                     >
                         {s}
                     </button>
@@ -164,26 +223,29 @@ export function PunditLeaderboardPreview({ sport: sportProp = "ALL" }: PunditLea
                 </div>
             ) : (
                 <>
-                    {/* Mobile: featured #1 card + compact list 2–5 */}
+                    {/* Mobile: featured #1 card (>= 20 picks) + compact list 2–10 */}
                     <div className="sm:hidden space-y-3">
-                        <FeaturedPunditCard pundit={pundits[0]} />
-                        {pundits.slice(1).map((p, i) => (
-                            <Link
-                                key={p.pundit_id}
-                                href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
-                                className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3 hover:border-zinc-700 transition-colors"
-                            >
-                                <span className={cn("font-mono text-sm font-black w-5 shrink-0 tabular-nums", rankColor(i + 1))}>
-                                    {i + 2}
-                                </span>
-                                <span className="font-semibold text-white flex-1 truncate text-sm">{p.pundit_name}</span>
-                                <AccuracyBadge rate={p.accuracy_rate} />
-                                <span className="text-xs font-mono text-zinc-600 shrink-0">{p.resolved_predictions} picks</span>
-                            </Link>
-                        ))}
+                        {featuredPundit && <FeaturedPunditCard pundit={featuredPundit} />}
+                        {pundits
+                            .filter((p) => p.pundit_id !== featuredPundit?.pundit_id)
+                            .map((p, i) => (
+                                <Link
+                                    key={p.pundit_id}
+                                    href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
+                                    className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3 hover:border-zinc-700 transition-colors"
+                                >
+                                    <span className={cn("font-mono text-sm font-black w-5 shrink-0 tabular-nums", rankColor(i + 1))}>
+                                        {i + 2}
+                                    </span>
+                                    <span className="font-semibold text-white flex-1 truncate text-sm">{p.pundit_name}</span>
+                                    <AccuracyBadge rate={p.accuracy_rate} />
+                                    <HotColdBadge pundit={p} />
+                                    <span className="text-xs font-mono text-zinc-600 shrink-0">{p.resolved_predictions} picks</span>
+                                </Link>
+                            ))}
                     </div>
 
-                    {/* Desktop: full table rows */}
+                    {/* Desktop: full table — top 10 */}
                     <div className="hidden sm:block space-y-2">
                         {pundits.map((p, idx) => (
                             <HoverableRow
@@ -206,7 +268,10 @@ export function PunditLeaderboardPreview({ sport: sportProp = "ALL" }: PunditLea
                                     {p.pundit_name}
                                 </Link>
 
-                                {/* Accuracy — large, emerald */}
+                                {/* Hot/cold badge */}
+                                <HotColdBadge pundit={p} />
+
+                                {/* Accuracy — large, colored */}
                                 <AccuracyBadge rate={p.accuracy_rate} />
 
                                 {/* Pick count */}

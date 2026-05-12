@@ -38,6 +38,9 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Install libasound2 (Ubuntu 24.04 renamed it to libasound2t64)
+        run: sudo apt-get install -y libasound2t64
+
       - name: Install Playwright browsers (Chromium only)
         working-directory: web
         run: npx playwright install --with-deps chromium

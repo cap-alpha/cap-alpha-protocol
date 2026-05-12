@@ -2710,3 +2710,73 @@ class TestPhaseCIsPromotable:
             "extracted_claim": "",
         }
         assert _is_promotable(u, threshold=0.6) is False
+
+
+class TestGateClaim:
+    """Unit tests for _gate_claim() — the testability gate (Issue #824)."""
+
+    def test_score_above_threshold_passes(self):
+        """Utterance with testability_score >= threshold passes the gate."""
+        from src.assertion_extractor import _gate_claim
+
+        u = {"testability_score": 0.7, "extracted_claim": "Mahomes wins MVP"}
+        passes, reason = _gate_claim(u, threshold=0.5)
+        assert passes is True
+        assert reason == ""
+
+    def test_score_at_threshold_passes(self):
+        """Utterance with testability_score exactly at threshold passes."""
+        from src.assertion_extractor import _gate_claim
+
+        u = {"testability_score": 0.5, "extracted_claim": "Eagles win NFC East"}
+        passes, reason = _gate_claim(u, threshold=0.5)
+        assert passes is True
+        assert reason == ""
+
+    def test_score_below_threshold_fails_with_low_testability(self):
+        """Utterance with testability_score < threshold fails with 'low_testability'."""
+        from src.assertion_extractor import _gate_claim
+
+        u = {"testability_score": 0.3, "extracted_claim": "Browns might win"}
+        passes, reason = _gate_claim(u, threshold=0.5)
+        assert passes is False
+        assert reason == "low_testability"
+
+    def test_none_score_passes_backward_compat(self):
+        """Absent testability_score defaults to 1.0 (legacy responses always pass)."""
+        from src.assertion_extractor import _gate_claim
+
+        u = {"extracted_claim": "Ravens reach playoffs"}
+        # No testability_score key at all
+        passes, reason = _gate_claim(u, threshold=0.6)
+        assert passes is True
+        assert reason == ""
+
+    def test_zero_score_fails_gate(self):
+        """Explicit 0.0 testability_score fails the gate when threshold > 0."""
+        from src.assertion_extractor import _gate_claim
+
+        u = {"testability_score": 0.0, "extracted_claim": "Team will be good"}
+        passes, reason = _gate_claim(u, threshold=0.5)
+        assert passes is False
+        assert reason == "low_testability"
+
+    def test_default_threshold_used_when_none_passed(self):
+        """When threshold=None, _gate_claim reads from env (default 0.6)."""
+        import os
+        from src.assertion_extractor import _gate_claim
+
+        # Clear any env override so we get the compiled default (0.6)
+        env_backup = os.environ.pop("TESTABILITY_THRESHOLD", None)
+        try:
+            u_high = {"testability_score": 0.9, "extracted_claim": "Chiefs win SB"}
+            passes, _ = _gate_claim(u_high)
+            assert passes is True
+
+            u_low = {"testability_score": 0.1, "extracted_claim": "Maybe they win"}
+            passes, reason = _gate_claim(u_low)
+            assert passes is False
+            assert reason == "low_testability"
+        finally:
+            if env_backup is not None:
+                os.environ["TESTABILITY_THRESHOLD"] = env_backup

@@ -76,6 +76,7 @@ RAW_MEDIA_TABLE = "raw_pundit_media"
 PROCESSED_TABLE = "processed_media_hashes"
 DEDUP_LOG_TABLE = "gold_layer.claim_dedup_log"
 LEDGER_TABLE = "gold_layer.prediction_ledger"
+SHADOW_LEDGER_TABLE = "gold_layer.prediction_ledger_shadow"
 
 # ---------------------------------------------------------------------------
 # Phase C — speech-act + testability constants
@@ -794,6 +795,92 @@ def _is_promotable(utterance: dict, threshold: float) -> bool:
     return sat in PROMOTABLE_SPEECH_ACTS and score >= threshold and bool(claim.strip())
 
 
+def _gate_claim(utterance: dict, threshold: Optional[float] = None) -> tuple[bool, str]:
+    """Return (passes_gate, reason).
+
+    A claim passes the testability gate when its testability_score is at or
+    above *threshold* (default: runtime value from TESTABILITY_THRESHOLD env
+    var / 0.6 fallback).  reason is an empty string when the claim passes.
+
+    Backward compatibility: a missing testability_score is treated as 1.0
+    (fully testable) so legacy LLM responses are never incorrectly gated.
+
+    Args:
+        utterance: Utterance dict from the LLM extraction step.
+        threshold: Gate threshold (0.0–1.0). If None, reads from env.
+
+    Returns:
+        (True, "") if the claim passes the gate.
+        (False, "low_testability") if testability_score < threshold.
+    """
+    if threshold is None:
+        threshold = get_testability_threshold()
+    score_raw = utterance.get("testability_score")
+    score = 1.0 if score_raw is None else float(score_raw)
+    if score < threshold:
+        return False, "low_testability"
+    return True, ""
+
+
+def _write_shadow_claim(
+    prediction: "PunditPrediction",
+    shadow_reason: str,
+    testability_score: Optional[float],
+    db: "DBManager",
+) -> None:
+    """Write a single gated claim to gold_layer.prediction_ledger_shadow.
+
+    Uses the same prediction_hash / chain_hash fields as the main ledger but
+    with an empty chain_hash (shadow rows are not chained).
+
+    Non-fatal: logs a warning and swallows exceptions so a shadow write
+    failure never interrupts the main pipeline.
+    """
+    from src.cryptographic_ledger import compute_prediction_hash
+
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id:
+        logger.warning(
+            "_write_shadow_claim: GCP_PROJECT_ID not set — skipping shadow write"
+        )
+        return
+
+    try:
+        pred_hash = compute_prediction_hash(prediction)
+        row = {
+            "prediction_hash": pred_hash,
+            "chain_hash": "",  # shadow rows are not chained
+            "ingestion_timestamp": prediction.ingestion_timestamp,
+            "source_url": prediction.source_url,
+            "pundit_id": prediction.pundit_id,
+            "pundit_name": prediction.pundit_name,
+            "raw_assertion_text": prediction.raw_assertion_text,
+            "extracted_claim": prediction.extracted_claim,
+            "claim_category": prediction.claim_category,
+            "season_year": prediction.season_year,
+            "target_player_id": prediction.target_player_id,
+            "target_team": prediction.target_team,
+            "sport": prediction.sport,
+            "resolution_status": "PENDING",
+            "resolved_at": None,
+            "resolution_notes": None,
+            "shadow_reason": shadow_reason,
+            "testability_score": testability_score,
+        }
+        df = pd.DataFrame([row])
+        table_ref = f"{project_id}.{SHADOW_LEDGER_TABLE}"
+        job_config = _bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
+        job = db.client.load_table_from_dataframe(df, table_ref, job_config=job_config)
+        job.result()
+        logger.info(
+            "Gated claim (%s): %s",
+            shadow_reason,
+            (prediction.extracted_claim or prediction.raw_assertion_text)[:80],
+        )
+    except Exception as exc:
+        logger.warning("Failed to write shadow claim (non-fatal): %s", exc)
+
+
 def _resolve_speaker_entity_id(
     pundit_id: str,
     db: Optional["DBManager"] = None,
@@ -1169,6 +1256,7 @@ def _write_extraction_run(
     utterances_written: int,
     claims_promoted: int,
     suppressed: int,
+    gated: int,
     errors: int,
     mean_testability_score: Optional[float],
     metadata_completeness_pct: Optional[float],
@@ -1196,6 +1284,7 @@ def _write_extraction_run(
         "utterances_written": utterances_written,
         "claims_promoted": claims_promoted,
         "suppressed": suppressed,
+        "gated": gated,
         "errors": errors,
         "mean_testability_score": mean_testability_score,
         "metadata_completeness_pct": metadata_completeness_pct,
@@ -2004,6 +2093,7 @@ def run_extraction(
         "predictions_ingested": 0,
         "utterances_written": 0,
         "suppressed": 0,
+        "gated": 0,  # claims routed to shadow table (low testability_score)
         "errors": 0,
         "skipped_no_predictions": 0,
         "filtered_out": 0,
@@ -2211,6 +2301,51 @@ def run_extraction(
                 suppressed_here = len(verified_utterances) - len(result.predictions)
                 summary["suppressed"] += max(0, suppressed_here)
 
+                # Issue #824 — testability gate: utterances with promotable
+                # speech_act_type + non-empty claim but low testability_score
+                # are routed to the shadow ledger instead of being silently dropped.
+                if not dry_run:
+                    for _shadow_u in verified_utterances:
+                        _sat = _shadow_u.get("speech_act_type") or "assertion"
+                        _claim = (_shadow_u.get("extracted_claim") or "").strip()
+                        # Only shadow utterances that WOULD be promotable on speech_act
+                        # but specifically fail the testability score gate.
+                        if _sat not in PROMOTABLE_SPEECH_ACTS or not _claim:
+                            continue
+                        _passes, _gate_reason = _gate_claim(_shadow_u, threshold)
+                        if not _passes:
+                            _shadow_pred = PunditPrediction(
+                                pundit_id=str(pundit_id),
+                                pundit_name=str(pundit_name),
+                                source_url=source_url,
+                                raw_assertion_text=_raw_text[:2000],
+                                extracted_claim=_claim,
+                                claim_category=_shadow_u.get("claim_category")
+                                or DEFAULT_CLAIM_CATEGORY,
+                                season_year=_shadow_u.get("season_year"),
+                                target_player_id=None,
+                                target_team=_shadow_u.get("target_team"),
+                                sport=article_sport,
+                                prompt_version=_get_prompt_version_for_sport(
+                                    article_sport
+                                ),
+                                llm_provider=provider_type,
+                                llm_model=str(llm_model) if llm_model else None,
+                            )
+                            _shadow_ts_raw = _shadow_u.get("testability_score")
+                            _shadow_ts = (
+                                float(_shadow_ts_raw)
+                                if _shadow_ts_raw is not None
+                                else None
+                            )
+                            _write_shadow_claim(
+                                prediction=_shadow_pred,
+                                shadow_reason=_gate_reason,
+                                testability_score=_shadow_ts,
+                                db=db,
+                            )
+                            summary["gated"] += 1
+
                 # Accumulate per-run metrics for extraction_run table
                 for u in verified_utterances:
                     _run_metadata_total += 1
@@ -2375,6 +2510,7 @@ def run_extraction(
             f"{summary['utterances_written']} utterances → raw_utterance, "
             f"{summary['predictions_extracted']} promoted to ledger "
             f"(testability_score >= {threshold}), "
+            f"{summary['gated']} gated → shadow table (low testability), "
             f"{summary['suppressed']} suppressed (rhetorical/hedge/etc.), "
             f"{summary['predictions_ingested']} ingested, "
             f"{summary['duplicates_suppressed']} exact-match duplicates suppressed, "
@@ -2407,6 +2543,7 @@ def run_extraction(
                 utterances_written=summary["utterances_written"],
                 claims_promoted=summary["predictions_ingested"],
                 suppressed=summary["suppressed"],
+                gated=summary["gated"],
                 errors=summary["errors"],
                 mean_testability_score=_mean_ts,
                 metadata_completeness_pct=_meta_pct,

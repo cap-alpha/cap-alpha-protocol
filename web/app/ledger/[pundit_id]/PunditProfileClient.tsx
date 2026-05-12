@@ -10,6 +10,7 @@ import {
     type PredictionsResponse,
 } from "./page";
 import { FollowButton } from "./FollowButton";
+import { SimilarPredictionsExpander } from "@/components/similar-predictions-expander";
 
 // ---------------------------------------------------------------------------
 // Design system constants — V1 Data Editorial
@@ -384,6 +385,10 @@ function ClaimCard({ p }: { p: Prediction }) {
         ? `prediction-${p.prediction_hash.replace(/^sha256:/, "").slice(0, 12)}`
         : undefined;
 
+    // utterance_id for similar predictions call = hash_short (12 chars, no prefix)
+    const utteranceId = p.prediction_hash
+        ? p.prediction_hash.replace(/^sha256:/, "").slice(0, 12)
+        : null;
     return (
         <div
             id={anchorId}
@@ -521,6 +526,9 @@ function ClaimCard({ p }: { p: Prediction }) {
 
             {/* Provenance toggle */}
             <ClaimProvenance p={p} />
+
+            {/* Similar predictions expander — #769 */}
+            <SimilarPredictionsExpander utteranceId={utteranceId} limit={3} />
         </div>
     );
 }
@@ -778,6 +786,9 @@ export function PunditProfileClient({
     const [total, setTotal] = useState(initialPredictions?.total ?? 0);
     const [loading, setLoading] = useState(false);
 
+    // Post-follow banner state — shown after first-time follow (#769)
+    const [showFollowBanner, setShowFollowBanner] = useState(false);
+
     const incorrectCount = (pundit.resolved_count ?? 0) - (pundit.correct_count ?? 0);
     const pendingCount = (pundit.total_predictions ?? 0) - (pundit.resolved_count ?? 0);
 
@@ -874,6 +885,11 @@ export function PunditProfileClient({
 
     return (
         <div style={{ background: DS.bg, minHeight: "100vh", color: DS.text }}>
+            {/* Post-follow confirmation banner — dismiss-on-scroll, no modal (#769) */}
+            {showFollowBanner && (
+                <PostFollowBanner punditName={pundit.pundit_name} />
+            )}
+
             {/* Breadcrumb */}
             <div
                 style={{
@@ -961,6 +977,7 @@ export function PunditProfileClient({
                                 punditName={pundit.pundit_name}
                                 isFollowing={isFollowing}
                                 isAuthenticated={isAuthenticated}
+                                onFirstFollow={() => setShowFollowBanner(true)}
                             />
                         </div>
                     </div>
@@ -1449,6 +1466,80 @@ function TrustStrap({
             >
                 {strapText}
             </div>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// PostFollowBanner — one-time inline confirmation after first follow (#769)
+// Dismiss-on-scroll, no modal.
+// ---------------------------------------------------------------------------
+
+function PostFollowBanner({ punditName }: { punditName: string }) {
+    const [visible, setVisible] = useState(true);
+
+    useEffect(() => {
+        function onScroll() {
+            if (window.scrollY > 120) {
+                setVisible(false);
+            }
+        }
+        window.addEventListener("scroll", onScroll, { passive: true });
+        return () => window.removeEventListener("scroll", onScroll);
+    }, []);
+
+    if (!visible) return null;
+
+    return (
+        <div
+            style={{
+                position: "fixed",
+                bottom: 24,
+                left: "50%",
+                transform: "translateX(-50%)",
+                zIndex: 1000,
+                background: DS.pos,
+                color: "#fff",
+                borderRadius: 6,
+                padding: "12px 20px",
+                fontSize: 13,
+                fontWeight: 600,
+                boxShadow: "0 4px 20px rgba(0,0,0,0.25)",
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                maxWidth: "90vw",
+                whiteSpace: "nowrap",
+            }}
+            role="status"
+            aria-live="polite"
+        >
+            <span>★</span>
+            <span>
+                Followed. You&apos;ll get an email when {punditName}&apos;s next prediction resolves.{" "}
+                <Link
+                    href="/my/pundits"
+                    style={{ color: "#fff", textDecoration: "underline" }}
+                >
+                    Manage at /my/pundits
+                </Link>
+            </span>
+            <button
+                onClick={() => setVisible(false)}
+                aria-label="Dismiss"
+                style={{
+                    background: "none",
+                    border: "none",
+                    color: "#fff",
+                    fontSize: 16,
+                    cursor: "pointer",
+                    padding: "0 4px",
+                    lineHeight: 1,
+                    opacity: 0.8,
+                }}
+            >
+                ×
+            </button>
         </div>
     );
 }

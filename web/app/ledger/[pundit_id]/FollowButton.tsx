@@ -9,6 +9,8 @@ interface FollowButtonProps {
     punditName: string;
     isFollowing: boolean;
     isAuthenticated: boolean;
+    /** Called after a successful follow (not unfollow) — used for post-follow banner (#769) */
+    onFirstFollow?: () => void;
 }
 
 export function FollowButton({
@@ -16,6 +18,7 @@ export function FollowButton({
     punditName,
     isFollowing: initialIsFollowing,
     isAuthenticated,
+    onFirstFollow,
 }: FollowButtonProps) {
     const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
     const [isPending, startTransition] = useTransition();
@@ -31,7 +34,7 @@ export function FollowButton({
 
     function handleClick() {
         if (!isAuthenticated) {
-            // Redirect to sign-in with return URL
+            // Redirect to sign-in with return URL — copy optimized for bettor discovery (#769)
             router.push(`/sign-in?redirect_url=${encodeURIComponent(`/ledger/${punditId}`)}`);
             return;
         }
@@ -47,6 +50,9 @@ export function FollowButton({
                 // Revert on error
                 setIsFollowing(!newState);
                 console.error("Follow action failed:", result.error);
+            } else if (newState && onFirstFollow) {
+                // Notify parent only on successful follow (not unfollow)
+                onFirstFollow();
             }
         });
     }
@@ -54,21 +60,21 @@ export function FollowButton({
     const label = isAuthenticated
         ? isFollowing
             ? "✓ Following"
-            : "Follow"
-        : "Follow";
+            : `Follow ${punditName}`
+        : `Follow ${punditName} — get notified when predictions resolve`;
 
     const ariaLabel = isAuthenticated
         ? isFollowing
             ? `Unfollow ${punditName}`
             : `Follow ${punditName}`
-        : `Sign in to follow ${punditName}`;
+        : `Sign in to follow ${punditName} and get email alerts when predictions resolve. Free.`;
 
     return (
         <button
             onClick={handleClick}
             disabled={isPending}
             aria-label={ariaLabel}
-            title={!isAuthenticated ? "Sign in to follow this pundit" : undefined}
+            title={!isAuthenticated ? `Get an email when ${punditName}'s predictions resolve. Free.` : undefined}
             style={{
                 display: "inline-flex",
                 alignItems: "center",

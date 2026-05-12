@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ExternalLink, ArrowRight } from "lucide-react";
+import { ExternalLink, ArrowRight, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AffiliateCta } from "@/components/affiliate-cta";
 import { PredictionShareButton } from "@/components/prediction-share-button";
@@ -44,6 +44,10 @@ interface InPlayCardProps {
     prediction: InPlayPrediction;
     onOpenDrawer?: (prediction: InPlayPrediction) => void;
     className?: string;
+    /** Whether the current user follows this pundit (used for + Follow ghost button, #769) */
+    isFollowingPundit?: boolean;
+    /** Called when user clicks + Follow on a card — parent handles auth redirect or follow action */
+    onFollowPundit?: (punditId: string, punditName: string) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,7 +197,13 @@ function CategoryAccuracy({
  *
  * Issue: #770
  */
-export function InPlayCard({ prediction, onOpenDrawer, className }: InPlayCardProps) {
+export function InPlayCard({
+    prediction,
+    onOpenDrawer,
+    className,
+    isFollowingPundit = false,
+    onFollowPundit,
+}: InPlayCardProps) {
     const claimText =
         prediction.extracted_claim || prediction.raw_assertion_text || "—";
 
@@ -328,11 +338,25 @@ export function InPlayCard({ prediction, onOpenDrawer, className }: InPlayCardPr
                 />
             )}
 
-            {/* --- Footer: share + details --- */}
+            {/* --- Footer: share + follow + details --- */}
             <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-900">
-                <PredictionShareButton
-                    predictionId={prediction.prediction_hash_short}
-                />
+                <div className="flex items-center gap-2">
+                    <PredictionShareButton
+                        predictionId={prediction.prediction_hash_short}
+                    />
+                    {/* + Follow ghost button — only when not already following (#769) */}
+                    {!isFollowingPundit && onFollowPundit && (
+                        <button
+                            onClick={() => onFollowPundit(prediction.pundit_id, prediction.pundit_name)}
+                            className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-500/70 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 rounded px-1.5 py-0.5 transition-colors"
+                            aria-label={`Follow ${prediction.pundit_name} — get notified when predictions resolve`}
+                            title={`Get an email when ${prediction.pundit_name}'s predictions resolve. Free.`}
+                        >
+                            <Bell className="w-2.5 h-2.5" />
+                            + Follow
+                        </button>
+                    )}
+                </div>
                 {onOpenDrawer && (
                     <button
                         onClick={() => onOpenDrawer(prediction)}

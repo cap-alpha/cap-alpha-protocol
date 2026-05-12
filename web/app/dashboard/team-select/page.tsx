@@ -1,5 +1,5 @@
 import "server-only";
-import { auth, clerkClient } from "@clerk/nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 
 export const dynamic = 'force-dynamic';
 import { redirect } from "next/navigation";
@@ -7,8 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { ShieldAlert } from "lucide-react";
-
-const PAID_TIERS = new Set(["pro", "api_starter", "api_growth", "enterprise"]);
 
 const NFL_TEAMS = [
     { id: "ARI", name: "Arizona Cardinals", color: "bg-red-700" },
@@ -46,18 +44,13 @@ const NFL_TEAMS = [
 ];
 
 export default async function TeamSelection() {
+    // Issue #771 Phase 1: removed misplaced Pro gate. Team selection is a fan/GM
+    // feature — bettors (the buyer persona) should never hit this paywall. The
+    // real tier gate is on the pundit predictions API, not on this route.
     const { userId } = await auth();
 
     if (!userId) {
         redirect("/");
-    }
-
-    const user = await clerkClient.users.getUser(userId);
-    const tier = user.publicMetadata?.tier as string | undefined;
-    const isSubscriptionActive = PAID_TIERS.has(tier ?? "");
-
-    if (!isSubscriptionActive) {
-        redirect("/pricing");
     }
 
     return (

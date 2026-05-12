@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isPro, FREE_PREDICTION_CAP } from "@/lib/tier";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
@@ -29,6 +30,27 @@ export async function GET(
         }
 
         const data = await res.json();
+
+        // Apply free-tier prediction cap — silently return at most FREE_PREDICTION_CAP
+        // rows and signal to the client via header + meta field so the UI can render
+        // the blur/upgrade prompt. Pro users receive the full list.
+        // Issue: #771 Phase 1
+        const proUser = await isPro();
+        if (!proUser && Array.isArray(data.predictions) && data.predictions.length > FREE_PREDICTION_CAP) {
+            const cappedData = {
+                ...data,
+                predictions: data.predictions.slice(0, FREE_PREDICTION_CAP),
+                meta: {
+                    ...(data.meta ?? {}),
+                    capped: true,
+                    cap_limit: FREE_PREDICTION_CAP,
+                },
+            };
+            return NextResponse.json(cappedData, {
+                headers: { "X-Predictions-Capped": "true" },
+            });
+        }
+
         return NextResponse.json(data);
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);

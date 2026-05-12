@@ -5,6 +5,45 @@ interface EmailProps {
     firstName?: string
 }
 
+// ---------------------------------------------------------------------------
+// Resolution alert email types
+// ---------------------------------------------------------------------------
+
+export interface ResolvedPrediction {
+    pundit_name: string
+    pundit_id: string
+    claim_text: string
+    outcome: 'CORRECT' | 'INCORRECT'
+    resolved_at: string | null
+    category: string
+    prediction_hash: string
+}
+
+export interface ResolutionAlertEmailProps {
+    email: string
+    firstName?: string
+    resolutions: ResolvedPrediction[]
+}
+
+// ---------------------------------------------------------------------------
+// Weekly digest email types
+// ---------------------------------------------------------------------------
+
+export interface DigestPunditEntry {
+    pundit_id: string
+    pundit_name: string
+    accuracy_rate: number | null
+    resolved_this_week: ResolvedPrediction[]
+    pending_count: number
+}
+
+export interface WeeklyDigestEmailProps {
+    email: string
+    firstName?: string
+    pundits: DigestPunditEntry[]
+    weekOf: string // e.g. "May 6 – May 12, 2026"
+}
+
 const PHYSICAL_ADDRESS = '1111B S Governors Ave STE 6225, Dover, DE 19904'
 
 function baseLayout(content: string, unsubUrl: string): string {
@@ -251,6 +290,185 @@ export function renderDay7Email({ email, firstName }: EmailProps): string {
       <p style="margin:0;font-size:14px;color:#666666;line-height:1.6;">
         Happy to stay on the free tier too — the core ledger is always free.
         This is the last onboarding email unless you upgrade.
+      </p>
+    `
+    return baseLayout(content, unsubUrl)
+}
+
+// ---------------------------------------------------------------------------
+// Resolution alert email — sent when a followed pundit's prediction resolves
+// ---------------------------------------------------------------------------
+
+function fmtResolutionDate(ts: string | null): string {
+    if (!ts) return ''
+    try {
+        return new Date(ts).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric'
+        })
+    } catch {
+        return ''
+    }
+}
+
+function outcomeBlock(pred: ResolvedPrediction): string {
+    const isCorrect = pred.outcome === 'CORRECT'
+    const badgeBg = isCorrect ? '#16a34a' : '#b91c1c'
+    const badgeText = isCorrect ? '✓ CORRECT' : '✗ INCORRECT'
+    const dateStr = fmtResolutionDate(pred.resolved_at)
+    const hash = pred.prediction_hash.replace(/^sha256:/, '').slice(0, 8)
+    const punditUrl = `${BASE_URL}/ledger/${encodeURIComponent(pred.pundit_id)}`
+
+    return `
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;margin:0 0 12px;border-left:3px solid ${badgeBg};">
+        <tr>
+          <td style="padding:16px 20px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-size:12px;color:#888888;">${pred.pundit_name}${dateStr ? ' · ' + dateStr : ''}</span>
+              <span style="background:${badgeBg};border-radius:4px;padding:2px 8px;font-size:11px;color:#ffffff;font-weight:700;">${badgeText}</span>
+            </div>
+            <p style="margin:0 0 10px;font-size:14px;color:#ffffff;font-style:italic;line-height:1.5;">&ldquo;${pred.claim_text}&rdquo;</p>
+            <div style="display:flex;gap:12px;align-items:center;">
+              <a href="${punditUrl}" style="font-size:12px;color:#2563eb;text-decoration:none;font-weight:600;">View pundit ledger →</a>
+              <span style="font-size:10px;color:#555555;font-family:monospace;">${hash}&hellip;</span>
+            </div>
+          </td>
+        </tr>
+      </table>`
+}
+
+export function renderResolutionAlertEmail({ email, firstName, resolutions }: ResolutionAlertEmailProps): string {
+    const greeting = firstName ? `Hi ${firstName},` : 'Hi,'
+    const unsubUrl = unsubscribeUrl(email)
+    const count = resolutions.length
+    const subjectHint = count === 1
+        ? `"${resolutions[0].claim_text.slice(0, 60)}${resolutions[0].claim_text.length > 60 ? '…' : ''}"`
+        : `${count} predictions`
+
+    const outcomeBlocks = resolutions.map(outcomeBlock).join('')
+
+    const content = `
+      <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">
+        ${count === 1 ? 'A' : count} followed prediction${count === 1 ? '' : 's'} resolved overnight
+      </h1>
+      <p style="margin:0 0 20px;font-size:15px;color:#aaaaaa;line-height:1.6;">${greeting} Here${count === 1 ? "'s what" : "'s what"} happened with ${subjectHint}:</p>
+
+      ${outcomeBlocks}
+
+      <p style="margin:16px 0 0;font-size:13px;color:#666666;line-height:1.6;">
+        You receive this because you follow ${count === 1 ? 'this pundit' : 'these pundits'} on Cap Alpha.
+        <a href="${BASE_URL}/my/pundits" style="color:#888888;text-decoration:underline;">Manage followed pundits</a>
+      </p>
+    `
+    return baseLayout(content, unsubUrl)
+}
+
+// ---------------------------------------------------------------------------
+// Weekly digest email — sent every Tuesday at 13:00 UTC
+// ---------------------------------------------------------------------------
+
+function digestPunditSection(entry: DigestPunditEntry): string {
+    const accuracyPct = entry.accuracy_rate !== null
+        ? `${Math.round(entry.accuracy_rate * 100)}%`
+        : '—'
+    const accColor = entry.accuracy_rate !== null
+        ? entry.accuracy_rate >= 0.65 ? '#16a34a' : entry.accuracy_rate >= 0.5 ? '#d4a017' : '#b91c1c'
+        : '#888888'
+    const punditUrl = `${BASE_URL}/ledger/${encodeURIComponent(entry.pundit_id)}`
+    const resolutionRows = entry.resolved_this_week.slice(0, 3).map((r) => {
+        const isCorrect = r.outcome === 'CORRECT'
+        const icon = isCorrect ? '✓' : '✗'
+        const iconColor = isCorrect ? '#16a34a' : '#b91c1c'
+        const claimShort = r.claim_text.length > 80 ? r.claim_text.slice(0, 77) + '…' : r.claim_text
+        return `
+          <tr>
+            <td style="padding:6px 0;border-bottom:1px solid #222222;">
+              <span style="color:${iconColor};font-weight:700;margin-right:8px;">${icon}</span>
+              <span style="font-size:13px;color:#cccccc;font-style:italic;">&ldquo;${claimShort}&rdquo;</span>
+            </td>
+          </tr>`
+    }).join('')
+
+    return `
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;margin:0 0 16px;">
+        <tr>
+          <td style="padding:16px 20px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td>
+                  <a href="${punditUrl}" style="font-size:16px;font-weight:700;color:#ffffff;text-decoration:none;">${entry.pundit_name}</a>
+                  ${entry.pending_count > 0 ? `<span style="font-size:12px;color:#888888;margin-left:8px;">${entry.pending_count} pending</span>` : ''}
+                </td>
+                <td style="text-align:right;">
+                  <span style="font-size:20px;font-weight:700;color:${accColor};font-family:monospace;">${accuracyPct}</span>
+                  <span style="font-size:11px;color:#888888;margin-left:4px;">accuracy</span>
+                </td>
+              </tr>
+            </table>
+            ${resolutionRows ? `
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+              ${resolutionRows}
+            </table>` : ''}
+            ${entry.resolved_this_week.length === 0 ? '<p style="margin:10px 0 0;font-size:12px;color:#666666;">No resolutions this week — predictions pending.</p>' : ''}
+          </td>
+        </tr>
+      </table>`
+}
+
+export function renderWeeklyDigestEmail({ email, firstName, pundits, weekOf }: WeeklyDigestEmailProps): string {
+    const greeting = firstName ? `Hi ${firstName},` : 'Hi,'
+    const unsubUrl = unsubscribeUrl(email)
+
+    const punditSections = pundits.map(digestPunditSection).join('')
+
+    const totalResolutions = pundits.reduce((sum, p) => sum + p.resolved_this_week.length, 0)
+    const totalPending = pundits.reduce((sum, p) => sum + p.pending_count, 0)
+
+    const content = `
+      <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#ffffff;line-height:1.3;">
+        Your weekly pundit update
+      </h1>
+      <p style="margin:0 0 4px;font-size:13px;color:#888888;">Week of ${weekOf}</p>
+      <p style="margin:0 0 24px;font-size:15px;color:#aaaaaa;line-height:1.6;">${greeting}</p>
+
+      <!-- Summary stats -->
+      <table width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+        <tr>
+          <td width="50%" style="padding:0 8px 0 0;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;">
+              <tr><td style="padding:14px;text-align:center;">
+                <p style="margin:0 0 4px;font-size:26px;font-weight:700;color:#2563eb;">${totalResolutions}</p>
+                <p style="margin:0;font-size:12px;color:#888888;">predictions resolved</p>
+              </td></tr>
+            </table>
+          </td>
+          <td width="50%" style="padding:0 0 0 8px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#1a1a1a;border:1px solid #2a2a2a;border-radius:6px;">
+              <tr><td style="padding:14px;text-align:center;">
+                <p style="margin:0 0 4px;font-size:26px;font-weight:700;color:#d4a017;">${totalPending}</p>
+                <p style="margin:0;font-size:12px;color:#888888;">pending this week</p>
+              </td></tr>
+            </table>
+          </td>
+        </tr>
+      </table>
+
+      <!-- Pundit sections -->
+      <div style="margin-bottom:8px;font-size:11px;font-weight:700;color:#888888;text-transform:uppercase;letter-spacing:1.5px;">Your followed pundits</div>
+      ${punditSections}
+
+      <table cellpadding="0" cellspacing="0" style="margin:8px 0 16px;">
+        <tr>
+          <td style="background:#2563eb;border-radius:6px;">
+            <a href="${BASE_URL}/my/pundits" style="display:inline-block;padding:12px 24px;font-size:14px;font-weight:600;color:#ffffff;text-decoration:none;">
+              Manage My Pundits →
+            </a>
+          </td>
+        </tr>
+      </table>
+
+      <p style="margin:0;font-size:12px;color:#666666;line-height:1.6;">
+        You receive this weekly digest because you follow pundits on Cap Alpha.
+        <a href="${unsubUrl}&type=digest" style="color:#888888;text-decoration:underline;">Unsubscribe from digest</a>
       </p>
     `
     return baseLayout(content, unsubUrl)

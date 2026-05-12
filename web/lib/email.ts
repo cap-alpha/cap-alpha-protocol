@@ -53,3 +53,38 @@ export async function sendOnboardingDay7Email(email: string, firstName?: string)
         html: renderDay7Email({ email, firstName }),
     })
 }
+
+export async function sendResolutionAlertEmail(
+    email: string,
+    resolutions: import('./email-templates').ResolvedPrediction[],
+    firstName?: string,
+): Promise<void> {
+    const { renderResolutionAlertEmail } = await import('./email-templates')
+    const count = resolutions.length
+    const subject = count === 1
+        ? `Prediction resolved: ${resolutions[0].outcome === 'CORRECT' ? '✓' : '✗'} ${resolutions[0].pundit_name}`
+        : `${count} followed predictions resolved overnight`
+    await getResend().emails.send({
+        from: FROM_ADDRESS,
+        replyTo: REPLY_TO,
+        to: email,
+        subject,
+        html: renderResolutionAlertEmail({ email, firstName, resolutions }),
+    })
+}
+
+export async function sendWeeklyDigestEmail(
+    email: string,
+    pundits: import('./email-templates').DigestPunditEntry[],
+    weekOf: string,
+    firstName?: string,
+): Promise<void> {
+    const { renderWeeklyDigestEmail } = await import('./email-templates')
+    await getResend().emails.send({
+        from: FROM_ADDRESS,
+        replyTo: REPLY_TO,
+        to: email,
+        subject: `Your Cap Alpha weekly digest — ${weekOf}`,
+        html: renderWeeklyDigestEmail({ email, firstName, pundits, weekOf }),
+    })
+}

@@ -460,6 +460,191 @@ def compute_rolling_windows(
 
 
 # ---------------------------------------------------------------------------
+# API read path — retrieve rolling windows for a specific pundit
+# ---------------------------------------------------------------------------
+
+
+def get_pundit_rolling_accuracy(
+    pundit_id: str,
+    domain: Optional[str] = None,
+    claim_type: Optional[str] = None,
+    db: Optional[DBManager] = None,
+) -> dict:
+    """
+    Returns rolling accuracy windows (career / last_season / 30d) for a single
+    pundit from the pre-computed gold_layer.pundit_accuracy_windows table.
+
+    Args:
+        pundit_id:   Pundit identifier.
+        domain:      Optional filter on entity_class (e.g. 'player', 'team').
+        claim_type:  Optional filter on claim_type (e.g. 'contract', 'injury').
+        db:          Optional shared DBManager; created and closed if None.
+
+    Returns a dict with the shape:
+        {
+            "accuracy": {
+                "career": float | None,
+                "last_season": float | None,
+                "last_30_days": float | None,
+                "drift_flag": bool,
+                "drift_note": str | None,
+            },
+            "sample_sizes": {
+                "career": int,
+                "last_season": int,
+                "last_30_days": int,
+            },
+            "displayable": {
+                "career": bool,
+                "last_season": bool,
+                "last_30_days": bool,
+            },
+        }
+
+    If the pundit has no pre-computed rows (e.g. the compute job hasn't run yet),
+    all accuracy values are None and sample sizes are 0.
+    """
+    close_db = db is None
+    if db is None:
+        db = DBManager()
+
+    try:
+        project_id = os.environ.get("GCP_PROJECT_ID")
+        if not project_id:
+            raise ValueError("GCP_PROJECT_ID environment variable not set")
+
+        from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter
+
+        windows_table = f"`{project_id}.{WINDOWS_TABLE}`"
+
+        # Build optional filters
+        extra_where = ""
+        params = [ScalarQueryParameter("pundit_id", "STRING", pundit_id)]
+        if domain is not None:
+            extra_where += " AND entity_class = @entity_class"
+            params.append(ScalarQueryParameter("entity_class", "STRING", domain))
+        if claim_type is not None:
+            extra_where += " AND claim_type = @claim_type"
+            params.append(ScalarQueryParameter("claim_type", "STRING", claim_type))
+
+        # Fetch the most recent compute date's rows for this pundit
+        query = f"""
+            WITH latest_run AS (
+                SELECT MAX(DATE(computed_at)) AS max_date
+                FROM {windows_table}
+                WHERE pundit_id = @pundit_id
+            )
+            SELECT
+                window_type,
+                accuracy_rate,
+                resolved_count,
+                displayable,
+                drift_flagged,
+                drift_magnitude
+            FROM {windows_table}
+            CROSS JOIN latest_run
+            WHERE pundit_id = @pundit_id
+              AND DATE(computed_at) = max_date
+              {extra_where}
+        """
+        job_config = QueryJobConfig(query_parameters=params)
+        df = db.client.query(query, job_config=job_config).to_dataframe()
+
+        # --- Aggregate over entity_class / claim_type rows if multiple exist ---
+        # When domain/claim_type are not filtered we sum resolved_counts and
+        # compute a weighted average accuracy across all matching rows per window.
+        window_data: dict[str, dict] = {}
+        if not df.empty:
+            for wtype in ("career", "last_season", "30d"):
+                sub = df[df["window_type"] == wtype]
+                if sub.empty:
+                    window_data[wtype] = {
+                        "accuracy_rate": None,
+                        "resolved_count": 0,
+                        "displayable": False,
+                        "drift_flagged": False,
+                        "drift_magnitude": 0.0,
+                    }
+                else:
+                    total_n = int(sub["resolved_count"].fillna(0).sum())
+                    # Weighted accuracy: weight each row by its resolved_count
+                    mask = sub["accuracy_rate"].notna() & (sub["resolved_count"] > 0)
+                    if mask.any():
+                        weighted_acc = (
+                            sub.loc[mask, "accuracy_rate"]
+                            * sub.loc[mask, "resolved_count"]
+                        ).sum() / sub.loc[mask, "resolved_count"].sum()
+                    else:
+                        weighted_acc = None
+                    window_data[wtype] = {
+                        "accuracy_rate": float(weighted_acc)
+                        if weighted_acc is not None
+                        else None,
+                        "resolved_count": total_n,
+                        "displayable": bool(sub["displayable"].any()),
+                        "drift_flagged": bool(sub["drift_flagged"].any()),
+                        "drift_magnitude": float(sub["drift_magnitude"].max()),
+                    }
+        else:
+            for wtype in ("career", "last_season", "30d"):
+                window_data[wtype] = {
+                    "accuracy_rate": None,
+                    "resolved_count": 0,
+                    "displayable": False,
+                    "drift_flagged": False,
+                    "drift_magnitude": 0.0,
+                }
+
+        career = window_data["career"]
+        last_season = window_data["last_season"]
+        last_30d = window_data["30d"]
+
+        # Drift note: synthesise from magnitude + direction
+        drift_flag = career["drift_flagged"] or last_season["drift_flagged"]
+        drift_note: Optional[str] = None
+        if drift_flag:
+            if (
+                career["accuracy_rate"] is not None
+                and last_season["accuracy_rate"] is not None
+            ):
+                diff_pp = round(
+                    abs(career["accuracy_rate"] - last_season["accuracy_rate"]) * 100
+                )
+                direction = (
+                    "below"
+                    if last_season["accuracy_rate"] < career["accuracy_rate"]
+                    else "above"
+                )
+                drift_note = (
+                    f"Last-season accuracy {diff_pp}pp {direction} career baseline"
+                )
+
+        return {
+            "accuracy": {
+                "career": career["accuracy_rate"],
+                "last_season": last_season["accuracy_rate"],
+                "last_30_days": last_30d["accuracy_rate"],
+                "drift_flag": drift_flag,
+                "drift_note": drift_note,
+            },
+            "sample_sizes": {
+                "career": career["resolved_count"],
+                "last_season": last_season["resolved_count"],
+                "last_30_days": last_30d["resolved_count"],
+            },
+            "displayable": {
+                "career": career["displayable"],
+                "last_season": last_season["displayable"],
+                "last_30_days": last_30d["displayable"],
+            },
+        }
+
+    finally:
+        if close_db:
+            db.close()
+
+
+# ---------------------------------------------------------------------------
 # Stats printer
 # ---------------------------------------------------------------------------
 

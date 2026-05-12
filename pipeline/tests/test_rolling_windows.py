@@ -20,6 +20,7 @@ from src.rolling_windows import (
     _nba_last_completed_season,
     _nfl_last_completed_season,
     compute_rolling_windows,
+    get_pundit_rolling_accuracy,
 )
 
 
@@ -263,6 +264,7 @@ class TestComputeRollingWindowsSmoke:
         }
 
     @patch("src.rolling_windows.DBManager")
+    @patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"})
     def test_returns_row_count(self, MockDBManager):
         import pandas as pd
 
@@ -287,6 +289,7 @@ class TestComputeRollingWindowsSmoke:
         assert n == 2
 
     @patch("src.rolling_windows.DBManager")
+    @patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"})
     def test_empty_dataframe_returns_zero(self, MockDBManager):
         import pandas as pd
 
@@ -298,3 +301,180 @@ class TestComputeRollingWindowsSmoke:
 
         n = compute_rolling_windows(db=mock_db, today=date(2026, 5, 8))
         assert n == 0
+
+
+# ---------------------------------------------------------------------------
+# get_pundit_rolling_accuracy — API read path
+# ---------------------------------------------------------------------------
+
+
+class TestGetPunditRollingAccuracy:
+    """
+    Unit tests for the API read path.  All BQ calls are mocked.
+    """
+
+    def _make_bq_row(
+        self,
+        window_type: str,
+        accuracy_rate: float | None,
+        resolved_count: int,
+        displayable: bool,
+        drift_flagged: bool,
+        drift_magnitude: float,
+    ) -> dict:
+        return {
+            "window_type": window_type,
+            "accuracy_rate": accuracy_rate,
+            "resolved_count": resolved_count,
+            "displayable": displayable,
+            "drift_flagged": drift_flagged,
+            "drift_magnitude": drift_magnitude,
+        }
+
+    def _mock_db_with_rows(self, rows: list[dict]) -> MagicMock:
+        import os
+
+        import pandas as pd
+
+        mock_db = MagicMock()
+        mock_db.client = MagicMock()
+        mock_db.client.query.return_value.to_dataframe.return_value = pd.DataFrame(rows)
+        return mock_db
+
+    def test_returns_all_three_windows(self):
+        rows = [
+            self._make_bq_row("career", 0.81, 412, True, True, 0.07),
+            self._make_bq_row("last_season", 0.74, 89, True, True, 0.07),
+            self._make_bq_row("30d", 0.68, 12, True, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("adam_schefter", db=mock_db)
+
+        assert result["accuracy"]["career"] == pytest.approx(0.81)
+        assert result["accuracy"]["last_season"] == pytest.approx(0.74)
+        assert result["accuracy"]["last_30_days"] == pytest.approx(0.68)
+        assert result["sample_sizes"]["career"] == 412
+        assert result["sample_sizes"]["last_season"] == 89
+        assert result["sample_sizes"]["last_30_days"] == 12
+
+    def test_drift_flag_true_when_any_window_flagged(self):
+        rows = [
+            self._make_bq_row("career", 0.81, 412, True, True, 0.07),
+            self._make_bq_row("last_season", 0.74, 89, True, True, 0.07),
+            self._make_bq_row("30d", 0.68, 12, True, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("p1", db=mock_db)
+
+        assert result["accuracy"]["drift_flag"] is True
+        assert result["accuracy"]["drift_note"] is not None
+        assert (
+            "below" in result["accuracy"]["drift_note"]
+            or "above" in result["accuracy"]["drift_note"]
+        )
+
+    def test_drift_flag_false_when_no_window_flagged(self):
+        rows = [
+            self._make_bq_row("career", 0.70, 100, True, False, 0.05),
+            self._make_bq_row("last_season", 0.68, 30, True, False, 0.05),
+            self._make_bq_row("30d", 0.72, 8, True, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("p1", db=mock_db)
+
+        assert result["accuracy"]["drift_flag"] is False
+        assert result["accuracy"]["drift_note"] is None
+
+    def test_empty_bq_result_returns_null_accuracy(self):
+        mock_db = self._mock_db_with_rows([])
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("unknown_pundit", db=mock_db)
+
+        assert result["accuracy"]["career"] is None
+        assert result["accuracy"]["last_season"] is None
+        assert result["accuracy"]["last_30_days"] is None
+        assert result["accuracy"]["drift_flag"] is False
+        assert result["sample_sizes"]["career"] == 0
+        assert result["sample_sizes"]["last_season"] == 0
+        assert result["sample_sizes"]["last_30_days"] == 0
+
+    def test_missing_window_returns_none_accuracy(self):
+        """Only career window exists — last_season and 30d should be None."""
+        rows = [
+            self._make_bq_row("career", 0.75, 50, True, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("p1", db=mock_db)
+
+        assert result["accuracy"]["career"] == pytest.approx(0.75)
+        assert result["accuracy"]["last_season"] is None
+        assert result["accuracy"]["last_30_days"] is None
+        assert result["sample_sizes"]["career"] == 50
+        assert result["sample_sizes"]["last_season"] == 0
+
+    def test_drift_note_uses_below_when_last_season_lower(self):
+        rows = [
+            self._make_bq_row("career", 0.80, 200, True, True, 0.13),
+            self._make_bq_row("last_season", 0.67, 30, True, True, 0.13),
+            self._make_bq_row("30d", 0.65, 8, False, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("p1", db=mock_db)
+
+        assert "below" in result["accuracy"]["drift_note"]
+
+    def test_drift_note_uses_above_when_last_season_higher(self):
+        rows = [
+            self._make_bq_row("career", 0.60, 200, True, True, 0.20),
+            self._make_bq_row("last_season", 0.80, 30, True, True, 0.20),
+            self._make_bq_row("30d", 0.82, 8, False, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("p1", db=mock_db)
+
+        assert "above" in result["accuracy"]["drift_note"]
+
+    def test_displayable_keys_in_result(self):
+        rows = [
+            self._make_bq_row("career", 0.75, MIN_CAREER, True, False, 0.0),
+            self._make_bq_row(
+                "last_season", 0.70, MIN_LAST_SEASON - 1, False, False, 0.0
+            ),
+            self._make_bq_row("30d", 0.65, MIN_30D + 1, True, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("p1", db=mock_db)
+
+        assert result["displayable"]["career"] is True
+        assert result["displayable"]["last_season"] is False
+        assert result["displayable"]["last_30_days"] is True
+
+    def test_weighted_accuracy_across_multiple_rows_same_window(self):
+        """Multiple rows for same window_type (different entity_class) → weighted avg."""
+        rows = [
+            # career: 2 rows, n=100 @ 0.80, n=100 @ 0.60 → weighted avg = 0.70
+            self._make_bq_row("career", 0.80, 100, True, False, 0.0),
+            self._make_bq_row("career", 0.60, 100, True, False, 0.0),
+        ]
+        mock_db = self._mock_db_with_rows(rows)
+
+        with patch.dict("os.environ", {"GCP_PROJECT_ID": "test-project"}):
+            result = get_pundit_rolling_accuracy("p1", db=mock_db)
+
+        assert result["accuracy"]["career"] == pytest.approx(0.70)
+        assert result["sample_sizes"]["career"] == 200

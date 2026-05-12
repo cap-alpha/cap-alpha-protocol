@@ -36,6 +36,7 @@ from src.calibration import CALIBRATION_TABLE
 from src.cryptographic_ledger import verify_chain_integrity
 from src.db_manager import DBManager
 from src.resolution_engine import get_pundit_accuracy_summary
+from src.rolling_windows import get_pundit_rolling_accuracy
 from src.scoring import get_pundit_stats
 
 logger = logging.getLogger(__name__)
@@ -339,9 +340,20 @@ def pundit_detail(
             logger.warning("Calibration fetch failed for %s: %s", pundit_id, cal_err)
             # Calibration is best-effort — don't fail the whole endpoint
 
+        # Fetch rolling accuracy windows (career / last_season / 30d + drift flag)
+        rolling: Dict[str, Any] = {}
+        try:
+            rolling = get_pundit_rolling_accuracy(pundit_id=pundit_id, db=db)
+        except Exception as rolling_err:
+            logger.warning(
+                "Rolling windows fetch failed for %s: %s", pundit_id, rolling_err
+            )
+            # Best-effort — don't fail the whole endpoint
+
         return {
             "pundit": {**summary, **calibration},
             "accuracy_by_category": breakdown,
+            "rolling_accuracy": rolling,
         }
     except HTTPException:
         raise

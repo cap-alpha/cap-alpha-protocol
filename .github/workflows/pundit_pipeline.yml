@@ -67,8 +67,15 @@ jobs:
         run: |
           VENV_DIR="$HOME/.venv/cap-alpha"
           python3 -m venv "$VENV_DIR"
-          "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel "numpy>=2.0" "pandas>=2.0"
+          "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel
+          # Install nfl-data-py without its declared deps so pip does not
+          # see the pandas<2.0 / numpy<2.0 constraints it ships with.
+          # The package works at runtime with pandas 2.x and numpy 2.x.
+          "$VENV_DIR/bin/pip" install --no-deps "nfl-data-py>=0.3.3"
+          # Install the rest of requirements (nfl-data-py already satisfied).
           "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt
+          # Force modern numpy/pandas wheels for Python 3.14 compatibility.
+          "$VENV_DIR/bin/pip" install --upgrade "numpy>=2.0" "pandas>=2.0"
           echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
           echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH
 

@@ -42,8 +42,9 @@ export function Navbar() {
                         </span>
                     </Link>
 
-                    {/* Public navigation */}
+                    {/* Bettor-first navigation — primary: Ledger, secondary: Pundits, tertiary: Draft */}
                     <nav className="hidden md:flex items-center gap-6 text-sm font-body font-semibold tracking-wide">
+                        {/* Primary: Ledger (in-play + leaderboard) */}
                         <Link
                             href="/ledger"
                             className={`transition-colors hover:text-yellow-300 ${
@@ -52,8 +53,32 @@ export function Navbar() {
                                     : "text-white/80"
                             }`}
                         >
-                            LEADERBOARD
+                            LEDGER
                         </Link>
+                        {/* Secondary: In Play — surfaces live predictions directly */}
+                        <Link
+                            href="/ledger?view=in-play"
+                            className={`transition-colors hover:text-yellow-300 ${
+                                pathname?.startsWith("/ledger") && pathname === "/ledger"
+                                    ? "text-white/60"
+                                    : "text-white/60"
+                            } text-xs tracking-widest`}
+                            aria-label="In Play predictions"
+                        >
+                            IN PLAY
+                        </Link>
+                        {/* Tertiary: Draft scoreboard — high bettor value */}
+                        <Link
+                            href={`/draft/${new Date().getFullYear()}`}
+                            className={`transition-colors hover:text-yellow-300 ${
+                                pathname?.startsWith("/draft")
+                                    ? "text-yellow-300"
+                                    : "text-white/80"
+                            }`}
+                        >
+                            DRAFT
+                        </Link>
+                        {/* Trust: Methodology */}
                         <Link
                             href="/methodology"
                             className={`transition-colors hover:text-yellow-300 ${
@@ -64,32 +89,19 @@ export function Navbar() {
                         >
                             METHODOLOGY
                         </Link>
-                        {/* Auth-only links — shown only when signed in */}
+                        {/* Auth-only: Account management */}
                         {isSignedIn && (
-                            <>
-                                <Link
-                                    href="/dashboard"
-                                    className={`transition-colors hover:text-yellow-300 ${
-                                        pathname?.startsWith("/dashboard") &&
-                                        !pathname?.startsWith("/dashboard/usage")
-                                            ? "text-yellow-300"
-                                            : "text-white/80"
-                                    }`}
-                                >
-                                    DASHBOARD
-                                </Link>
-                                <Link
-                                    href="/account"
-                                    className={`transition-colors hover:text-yellow-300 ${
-                                        pathname?.includes("/account") ||
-                                        pathname?.startsWith("/dashboard/usage")
-                                            ? "text-yellow-300"
-                                            : "text-white/80"
-                                    }`}
-                                >
-                                    ACCOUNT
-                                </Link>
-                            </>
+                            <Link
+                                href="/account"
+                                className={`transition-colors hover:text-yellow-300 ${
+                                    pathname?.includes("/account") ||
+                                    pathname?.startsWith("/dashboard/usage")
+                                        ? "text-yellow-300"
+                                        : "text-white/80"
+                                }`}
+                            >
+                                ACCOUNT
+                            </Link>
                         )}
                     </nav>
                 </div>

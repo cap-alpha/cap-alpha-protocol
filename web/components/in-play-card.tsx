@@ -22,6 +22,7 @@ export interface InPlayPrediction {
     sport: string;
     season_year: number | null;
     target_player_id?: string | null;
+    target_player_name?: string | null;
     target_team?: string | null;
     prediction_hash_short: string;
     ingestion_timestamp: string;
@@ -117,6 +118,11 @@ function relativeTime(ts: string | null | undefined): string | null {
     } catch {
         return null;
     }
+}
+
+/** Convert a player name to a URL slug for /player/[id] routes */
+function slugifyPlayer(name: string): string {
+    return encodeURIComponent(name.toLowerCase().replace(/\s+/g, "-"));
 }
 
 /** Initials avatar — matches pundit-card.tsx style */
@@ -259,6 +265,28 @@ export function InPlayCard({ prediction, onOpenDrawer, className }: InPlayCardPr
             <p className="text-sm text-zinc-200 leading-relaxed line-clamp-3">
                 {claimText}
             </p>
+
+            {/* --- Entity chips: link player/team names to their pages --- */}
+            {(prediction.target_player_name || prediction.target_player_id || prediction.target_team) && (
+                <div className="flex items-center gap-1.5 flex-wrap">
+                    {(prediction.target_player_name || prediction.target_player_id) && (
+                        <Link
+                            href={`/player/${slugifyPlayer(prediction.target_player_name ?? prediction.target_player_id!)}`}
+                            className="inline-flex items-center text-[10px] font-mono font-semibold text-amber-500/80 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 bg-amber-500/5 rounded px-1.5 py-0.5 transition-colors"
+                        >
+                            {prediction.target_player_name ?? prediction.target_player_id}
+                        </Link>
+                    )}
+                    {prediction.target_team && (
+                        <Link
+                            href={`/team/${encodeURIComponent(prediction.target_team)}`}
+                            className="inline-flex items-center text-[10px] font-mono font-semibold text-sky-500/80 hover:text-sky-400 border border-sky-500/20 hover:border-sky-500/40 bg-sky-500/5 rounded px-1.5 py-0.5 transition-colors"
+                        >
+                            {prediction.target_team}
+                        </Link>
+                    )}
+                </div>
+            )}
 
             {/* --- Resolution window + category accuracy --- */}
             <div className="flex flex-col gap-1">

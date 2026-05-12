@@ -89,6 +89,7 @@ interface RecentPrediction {
     claim_category: string;
     season_year: number | null;
     target_player_id: string | null;
+    target_player_name?: string | null;
     target_team: string | null;
     sport: string;
     prediction_hash_short: string;
@@ -205,6 +206,11 @@ function RankBadge({ rank }: { rank: number }) {
             {rank}
         </span>
     );
+}
+
+/** Convert a player name to a URL slug for /player/[id] routes */
+function slugifyPlayer(name: string): string {
+    return encodeURIComponent(name.toLowerCase().replace(/\s+/g, "-"));
 }
 
 /** Format a timestamp as "Mon D, YYYY" */
@@ -414,6 +420,33 @@ function PredictionDrawer({
                             </div>
                         </div>
                     </div>
+
+                    {/* Entity links — player/team chips above sources */}
+                    {(prediction.target_player_name ?? prediction.target_player_id ?? prediction.target_team) && (
+                        <div>
+                            <div className="text-zinc-600 uppercase tracking-wide text-[9px] font-mono mb-2">About</div>
+                            <div className="flex flex-wrap gap-2">
+                                {(prediction.target_player_name ?? prediction.target_player_id) && (
+                                    <Link
+                                        href={`/player/${slugifyPlayer(prediction.target_player_name ?? prediction.target_player_id!)}`}
+                                        className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[10px] font-mono font-semibold text-amber-500/80 hover:text-amber-400 hover:border-amber-500/50 transition-colors"
+                                        onClick={onClose}
+                                    >
+                                        {prediction.target_player_name ?? prediction.target_player_id}
+                                    </Link>
+                                )}
+                                {prediction.target_team && (
+                                    <Link
+                                        href={`/team/${encodeURIComponent(prediction.target_team)}`}
+                                        className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/5 px-2 py-1 text-[10px] font-mono font-semibold text-sky-500/80 hover:text-sky-400 hover:border-sky-500/50 transition-colors"
+                                        onClick={onClose}
+                                    >
+                                        {prediction.target_team}
+                                    </Link>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     {/* All source links side-by-side */}
                     {allSources.some((m) => m.source_url) && (
@@ -1811,6 +1844,23 @@ function PredictionGroupRow({
                             {p.pundit_name}
                         </Link>
                         <CategoryPill category={p.claim_category} />
+                        {/* Entity chips — link player/team names to their pages */}
+                        {(p.target_player_name ?? p.target_player_id) && (
+                            <Link
+                                href={`/player/${slugifyPlayer(p.target_player_name ?? p.target_player_id!)}`}
+                                className="text-[10px] font-mono font-semibold text-amber-500/70 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 bg-amber-500/5 rounded px-1.5 py-0.5 transition-colors"
+                            >
+                                {p.target_player_name ?? p.target_player_id}
+                            </Link>
+                        )}
+                        {p.target_team && (
+                            <Link
+                                href={`/team/${encodeURIComponent(p.target_team)}`}
+                                className="text-[10px] font-mono font-semibold text-sky-500/70 hover:text-sky-400 border border-sky-500/20 hover:border-sky-500/40 bg-sky-500/5 rounded px-1.5 py-0.5 transition-colors"
+                            >
+                                {p.target_team}
+                            </Link>
+                        )}
                         {p.season_year && (
                             <span className="text-[10px] font-mono text-zinc-600">
                                 {p.season_year}

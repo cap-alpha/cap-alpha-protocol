@@ -54,6 +54,8 @@ from src.cryptographic_ledger import (
 from src.db_manager import DBManager
 from src.llm_provider import (
     LLMProvider,
+    _call_ollama_raw,
+    _extract_json_from_response,
     get_provider,
     get_provider_with_fallback,
     load_llm_config,
@@ -2036,6 +2038,97 @@ def should_triage_skip_article(
         return False
 
 
+# ---------------------------------------------------------------------------
+# Multi-model entity validation (Issue #824)
+# ---------------------------------------------------------------------------
+
+_ENTITY_VALIDATION_PROMPT = """Does the entity name "{entity_name}" in the following claim refer to the same {entity_type} entity mentioned in context?
+
+Claim: {claim_text}
+
+Answer ONLY with valid JSON (no explanation, no markdown):
+{{"confirmed": true, "confidence": 0.95, "alternate": null}}
+
+Rules:
+- confirmed: true if the entity name clearly matches the expected entity, false if it seems ambiguous or wrong
+- confidence: float 0.0-1.0 indicating your certainty
+- alternate: string with a better entity name if you think the name is wrong, otherwise null"""
+
+
+def _validate_entity_resolution(
+    claim_text: str,
+    target_entity: str,
+    llm_provider: LLMProvider,
+) -> dict:
+    """
+    Run a lightweight second-pass check on entity resolution for a claim.
+
+    Asks the LLM: "Does this entity name clearly refer to the expected entity
+    in the context of this claim?"
+
+    Returns a dict with keys:
+        confirmed (bool): True if the model agrees the entity is correct.
+        confidence (float): 0.0–1.0 confidence score.
+        alternate (str|None): Suggested alternative entity name, or None.
+
+    On any failure (JSON parse error, LLM error) returns a safe default:
+        {"confirmed": True, "confidence": 1.0, "alternate": None}
+    — so errors are never blocking.
+    """
+    _safe_default = {"confirmed": True, "confidence": 1.0, "alternate": None}
+    try:
+        entity_obj = json.loads(target_entity) if isinstance(target_entity, str) else {}
+    except (json.JSONDecodeError, TypeError):
+        entity_obj = {}
+
+    entity_name = (
+        entity_obj.get("name") or entity_obj.get("abbrev") or str(target_entity)
+    )
+    entity_type = entity_obj.get("type", "entity")
+
+    prompt = _ENTITY_VALIDATION_PROMPT.format(
+        entity_name=entity_name,
+        entity_type=entity_type,
+        claim_text=claim_text[:600],
+    )
+
+    try:
+        # Use the provider's classify method (returns a short text response).
+        # For Ollama providers we pass format_json=True via the underlying
+        # _generate call, but classify() is the universal interface.
+        raw = llm_provider.classify(prompt)
+        cleaned = _extract_json_from_response(raw)
+        result = json.loads(cleaned)
+
+        confirmed = bool(result.get("confirmed", True))
+        raw_conf = result.get("confidence", 1.0)
+        try:
+            confidence = float(raw_conf)
+            confidence = max(0.0, min(1.0, confidence))
+        except (TypeError, ValueError):
+            confidence = 1.0
+        alternate = result.get("alternate") or None
+        if isinstance(alternate, str):
+            alternate = alternate.strip() or None
+
+        return {
+            "confirmed": confirmed,
+            "confidence": confidence,
+            "alternate": alternate,
+        }
+    except Exception as exc:
+        logger.debug(f"Entity validation parse/call failed (non-fatal): {exc}")
+        return _safe_default
+
+
+def _should_flag_entity_resolution(validation_result: dict) -> bool:
+    """Return True if entity resolution divergence should be flagged for human review."""
+    if not validation_result.get("confirmed", True):
+        return True
+    confidence = validation_result.get("confidence", 1.0)
+    return confidence < 0.7
+
+
 def run_extraction(
     limit: int = 100,
     dry_run: bool = False,
@@ -2101,8 +2194,30 @@ def run_extraction(
         "skipped_low_yield": 0,
         "testability_threshold": threshold,
         "duplicates_suppressed": 0,
+        "entity_resolution_flagged": 0,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
     }
+
+    # Entity validation config — reads ENTITY_VALIDATION_ENABLED env var (off by default)
+    _entity_validation_enabled = (
+        os.environ.get("ENTITY_VALIDATION_ENABLED", "false").lower().strip() == "true"
+    )
+    _entity_validation_provider: Optional[LLMProvider] = None
+    if _entity_validation_enabled and not dry_run:
+        _ev_config = load_llm_config()
+        # Use the triage role (small/fast model) for entity validation;
+        # fall back to a plain ollama provider with the triage model settings.
+        _ev_cfg = _ev_config.get("triage", _ev_config.get("extraction", {}))
+        try:
+            _entity_validation_provider = get_provider("triage", _ev_config)
+            logger.info(
+                f"Entity validation enabled, using model: "
+                f"{getattr(_entity_validation_provider, 'model', '?')}"
+            )
+        except Exception as exc:
+            logger.warning(
+                f"Entity validation provider init failed (disabled for this run): {exc}"
+            )
 
     # Set up pre-filter provider if enabled
     filter_provider = None
@@ -2287,6 +2402,33 @@ def run_extraction(
                     )
                     if _verification:
                         _u = {**_u, **_verification}
+
+                    # Multi-model entity validation (Issue #824) — only runs when
+                    # ENTITY_VALIDATION_ENABLED=true and the utterance has a target entity.
+                    if _entity_validation_provider is not None:
+                        _entity_json = _build_target_entity(_u, article_sport)
+                        _claim_text = _u.get("text") or _u.get("extracted_claim") or ""
+                        if _entity_json and _claim_text:
+                            _ev_result = _validate_entity_resolution(
+                                claim_text=_claim_text,
+                                target_entity=_entity_json,
+                                llm_provider=_entity_validation_provider,
+                            )
+                            if _should_flag_entity_resolution(_ev_result):
+                                _u = {**_u, "entity_resolution_flagged": True}
+                                summary["entity_resolution_flagged"] += 1
+                                logger.warning(
+                                    "Entity resolution flagged for review: "
+                                    "entity=%r claim=%r confidence=%.2f confirmed=%s alternate=%r",
+                                    _entity_json[:80],
+                                    _claim_text[:60],
+                                    _ev_result.get("confidence", 0.0),
+                                    _ev_result.get("confirmed", False),
+                                    _ev_result.get("alternate"),
+                                )
+                            else:
+                                _u = {**_u, "entity_resolution_flagged": False}
+
                     verified_utterances.append(_u)
 
                 written = write_raw_utterances(
@@ -2515,6 +2657,7 @@ def run_extraction(
             f"{summary['predictions_ingested']} ingested, "
             f"{summary['duplicates_suppressed']} exact-match duplicates suppressed, "
             f"{summary['skipped_low_yield']} skipped (low-yield source), "
+            f"{summary['entity_resolution_flagged']} entity resolution flags, "
             f"{summary['errors']} errors"
         )
         return summary

@@ -5,6 +5,10 @@
     {
       "path": "/api/cron/onboarding-emails",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/resolution-notifications",
+      "schedule": "0 9 * * *"
     }
   ]
 }

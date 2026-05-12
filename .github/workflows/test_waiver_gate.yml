@@ -1,0 +1,127 @@
+name: Tests-or-waiver gate [advisory]
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  test-waiver-gate:
+    name: Tests-or-waiver gate [advisory]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for tests or waiver
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          BASE="${{ github.event.pull_request.base.sha }}"
+          HEAD="${{ github.event.pull_request.head.sha }}"
+          git fetch origin "$BASE" "$HEAD" --depth=1 2>/dev/null || true
+
+          CHANGED=$(git diff --name-only "$BASE" "$HEAD")
+
+          # ── Step 1: detect real code files (not test files) in tracked paths ──
+
+          CODE_TOUCHED=false
+
+          # pipeline/src/*.py (excluding test_*.py)
+          while IFS= read -r f; do
+            case "$f" in
+              pipeline/src/test_*.py) ;;    # skip test files
+              pipeline/src/*.py)
+                CODE_TOUCHED=true
+                echo "  code file: $f"
+                ;;
+            esac
+          done <<< "$CHANGED"
+
+          # pipeline/api/*.py (excluding test_*.py)
+          while IFS= read -r f; do
+            case "$f" in
+              pipeline/api/test_*.py) ;;    # skip test files
+              pipeline/api/*.py)
+                CODE_TOUCHED=true
+                echo "  code file: $f"
+                ;;
+            esac
+          done <<< "$CHANGED"
+
+          # web/app/**/*.tsx or web/app/**/*.ts (excluding *.test.ts / *.test.tsx)
+          while IFS= read -r f; do
+            case "$f" in
+              web/app/*.test.ts|web/app/*.test.tsx) ;;   # skip test files at root
+              web/app/**/*.test.ts|web/app/**/*.test.tsx) ;;
+              web/app/*.ts|web/app/*.tsx|web/app/**/*.ts|web/app/**/*.tsx)
+                CODE_TOUCHED=true
+                echo "  code file: $f"
+                ;;
+            esac
+          done <<< "$CHANGED"
+
+          echo "CODE_TOUCHED=$CODE_TOUCHED"
+
+          if [ "$CODE_TOUCHED" = "false" ]; then
+            echo "No tracked code files changed — gate passes."
+            exit 0
+          fi
+
+          # ── Step 2: detect test files in the diff ──
+
+          TESTS_IN_DIFF=false
+
+          while IFS= read -r f; do
+            case "$f" in
+              **/test_*.py|test_*.py)
+                TESTS_IN_DIFF=true
+                echo "  test file: $f"
+                ;;
+              **/*.test.ts|*.test.ts|**/*.test.tsx|*.test.tsx)
+                TESTS_IN_DIFF=true
+                echo "  test file: $f"
+                ;;
+              **/__tests__/*|__tests__/*)
+                TESTS_IN_DIFF=true
+                echo "  test file: $f"
+                ;;
+            esac
+          done <<< "$CHANGED"
+
+          echo "TESTS_IN_DIFF=$TESTS_IN_DIFF"
+
+          if [ "$TESTS_IN_DIFF" = "true" ]; then
+            echo "Test file found in diff — gate passes."
+            exit 0
+          fi
+
+          # ── Step 3: check for Tests-waiver in PR body ──
+
+          if echo "$PR_BODY" | grep -iq 'Tests-waiver:'; then
+            WAIVER_LINE=$(echo "$PR_BODY" | grep -i 'Tests-waiver:' | head -1)
+            echo "Tests-waiver found: $WAIVER_LINE — skipping test requirement."
+            exit 0
+          fi
+
+          # ── Step 4: warn (advisory — always exit 0) ──
+
+          echo ""
+          echo "##[warning]Code changed without tests or waiver."
+          echo "⚠️  Code changed without tests or waiver. Add a test or include \`Tests-waiver: <reason>\` in the PR body."
+          echo ""
+          echo "Files changed in tracked paths:"
+          echo "$CHANGED" | grep -E '^(pipeline/src/|pipeline/api/|web/app/)' | grep -v -E '(^pipeline/src/test_|^pipeline/api/test_|\.test\.(ts|tsx)$|/__tests__/)' || true
+          echo ""
+          echo "This check is advisory — it will not block the merge."
+          echo "To suppress: add  Tests-waiver: <reason>  to the PR description."
+
+          # Always exit 0 — this gate is advisory only
+          exit 0

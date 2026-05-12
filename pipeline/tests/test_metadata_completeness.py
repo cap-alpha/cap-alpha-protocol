@@ -496,7 +496,7 @@ class TestExtractAssertionsMetadataDefaults:
             ),
             patch("src.assertion_extractor.extract_assertions") as mock_extract,
             patch("src.assertion_extractor.ingest_batch", side_effect=mock_ingest),
-            patch("src.assertion_extractor.write_raw_utterances", return_value=1),
+            patch("src.assertion_extractor.write_raw_utterances", return_value=(1, 0)),
             patch("src.assertion_extractor._write_extraction_run"),
         ):
             mock_extract.return_value = ExtractionResult(

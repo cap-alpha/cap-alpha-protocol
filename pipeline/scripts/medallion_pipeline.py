@@ -15,8 +15,33 @@ try:
 except ImportError:
     load_team_financials = None
     load_player_merch = None
-from src.spotrac_scraper_v2 import scrape_and_save_player_contracts, scrape_and_save_player_rankings
-from src.overthecap_scraper import OverTheCapScraper
+    logging.warning(
+        "[medallion_pipeline] financial_ingestion module missing — "
+        "financial data steps will be skipped. "
+        "Install the module or check the pipeline environment."
+    )
+
+try:
+    from src.spotrac_scraper_v2 import (
+        scrape_and_save_player_contracts,
+        scrape_and_save_player_rankings,
+    )
+except ImportError:
+    scrape_and_save_player_contracts = None
+    scrape_and_save_player_rankings = None
+    logging.warning(
+        "[medallion_pipeline] spotrac_scraper_v2 module missing — "
+        "Spotrac scraping steps will be skipped."
+    )
+
+try:
+    from src.overthecap_scraper import OverTheCapScraper
+except ImportError:
+    OverTheCapScraper = None
+    logging.warning(
+        "[medallion_pipeline] overthecap_scraper module missing — "
+        "OverTheCap scraping steps will be skipped."
+    )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -1030,10 +1030,15 @@ def write_raw_utterances(
     uttered_at: datetime,
     domain: str,
     db: "DBManager",
-) -> int:
+) -> tuple[int, int]:
     """
     Write all utterances to silver_v2_claims.raw_utterance.
-    Returns the number of rows written.
+    Returns (written_count, failed_count).
+
+    On success: (len(utterances), 0).
+    On BQ write failure: raises so the caller (per-article try/except in
+    run_extraction) can log the article ID and continue to the next article
+    without aborting the entire batch.
 
     Each row maps the Phase C LLM output to the migration 016 schema:
       utterance_id, source_doc_id, speaker_entity_id, uttered_at, text,
@@ -1041,7 +1046,7 @@ def write_raw_utterances(
       extraction_confidence, created_at
     """
     if not utterances:
-        return 0
+        return 0, 0
 
     now = datetime.now(timezone.utc)
     rows = []
@@ -1242,9 +1247,11 @@ def write_raw_utterances(
             f"BQ write failed for raw_utterances → {full_table}: {exc}",
             exc_info=True,
         )
-        # Re-raise so the pipeline run is marked failed, not silently empty.
+        # Re-raise so the caller (per-article try/except in run_extraction) can
+        # catch the failure, log the article ID, and continue to the next article
+        # rather than aborting the entire batch.
         raise
-    return len(rows)
+    return len(rows), 0  # (written_count, failed_count)
 
 
 def _write_extraction_run(
@@ -1313,6 +1320,49 @@ def _write_extraction_run(
         logger.info(f"Wrote extraction_run row: run_id={run_id}")
     except Exception as exc:
         logger.warning(f"Failed to write extraction_run row (non-fatal): {exc}")
+
+
+def _check_consecutive_zero_claims(db: "DBManager", current_run_id: str) -> None:
+    """
+    Alert when the pipeline has produced 0 claims_promoted for 3+ consecutive runs.
+
+    Queries the last 2 completed extraction_run rows (excluding the current run).
+    If both had claims_promoted == 0 (and the current run also produced 0), emits
+    a CRITICAL log to surface the outage.
+
+    Non-blocking — any exception here must never crash the extraction pipeline.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id:
+        return
+    table_ref = f"{project_id}.silver_v2_claims.extraction_run"
+    query = f"""
+        SELECT claims_promoted
+        FROM `{table_ref}`
+        WHERE run_id != @run_id
+        ORDER BY started_at DESC
+        LIMIT 2
+    """
+    try:
+        from google.cloud.bigquery import (
+            ScalarQueryParameter as _SQP,
+            QueryJobConfig as _QJC,
+        )
+
+        job_config = _QJC(query_parameters=[_SQP("run_id", "STRING", current_run_id)])
+        df = db.client.query(query, job_config=job_config).to_dataframe()
+        if len(df) < 2:
+            # Not enough history to evaluate — skip alert
+            return
+        prior_zeros = int((df["claims_promoted"] == 0).sum())
+        if prior_zeros >= 2:
+            # Both prior runs had 0 claims AND current run also had 0 → 3+ consecutive
+            logger.critical(
+                "Pipeline has produced 0 claims for 3+ consecutive runs — investigate. "
+                "Check LLM connectivity, media source feeds, and extraction logs."
+            )
+    except Exception as exc:
+        logger.warning(f"Consecutive-zero check failed (non-fatal): {exc}")
 
 
 # ---------------------------------------------------------------------------
@@ -2196,6 +2246,10 @@ def run_extraction(
         "duplicates_suppressed": 0,
         "entity_resolution_flagged": 0,
         "provider": getattr(provider, "model", "dry-run") if provider else "dry-run",
+        # Resilience counters (#665)
+        "zero_claims_articles": 0,  # articles where LLM returned 0 claims
+        "articles_write_failed": 0,  # articles where BQ write failed (retried next run)
+        "failed_sources": [],  # source_ids that produced write errors this run
     }
 
     # Entity validation config — reads ENTITY_VALIDATION_ENABLED env var (off by default)
@@ -2374,6 +2428,16 @@ def run_extraction(
             )
             source_url = str(row.get("source_url", ""))
 
+            if not result.utterances:
+                # Zero-claims guard (#665): LLM returned 0 utterances for this article.
+                # Log at WARNING so this is visible in extraction logs without crashing.
+                logger.warning(
+                    "Article %s (%s) produced 0 claims — skipping utterance write",
+                    content_hash[:16],
+                    str(row.get("source_id", "")),
+                )
+                summary["zero_claims_articles"] += 1
+
             if result.utterances:
                 uttered_at = (
                     pd.Timestamp(row["published_at"]).to_pydatetime()
@@ -2431,15 +2495,36 @@ def run_extraction(
 
                     verified_utterances.append(_u)
 
-                written = write_raw_utterances(
-                    utterances=verified_utterances,
-                    source_doc_id=content_hash,
-                    speaker_entity_id=speaker_entity_id,
-                    uttered_at=uttered_at,
-                    domain=article_sport.lower(),
-                    db=db,
-                )
-                summary["utterances_written"] += written
+                # Per-article transactional write (#665): wrap in try/except so one
+                # bad article (NULL invariant violation, BQ error, etc.) does not
+                # abort the entire batch.  The article hash is deliberately NOT added
+                # to processed_hashes on failure so the next pipeline run retries it.
+                try:
+                    written, _ = write_raw_utterances(
+                        utterances=verified_utterances,
+                        source_doc_id=content_hash,
+                        speaker_entity_id=speaker_entity_id,
+                        uttered_at=uttered_at,
+                        domain=article_sport.lower(),
+                        db=db,
+                    )
+                    summary["utterances_written"] += written
+                except Exception as _write_exc:
+                    logger.error(
+                        "Article %s (%s): utterance write failed — skipping article, "
+                        "will retry next run. Error: %s",
+                        content_hash[:16],
+                        str(row.get("source_id", "")),
+                        _write_exc,
+                    )
+                    summary["articles_write_failed"] += 1
+                    summary["errors"] += 1
+                    _src = str(row.get("source_id", ""))
+                    if _src and _src not in summary["failed_sources"]:
+                        summary["failed_sources"].append(_src)
+                    # Do NOT append to processed_hashes — article retried next run
+                    continue
+
                 suppressed_here = len(verified_utterances) - len(result.predictions)
                 summary["suppressed"] += max(0, suppressed_here)
 
@@ -2646,6 +2731,11 @@ def run_extraction(
                     f"Failed to mark processed (will re-extract next run): {e}"
                 )
 
+        _failed_sources_log = (
+            f" | failed_sources={summary['failed_sources']}"
+            if summary["failed_sources"]
+            else ""
+        )
         logger.info(
             f"Extraction complete: {summary['total_processed']} processed, "
             f"{summary['triage_filtered_out']} triage-filtered, "
@@ -2658,8 +2748,23 @@ def run_extraction(
             f"{summary['duplicates_suppressed']} exact-match duplicates suppressed, "
             f"{summary['skipped_low_yield']} skipped (low-yield source), "
             f"{summary['entity_resolution_flagged']} entity resolution flags, "
+            f"{summary['zero_claims_articles']} zero-claim articles, "
+            f"{summary['articles_write_failed']} write failures, "
             f"{summary['errors']} errors"
+            f"{_failed_sources_log}"
         )
+        if summary["failed_sources"]:
+            logger.warning(
+                "%d source(s) produced write errors this run: %s",
+                len(summary["failed_sources"]),
+                summary["failed_sources"],
+            )
+
+        # Consecutive-zero alert (#665): if this run produced 0 claims_promoted,
+        # check whether the previous 2 runs also had 0. Emit CRITICAL if so.
+        if not dry_run and summary["predictions_ingested"] == 0:
+            _check_consecutive_zero_claims(db, _run_id)
+
         return summary
     finally:
         # Write extraction_run row regardless of success/failure (not in dry_run mode)

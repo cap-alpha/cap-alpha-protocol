@@ -276,7 +276,7 @@ class TestScoringRouting:
             content_hash="hash_0", predictions=[pred], utterances=[pred]
         )
         mock_ingest.return_value = ["h1"]
-        mock_write.return_value = 1
+        mock_write.return_value = (1, 0)
 
         run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
@@ -302,7 +302,7 @@ class TestScoringRouting:
             content_hash="hash_0", predictions=[pred], utterances=[pred]
         )
         mock_ingest.return_value = ["h1"]
-        mock_write.return_value = 1
+        mock_write.return_value = (1, 0)
 
         run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
@@ -329,7 +329,7 @@ class TestScoringRouting:
             content_hash="hash_0", predictions=[pred], utterances=[pred]
         )
         mock_ingest.return_value = ["h1"]
-        mock_write.return_value = 1
+        mock_write.return_value = (1, 0)
 
         run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
@@ -354,7 +354,7 @@ class TestScoringRouting:
             content_hash="hash_0", predictions=[pred], utterances=[pred]
         )
         mock_ingest.return_value = ["h1"]
-        mock_write.return_value = 1
+        mock_write.return_value = (1, 0)
 
         run_extraction(limit=10, db=mock_db, provider=mock_provider)
 
@@ -390,7 +390,7 @@ class TestScoringRouting:
             utterances=[authored_pred, quoted_pred],
         )
         mock_ingest.return_value = ["h1", "h2"]
-        mock_write.return_value = 2
+        mock_write.return_value = (2, 0)
 
         run_extraction(limit=10, db=mock_db, provider=mock_provider)
 

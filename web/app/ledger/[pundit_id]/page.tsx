@@ -1,8 +1,10 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { Suspense } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { PunditProfileClient } from "./PunditProfileClient";
+import { punditJsonLd } from "@/lib/structured-data";
 
 // ---------------------------------------------------------------------------
 // Types — shared between server and client
@@ -128,6 +130,9 @@ export async function generateMetadata({
     return {
         title: `${pundit.pundit_name} | Pundit Ledger`,
         description,
+        alternates: {
+            canonical: `https://cap-alpha.co/ledger/${params.pundit_id}`,
+        },
         openGraph: {
             title: `${pundit.pundit_name} Prediction Record | CapAlpha`,
             description,
@@ -172,14 +177,33 @@ export default async function PunditProfilePage({
         }
     }
 
+    const jsonLd = punditJsonLd({
+        pundit_id: params.pundit_id,
+        pundit_name: detail.pundit.pundit_name,
+        total_predictions: detail.pundit.total_predictions,
+        resolved_count: detail.pundit.resolved_count,
+        correct_count: detail.pundit.correct_count,
+        accuracy_rate: detail.pundit.accuracy_rate,
+    });
+
     return (
-        <PunditProfileClient
-            pundit={detail.pundit}
-            accuracyByCategory={detail.accuracy_by_category}
-            initialPredictions={initialPreds}
-            punditId={params.pundit_id}
-            isFollowing={isFollowing}
-            isAuthenticated={!!userId}
-        />
+        <>
+            {/* JSON-LD structured data for Google rich results (#769) */}
+            <script
+                type="application/ld+json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+            />
+            {/* Suspense required because PunditProfileClient uses useSearchParams (#769) */}
+            <Suspense fallback={null}>
+                <PunditProfileClient
+                    pundit={detail.pundit}
+                    accuracyByCategory={detail.accuracy_by_category}
+                    initialPredictions={initialPreds}
+                    punditId={params.pundit_id}
+                    isFollowing={isFollowing}
+                    isAuthenticated={!!userId}
+                />
+            </Suspense>
+        </>
     );
 }

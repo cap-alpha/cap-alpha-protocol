@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
     type PunditSummary,
@@ -377,8 +378,15 @@ function ClaimCard({ p }: { p: Prediction }) {
     const playerName = p.target_player_name ?? p.target_player_id ?? null;
     const teamAbbr = p.target_team ?? null;
 
+    // Derive a URL-safe anchor id from the hash. Strip "sha256:" prefix and
+    // use first 12 hex chars — enough for uniqueness on a single pundit page.
+    const anchorId = p.prediction_hash
+        ? `prediction-${p.prediction_hash.replace(/^sha256:/, "").slice(0, 12)}`
+        : undefined;
+
     return (
         <div
+            id={anchorId}
             style={{
                 background: DS.card,
                 border: `1px solid ${DS.border}`,
@@ -716,6 +724,14 @@ interface Props {
     isAuthenticated: boolean;
 }
 
+const VALID_FILTER_CATS: FilterCategory[] = [
+    "all", "game_outcome", "player_performance", "trade", "draft_pick", "injury", "contract",
+];
+
+function isValidFilterCat(v: string | null): v is FilterCategory {
+    return VALID_FILTER_CATS.includes(v as FilterCategory);
+}
+
 export function PunditProfileClient({
     pundit,
     accuracyByCategory,
@@ -724,9 +740,35 @@ export function PunditProfileClient({
     isFollowing,
     isAuthenticated,
 }: Props) {
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    // Initialise filterCat from URL ?category= param (#769 — shareable filter URL)
+    const urlCat = searchParams.get("category");
     const [activeTab, setActiveTab] = useState<ActiveTab>("all");
-    const [filterCat, setFilterCat] = useState<FilterCategory>("all");
+    const [filterCat, setFilterCat] = useState<FilterCategory>(
+        isValidFilterCat(urlCat) ? urlCat : "all"
+    );
     const [sortMode, setSortMode] = useState<SortMode>("newest");
+
+    // Sync filterCat changes back to the URL so links are shareable
+    const handleSetFilterCat = useCallback(
+        (cat: FilterCategory) => {
+            setFilterCat(cat);
+            const params = new URLSearchParams(searchParams.toString());
+            if (cat === "all") {
+                params.delete("category");
+            } else {
+                params.set("category", cat);
+            }
+            const query = params.toString();
+            router.replace(
+                `/ledger/${encodeURIComponent(punditId)}${query ? `?${query}` : ""}`,
+                { scroll: false }
+            );
+        },
+        [router, searchParams, punditId]
+    );
 
     const [predictions, setPredictions] = useState<Prediction[]>(
         initialPredictions?.predictions ?? []
@@ -996,6 +1038,13 @@ export function PunditProfileClient({
                 </div>
             </div>
 
+            {/* ===== TRUST STRAP — #769 ===== */}
+            <TrustStrap
+                pundit={pundit}
+                accuracyByCategory={accuracyByCategory}
+                predictions={predictions}
+            />
+
             {/* ===== TABS ===== */}
             <div
                 style={{
@@ -1084,7 +1133,7 @@ export function PunditProfileClient({
                             ).map(({ id, label }) => (
                                 <button
                                     key={id}
-                                    onClick={() => setFilterCat(id)}
+                                    onClick={() => handleSetFilterCat(id)}
                                     style={{
                                         background: filterCat === id ? DS.navy : "none",
                                         border: `1px solid ${filterCat === id ? DS.navy : DS.border}`,
@@ -1321,6 +1370,84 @@ export function PunditProfileClient({
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// TrustStrap — one-sentence credibility summary below the score grid (#769)
+// ---------------------------------------------------------------------------
+
+function TrustStrap({
+    pundit,
+    accuracyByCategory,
+    predictions,
+}: {
+    pundit: PunditSummary;
+    accuracyByCategory: CategoryBreakdown[];
+    predictions: Prediction[];
+}) {
+    // Find the top category by resolved count (most data = most credible signal)
+    const topCat = [...accuracyByCategory].sort(
+        (a, b) => (b.resolved ?? 0) - (a.resolved ?? 0)
+    )[0];
+
+    const topCatLabel = topCat
+        ? (CATEGORY_LABELS[topCat.claim_category] ?? topCat.claim_category)
+        : null;
+
+    const topCatAccuracy =
+        topCat?.accuracy_rate !== null && topCat?.accuracy_rate !== undefined
+            ? `${Math.round(topCat.accuracy_rate * 100)}%`
+            : null;
+
+    // Date of last prediction
+    const latestPred = predictions.length > 0 ? predictions[0] : null;
+    const lastCallStr = latestPred
+        ? new Date(latestPred.ingestion_timestamp).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+          })
+        : null;
+
+    // Build strap text
+    let strapText = "Accuracy verified by cryptographic ledger — records immutable since first claim.";
+    if (topCatLabel && topCatAccuracy) {
+        const parts: string[] = [
+            `${topCatAccuracy} accurate on ${topCatLabel}`,
+        ];
+        if (pundit.correct_count > 0 && pundit.resolved_count > 0) {
+            parts.push(`${pundit.correct_count}/${pundit.resolved_count} resolved`);
+        }
+        if (lastCallStr) {
+            parts.push(`last call: ${lastCallStr}`);
+        }
+        strapText = parts.join(" · ") + " · cryptographic ledger";
+    } else if (pundit.resolved_count > 0) {
+        strapText = `${pundit.correct_count}/${pundit.resolved_count} resolved correct · cryptographic ledger`;
+        if (lastCallStr) strapText += ` · last call: ${lastCallStr}`;
+    }
+
+    return (
+        <div
+            style={{
+                background: "rgba(255,255,255,0.04)",
+                borderTop: "1px solid rgba(255,255,255,0.07)",
+                padding: "10px 40px",
+            }}
+        >
+            <div
+                style={{
+                    maxWidth: 1100,
+                    margin: "0 auto",
+                    fontSize: 11,
+                    color: "rgba(255,255,255,0.45)",
+                    fontFamily: "var(--font-mono), 'JetBrains Mono', monospace",
+                    letterSpacing: "0.3px",
+                }}
+            >
+                {strapText}
             </div>
         </div>
     );

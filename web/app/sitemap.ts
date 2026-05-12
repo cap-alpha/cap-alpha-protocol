@@ -106,11 +106,18 @@ async function getPunditRoutes(): Promise<MetadataRoute.Sitemap> {
             return [];
         }
 
-        const data: { pundits?: Array<{ pundit_id?: string; id?: string }> } =
-            await res.json();
+        const data: {
+            pundits?: Array<{
+                pundit_id?: string;
+                id?: string;
+                total_predictions?: number;
+            }>;
+        } = await res.json();
         const pundits = data.pundits ?? [];
 
+        // Only include pundits with >= 5 predictions — thin pages harm SEO (#769)
         return pundits
+            .filter((p) => (p.total_predictions ?? 0) >= 5)
             .map((p) => p.pundit_id ?? p.id)
             .filter((id): id is string => Boolean(id))
             .map((id) => ({

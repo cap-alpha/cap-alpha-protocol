@@ -92,10 +92,14 @@ scripts/git-rebase-safe.sh $(pwd) <branch-name>
 scripts/gh-lars pr view <pr-number> --json statusCheckRollup \
   | jq '[.statusCheckRollup[] | select(.conclusion == "FAILURE" and (.name | test("\\[advisory\\]") | not))] | length'
 
-# 7. Queue the PR for landing — never direct merge. Always rebase.
+# 7. Before queueing, run the CI preflight gate — fails loudly if CI is red or empty.
+#    This is also run automatically inside `scripts/gh-lars pr merge`.
+scripts/preflight-merge.sh <pr-number>
+
+# 8. Queue the PR for landing — never direct merge. Always rebase.
 scripts/gh-lars pr merge <pr-number> --rebase --auto
 
-# 7. After the PR lands on main, release locks
+# 9. After the PR lands on main, release locks
 .agent/claim.sh release issue:129 claude-sonnet-<session>
 .agent/claim.sh release file:pipeline/src/assertion_extractor.py claude-sonnet-<session>
 ```

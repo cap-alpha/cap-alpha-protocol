@@ -50,4 +50,74 @@ if [[ -z "$GH_TOKEN" ]]; then
     exit 1
 fi
 export GH_TOKEN
+
+# ---------------------------------------------------------------------------
+# pr merge preflight gate — runs before every `gh-lars pr merge <N> ...`
+#
+# Calls scripts/preflight-merge.sh <N> to verify:
+#   1. CI checks are registered (non-empty)
+#   2. No non-advisory check has conclusion == FAILURE
+#   3. At least one real CI check (lint|test|preflight|build|extraction) passed
+#
+# Pass --force-merge-bypass-preflight to skip the check with a loud warning.
+# ---------------------------------------------------------------------------
+_is_pr_merge=false
+_bypass_preflight=false
+_pr_number=""
+
+if [[ "${1:-}" == "pr" && "${2:-}" == "merge" ]]; then
+    _is_pr_merge=true
+
+    # Scan remaining args for --force-merge-bypass-preflight and the PR number.
+    # The PR number is the first positional argument after "pr merge" (not a flag).
+    _remaining_args=()
+    _found_pr_number=false
+    for _arg in "${@:3}"; do
+        if [[ "$_arg" == "--force-merge-bypass-preflight" ]]; then
+            _bypass_preflight=true
+        else
+            _remaining_args+=("$_arg")
+            # Capture the first non-flag arg as the PR number
+            if [[ ! "$_arg" == --* ]] && [[ "$_found_pr_number" == "false" ]]; then
+                _pr_number="$_arg"
+                _found_pr_number=true
+            fi
+        fi
+    done
+fi
+
+if [[ "$_is_pr_merge" == "true" ]]; then
+    if [[ "$_bypass_preflight" == "true" ]]; then
+        echo "" >&2
+        echo "⚠️  WARNING: --force-merge-bypass-preflight flag detected." >&2
+        echo "   Skipping CI preflight gate for PR #${_pr_number}." >&2
+        echo "   Merging with bypassed safety check — proceed with caution." >&2
+        echo "" >&2
+        exec gh pr merge "${_remaining_args[@]+"${_remaining_args[@]}"}"
+    fi
+
+    if [[ -z "$_pr_number" ]]; then
+        echo "gh-lars: pr merge: could not determine PR number from arguments — skipping preflight." >&2
+        exec gh "$@"
+    fi
+
+    PREFLIGHT_SCRIPT="${SCRIPT_DIR}/preflight-merge.sh"
+    if [[ ! -x "$PREFLIGHT_SCRIPT" ]]; then
+        echo "gh-lars: preflight-merge.sh not found or not executable: $PREFLIGHT_SCRIPT" >&2
+        echo "  Skipping preflight gate (script missing)." >&2
+        exec gh "$@"
+    fi
+
+    if ! "$PREFLIGHT_SCRIPT" "$_pr_number"; then
+        echo "" >&2
+        echo "gh-lars: pr merge aborted — preflight gate failed for PR #${_pr_number}." >&2
+        echo "  Fix the above CI failures before merging." >&2
+        echo "  To bypass (not recommended): add --force-merge-bypass-preflight" >&2
+        exit 1
+    fi
+
+    # Preflight passed — proceed with the actual merge (drop bypass flag, already consumed)
+    exec gh pr merge "${_remaining_args[@]+"${_remaining_args[@]}"}"
+fi
+
 exec gh "$@"

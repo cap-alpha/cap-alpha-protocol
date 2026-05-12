@@ -23,6 +23,10 @@ export const users = pgTable("users", {
     // Email onboarding sequence tracking (0=none, 1=welcome sent, 2=day3 sent, 3=day7 sent)
     onboardingStep: integer("onboarding_step").default(0).notNull(),
     emailUnsubscribedAt: timestamp("email_unsubscribed_at"),
+    // Digest tracking — separate from emailUnsubscribedAt so users can opt-out of
+    // digests while keeping transactional emails (receipts, API keys).
+    lastDigestSentAt: timestamp("last_digest_sent_at"),
+    digestUnsubscribedAt: timestamp("digest_unsubscribed_at"),
 });
 
 export const scenarios = pgTable("scenarios", {

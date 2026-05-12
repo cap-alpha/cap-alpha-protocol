@@ -8,6 +8,7 @@ import {
     type Prediction,
     type PredictionsResponse,
 } from "./page";
+import { FollowButton } from "./FollowButton";
 
 // ---------------------------------------------------------------------------
 // Design system constants — V1 Data Editorial
@@ -711,6 +712,8 @@ interface Props {
     accuracyByCategory: CategoryBreakdown[];
     initialPredictions: PredictionsResponse | null;
     punditId: string;
+    isFollowing: boolean;
+    isAuthenticated: boolean;
 }
 
 export function PunditProfileClient({
@@ -718,6 +721,8 @@ export function PunditProfileClient({
     accuracyByCategory,
     initialPredictions,
     punditId,
+    isFollowing,
+    isAuthenticated,
 }: Props) {
     const [activeTab, setActiveTab] = useState<ActiveTab>("all");
     const [filterCat, setFilterCat] = useState<FilterCategory>("all");
@@ -863,7 +868,7 @@ export function PunditProfileClient({
                     {/* Avatar */}
                     <Avatar name={pundit.pundit_name} accuracy={pundit.accuracy_rate} />
 
-                    {/* Name + outlet + tags */}
+                    {/* Name + outlet + tags + follow */}
                     <div>
                         <div
                             style={{
@@ -879,8 +884,8 @@ export function PunditProfileClient({
                         <div style={{ fontSize: 14, color: "rgba(255,255,255,0.55)", marginBottom: 16 }}>
                             {pundit.sport}
                         </div>
-                        {/* Topic tags */}
-                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        {/* Topic tags + follow button */}
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                             <span
                                 style={{
                                     background: "rgba(255,255,255,0.1)",
@@ -909,6 +914,12 @@ export function PunditProfileClient({
                             >
                                 {reliLabel}
                             </span>
+                            <FollowButton
+                                punditId={punditId}
+                                punditName={pundit.pundit_name}
+                                isFollowing={isFollowing}
+                                isAuthenticated={isAuthenticated}
+                            />
                         </div>
                     </div>
 

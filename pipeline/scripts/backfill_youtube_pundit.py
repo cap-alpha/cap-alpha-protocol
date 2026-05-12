@@ -50,7 +50,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT / "pipeline"))
 
-from src.db_manager import DBManager
+from src.db_manager import get_db_manager
 from src.media_ingestor import ingest_from_urls
 
 logging.basicConfig(
@@ -59,10 +59,42 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _fetch_video_date(video_id: str) -> datetime | None:
+    """
+    Fetch the upload date for a single video via yt-dlp --dump-json.
+
+    Used by enumerate_channel_videos when --fetch-dates is active.
+    Returns None on failure.
+    """
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    cmd = ["yt-dlp", "--dump-json", "--no-playlist", "--no-warnings", url]
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=True,
+        )
+        data = json.loads(result.stdout)
+        date_str = data.get("upload_date", "")
+        if date_str and len(date_str) == 8:
+            return datetime.strptime(date_str, "%Y%m%d").replace(tzinfo=timezone.utc)
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        json.JSONDecodeError,
+        ValueError,
+    ):
+        pass
+    return None
+
+
 def enumerate_channel_videos(
     channel_url: str,
     since: datetime | None = None,
     limit: int | None = None,
+    fetch_dates: bool = False,
 ) -> list[str]:
     """
     Use yt-dlp to list all video URLs from a YouTube channel.
@@ -73,6 +105,13 @@ def enumerate_channel_videos(
       https://www.youtube.com/channel/UCxxxxxxxx/videos
 
     Returns a list of full YouTube watch URLs, optionally filtered by upload date.
+
+    Date filtering and --since:
+        YouTube channels via --flat-playlist often return upload_date=NA.  When
+        that happens the date filter is silently skipped for those videos.  Pass
+        fetch_dates=True (CLI: --fetch-dates) to do a per-video yt-dlp lookup
+        that always returns an accurate date.  This is substantially slower
+        (~1 req/video) but guarantees --since works correctly.
     """
     cmd = [
         "yt-dlp",
@@ -99,7 +138,9 @@ def enumerate_channel_videos(
     except FileNotFoundError:
         raise RuntimeError("yt-dlp not found. Install with: brew install yt-dlp")
 
-    urls = []
+    # Collect all video IDs and whatever dates the flat-playlist returned
+    entries: list[tuple[str, datetime | None]] = []  # (video_id, upload_date | None)
+    na_count = 0
     for line in result.stdout.splitlines():
         line = line.strip()
         if not line:
@@ -119,7 +160,32 @@ def enumerate_channel_videos(
                 )
             except ValueError:
                 pass
+        else:
+            na_count += 1
 
+        entries.append((video_id, upload_date))
+
+    if since is not None and na_count > 0:
+        if fetch_dates:
+            logger.info(
+                f"{na_count} video(s) have no date from flat-playlist; "
+                f"fetching individual dates (--fetch-dates mode) — this is slow."
+            )
+            resolved: list[tuple[str, datetime | None]] = []
+            for video_id, upload_date in entries:
+                if upload_date is None:
+                    upload_date = _fetch_video_date(video_id)
+                resolved.append((video_id, upload_date))
+            entries = resolved
+        else:
+            logger.warning(
+                f"--since is set but {na_count} video(s) returned upload_date=NA from "
+                f"yt-dlp flat-playlist. Those videos will NOT be filtered by date. "
+                f"Re-run with --fetch-dates for accurate date filtering (slower)."
+            )
+
+    urls = []
+    for video_id, upload_date in entries:
         if since is not None and upload_date is not None and upload_date < since:
             continue
 
@@ -184,6 +250,15 @@ def main() -> None:
         help="Only ingest videos published on or after this date (channel mode only)",
     )
     parser.add_argument(
+        "--fetch-dates",
+        action="store_true",
+        help=(
+            "When --since is set, fetch upload dates per-video via yt-dlp --dump-json "
+            "instead of relying on flat-playlist metadata (which often returns NA for "
+            "YouTube channels). Accurate but ~1 extra request per video — slow on large channels."
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         help="Max number of videos to process (useful for testing)",
@@ -215,7 +290,10 @@ def main() -> None:
     # Collect video URLs
     if args.channel_url:
         video_urls = enumerate_channel_videos(
-            args.channel_url, since=since_dt, limit=args.limit
+            args.channel_url,
+            since=since_dt,
+            limit=args.limit,
+            fetch_dates=args.fetch_dates,
         )
     elif args.video_urls:
         video_urls = args.video_urls
@@ -238,7 +316,7 @@ def main() -> None:
         f"(delay={args.delay}s, ETA ~{eta_minutes:.0f} min)"
     )
 
-    db = None if args.dry_run else DBManager()
+    db = None if args.dry_run else get_db_manager()
     total_new = 0
     try:
         for i, url in enumerate(video_urls):

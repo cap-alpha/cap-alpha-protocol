@@ -38,6 +38,12 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Install libasound2 compat (Ubuntu 24.04)
+        # Ubuntu 24.04 renamed libasound2 → libasound2t64; Playwright's --with-deps
+        # still requests the old name and fails. Install the new package first so
+        # dpkg satisfies the virtual 'libasound2' dependency.
+        run: sudo apt-get install -y libasound2t64 || true
+
       - name: Install Playwright browsers (Chromium only)
         working-directory: web
         run: npx playwright install --with-deps chromium

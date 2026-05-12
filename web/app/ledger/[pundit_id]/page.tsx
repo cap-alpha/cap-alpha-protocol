@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { PunditProfileClient } from "./PunditProfileClient";
 
 // ---------------------------------------------------------------------------
@@ -158,12 +159,27 @@ export default async function PunditProfilePage({
         notFound();
     }
 
+    // Resolve follow state server-side — zero client flicker
+    const { userId } = auth();
+    let isFollowing = false;
+    if (userId) {
+        try {
+            const user = await clerkClient.users.getUser(userId);
+            const followed: string[] = (user.publicMetadata.followed_pundits as string[] | undefined) ?? [];
+            isFollowing = followed.includes(params.pundit_id);
+        } catch {
+            // non-fatal — fall back to not following
+        }
+    }
+
     return (
         <PunditProfileClient
             pundit={detail.pundit}
             accuracyByCategory={detail.accuracy_by_category}
             initialPredictions={initialPreds}
             punditId={params.pundit_id}
+            isFollowing={isFollowing}
+            isAuthenticated={!!userId}
         />
     );
 }

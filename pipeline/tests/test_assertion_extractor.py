@@ -16,6 +16,7 @@ from src.assertion_extractor import (
     VALID_CATEGORIES,
     ExtractionResult,
     _apply_priority_sort,
+    _check_consecutive_zero_claims,
     _deduplicate_claims,
     _resolve_speaker_entity_id,
     _sport_to_domain,
@@ -1703,7 +1704,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             **self._BASE_UTTERANCE,
             "resolution_horizon": resolution_horizon_value,
         }
-        n = write_raw_utterances(
+        n, failed = write_raw_utterances(
             utterances=[utterance],
             source_doc_id="doc_abc",
             speaker_entity_id="entity_xyz",
@@ -1712,6 +1713,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             db=db,
         )
         assert n == 1, "Expected 1 row written"
+        assert failed == 0
         rows = _capture_load_args(db)
         assert len(rows) == 1
         return rows[0]["resolution_horizon"]
@@ -1801,7 +1803,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             {**self._BASE_UTTERANCE, "resolution_horizon": "2026-01-15T00:00:00Z"},
             {**self._BASE_UTTERANCE, "resolution_horizon": None},
         ]
-        n = write_raw_utterances(
+        n, failed = write_raw_utterances(
             utterances=utterances,
             source_doc_id="doc_multi",
             speaker_entity_id="entity_xyz",
@@ -1810,6 +1812,7 @@ class TestWriteRawUtterancesResolutionHorizon:
             db=db,
         )
         assert n == 3
+        assert failed == 0
         rows = _capture_load_args(db)
         assert len(rows) == 3
         # datetime → UTC Timestamp
@@ -2780,3 +2783,228 @@ class TestGateClaim:
         finally:
             if env_backup is not None:
                 os.environ["TESTABILITY_THRESHOLD"] = env_backup
+
+
+# ---------------------------------------------------------------------------
+# Issue #665 — Extraction Pipeline Resilience
+# ---------------------------------------------------------------------------
+
+
+class TestWriteRawUtterancesReturnsTuple:
+    """write_raw_utterances returns (written_count, failed_count) — not a bare int."""
+
+    _BASE_UTT = {
+        "text": "Mahomes wins MVP",
+        "speech_act_type": "assertion",
+        "testability_score": 0.9,
+        "extraction_confidence": 0.9,
+    }
+
+    def _make_mock_db(self):
+        db = MagicMock()
+        job = MagicMock()
+        job.result.return_value = None
+        db.client.load_table_from_dataframe.return_value = job
+        return db
+
+    def test_returns_tuple_on_success(self):
+        import os
+
+        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+        db = self._make_mock_db()
+        result = write_raw_utterances(
+            utterances=[self._BASE_UTT],
+            source_doc_id="doc_x",
+            speaker_entity_id="entity_y",
+            uttered_at=datetime(2025, 9, 1, tzinfo=timezone.utc),
+            domain="nfl",
+            db=db,
+        )
+        assert isinstance(result, tuple), "write_raw_utterances must return a tuple"
+        written, failed = result
+        assert written == 1
+        assert failed == 0
+
+    def test_returns_zero_zero_on_empty_utterances(self):
+        db = self._make_mock_db()
+        written, failed = write_raw_utterances(
+            utterances=[],
+            source_doc_id="doc_x",
+            speaker_entity_id="entity_y",
+            uttered_at=datetime(2025, 9, 1, tzinfo=timezone.utc),
+            domain="nfl",
+            db=db,
+        )
+        assert written == 0
+        assert failed == 0
+
+
+class TestPerArticleTransactionalWrite:
+    """One bad article's BQ write failure must not abort the entire batch (#665)."""
+
+    @patch("src.assertion_extractor.ingest_batch")
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_write_failure_skips_article_continues_batch(
+        self, mock_extract, mock_ingest, mock_db, mock_provider
+    ):
+        """
+        Two articles queued. First article's write_raw_utterances raises.
+        Pipeline should log the error, increment articles_write_failed, and process
+        the second article successfully rather than aborting.
+        """
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+
+        utterance = {
+            "text": "Mahomes wins MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extracted_claim": "Mahomes wins MVP",
+            "claim_category": "player_performance",
+            "season_year": 2026,
+            "extraction_confidence": 0.9,
+        }
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[utterance],
+            utterances=[utterance],
+        )
+        mock_ingest.return_value = []
+
+        call_count = {"n": 0}
+
+        def write_side_effect(**kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                raise Exception("BQ write failed: connection reset")
+            return (1, 0)
+
+        with patch(
+            "src.assertion_extractor.write_raw_utterances",
+            side_effect=write_side_effect,
+        ):
+            summary = run_extraction(
+                limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+            )
+
+        # First article failed BQ write, second succeeded
+        assert summary["articles_write_failed"] == 1
+        assert summary["errors"] == 1
+        # Second article still processed (total_processed covers both)
+        assert summary["total_processed"] == 2
+
+
+class TestZeroClaimsHandling:
+    """Articles producing 0 utterances emit a WARNING and increment counter (#665)."""
+
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_zero_utterances_logs_warning_and_increments_counter(
+        self, mock_extract, mock_db, mock_provider, caplog
+    ):
+        import logging
+
+        mock_db.fetch_df.return_value = make_raw_media_df(1)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+            utterances=[],  # 0 utterances returned by LLM
+        )
+
+        with caplog.at_level(logging.WARNING, logger="src.assertion_extractor"):
+            summary = run_extraction(
+                limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+            )
+
+        assert summary["zero_claims_articles"] == 1
+        assert any("0 claims" in r.message for r in caplog.records), (
+            "Expected a WARNING log mentioning '0 claims' for the article"
+        )
+
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_zero_utterances_does_not_crash(self, mock_extract, mock_db, mock_provider):
+        """Zero-utterances article must not raise — pipeline continues."""
+        mock_db.fetch_df.return_value = make_raw_media_df(2)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+            utterances=[],
+        )
+
+        # Should complete without exception
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
+        assert summary["total_processed"] == 2
+        assert summary["zero_claims_articles"] == 2
+
+
+class TestConsecutiveZeroAlert:
+    """_check_consecutive_zero_claims triggers CRITICAL when 3+ consecutive zero runs (#665)."""
+
+    def test_critical_logged_when_3_consecutive_zeros(self, caplog):
+        import logging
+        from src.assertion_extractor import _check_consecutive_zero_claims
+
+        db = MagicMock()
+        # Simulate 2 prior runs both with 0 claims_promoted
+        db.client.query.return_value.to_dataframe.return_value = pd.DataFrame(
+            {"claims_promoted": [0, 0]}
+        )
+
+        with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
+            with caplog.at_level(logging.CRITICAL, logger="src.assertion_extractor"):
+                _check_consecutive_zero_claims(db, "current-run-id")
+
+        assert any("3+ consecutive runs" in r.message for r in caplog.records), (
+            "Expected CRITICAL log about 3+ consecutive zero-claim runs"
+        )
+
+    def test_no_alert_when_prior_run_had_claims(self, caplog):
+        import logging
+        from src.assertion_extractor import _check_consecutive_zero_claims
+
+        db = MagicMock()
+        # Simulate 2 prior runs where only 1 had 0 claims
+        db.client.query.return_value.to_dataframe.return_value = pd.DataFrame(
+            {"claims_promoted": [5, 0]}
+        )
+
+        with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
+            with caplog.at_level(logging.CRITICAL, logger="src.assertion_extractor"):
+                _check_consecutive_zero_claims(db, "current-run-id")
+
+        critical_msgs = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+        assert len(critical_msgs) == 0, (
+            "No CRITICAL alert expected when prior run had claims"
+        )
+
+    def test_no_alert_when_insufficient_history(self, caplog):
+        import logging
+        from src.assertion_extractor import _check_consecutive_zero_claims
+
+        db = MagicMock()
+        # Only 1 prior run — not enough to trigger 3-consecutive check
+        db.client.query.return_value.to_dataframe.return_value = pd.DataFrame(
+            {"claims_promoted": [0]}
+        )
+
+        with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
+            with caplog.at_level(logging.CRITICAL, logger="src.assertion_extractor"):
+                _check_consecutive_zero_claims(db, "current-run-id")
+
+        critical_msgs = [r for r in caplog.records if r.levelno == logging.CRITICAL]
+        assert len(critical_msgs) == 0
+
+    def test_bq_failure_is_non_fatal(self, caplog):
+        """BQ query failure in _check_consecutive_zero_claims must not propagate."""
+        import logging
+        from src.assertion_extractor import _check_consecutive_zero_claims
+
+        db = MagicMock()
+        db.client.query.side_effect = Exception("BQ quota exceeded")
+
+        with patch.dict(os.environ, {"GCP_PROJECT_ID": "test-project"}):
+            # Must not raise
+            _check_consecutive_zero_claims(db, "run-id-123")
+
+        # Warning should appear
+        assert any("non-fatal" in r.message for r in caplog.records)

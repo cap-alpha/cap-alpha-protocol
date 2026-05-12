@@ -23,12 +23,80 @@ import {
     Database,
     Cpu,
     ExternalLink,
+    BookOpen,
+    Calculator,
+    Ban,
+    GitBranch,
+    Github,
 } from "lucide-react";
 
 export const metadata: Metadata = {
     title: "Methodology | Pundit Ledger",
     description:
-        "How Cap Alpha independently audits sports media pundits — the accountability framework behind the Pundit Credit Score.",
+        "How Cap Alpha independently audits sports media pundits — claim type taxonomy, scoring formula, VOID criteria, and dispute process.",
+};
+
+// FAQ JSON-LD — surfaces the public adjudication taxonomy + scoring rules to
+// search engines so the definitions show up in rich results. Issue #830.
+const FAQ_JSONLD = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+        {
+            "@type": "Question",
+            name: "What is the difference between a prediction and a report?",
+            acceptedAnswer: {
+                "@type": "Answer",
+                text:
+                    "A prediction is an analyst asserting a future outcome will occur (e.g., 'The Chiefs will win the Super Bowl') — it resolves CORRECT or INCORRECT when the event happens. A report relays information from a source about current state (e.g., 'The Eagles are looking to trade for a WR') — if the underlying circumstances change before resolution (the deal falls through, the player was never actually available), the claim resolves VOID rather than INCORRECT. We score predictions, not reports.",
+            },
+        },
+        {
+            "@type": "Question",
+            name: "What kinds of claims are excluded from scoring?",
+            acceptedAnswer: {
+                "@type": "Answer",
+                text:
+                    "Subjective opinions (e.g., 'Mahomes is the best QB ever'), rhetorical questions, jokes, analogies, hedges so vague they cannot be falsified, and any claim with no objective resolution criterion. These are filtered at extraction and never enter the prediction ledger.",
+            },
+        },
+        {
+            "@type": "Question",
+            name: "When does a prediction resolve as VOID?",
+            acceptedAnswer: {
+                "@type": "Answer",
+                text:
+                    "VOID applies when (1) the event the prediction was about was cancelled or never occurred (game cancelled, draft pick skipped); (2) a report was accurate at the time but circumstances changed (trade fell through, injury healed before the game); (3) a conditional claim's premise never resolved (the 'if X' condition never happened); or (4) resolution criteria are ambiguous and no authoritative ground truth exists. VOID claims are excluded from accuracy, Brier, and weighted-score aggregates.",
+            },
+        },
+        {
+            "@type": "Question",
+            name: "How is a pundit's accuracy score calculated?",
+            acceptedAnswer: {
+                "@type": "Answer",
+                text:
+                    "Each resolved prediction receives a binary_correct value (1 for CORRECT, 0 for INCORRECT, 0.5 for PARTIAL). The pundit's headline accuracy is the simple mean of binary_correct across all non-VOID, non-PENDING resolutions. A confidence-weighted score and a Brier score are also computed on predictions where the pundit expressed a probability — these reward calibration, not just hit rate.",
+            },
+        },
+        {
+            "@type": "Question",
+            name: "What is a Brier score?",
+            acceptedAnswer: {
+                "@type": "Answer",
+                text:
+                    "The Brier score measures how well a pundit's stated confidence matches reality. For a single probability prediction p with outcome o (1 if correct, 0 if not), the Brier score is (p − o)². The pundit's overall Brier score is the mean across all probabilistic predictions. Lower is better — 0.0 is perfect, 0.25 is uninformative (chance), and 1.0 is maximally wrong with maximum confidence.",
+            },
+        },
+        {
+            "@type": "Question",
+            name: "How can I dispute a rating?",
+            acceptedAnswer: {
+                "@type": "Answer",
+                text:
+                    "Open a public dispute by filing a GitHub issue at github.com/ucalegon206/cap-alpha-protocol/issues with the prediction URL, the resolution shown (CORRECT/INCORRECT/VOID), the resolution you believe is correct, and a citation to an authoritative source. Alternatively email corrections@cap-alpha.co. Confirmed scoring errors result in a correction entry — the original prediction remains visible with the updated resolution and a public note explaining the change. The ledger is immutable; nothing is ever silently overwritten.",
+            },
+        },
+    ],
 };
 
 // --- Reusable section components ---
@@ -144,6 +212,12 @@ function DimensionCard({
 export default function MethodologyPage() {
     return (
         <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
+            {/* FAQ structured data — surfaces taxonomy + scoring rules to search engines (#830) */}
+            <script
+                type="application/ld+json"
+                // eslint-disable-next-line react/no-danger
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(FAQ_JSONLD) }}
+            />
             {/* Hero */}
             <section className="relative flex flex-col items-center justify-center text-center px-6 pt-24 pb-20 overflow-hidden">
                 <div className="absolute inset-0 pointer-events-none">
@@ -543,6 +617,483 @@ export default function MethodologyPage() {
                 </div>
             </section>
 
+            {/* Claim Type Taxonomy — the public adjudication contract (#830) */}
+            <section
+                id="claim-taxonomy"
+                className="w-full px-6 py-20 border-t border-zinc-900"
+            >
+                <div className="max-w-5xl mx-auto">
+                    <SectionHeader
+                        label="Taxonomy"
+                        title="The Claim Type Taxonomy"
+                        subtitle="The Woj/Schefter distinction matters. A failed prediction is a bad call. A report whose underlying deal fell through is not the same thing, and we score it differently. This is the contract."
+                    />
+
+                    {/* The headline table — public, plain-language */}
+                    <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900/40">
+                        <table className="w-full text-sm">
+                            <thead className="bg-zinc-900/80 text-zinc-300">
+                                <tr className="text-left">
+                                    <th className="px-4 py-3 font-semibold">Type</th>
+                                    <th className="px-4 py-3 font-semibold">Definition</th>
+                                    <th className="px-4 py-3 font-semibold">Example</th>
+                                    <th className="px-4 py-3 font-semibold">How we score it</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-800/80 text-zinc-300">
+                                <tr>
+                                    <td className="px-4 py-4 align-top">
+                                        <span className="font-semibold text-emerald-400">
+                                            Prediction
+                                        </span>
+                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                            speech_act_type: assertion
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Analyst asserts a future outcome will occur.
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                        &ldquo;The Eagles will win the Super Bowl.&rdquo;
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        CORRECT or INCORRECT at resolution. Scored.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="px-4 py-4 align-top">
+                                        <span className="font-semibold text-yellow-400">
+                                            Report
+                                        </span>
+                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                            speech_act_type: recall
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Analyst relays insider information about
+                                        the current state of affairs.
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                        &ldquo;The Eagles are looking to trade for a
+                                        WR per sources.&rdquo;
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        CORRECT if independently confirmed. VOID if
+                                        the underlying deal/situation falls through.
+                                        We score predictions, not reports.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="px-4 py-4 align-top">
+                                        <span className="font-semibold text-zinc-300">
+                                            Conditional
+                                        </span>
+                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                            speech_act_type: conditional
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Outcome depends on a contingent event.
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                        &ldquo;If they draft a left tackle, the line
+                                        will be top-10.&rdquo;
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Scored only when the condition resolves
+                                        cleanly. VOID if the &ldquo;if&rdquo;
+                                        premise never occurs.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="px-4 py-4 align-top">
+                                        <span className="font-semibold text-zinc-500">
+                                            Opinion / Take
+                                        </span>
+                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                            speech_act_type: opinion
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Subjective qualitative assessment with no
+                                        falsifiable outcome.
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                        &ldquo;Mahomes is the best QB ever.&rdquo;
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Not scored. Filtered at extraction; never
+                                        enters the prediction ledger.
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td className="px-4 py-4 align-top">
+                                        <span className="font-semibold text-zinc-500">
+                                            Commentary / Analogy / Joke / Rhetorical
+                                        </span>
+                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                            speech_act_type: commentary,
+                                            analogy, joke, rhetorical_question, hedge
+                                        </div>
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Analysis, comparison, humor, hedged uncertainty,
+                                        or rhetorical framing — no testable outcome.
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                        &ldquo;They&apos;re playing like it&apos;s
+                                        1985.&rdquo;
+                                    </td>
+                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                        Not scored. Filtered at extraction.
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    {/* Schema mapping — meets acceptance criterion: public taxonomy maps 1:1 to schema */}
+                    <div className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-zinc-400">
+                            <GitBranch className="w-4 h-4" />
+                            Schema Mapping
+                        </div>
+                        <p className="text-sm text-zinc-400 leading-relaxed">
+                            The public types above map 1:1 to the internal
+                            <span className="font-mono text-emerald-400">
+                                {" "}speech_act_type{" "}
+                            </span>
+                            field documented in
+                            <span className="font-mono text-zinc-300">
+                                {" "}pipeline/src/domain_protocol.py
+                            </span>
+                            . Only claims with
+                            <span className="font-mono text-emerald-400">
+                                {" "}speech_act_type{" "}
+                            </span>
+                            of
+                            <span className="font-mono"> assertion</span>,
+                            <span className="font-mono"> conditional</span>, or
+                            <span className="font-mono"> recall</span> are
+                            promoted to the scoreable prediction ledger.
+                            Everything else is filtered upstream.
+                        </p>
+                    </div>
+                </div>
+            </section>
+
+            {/* Scoring Formula — explicit, audit-friendly math (#830) */}
+            <section
+                id="scoring-formula"
+                className="w-full px-6 py-20 border-t border-zinc-900"
+            >
+                <div className="max-w-3xl mx-auto">
+                    <SectionHeader
+                        label="Scoring"
+                        title="How a Prediction Is Scored"
+                        subtitle="Every resolved prediction is reduced to three numbers. The math is public so anyone can replicate it."
+                    />
+
+                    <div className="space-y-6">
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    binary_correct
+                                </h3>
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                The raw outcome bit, in <span className="font-mono">{`{0, 0.5, 1}`}</span>:
+                            </p>
+                            <ul className="text-sm text-zinc-400 space-y-1 ml-1">
+                                <li>
+                                    <span className="font-mono text-emerald-400">1.0</span>{" "}
+                                    — CORRECT (claim came true)
+                                </li>
+                                <li>
+                                    <span className="font-mono text-yellow-400">0.5</span>{" "}
+                                    — PARTIAL (e.g., predicted score within 3, partial credit)
+                                </li>
+                                <li>
+                                    <span className="font-mono text-red-400">0.0</span>{" "}
+                                    — INCORRECT (claim was wrong)
+                                </li>
+                            </ul>
+                            <p className="text-sm text-zinc-500 mt-2 leading-relaxed">
+                                VOID and PENDING outcomes are <em>excluded</em> — they do
+                                not appear in the denominator of any aggregate.
+                            </p>
+                            <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 font-mono text-xs text-zinc-300">
+                                accuracy = mean(binary_correct) over resolved, non-VOID predictions
+                            </div>
+                        </div>
+
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <Calculator className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    weighted_score
+                                </h3>
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                Confidence-adjusted accuracy. A pundit who says
+                                &ldquo;lock of the week&rdquo; (confidence 0.95) and
+                                misses pays a bigger penalty than one who hedges at 0.55
+                                and misses. The formula:
+                            </p>
+                            <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 font-mono text-xs text-zinc-300">
+                                weighted_score = mean(binary_correct × confidence)
+                                <br />
+                                {"    "}where confidence ∈ [0.5, 1.0]
+                            </div>
+                            <p className="text-sm text-zinc-500 leading-relaxed">
+                                Confidence is extracted from the language of the
+                                claim (&ldquo;guaranteed&rdquo;, &ldquo;might&rdquo;,
+                                &ldquo;hammer this&rdquo;) when a pundit doesn&apos;t
+                                state a probability directly. Predictions where
+                                confidence can&apos;t be inferred default to 0.5 and
+                                contribute neutrally.
+                            </p>
+                        </div>
+
+                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
+                                    <BarChart3 className="w-5 h-5 text-emerald-400" />
+                                </div>
+                                <h3 className="text-lg font-bold text-white">
+                                    Brier score
+                                </h3>
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                The gold standard for measuring calibration. For each
+                                probabilistic prediction with stated probability{" "}
+                                <span className="font-mono">p</span> and outcome{" "}
+                                <span className="font-mono">o ∈ {`{0, 1}`}</span>:
+                            </p>
+                            <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 font-mono text-xs text-zinc-300">
+                                brier_i = (p_i − o_i)²
+                                <br />
+                                brier_overall = mean(brier_i)
+                            </div>
+                            <ul className="text-sm text-zinc-400 space-y-1 mt-2">
+                                <li>
+                                    <span className="font-mono text-emerald-400">0.00</span>{" "}
+                                    — perfect calibration
+                                </li>
+                                <li>
+                                    <span className="font-mono text-yellow-400">0.25</span>{" "}
+                                    — uninformative (random guessing at 50%)
+                                </li>
+                                <li>
+                                    <span className="font-mono text-red-400">1.00</span>{" "}
+                                    — maximally wrong with maximum confidence
+                                </li>
+                            </ul>
+                            <p className="text-sm text-zinc-500 leading-relaxed">
+                                Lower is better. The Brier score rewards pundits who
+                                say &ldquo;60% confident&rdquo; and are right 60% of
+                                the time — not the ones who say &ldquo;lock&rdquo;
+                                on everything and hit 52%.
+                            </p>
+                        </div>
+
+                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6">
+                            <div className="flex items-start gap-3">
+                                <BookOpen className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                                <div className="space-y-2 text-sm text-zinc-300">
+                                    <p className="font-semibold text-zinc-200">
+                                        Why three numbers, not one?
+                                    </p>
+                                    <p className="text-zinc-400 leading-relaxed">
+                                        A pundit can have high <span className="font-mono">accuracy</span>{" "}
+                                        and a bad <span className="font-mono">Brier score</span> — they hit
+                                        often but always at low confidence. Or vice versa: a contrarian who
+                                        calls underdogs with 70% confidence and hits 30% of the time looks
+                                        good on accuracy variance but Brier exposes the calibration gap.
+                                        Each number catches a different failure mode.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* VOID Criteria — explicit examples (#830 acceptance criterion: ≥ 4 concrete examples) */}
+            <section
+                id="void-criteria"
+                className="w-full px-6 py-20 border-t border-zinc-900"
+            >
+                <div className="max-w-3xl mx-auto">
+                    <SectionHeader
+                        label="VOID"
+                        title="When a Prediction Becomes VOID"
+                        subtitle="VOID is not the same as wrong. VOID means the claim cannot be fairly judged — and we exclude it from every aggregate rather than silently counting it against the pundit."
+                    />
+
+                    <div className="space-y-6">
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-3">
+                            <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-zinc-400">
+                                <Ban className="w-4 h-4" />
+                                The four VOID conditions
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                A prediction resolves VOID when{" "}
+                                <span className="text-zinc-200 font-medium">
+                                    any one
+                                </span>{" "}
+                                of the following applies:
+                            </p>
+                            <ol className="text-sm text-zinc-300 space-y-2 list-decimal list-inside marker:text-emerald-400">
+                                <li>
+                                    The underlying event the claim depends on{" "}
+                                    <span className="text-zinc-400">
+                                        was cancelled or never occurred
+                                    </span>
+                                    .
+                                </li>
+                                <li>
+                                    A report was accurate at the time but{" "}
+                                    <span className="text-zinc-400">
+                                        circumstances changed before resolution
+                                    </span>{" "}
+                                    (trade fell through, injury healed,
+                                    player traded).
+                                </li>
+                                <li>
+                                    A conditional claim&apos;s premise (the
+                                    &ldquo;if X&rdquo;){" "}
+                                    <span className="text-zinc-400">
+                                        never resolved
+                                    </span>
+                                    .
+                                </li>
+                                <li>
+                                    Resolution criteria are{" "}
+                                    <span className="text-zinc-400">
+                                        ambiguous and no authoritative ground
+                                        truth exists
+                                    </span>
+                                    . An explanation is attached to every
+                                    ambiguity-based VOID.
+                                </li>
+                            </ol>
+                        </div>
+
+                        {/* Four concrete examples — meets the issue's "≥4 concrete examples" acceptance criterion */}
+                        <div className="space-y-4">
+                            <h3 className="text-lg font-bold text-white">
+                                Worked examples
+                            </h3>
+
+                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                                    Example 1 — Report, deal fell through
+                                </p>
+                                <p className="text-sm italic text-zinc-300">
+                                    &ldquo;The Eagles are finalizing a trade for
+                                    DK Metcalf, per sources.&rdquo; — no trade
+                                    materializes before the deadline.
+                                </p>
+                                <p className="text-sm text-zinc-400">
+                                    <span className="font-semibold text-zinc-200">
+                                        Resolution:
+                                    </span>{" "}
+                                    VOID. The pundit may have accurately
+                                    reported the state of negotiations; the
+                                    deal&apos;s collapse is not a failed
+                                    prediction. We do not score reports.
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                                    Example 2 — Cancelled event
+                                </p>
+                                <p className="text-sm italic text-zinc-300">
+                                    &ldquo;Vikings -2.5 on Sunday&rdquo; — the
+                                    game is postponed and never rescheduled in
+                                    the same season.
+                                </p>
+                                <p className="text-sm text-zinc-400">
+                                    <span className="font-semibold text-zinc-200">
+                                        Resolution:
+                                    </span>{" "}
+                                    VOID. The event the claim was about no
+                                    longer exists. Counting this against the
+                                    pundit would be unfair.
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                                    Example 3 — Conditional premise never met
+                                </p>
+                                <p className="text-sm italic text-zinc-300">
+                                    &ldquo;If Mahomes plays, Chiefs win by
+                                    10+.&rdquo; — Mahomes is inactive on game
+                                    day.
+                                </p>
+                                <p className="text-sm text-zinc-400">
+                                    <span className="font-semibold text-zinc-200">
+                                        Resolution:
+                                    </span>{" "}
+                                    VOID. The conditional was never triggered.
+                                    A pundit cannot be scored on a claim whose
+                                    premise didn&apos;t happen.
+                                </p>
+                            </div>
+
+                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                                    Example 4 — Ambiguous resolution criteria
+                                </p>
+                                <p className="text-sm italic text-zinc-300">
+                                    &ldquo;The Bears will have a top-tier
+                                    defense this year.&rdquo; — &ldquo;top-tier&rdquo;
+                                    isn&apos;t defined; the team finishes 12th
+                                    by DVOA and 6th by yards allowed.
+                                </p>
+                                <p className="text-sm text-zinc-400">
+                                    <span className="font-semibold text-zinc-200">
+                                        Resolution:
+                                    </span>{" "}
+                                    VOID with explanation. If we had a clear
+                                    quantitative threshold from the pundit (top
+                                    10 in DVOA, top 5 in points allowed) we
+                                    would score it. Without one, scoring is
+                                    arbitrary and we say so publicly.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-2">
+                            <div className="flex items-start gap-3">
+                                <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5 shrink-0" />
+                                <div className="space-y-2 text-sm">
+                                    <p className="font-semibold text-zinc-200">
+                                        VOID is auditable, not a get-out-of-jail card.
+                                    </p>
+                                    <p className="text-zinc-400 leading-relaxed">
+                                        Every VOID resolution is logged with a
+                                        reason code and remains visible on the
+                                        prediction&apos;s page. If a pundit
+                                        accumulates an unusual rate of VOIDs,
+                                        that pattern is itself visible — and
+                                        suggestive — in the public record.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             {/* Immutable Ledger */}
             <section className="w-full px-6 py-20 border-t border-zinc-900">
                 <div className="max-w-3xl mx-auto">
@@ -650,14 +1201,46 @@ export default function MethodologyPage() {
                                 remains visible with an updated resolution.
                             </p>
                         </div>
+                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <Github className="w-4 h-4 text-emerald-400" />
+                                <h4 className="font-semibold text-zinc-200">
+                                    Dispute publicly on GitHub
+                                </h4>
+                            </div>
+                            <p className="text-sm text-zinc-400 leading-relaxed">
+                                We track adjudication disputes as public issues so
+                                the discussion and outcome are part of the record.
+                                File a dispute with the prediction URL, the current
+                                resolution, the resolution you believe is correct,
+                                and a link to authoritative source data.
+                            </p>
+                            <a
+                                href="https://github.com/ucalegon206/cap-alpha-protocol/issues/new?labels=dispute&title=Dispute%3A%20%5Bprediction-id%5D"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                                Open a dispute issue
+                                <ExternalLink className="w-3.5 h-3.5" />
+                            </a>
+                        </div>
                         <p className="text-sm text-zinc-500">
-                            Questions about methodology?{" "}
+                            Or email{" "}
+                            <a
+                                href="mailto:corrections@cap-alpha.co"
+                                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                            >
+                                corrections@cap-alpha.co
+                            </a>
+                            . Methodology questions:{" "}
                             <a
                                 href="mailto:support@cap-alpha.co"
                                 className="text-emerald-400 hover:text-emerald-300 transition-colors"
                             >
                                 support@cap-alpha.co
                             </a>
+                            .
                         </p>
                     </div>
                 </div>
@@ -833,13 +1416,31 @@ export default function MethodologyPage() {
                 </div>
             </section>
 
-            {/* Footer */}
+            {/* In-page footer — anchor jumps to the new public-adjudication sections (#830) */}
             <footer className="border-t border-zinc-900 px-6 py-8 mt-auto">
                 <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
                     <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
                         Pundit Ledger
                     </span>
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
+                        <Link
+                            href="#claim-taxonomy"
+                            className="hover:text-zinc-400 transition-colors"
+                        >
+                            Claim taxonomy
+                        </Link>
+                        <Link
+                            href="#scoring-formula"
+                            className="hover:text-zinc-400 transition-colors"
+                        >
+                            Scoring formula
+                        </Link>
+                        <Link
+                            href="#void-criteria"
+                            className="hover:text-zinc-400 transition-colors"
+                        >
+                            VOID criteria
+                        </Link>
                         <Link
                             href="/ledger"
                             className="hover:text-zinc-400 transition-colors"
@@ -847,22 +1448,10 @@ export default function MethodologyPage() {
                             Leaderboard
                         </Link>
                         <Link
-                            href="/methodology"
-                            className="text-zinc-400"
-                        >
-                            Methodology
-                        </Link>
-                        <Link
                             href="/legal/terms"
                             className="hover:text-zinc-400 transition-colors"
                         >
                             Terms
-                        </Link>
-                        <Link
-                            href="/legal/privacy"
-                            className="hover:text-zinc-400 transition-colors"
-                        >
-                            Privacy
                         </Link>
                     </div>
                     <span>

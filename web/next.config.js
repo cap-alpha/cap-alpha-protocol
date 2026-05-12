@@ -107,6 +107,32 @@ const nextConfig = {
             },
         ];
     },
+    async redirects() {
+        return [
+            // Vestigial NFL dead-money era dashboard pages → redirect to bettor-first destinations
+            // 301 permanent — these pages have no external link equity and are being retired (#774)
+            {
+                source: '/dashboard/gm',
+                destination: '/ledger',
+                permanent: true,
+            },
+            {
+                source: '/dashboard/agent',
+                destination: '/ledger',
+                permanent: true,
+            },
+            {
+                source: '/dashboard/fan',
+                destination: '/ledger',
+                permanent: true,
+            },
+            {
+                source: '/dashboard/team-select',
+                destination: '/',
+                permanent: true,
+            },
+        ];
+    },
     async rewrites() {
         return [
             {

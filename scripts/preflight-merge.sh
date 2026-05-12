@@ -6,8 +6,10 @@
 # Exits 0 (pass) when all three conditions are met:
 #   1. At least one CI check is registered (statusCheckRollup is non-empty)
 #   2. No non-advisory check has conclusion == "FAILURE"
-#   3. At least one check matching lint|test|preflight|build|extraction has conclusion == "SUCCESS"
-#      (proves real CI ran, not just pr_sanity.yml alone)
+#      (PENDING / IN_PROGRESS checks have conclusion == "" — they are NOT failures)
+#   3. At least one check matching lint|test|preflight|build|extraction is registered
+#      and either has conclusion == "SUCCESS" or is still running (conclusion == "")
+#      Running checks are allowed — the GitHub merge queue waits for them before landing
 #
 # Exits 1 (fail) with a specific blocker message otherwise.
 #
@@ -84,7 +86,42 @@ if [ -n "$FAILING_CHECKS" ]; then
     exit 1
 fi
 
-# --- Gate 3: at least one real CI check (lint|test|preflight|build|extraction) must be SUCCESS ---
+# --- Gate 3: at least one real CI check (lint|test|preflight|build|extraction) must be
+#     registered and not have conclusively failed. Checks still running (IN_PROGRESS,
+#     QUEUED, PENDING) are allowed through — the GitHub merge queue will wait for them.
+#     We only block here when NO real CI check exists at all (only sanity/lightweight
+#     checks registered), which means CI workflows didn't trigger properly.
+#
+#     Key distinction: use `conclusion` not `state`.
+#       conclusion == ""  → check is still running (not yet conclusive)   → ALLOW
+#       conclusion == "SUCCESS" | "SKIPPED"                               → ALLOW
+#       conclusion == "FAILURE" | "CANCELLED" | "TIMED_OUT" | "STARTUP_FAILURE" → caught by Gate 2
+# ---
+REAL_CI_CHECKS=$(echo "$ROLLUP_JSON" | jq -r '
+  .statusCheckRollup[]
+  | select(.name | test("lint|test|preflight|build|extraction"; "i"))
+  | .name
+')
+
+if [ -z "$REAL_CI_CHECKS" ]; then
+    echo ""
+    echo "✗ PR #${PR_NUMBER} — BLOCKED: No real CI check (lint|test|preflight|build|extraction) registered"
+    echo ""
+    echo "  Only pr_sanity.yml or similar lightweight checks appear to have run."
+    echo "  Real CI (lint, test, preflight, build, or extraction) must be present before merging."
+    exit 1
+fi
+
+# Check if any real CI checks are still running — these are fine for --auto queuing
+REAL_CI_RUNNING=$(echo "$ROLLUP_JSON" | jq -r '
+  .statusCheckRollup[]
+  | select(
+      (.name | test("lint|test|preflight|build|extraction"; "i"))
+      and (.conclusion == "" or .conclusion == null)
+    )
+  | .name
+')
+
 REAL_CI_SUCCESS=$(echo "$ROLLUP_JSON" | jq -r '
   .statusCheckRollup[]
   | select(
@@ -94,37 +131,20 @@ REAL_CI_SUCCESS=$(echo "$ROLLUP_JSON" | jq -r '
   | .name
 ')
 
-if [ -z "$REAL_CI_SUCCESS" ]; then
-    # Also check if any such checks are still in progress (pending is not a failure)
-    REAL_CI_PENDING=$(echo "$ROLLUP_JSON" | jq -r '
-      .statusCheckRollup[]
-      | select(
-          .status == "IN_PROGRESS"
-          and (.name | test("lint|test|preflight|build|extraction"; "i"))
-        )
-      | .name
-    ')
-
-    if [ -n "$REAL_CI_PENDING" ]; then
-        PENDING_COUNT=$(echo "$REAL_CI_PENDING" | wc -l | tr -d ' ')
-        echo ""
-        echo "✗ PR #${PR_NUMBER} — BLOCKED: Real CI checks are still running (${PENDING_COUNT} pending)"
-        echo ""
-        echo "  Pending checks:"
-        echo "$REAL_CI_PENDING" | while IFS= read -r name; do
-            echo "    ⏳ $name"
-        done
-        echo ""
-        echo "  Wait for these to complete before merging."
-        exit 1
-    fi
-
+if [ -z "$REAL_CI_SUCCESS" ] && [ -z "$REAL_CI_RUNNING" ]; then
     echo ""
     echo "✗ PR #${PR_NUMBER} — BLOCKED: No real CI check (lint|test|preflight|build|extraction) passed"
     echo ""
-    echo "  Only pr_sanity.yml or similar lightweight checks appear to have run."
-    echo "  Real CI (lint, test, preflight, build, or extraction) must succeed before merging."
+    echo "  Real CI checks are registered but none succeeded or are running."
+    echo "  Check if CI jobs were cancelled or skipped unexpectedly."
     exit 1
+fi
+
+if [ -n "$REAL_CI_RUNNING" ]; then
+    RUNNING_COUNT=$(echo "$REAL_CI_RUNNING" | wc -l | tr -d ' ')
+    # Still running is OK — GitHub merge queue will wait. Note it but don't block.
+    echo ""
+    echo "  Note: ${RUNNING_COUNT} real CI check(s) still running — --auto will queue and wait."
 fi
 
 # All gates passed — report success

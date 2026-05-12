@@ -56,8 +56,9 @@ export GH_TOKEN
 #
 # Calls scripts/preflight-merge.sh <N> to verify:
 #   1. CI checks are registered (non-empty)
-#   2. No non-advisory check has conclusion == FAILURE
-#   3. At least one real CI check (lint|test|preflight|build|extraction) passed
+#   2. No non-advisory check has conclusion == FAILURE (PENDING/IN_PROGRESS are not failures)
+#   3. At least one real CI check (lint|test|preflight|build|extraction) is registered
+#      and either passed (SUCCESS) or is still running — merge queue will wait for in-progress checks
 #
 # Pass --force-merge-bypass-preflight to skip the check with a loud warning.
 # ---------------------------------------------------------------------------

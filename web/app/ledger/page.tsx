@@ -1,9 +1,21 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { AffiliateCta } from "@/components/affiliate-cta";
+import { InPlayCard, type InPlayPrediction } from "@/components/in-play-card";
+import {
+    InPlayFilters,
+    DEFAULT_IN_PLAY_FILTERS,
+    type InPlayFilterState,
+} from "@/components/in-play-filters";
+import {
+    deriveResolutionWindow,
+    windowMatchesBucket,
+    windowToSortDate,
+} from "@/lib/resolution-window";
 import {
     Shield,
     CheckCircle2,
@@ -672,13 +684,13 @@ function ResolutionBreakdown({ stats }: { stats: ResolutionStats }) {
 // ---------------------------------------------------------------------------
 
 const STORAGE_KEY = "ledger-default-view";
-type TopLevelView = "hof" | "hos" | "all";
+type TopLevelView = "hof" | "hos" | "all" | "in-play";
 
 function readStoredView(): TopLevelView {
     if (typeof window === "undefined") return "hof";
     try {
         const v = localStorage.getItem(STORAGE_KEY);
-        if (v === "hof" || v === "hos" || v === "all") return v;
+        if (v === "hof" || v === "hos" || v === "all" || v === "in-play") return v;
     } catch {
         // ignore
     }
@@ -786,6 +798,7 @@ function HofHosGrid({
 // ---------------------------------------------------------------------------
 
 export default function LedgerPage() {
+    const searchParams = useSearchParams();
     const [pundits, setPundits] = useState<PunditStat[]>([]);
     const [recent, setRecent] = useState<RecentPrediction[]>([]);
     const [resolutionStats, setResolutionStats] = useState<ResolutionStats | null>(null);
@@ -796,8 +809,14 @@ export default function LedgerPage() {
     const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
     const [secondsSinceRefresh, setSecondsSinceRefresh] = useState<number>(0);
 
-    // Top-level view: hof | hos | all (persisted to localStorage)
+    // Top-level view: hof | hos | all | in-play (persisted to localStorage)
     const [topView, setTopView] = useState<TopLevelView>("hof");
+
+    // In Play state
+    const [inPlayPredictions, setInPlayPredictions] = useState<InPlayPrediction[]>([]);
+    const [inPlayLoading, setInPlayLoading] = useState(false);
+    const [inPlayFilters, setInPlayFilters] = useState<InPlayFilterState>(DEFAULT_IN_PLAY_FILTERS);
+    const [inPlayLastRefreshed, setInPlayLastRefreshed] = useState<Date | null>(null);
 
     // Inner tabs for "all" view
     const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">(
@@ -806,10 +825,15 @@ export default function LedgerPage() {
     const [drawerPrediction, setDrawerPrediction] = useState<RecentPrediction | null>(null);
     const [drawerSources, setDrawerSources] = useState<RecentPrediction[]>([]);
 
-    // Hydrate from localStorage on mount
+    // Hydrate from localStorage on mount; also check ?view= URL param for deep-links
     useEffect(() => {
-        setTopView(readStoredView());
-    }, []);
+        const urlView = searchParams?.get("view");
+        if (urlView === "in-play" || urlView === "hof" || urlView === "hos" || urlView === "all") {
+            setTopView(urlView);
+        } else {
+            setTopView(readStoredView());
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleTopView = (v: TopLevelView) => {
         setTopView(v);
@@ -847,6 +871,27 @@ export default function LedgerPage() {
             });
     };
 
+    const fetchInPlay = useCallback((isBackground = false) => {
+        if (!isBackground) setInPlayLoading(true);
+        const params = new URLSearchParams();
+        params.set("limit", "50");
+        if (inPlayFilters.sport) params.set("sport", inPlayFilters.sport);
+        if (inPlayFilters.category) params.set("category", inPlayFilters.category);
+        if (inPlayFilters.punditQuery) params.set("pundit_name", inPlayFilters.punditQuery);
+        return fetch(`/api/ledger/in-play?${params.toString()}`)
+            .then((r) => r.json())
+            .then((data: { predictions?: InPlayPrediction[] }) => {
+                setInPlayPredictions(data.predictions || []);
+                setInPlayLastRefreshed(new Date());
+            })
+            .catch((err) => {
+                console.error("[Ledger] Failed to fetch in-play:", err);
+            })
+            .finally(() => {
+                if (!isBackground) setInPlayLoading(false);
+            });
+    }, [inPlayFilters.sport, inPlayFilters.category, inPlayFilters.punditQuery]);
+
     useEffect(() => {
         const sportParam =
             sportFilter !== "ALL" ? `?sport=${sportFilter}` : "";
@@ -877,6 +922,21 @@ export default function LedgerPage() {
         }, 60_000);
         return () => clearInterval(interval);
     }, [topView, activeTab, sportFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Fetch in-play data when tab is activated or filters change
+    useEffect(() => {
+        if (topView !== "in-play") return;
+        void fetchInPlay(false);
+    }, [topView, fetchInPlay]);
+
+    // 60-second auto-poll for In Play tab
+    useEffect(() => {
+        if (topView !== "in-play") return;
+        const interval = setInterval(() => {
+            void fetchInPlay(true);
+        }, 60_000);
+        return () => clearInterval(interval);
+    }, [topView, fetchInPlay]);
 
     // Tick "X seconds ago" counter every second when we have a refresh timestamp
     useEffect(() => {
@@ -1016,7 +1076,7 @@ export default function LedgerPage() {
                 </div>
             </div>
 
-            {/* Top-level view toggle: HOF | HOS | All */}
+            {/* Top-level view toggle: HOF | HOS | All | In Play */}
             <div className="border-b border-zinc-900 bg-zinc-950/30">
                 <div className="max-w-6xl mx-auto px-4">
                     <div className="flex gap-0" role="tablist" aria-label="Ledger view">
@@ -1025,6 +1085,7 @@ export default function LedgerPage() {
                                 { id: "hof", label: "Leaders" },
                                 { id: "hos", label: "Hall of Shame" },
                                 { id: "all", label: "Full Ledger" },
+                                { id: "in-play", label: "In Play" },
                             ] as { id: TopLevelView; label: string }[]
                         ).map(({ id, label }) => (
                             <button
@@ -1038,6 +1099,8 @@ export default function LedgerPage() {
                                     topView === id
                                         ? id === "hos"
                                             ? "border-red-500 text-red-400"
+                                            : id === "in-play"
+                                            ? "border-amber-500 text-amber-400"
                                             : "border-emerald-500 text-emerald-400"
                                         : "border-transparent text-zinc-500 hover:text-zinc-300"
                                 )}
@@ -1082,7 +1145,7 @@ export default function LedgerPage() {
 
             {/* Content */}
             <div className="max-w-6xl mx-auto px-4 py-8">
-                {loading ? (
+                {loading && topView !== "in-play" ? (
                     <div className="flex items-center justify-center h-48 text-zinc-600">
                         <Activity className="w-4 h-4 animate-pulse mr-2" />
                         <span className="font-mono text-sm">Loading ledger…</span>
@@ -1101,6 +1164,15 @@ export default function LedgerPage() {
                         </p>
                         <HofHosGrid pundits={hosPundits} variant="hos" recent={recent} />
                     </div>
+                ) : topView === "in-play" ? (
+                    <InPlayTab
+                        predictions={inPlayPredictions}
+                        filters={inPlayFilters}
+                        onFiltersChange={setInPlayFilters}
+                        loading={inPlayLoading}
+                        lastRefreshed={inPlayLastRefreshed}
+                        onOpenDrawer={(p) => openDrawer(p as unknown as RecentPrediction, [])}
+                    />
                 ) : (
                     <TabContent
                         activeTab={activeTab}
@@ -1112,8 +1184,162 @@ export default function LedgerPage() {
                 )}
 
                 {/* Affiliate CTA — renders nothing until Rakuten approval (href="#affiliate-pending") */}
-                <AffiliateCta platform="draftkings" context="ledger" className="mt-8" />
+                {topView !== "in-play" && (
+                    <AffiliateCta platform="draftkings" context="ledger" className="mt-8" />
+                )}
             </div>
+        </div>
+    );
+}
+
+// ---------------------------------------------------------------------------
+// In Play tab
+// ---------------------------------------------------------------------------
+
+function InPlayTab({
+    predictions,
+    filters,
+    onFiltersChange,
+    loading,
+    lastRefreshed,
+    onOpenDrawer,
+}: {
+    predictions: InPlayPrediction[];
+    filters: InPlayFilterState;
+    onFiltersChange: (f: InPlayFilterState) => void;
+    loading: boolean;
+    lastRefreshed: Date | null;
+    onOpenDrawer: (p: InPlayPrediction) => void;
+}) {
+    // Apply client-side filters
+    const filtered = predictions.filter((p) => {
+        if (filters.category && p.claim_category !== filters.category) return false;
+        if (filters.sport && p.sport.toUpperCase() !== filters.sport.toUpperCase()) return false;
+        if (
+            filters.punditQuery.trim() &&
+            !p.pundit_name.toLowerCase().includes(filters.punditQuery.toLowerCase())
+        )
+            return false;
+        // Resolution window bucket filter
+        if (filters.windowBucket !== "all") {
+            const w = deriveResolutionWindow({
+                claim_category: p.claim_category,
+                sport: p.sport,
+                season_year: p.season_year,
+                raw_assertion_text: p.raw_assertion_text,
+                target_team: p.target_team,
+            });
+            if (!windowMatchesBucket(w, filters.windowBucket)) return false;
+        }
+        return true;
+    });
+
+    // Client-side sort
+    const sorted = [...filtered].sort((a, b) => {
+        if (filters.sort === "pundit_accuracy") {
+            return (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0);
+        }
+        if (filters.sort === "most_recent") {
+            const aTs = a.source_published_at || a.ingestion_timestamp;
+            const bTs = b.source_published_at || b.ingestion_timestamp;
+            return new Date(bTs).getTime() - new Date(aTs).getTime();
+        }
+        // resolution_proximity (default): soonest first
+        const aW = deriveResolutionWindow({
+            claim_category: a.claim_category,
+            sport: a.sport,
+            season_year: a.season_year,
+            raw_assertion_text: a.raw_assertion_text,
+            target_team: a.target_team,
+        });
+        const bW = deriveResolutionWindow({
+            claim_category: b.claim_category,
+            sport: b.sport,
+            season_year: b.season_year,
+            raw_assertion_text: b.raw_assertion_text,
+            target_team: b.target_team,
+        });
+        return windowToSortDate(aW).getTime() - windowToSortDate(bW).getTime();
+    });
+
+    // Separate just-resolved from truly pending — just-resolved float to top
+    const justResolved = sorted.filter(
+        (p) => p.resolution_status === "CORRECT" || p.resolution_status === "INCORRECT"
+    );
+    const pending = sorted.filter(
+        (p) => !p.resolution_status || p.resolution_status === "PENDING"
+    );
+
+    return (
+        <div className="space-y-6">
+            <InPlayFilters
+                filters={filters}
+                onChange={onFiltersChange}
+                totalCount={predictions.length}
+            />
+
+            {loading ? (
+                <div className="flex items-center justify-center h-48 text-zinc-600">
+                    <Activity className="w-4 h-4 animate-pulse mr-2" />
+                    <span className="font-mono text-sm">Loading open picks…</span>
+                </div>
+            ) : sorted.length === 0 ? (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center">
+                    <p className="text-zinc-500 text-sm font-mono">
+                        {predictions.length === 0
+                            ? "No pending predictions found."
+                            : "No picks match your filters."}
+                    </p>
+                </div>
+            ) : (
+                <>
+                    {/* Just-resolved section */}
+                    {justResolved.length > 0 && (
+                        <div>
+                            <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
+                                Just Resolved
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {justResolved.map((p) => (
+                                    <InPlayCard
+                                        key={p.prediction_hash_short}
+                                        prediction={p}
+                                        onOpenDrawer={onOpenDrawer}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Pending picks */}
+                    {pending.length > 0 && (
+                        <div>
+                            {justResolved.length > 0 && (
+                                <h3 className="text-xs font-mono uppercase tracking-widest text-zinc-500 mb-3">
+                                    Open Picks
+                                </h3>
+                            )}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {pending.map((p) => (
+                                    <InPlayCard
+                                        key={p.prediction_hash_short}
+                                        prediction={p}
+                                        onOpenDrawer={onOpenDrawer}
+                                    />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {lastRefreshed && (
+                        <p className="text-[10px] font-mono text-zinc-700 text-center">
+                            Updated{" "}
+                            {Math.floor((Date.now() - lastRefreshed.getTime()) / 1000)}s ago
+                            {" · "}refreshes every 60s
+                        </p>
+                    )}
+                </>
+            )}
         </div>
     );
 }

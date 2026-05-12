@@ -32,6 +32,14 @@ jobs:
 
       - name: Build Project Artifacts
         working-directory: web
+        env:
+          # Clerk SDK validates publishableKey format at build time (v5.7+).
+          # This must be the real secret — production builds cannot use a placeholder.
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          # Stripe initialises at module load time in billing API routes; a non-empty
+          # placeholder allows `vercel build` to import those modules without throwing
+          # "Neither apiKey nor config.authenticator provided". Real key used at runtime.
+          STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || 'sk_test_placeholder_for_ci_build' }}
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy Project Artifacts to Vercel

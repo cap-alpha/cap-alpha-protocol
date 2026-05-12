@@ -61,6 +61,25 @@ run_git() {
 
 echo "==> git-rebase-safe: branch=$BRANCH worktree=$WORKTREE_PATH"
 
+# Auto-stash dirty working tree so rebase can proceed.
+# Covers both test artifacts (e.g. .coverage, tsconfig.tsbuildinfo) and staged
+# changes that would otherwise block git rebase.
+stashed=0
+if ! run_git diff --quiet || ! run_git diff --cached --quiet; then
+    echo "  [rebase-safe] dirty working tree detected — stashing..."
+    run_git stash push --include-untracked -m "auto-stash before rebase-safe (branch: $BRANCH)"
+    stashed=1
+fi
+
+# Ensure stash is always popped — even if the script exits with an error.
+_pop_stash() {
+    if [ "$stashed" -eq 1 ]; then
+        echo "  [rebase-safe] restoring stash..."
+        run_git stash pop || echo "  [rebase-safe] WARNING: stash pop failed — run 'git stash pop' manually in $WORKTREE_PATH" >&2
+    fi
+}
+trap _pop_stash EXIT
+
 # Step 1: Fetch the PR branch itself (not just main)
 echo "--> Step 1: Fetching origin/$BRANCH ..."
 run_git fetch origin "$BRANCH"

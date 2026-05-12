@@ -20,7 +20,7 @@ on:
 jobs:
   mobile-viewport:
     name: Run E2E Mobile Viewport Tests (Docker) [advisory]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     continue-on-error: true  # advisory — failures tracked but do not block merge
 
     steps:

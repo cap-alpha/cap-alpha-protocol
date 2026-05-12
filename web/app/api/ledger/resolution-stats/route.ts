@@ -6,15 +6,24 @@
  * to show overall CORRECT / INCORRECT / VOID breakdown.
  *
  * Cached for 1 hour — same policy as /api/quality.
+ *
+ * Issue: #884 — honeypot fields injected to fingerprint scrapers.
  */
 
 import { NextResponse } from "next/server";
 import { getPunditResolutionStats } from "@/app/actions";
+import { injectHoneypotFields } from "@/lib/anti-scraping";
 
 export async function GET() {
     try {
         const stats = await getPunditResolutionStats();
-        return NextResponse.json(stats, {
+
+        // Inject honeypot fields to fingerprint scrapers. Issue: #884
+        const responseBody = injectHoneypotFields(
+            stats as Record<string, unknown>
+        );
+
+        return NextResponse.json(responseBody, {
             headers: {
                 "Cache-Control":
                     "public, s-maxage=3600, stale-while-revalidate=86400",

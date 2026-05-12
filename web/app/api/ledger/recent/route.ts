@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import {
+    injectHoneypotFields,
+    enforcePaginationLimit,
+    logBlockedRequest,
+    LEDGER_MAX_LIMIT,
+} from "@/lib/anti-scraping";
 
 const API_URL =
     process.env.API_URL ||
@@ -8,10 +14,32 @@ const API_URL =
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 
-    // Guard against NaN from non-numeric limit values (parseInt("abc") → NaN;
-    // Math.min(NaN, 100) stays NaN and produces ?limit=NaN → FastAPI 422).
-    const rawLimit = parseInt(searchParams.get("limit") || "20", 10);
-    const limit = Math.min(Number.isFinite(rawLimit) ? rawLimit : 20, 100);
+    // Enforce pagination limit: reject requests asking for more than LEDGER_MAX_LIMIT rows.
+    // Issue: #884
+    const limitCheck = enforcePaginationLimit(
+        searchParams.get("limit"),
+        /* defaultLimit */ 20
+    );
+    if (!limitCheck.valid) {
+        const ip =
+            req.headers.get("x-real-ip") ??
+            req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+            "unknown";
+        logBlockedRequest({
+            timestamp: new Date().toISOString(),
+            ip,
+            user_agent: req.headers.get("user-agent") ?? "",
+            endpoint: "/api/ledger/recent",
+            block_reason: "limit_exceeded",
+        });
+        return NextResponse.json(
+            {
+                error: limitCheck.error,
+                max_limit: LEDGER_MAX_LIMIT,
+            },
+            { status: 400 }
+        );
+    }
 
     const backendUrl = new URL(`${API_URL}/v1/predictions/recent`);
     // Forward all incoming query params to backend, then override limit
@@ -20,7 +48,7 @@ export async function GET(req: Request) {
             backendUrl.searchParams.set(key, value);
         }
     });
-    backendUrl.searchParams.set("limit", String(limit));
+    backendUrl.searchParams.set("limit", String(limitCheck.limit));
     // Remove ALL sentinel so backend receives no sport filter
     if (backendUrl.searchParams.get("sport") === "ALL") {
         backendUrl.searchParams.delete("sport");
@@ -39,7 +67,13 @@ export async function GET(req: Request) {
         }
 
         const data = await res.json();
-        return NextResponse.json({ predictions: data.predictions || [] });
+
+        // Inject honeypot fields at the top level to fingerprint scrapers.
+        // Issue: #884
+        const responseBody = injectHoneypotFields({
+            predictions: data.predictions || [],
+        });
+        return NextResponse.json(responseBody);
     } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error("[Ledger Recent API] Backend fetch error:", {

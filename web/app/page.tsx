@@ -45,7 +45,8 @@ export default function LandingPage() {
             {/* ── Live Leaderboard Preview ── (immediately below hero, no scroll on desktop) */}
             <section className="w-full px-6 pb-16">
                 <div className="max-w-2xl mx-auto">
-                    <PunditLeaderboardPreview />
+                    {/* sport prop drives the API filter; topic switcher (#774) will override at runtime */}
+                    <PunditLeaderboardPreview sport="NFL" />
                 </div>
             </section>
 

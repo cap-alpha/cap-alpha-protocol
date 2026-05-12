@@ -1,19 +1,23 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { checkIpRateLimit, buildRateLimitHeaders } from "@/lib/rate-limit";
+import {
+    checkIpRateLimit,
+    checkLedgerIpRateLimit,
+    checkBotIpRateLimit,
+    buildRateLimitHeaders,
+} from "@/lib/rate-limit";
+import { isBotUserAgent, logBlockedRequest } from "@/lib/anti-scraping";
 
 /**
- * Public API routes that are rate-limited per source IP.
+ * /api/ledger/* prefixes are subject to the tighter 10 req/min ledger limit
+ * (or 1 req/min for detected bots). All other public-data routes use the
+ * broader 100 req/min anonymous limit.
  *
- * These routes return publicly readable data with no auth requirement.
- * Without rate limiting they could be scraped aggressively.
- *
- * Limit: 100 req/min per IP (same as free authenticated tier).
- * Fail-open when Upstash env vars are absent (dev / pre-provisioned envs).
- *
- * Issue: #478
+ * Issue: #884 (anti-scraping hardening)
+ * Issue: #478 (original anonymous rate limit)
  */
-const PUBLIC_RATE_LIMITED_PREFIXES = [
-    "/api/ledger/",
+const LEDGER_PREFIXES = ["/api/ledger/"];
+
+const OTHER_RATE_LIMITED_PREFIXES = [
     "/api/draft/",
     "/api/search-index",
     "/api/misses",
@@ -21,8 +25,12 @@ const PUBLIC_RATE_LIMITED_PREFIXES = [
     "/api/personalization",
 ];
 
-function isPublicRateLimited(pathname: string): boolean {
-    return PUBLIC_RATE_LIMITED_PREFIXES.some((prefix) =>
+function isLedgerRoute(pathname: string): boolean {
+    return LEDGER_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
+function isOtherRateLimited(pathname: string): boolean {
+    return OTHER_RATE_LIMITED_PREFIXES.some((prefix) =>
         pathname.startsWith(prefix)
     );
 }
@@ -43,9 +51,65 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set("x-forwarded-proto", "https");
 
     const { pathname } = request.nextUrl;
+    const ip = getClientIp(request);
+    const userAgent = request.headers.get("user-agent") ?? "";
+    const isBot = isBotUserAgent(userAgent);
 
-    if (isPublicRateLimited(pathname)) {
-        const ip = getClientIp(request);
+    // ------------------------------------------------------------------
+    // Ledger routes: tighter limits + bot fingerprinting
+    // ------------------------------------------------------------------
+    if (isLedgerRoute(pathname)) {
+        let result;
+
+        if (isBot) {
+            // Bot traffic: 1 req/min
+            result = await checkBotIpRateLimit(ip);
+        } else {
+            // Human traffic: 10 req/min on ledger endpoints
+            result = await checkLedgerIpRateLimit(ip);
+        }
+
+        const rlHeaders = buildRateLimitHeaders(result);
+
+        if (!result.success) {
+            logBlockedRequest({
+                timestamp: new Date().toISOString(),
+                ip,
+                user_agent: userAgent,
+                endpoint: pathname,
+                block_reason: isBot ? "bot_rate_limited" : "rate_limited",
+            });
+
+            return NextResponse.json(
+                {
+                    error: "Too many requests. Please slow down.",
+                    retryAfter: result.retryAfter,
+                },
+                {
+                    status: 429,
+                    headers: {
+                        ...rlHeaders,
+                        "Content-Type": "application/json",
+                    },
+                }
+            );
+        }
+
+        // Allowed — forward rate-limit headers so clients can self-throttle.
+        const response = NextResponse.next({
+            request: { headers: requestHeaders },
+        });
+        const rlHeadersRecord = rlHeaders as Record<string, string>;
+        for (const [key, value] of Object.entries(rlHeadersRecord)) {
+            response.headers.set(key, value);
+        }
+        return response;
+    }
+
+    // ------------------------------------------------------------------
+    // Other public routes: standard 100 req/min anonymous limit
+    // ------------------------------------------------------------------
+    if (isOtherRateLimited(pathname)) {
         const result = await checkIpRateLimit(ip);
         const rlHeaders = buildRateLimitHeaders(result);
 

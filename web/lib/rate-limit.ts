@@ -40,11 +40,27 @@ export const TIER_RATE_LIMITS: Record<Tier, number> = {
  */
 export const ANONYMOUS_RATE_LIMIT = 100;
 
+/**
+ * Tighter per-minute limit for /api/ledger/* endpoints specifically.
+ * 10 req/min per IP — deters bulk scraping while allowing normal human browsing.
+ * Issue: #884
+ */
+export const LEDGER_RATE_LIMIT = 10;
+
+/**
+ * Stricter per-minute limit for detected bot/crawler User-Agents.
+ * 1 req/min per IP — effectively throttles automated scrapers to a crawl.
+ * Issue: #884
+ */
+export const BOT_RATE_LIMIT = 1;
+
 // Module-level cache — only populated when UPSTASH env vars are present.
 // Re-checked on every call when env vars are absent (fail-open path).
 let _redis: Redis | null = null;
 const _limiters = new Map<Tier, Ratelimit>();
 let _ipLimiter: Ratelimit | null = null;
+let _ledgerLimiter: Ratelimit | null = null;
+let _botLimiter: Ratelimit | null = null;
 
 function getRedis(): Redis | null {
     if (_redis !== null) return _redis;
@@ -92,6 +108,46 @@ function getIpLimiter(): Ratelimit | null {
     });
 
     return _ipLimiter;
+}
+
+/**
+ * Returns the tighter Ratelimit instance for /api/ledger/* routes (10 req/min).
+ * Issue: #884
+ */
+function getLedgerLimiter(): Ratelimit | null {
+    const redis = getRedis();
+    if (!redis) return null;
+
+    if (_ledgerLimiter) return _ledgerLimiter;
+
+    _ledgerLimiter = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(LEDGER_RATE_LIMIT, "60 s"),
+        prefix: "rl:ledger_ip",
+        analytics: true,
+    });
+
+    return _ledgerLimiter;
+}
+
+/**
+ * Returns the strictest Ratelimit instance for detected bot User-Agents (1 req/min).
+ * Issue: #884
+ */
+function getBotLimiter(): Ratelimit | null {
+    const redis = getRedis();
+    if (!redis) return null;
+
+    if (_botLimiter) return _botLimiter;
+
+    _botLimiter = new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(BOT_RATE_LIMIT, "60 s"),
+        prefix: "rl:bot_ip",
+        analytics: true,
+    });
+
+    return _botLimiter;
 }
 
 /**
@@ -158,6 +214,80 @@ export async function checkIpRateLimit(ip: string): Promise<RateLimitResult> {
     // Normalize IP to avoid key collisions (strip IPv6 brackets, etc.)
     const key = ip.replace(/[[\]]/g, "").split(",")[0].trim() || "unknown";
 
+    const result = await limiter.limit(key);
+    const resetSeconds = Math.floor(result.reset / 1000);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    return {
+        success: result.success,
+        limit: result.limit,
+        remaining: result.remaining,
+        reset: resetSeconds,
+        ...(result.success
+            ? {}
+            : { retryAfter: Math.max(0, resetSeconds - nowSeconds) }),
+    };
+}
+
+/**
+ * Check the rate limit for a ledger-route anonymous caller by IP (10 req/min).
+ *
+ * Used in middleware to protect /api/ledger/* from bulk scraping.
+ * Fail-open when Upstash is not configured.
+ *
+ * @param ip - The caller's IP address.
+ * Issue: #884
+ */
+export async function checkLedgerIpRateLimit(ip: string): Promise<RateLimitResult> {
+    const limiter = getLedgerLimiter();
+
+    if (!limiter) {
+        return {
+            success: true,
+            limit: LEDGER_RATE_LIMIT,
+            remaining: LEDGER_RATE_LIMIT,
+            reset: Math.floor(Date.now() / 1000) + 60,
+        };
+    }
+
+    const key = ip.replace(/[[\]]/g, "").split(",")[0].trim() || "unknown";
+    const result = await limiter.limit(key);
+    const resetSeconds = Math.floor(result.reset / 1000);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+
+    return {
+        success: result.success,
+        limit: result.limit,
+        remaining: result.remaining,
+        reset: resetSeconds,
+        ...(result.success
+            ? {}
+            : { retryAfter: Math.max(0, resetSeconds - nowSeconds) }),
+    };
+}
+
+/**
+ * Check the rate limit for a detected bot/crawler caller by IP (1 req/min).
+ *
+ * Applied when User-Agent fingerprinting identifies a bot.
+ * Fail-open when Upstash is not configured.
+ *
+ * @param ip - The caller's IP address.
+ * Issue: #884
+ */
+export async function checkBotIpRateLimit(ip: string): Promise<RateLimitResult> {
+    const limiter = getBotLimiter();
+
+    if (!limiter) {
+        return {
+            success: true,
+            limit: BOT_RATE_LIMIT,
+            remaining: BOT_RATE_LIMIT,
+            reset: Math.floor(Date.now() / 1000) + 60,
+        };
+    }
+
+    const key = ip.replace(/[[\]]/g, "").split(",")[0].trim() || "unknown";
     const result = await limiter.limit(key);
     const resetSeconds = Math.floor(result.reset / 1000);
     const nowSeconds = Math.floor(Date.now() / 1000);

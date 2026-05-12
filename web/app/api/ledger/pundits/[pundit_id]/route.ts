@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { injectHoneypotFields } from "@/lib/anti-scraping";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
@@ -20,8 +21,11 @@ export async function GET(
             return NextResponse.json({ error: "Backend error" }, { status: 502 });
         }
 
-        const data = await res.json();
-        return NextResponse.json(data);
+        const data = await res.json() as Record<string, unknown>;
+
+        // Inject honeypot fields to fingerprint scrapers. Issue: #884
+        const responseBody = injectHoneypotFields(data);
+        return NextResponse.json(responseBody);
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error("[Pundit API] Fetch error:", msg);

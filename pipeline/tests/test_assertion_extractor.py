@@ -2973,7 +2973,13 @@ class TestWriteSilverV2ClaimsUnit:
         assert captured == []  # no BQ write for zero rows
 
     def test_promotable_utterance_writes_claim_row(self):
-        """One promotable assertion must produce one claim row with correct fields."""
+        """One promotable assertion must produce one claim row with correct fields.
+
+        Phase 3 (#920): write_silver_v2_claims now also writes claim_state_history
+        (and optionally claim_entity_link) after the main claim write.  The first
+        captured DataFrame is always the claim table write; subsequent writes are
+        the Phase-3 satellite tables.
+        """
         import datetime as dt
 
         from src.assertion_extractor import write_silver_v2_claims
@@ -2997,7 +3003,11 @@ class TestWriteSilverV2ClaimsUnit:
         )
 
         assert count == 1
-        assert len(captured) == 1
+        # At least one write must have occurred (claim table).
+        # Phase 3 may also write claim_state_history (and claim_entity_link when
+        # entity mentions are present), so len(captured) >= 1.
+        assert len(captured) >= 1
+        # The first captured DataFrame is always the claim table write.
         df = captured[0]
         row = df.iloc[0]
 

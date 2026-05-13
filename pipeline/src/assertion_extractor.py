@@ -1636,7 +1636,7 @@ def _ensure_placeholder_entity(
         if is_duckdb:
             db.execute(
                 """
-                MERGE silver_v2_core.entity AS target
+                MERGE INTO silver_v2_core.entity AS target
                 USING (SELECT $entity_id AS entity_id) AS source
                 ON target.entity_id = source.entity_id
                 WHEN NOT MATCHED THEN
@@ -1701,7 +1701,7 @@ def _write_entity_resolution_queue(
         if is_duckdb:
             db.execute(
                 """
-                MERGE silver_v2_claims.entity_resolution_queue AS target
+                MERGE INTO silver_v2_claims.entity_resolution_queue AS target
                 USING (SELECT $placeholder_entity_id AS placeholder_entity_id) AS source
                 ON target.placeholder_entity_id = source.placeholder_entity_id
                    AND target.status = 'PENDING'

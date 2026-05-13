@@ -137,7 +137,6 @@ export async function createCheckout({
         );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const json = (await res.json()) as { data: { attributes: { url: string } } };
     const url = json?.data?.attributes?.url;
 

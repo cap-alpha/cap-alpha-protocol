@@ -21,18 +21,12 @@ const nextConfig = {
         }
         return config;
     },
-    typescript: {
-        ignoreBuildErrors: true,
-    },
-    eslint: {
-        ignoreDuringBuilds: true,
-    },
     async headers() {
         // Content-Security-Policy:
         //   - default-src 'self'                      block unlisted origins by default
         //   - script-src: Clerk (auth UI), Stripe (checkout), Sentry replay SDK
         //   - style-src: 'unsafe-inline' required by Clerk/Tailwind CSS-in-JS
-        //   - font-src: Google Fonts static assets
+        //   - font-src: self only (fonts self-hosted via next/font)
         //   - connect-src: API backend, Clerk API, Sentry ingest, Stripe API
         //   - img-src: ESPN logos (remotePatterns), Clerk avatar CDN, data URIs
         //   - frame-src: Stripe 3DS/checkout iframes
@@ -43,8 +37,8 @@ const nextConfig = {
             "script-src 'self' 'unsafe-inline' https://clerk.cap-alpha.co https://*.clerk.accounts.dev https://js.stripe.com https://browser.sentry-cdn.com https://js.sentry-cdn.com https://*.sentry.io",
             // Styles — Tailwind + Clerk require inline styles at runtime
             "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-            // Fonts — Google Fonts static files
-            "font-src 'self' https://fonts.gstatic.com",
+            // Fonts — self-hosted via next/font (no external font CDN needed)
+            "font-src 'self'",
             // Connections — API backend, Clerk, Sentry ingest, Stripe
             "connect-src 'self' https://clerk.cap-alpha.co https://*.clerk.accounts.dev https://api.clerk.dev https://*.ingest.sentry.io https://*.ingest.us.sentry.io https://api.stripe.com https://generativelanguage.googleapis.com https://pundit-ledger-api-wvhvx2muna-uc.a.run.app",
             // Images — ESPN team logos, Clerk user avatars, data URIs for OG images

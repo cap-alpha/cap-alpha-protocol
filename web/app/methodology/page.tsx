@@ -1416,50 +1416,6 @@ export default function MethodologyPage() {
                 </div>
             </section>
 
-            {/* In-page footer — anchor jumps to the new public-adjudication sections (#830) */}
-            <footer className="border-t border-zinc-900 px-6 py-8 mt-auto">
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
-                    <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
-                        Pundit Ledger
-                    </span>
-                    <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2">
-                        <Link
-                            href="#claim-taxonomy"
-                            className="hover:text-zinc-400 transition-colors"
-                        >
-                            Claim taxonomy
-                        </Link>
-                        <Link
-                            href="#scoring-formula"
-                            className="hover:text-zinc-400 transition-colors"
-                        >
-                            Scoring formula
-                        </Link>
-                        <Link
-                            href="#void-criteria"
-                            className="hover:text-zinc-400 transition-colors"
-                        >
-                            VOID criteria
-                        </Link>
-                        <Link
-                            href="/ledger"
-                            className="hover:text-zinc-400 transition-colors"
-                        >
-                            Leaderboard
-                        </Link>
-                        <Link
-                            href="/legal/terms"
-                            className="hover:text-zinc-400 transition-colors"
-                        >
-                            Terms
-                        </Link>
-                    </div>
-                    <span>
-                        &copy; {new Date().getFullYear()} Pundit Ledger. All
-                        predictions verified.
-                    </span>
-                </div>
-            </footer>
         </div>
     );
 }

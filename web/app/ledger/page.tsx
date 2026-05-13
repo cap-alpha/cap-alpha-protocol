@@ -1974,8 +1974,6 @@ function PredictionGroupRow({
     );
 }
 
-// Expose SemanticClusterSection for use in RecentTab — add grouped view
-// NOTE: The RecentTab currently renders flat PredictionGroupRows. We expose
-// the cluster section here for the explicit grouping headers feature. The RecentTab
-// itself uses the flat layout; callers can switch to SemanticClusterSection.
-export { SemanticClusterSection, buildSemanticClusters };
+// SemanticClusterSection and buildSemanticClusters are local helpers used
+// within this file only (not exported — Next.js page files only allow
+// default export, generateMetadata, generateStaticParams, etc.).

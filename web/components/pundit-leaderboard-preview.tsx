@@ -136,16 +136,53 @@ interface PunditLeaderboardPreviewProps {
      * Defaults to "NFL" per issue #883 (topic-agnostic leaderboard with NFL as primary).
      */
     sport?: string;
+    /**
+     * Pre-fetched pundit data from the server component (SSR).
+     * When provided, the component renders immediately without a loading spinner
+     * on first contentful paint.  The useEffect re-fetches only when the user
+     * switches the sport filter tab.
+     */
+    initialPundits?: Record<string, unknown>[];
 }
 
-export function PunditLeaderboardPreview({ sport: sportProp = "NFL" }: PunditLeaderboardPreviewProps) {
-    const [activeSport, setActiveSport] = useState<Sport>(
-        SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "NFL"
+/** Normalise the raw backend/SSR record into a typed PunditStat. */
+function toPunditStat(p: Record<string, unknown>): PunditStat {
+    return p as unknown as PunditStat;
+}
+
+/** Filter + sort helper — shared between SSR seed and client refetch paths. */
+function processRawPundits(raw: PunditStat[]): PunditStat[] {
+    const filtered = raw.filter(
+        (p) => p.resolved_predictions >= 5 && p.accuracy_rate !== null
     );
-    const [pundits, setPundits] = useState<PunditStat[]>([]);
-    const [loading, setLoading] = useState(true);
+    filtered.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
+    return filtered.slice(0, 10);
+}
+
+export function PunditLeaderboardPreview({
+    sport: sportProp = "NFL",
+    initialPundits,
+}: PunditLeaderboardPreviewProps) {
+    const defaultSport: Sport = SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "NFL";
+    const [activeSport, setActiveSport] = useState<Sport>(defaultSport);
+
+    // Seed from SSR data when available so the first render is not empty.
+    const seedPundits = initialPundits
+        ? processRawPundits(initialPundits.map(toPunditStat))
+        : [];
+    const [pundits, setPundits] = useState<PunditStat[]>(seedPundits);
+
+    // Loading is only true on initial render when no SSR data was provided,
+    // or during a client-side sport-filter switch.
+    const [loading, setLoading] = useState(seedPundits.length === 0);
 
     useEffect(() => {
+        // Skip the initial client fetch for the default sport when SSR data was
+        // provided — the page already rendered with real data.  Re-fetch only
+        // when the user switches to a different sport tab.
+        if (activeSport === defaultSport && seedPundits.length > 0) {
+            return;
+        }
         setLoading(true);
         const params = new URLSearchParams({ limit: "20", sort: "accuracy" });
         if (activeSport !== "ALL") {
@@ -160,18 +197,14 @@ export function PunditLeaderboardPreview({ sport: sportProp = "NFL" }: PunditLea
                 return r.json();
             })
             .then((data) => {
-                const all: PunditStat[] = (data.pundits || []).filter(
-                    (p: PunditStat) => p.resolved_predictions >= 5 && p.accuracy_rate !== null
-                );
-                // Sort by accuracy desc
-                all.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
-                // Top 10 for table; featured card requires >= 20 resolved picks
-                setPundits(all.slice(0, 10));
+                const all: PunditStat[] = (data.pundits || []).map(toPunditStat);
+                setPundits(processRawPundits(all));
             })
             .catch((err) => {
                 console.error("[Leaderboard] Fetch error:", err);
             })
             .finally(() => setLoading(false));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeSport]);
 
     /**

@@ -35,7 +35,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryParameter
 
 from api.api_key_auth import verify_api_key
-from src.db_manager import DBManager
+from src.db_manager import DBManager, get_db_manager
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +60,12 @@ def _full(table: str) -> str:
 
 
 def get_db() -> DBManager:
-    """FastAPI dependency — yields a DBManager, closes on teardown."""
-    db = DBManager()
+    """FastAPI dependency — yields a DBManager, closes on teardown.
+
+    Respects DB_BACKEND env var: "duckdb" returns a DuckDBManager for local
+    development when BigQuery billing is unavailable.  Default is BigQuery.
+    """
+    db = get_db_manager()
     try:
         yield db
     finally:

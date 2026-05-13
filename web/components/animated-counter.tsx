@@ -1,13 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-    useMotionValue,
-    useSpring,
-    useTransform,
-    useReducedMotion,
-    motion,
-} from "framer-motion";
 
 export type AnimatedCounterProps = {
     value: number;
@@ -22,11 +15,10 @@ export type AnimatedCounterProps = {
  * AnimatedCounter
  *
  * Counts up from 0 (or a previous value) to `value` on mount / value change.
- * Respects `prefers-reduced-motion` — renders the final value immediately when
- * the user has opted in to reduced motion.
+ * Respects `prefers-reduced-motion` — renders the final value immediately.
  *
- * Only animates `opacity` and the numeric text value (no layout-triggering
- * properties). Spring physics are tuned to complete within `duration` ms at 60fps.
+ * Pure RAF/easing implementation — no framer-motion dependency.
+ * Only animates the numeric text value (no layout-triggering properties).
  */
 export function AnimatedCounter({
     value,
@@ -36,46 +28,63 @@ export function AnimatedCounter({
     duration = 1000,
     className,
 }: AnimatedCounterProps) {
-    const shouldReduceMotion = useReducedMotion();
-    const motionVal = useMotionValue(0);
-
-    // Stiffness/damping tuned so spring settles near `duration` ms.
-    // Higher stiffness → faster; higher damping → less overshoot.
-    const stiffness = Math.round(100 * (1000 / duration));
-    const spring = useSpring(motionVal, { stiffness, damping: 30, mass: 1 });
-
-    const display = useTransform(spring, (latest) => {
-        const formatted = latest.toFixed(decimals);
-        return `${prefix}${formatted}${suffix}`;
-    });
-
-    // Track string value for SSR / non-motion path
     const [displayStr, setDisplayStr] = useState(
         `${prefix}${value.toFixed(decimals)}${suffix}`
     );
+    const [opacity, setOpacity] = useState(0.5);
 
     const inViewRef = useRef(false);
     const containerRef = useRef<HTMLSpanElement | null>(null);
+    const rafRef = useRef<number | null>(null);
+    const prefersReducedMotion = useRef(false);
 
+    // Detect reduced-motion preference (client-side only)
     useEffect(() => {
-        if (shouldReduceMotion) {
-            setDisplayStr(`${prefix}${value.toFixed(decimals)}${suffix}`);
+        const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+        prefersReducedMotion.current = mq.matches;
+    }, []);
+
+    function runAnimation(toValue: number) {
+        if (prefersReducedMotion.current) {
+            setDisplayStr(`${prefix}${toValue.toFixed(decimals)}${suffix}`);
+            setOpacity(1);
             return;
         }
 
-        const unsubscribe = display.on("change", (v) => setDisplayStr(v));
+        const startTime = performance.now();
 
-        // Trigger when in view via IntersectionObserver
+        function tick(now: number) {
+            const elapsed = now - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // ease-out cubic
+            const eased = 1 - Math.pow(1 - progress, 3);
+            const current = toValue * eased;
+            setDisplayStr(`${prefix}${current.toFixed(decimals)}${suffix}`);
+            setOpacity(0.5 + 0.5 * eased);
+
+            if (progress < 1) {
+                rafRef.current = requestAnimationFrame(tick);
+            }
+        }
+
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(tick);
+    }
+
+    useEffect(() => {
+        // Show final value immediately for SSR / non-visible state
+        setDisplayStr(`${prefix}${value.toFixed(decimals)}${suffix}`);
+
+        if (typeof window === "undefined") return;
+
         const el = containerRef.current;
-        if (!el) return () => unsubscribe();
+        if (!el) return;
 
         const observer = new IntersectionObserver(
             (entries) => {
                 if (entries[0].isIntersecting && !inViewRef.current) {
                     inViewRef.current = true;
-                    motionVal.set(0);
-                    spring.set(0);
-                    motionVal.set(value);
+                    runAnimation(value);
                 }
             },
             { threshold: 0.2 }
@@ -84,33 +93,26 @@ export function AnimatedCounter({
 
         return () => {
             observer.disconnect();
-            unsubscribe();
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [value, shouldReduceMotion, decimals, prefix, suffix]);
+    }, [value, decimals, prefix, suffix]);
 
     // When value changes after initial mount, animate to new value
     useEffect(() => {
-        if (shouldReduceMotion) {
-            setDisplayStr(`${prefix}${value.toFixed(decimals)}${suffix}`);
-            return;
-        }
         if (inViewRef.current) {
-            motionVal.set(value);
+            runAnimation(value);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value]);
 
     return (
-        <motion.span
+        <span
             ref={containerRef}
             className={className}
-            // Fade in when the counter starts (opacity only — no layout recalc)
-            initial={{ opacity: 0.5 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.3 }}
+            style={{ opacity, transition: "opacity 0.3s" }}
         >
             {displayStr}
-        </motion.span>
+        </span>
     );
 }

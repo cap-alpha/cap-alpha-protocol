@@ -56,11 +56,11 @@ const Footer = () => {
                         <Link href="/legal/corrections" className="hover:text-white transition-colors">Corrections</Link>
                         <Link href="/status" className="hover:text-slate-300 transition-colors">Status</Link>
                     </div>
-                    <div className="flex items-center space-x-2 text-slate-400 text-xs">
+                    <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-slate-400 text-xs">
                         <span>&copy; {new Date().getFullYear()} Andrew Smith</span>
-                        <span className="h-1 w-1 bg-slate-600 rounded-full"></span>
+                        <span className="h-1 w-1 bg-slate-600 rounded-full" aria-hidden="true"></span>
                         <span>All Rights Reserved</span>
-                        <span className="h-1 w-1 bg-slate-600 rounded-full"></span>
+                        <span className="h-1 w-1 bg-slate-600 rounded-full" aria-hidden="true"></span>
                         <a
                             href={`https://github.com/ucalegon206/cap-alpha-protocol/commit/${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
                             target="_blank"
@@ -70,7 +70,6 @@ const Footer = () => {
                             v{process.env.NEXT_PUBLIC_COMMIT_SHA?.substring(0, 7) || 'local'}
                             <span className="sr-only"> — View source commit on GitHub</span>
                         </a>
-                        <span className="h-1 w-1 bg-slate-700 rounded-full mx-2 hidden sm:inline-block"></span>
                         <DebugReset />
                     </div>
                 </div>

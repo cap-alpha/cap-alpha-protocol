@@ -76,6 +76,7 @@
 
   body {
     @apply bg-canvas text-foreground;
+    overflow-x: hidden; /* prevent horizontal scroll on narrow viewports */
   }
 }
 

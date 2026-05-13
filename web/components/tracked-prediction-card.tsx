@@ -65,8 +65,8 @@ export function TrackedPredictionCard() {
                     Happened
                 </p>
                 <p className="text-sm text-zinc-200 leading-relaxed">{PREDICTION.happened}</p>
-                <p className="mt-2 text-xs text-zinc-500 font-mono">{PREDICTION.axesCaption}</p>
-                <p className="mt-1.5 text-[11px] text-zinc-600 leading-snug">
+                <p className="mt-2 text-xs text-emerald-400/80 font-mono">{PREDICTION.axesCaption}</p>
+                <p className="mt-2 text-xs text-zinc-400 leading-snug italic">
                     {PREDICTION.fairnessFootnote}
                 </p>
             </div>

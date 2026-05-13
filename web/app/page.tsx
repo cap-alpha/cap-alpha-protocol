@@ -2,6 +2,7 @@ import Link from "next/link";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { SignUpCta } from "@/components/sign-up-cta";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
+import { TrackedPredictionCard } from "@/components/tracked-prediction-card";
 import { fetchPunditsSSR } from "@/lib/ledger-server";
 
 // Pundit accuracy updates at most daily (new resolutions land overnight).
@@ -50,6 +51,16 @@ export default async function LandingPage() {
                             See the full ledger →
                         </Link>
                     </div>
+                </div>
+            </section>
+
+            {/* ── Tracked Prediction ── thesis demo above leaderboard */}
+            <section className="w-full px-6 pb-10">
+                <div className="max-w-2xl mx-auto space-y-3">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                        Tracked Prediction
+                    </p>
+                    <TrackedPredictionCard />
                 </div>
             </section>
 

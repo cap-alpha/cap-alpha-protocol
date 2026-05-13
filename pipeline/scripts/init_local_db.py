@@ -89,6 +89,7 @@ def _strip_options_clauses(sql: str) -> str:
     return "".join(result)
 
 
+
 def translate_ddl(sql: str, project_id: str = "local") -> str:
     """
     Translate BigQuery DDL to DuckDB-compatible DDL.

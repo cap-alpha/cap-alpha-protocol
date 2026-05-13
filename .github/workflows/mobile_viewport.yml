@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Playwright browsers (Chromium only)
         working-directory: web
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install chromium
 
       - name: Build Next.js app
         working-directory: web

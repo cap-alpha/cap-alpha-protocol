@@ -1551,33 +1551,57 @@ def _resolve_entity_id(
     - is_resolved=True  → found a real entity in silver_v2_core.entity
     - is_resolved=False → no match; caller must use placeholder + queue
 
-    The lookup is best-effort: on any BQ error the function returns
+    The lookup is best-effort: on any BQ/DuckDB error the function returns
     (placeholder_id, False) so extraction continues without interruption.
+
+    Supports both BigQuery (GCP_PROJECT_ID set) and DuckDB (DB_BACKEND=duckdb).
     """
     if not raw_name or not raw_name.strip():
         return "", False
 
+    if db is None:
+        return _placeholder_entity_id(raw_name), False
+
     project_id = os.environ.get("GCP_PROJECT_ID", "")
-    if not project_id or db is None:
+    is_duckdb = os.environ.get("DB_BACKEND", "bigquery").lower() == "duckdb"
+
+    if not project_id and not is_duckdb:
         return _placeholder_entity_id(raw_name), False
 
     norm = _normalize_entity_string(raw_name)
     try:
-        query = f"""
-            SELECT e.entity_id
-            FROM `{project_id}.silver_v2_core.entity_alias` ea
-            JOIN `{project_id}.silver_v2_core.entity` e USING (entity_id)
-            WHERE LOWER(ea.alias_text) = @norm_name
-            LIMIT 1
-        """
-        job_config = _bigquery.QueryJobConfig(
-            query_parameters=[
-                ScalarQueryParameter("norm_name", "STRING", norm),
-            ]
-        )
-        rows = list(db.client.query(query, job_config=job_config).result())
-        if rows:
-            return str(rows[0]["entity_id"]), True
+        if is_duckdb:
+            # DuckDB: use db.execute() with DuckDB-native parameter syntax
+            df = db.fetch_df(
+                """
+                SELECT e.entity_id
+                FROM silver_v2_core.entity_alias ea
+                JOIN silver_v2_core.entity e USING (entity_id)
+                WHERE LOWER(ea.alias_text) = $norm_name
+                LIMIT 1
+                """,
+                query_parameters=[
+                    ScalarQueryParameter("norm_name", "STRING", norm),
+                ],
+            )
+            if not df.empty:
+                return str(df.iloc[0]["entity_id"]), True
+        else:
+            query = f"""
+                SELECT e.entity_id
+                FROM `{project_id}.silver_v2_core.entity_alias` ea
+                JOIN `{project_id}.silver_v2_core.entity` e USING (entity_id)
+                WHERE LOWER(ea.alias_text) = @norm_name
+                LIMIT 1
+            """
+            job_config = _bigquery.QueryJobConfig(
+                query_parameters=[
+                    ScalarQueryParameter("norm_name", "STRING", norm),
+                ]
+            )
+            rows = list(db.client.query(query, job_config=job_config).result())
+            if rows:
+                return str(rows[0]["entity_id"]), True
     except Exception as exc:
         logger.debug(f"entity alias lookup failed for {raw_name!r}: {exc}")
 
@@ -1594,34 +1618,54 @@ def _ensure_placeholder_entity(
     Upsert a placeholder entity row in silver_v2_core.entity.
 
     Uses MERGE on entity_id so re-running the extractor is idempotent.
-    Non-fatal: any BQ error is logged and swallowed.
+    Non-fatal: any BQ/DuckDB error is logged and swallowed.
+
+    Supports both BigQuery (GCP_PROJECT_ID set) and DuckDB (DB_BACKEND=duckdb).
     """
-    project_id = os.environ.get("GCP_PROJECT_ID", "")
-    if not project_id or db is None:
+    if db is None:
         return
 
-    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    is_duckdb = os.environ.get("DB_BACKEND", "bigquery").lower() == "duckdb"
+
+    if not project_id and not is_duckdb:
+        return
+
+    notes = f"Placeholder for unresolved entity: {raw_name!r}"
     try:
-        query = f"""
-            MERGE `{project_id}.silver_v2_core.entity` AS target
-            USING (SELECT @entity_id AS entity_id) AS source
-            ON target.entity_id = source.entity_id
-            WHEN NOT MATCHED THEN
-              INSERT (entity_id, entity_kind, primary_domain, created_at, notes)
-              VALUES (@entity_id, 'unresolved', @domain, CURRENT_TIMESTAMP(), @notes)
-        """
-        job_config = _bigquery.QueryJobConfig(
-            query_parameters=[
-                ScalarQueryParameter("entity_id", "STRING", placeholder_entity_id),
-                ScalarQueryParameter("domain", "STRING", domain or ""),
-                ScalarQueryParameter(
-                    "notes",
-                    "STRING",
-                    f"Placeholder for unresolved entity: {raw_name!r}",
-                ),
-            ]
-        )
-        db.client.query(query, job_config=job_config).result()
+        if is_duckdb:
+            db.execute(
+                """
+                MERGE silver_v2_core.entity AS target
+                USING (SELECT $entity_id AS entity_id) AS source
+                ON target.entity_id = source.entity_id
+                WHEN NOT MATCHED THEN
+                  INSERT (entity_id, entity_kind, primary_domain, created_at, notes)
+                  VALUES ($entity_id, 'unresolved', $domain, current_timestamp, $notes)
+                """,
+                query_parameters=[
+                    ScalarQueryParameter("entity_id", "STRING", placeholder_entity_id),
+                    ScalarQueryParameter("domain", "STRING", domain or ""),
+                    ScalarQueryParameter("notes", "STRING", notes),
+                ],
+            )
+        else:
+            query = f"""
+                MERGE `{project_id}.silver_v2_core.entity` AS target
+                USING (SELECT @entity_id AS entity_id) AS source
+                ON target.entity_id = source.entity_id
+                WHEN NOT MATCHED THEN
+                  INSERT (entity_id, entity_kind, primary_domain, created_at, notes)
+                  VALUES (@entity_id, 'unresolved', @domain, CURRENT_TIMESTAMP(), @notes)
+            """
+            job_config = _bigquery.QueryJobConfig(
+                query_parameters=[
+                    ScalarQueryParameter("entity_id", "STRING", placeholder_entity_id),
+                    ScalarQueryParameter("domain", "STRING", domain or ""),
+                    ScalarQueryParameter("notes", "STRING", notes),
+                ]
+            )
+            db.client.query(query, job_config=job_config).result()
     except Exception as exc:
         logger.warning(
             f"_ensure_placeholder_entity failed for {raw_name!r} "
@@ -1639,39 +1683,72 @@ def _write_entity_resolution_queue(
     Insert a row into silver_v2_claims.entity_resolution_queue for an
     unresolvable entity mention.  Idempotent via MERGE on placeholder_entity_id.
     Non-fatal.
+
+    Supports both BigQuery (GCP_PROJECT_ID set) and DuckDB (DB_BACKEND=duckdb).
     """
+    if db is None:
+        return
+
     project_id = os.environ.get("GCP_PROJECT_ID", "")
-    if not project_id or db is None:
+    is_duckdb = os.environ.get("DB_BACKEND", "bigquery").lower() == "duckdb"
+
+    if not project_id and not is_duckdb:
         return
 
     norm = _normalize_entity_string(raw_name)
     queue_id = str(uuid.uuid4())
     try:
-        query = f"""
-            MERGE `{project_id}.silver_v2_claims.entity_resolution_queue` AS target
-            USING (SELECT @placeholder_entity_id AS placeholder_entity_id) AS source
-            ON target.placeholder_entity_id = source.placeholder_entity_id
-               AND target.status = 'PENDING'
-            WHEN NOT MATCHED THEN
-              INSERT (queue_id, raw_entity_string, normalized_string, domain,
-                      placeholder_entity_id, first_seen_at, attempt_count,
-                      status, created_at)
-              VALUES (@queue_id, @raw_name, @norm, @domain,
-                      @placeholder_entity_id, CURRENT_TIMESTAMP(), 0,
-                      'PENDING', CURRENT_TIMESTAMP())
-        """
-        job_config = _bigquery.QueryJobConfig(
-            query_parameters=[
-                ScalarQueryParameter("queue_id", "STRING", queue_id),
-                ScalarQueryParameter("raw_name", "STRING", raw_name),
-                ScalarQueryParameter("norm", "STRING", norm),
-                ScalarQueryParameter("domain", "STRING", domain or ""),
-                ScalarQueryParameter(
-                    "placeholder_entity_id", "STRING", placeholder_entity_id
-                ),
-            ]
-        )
-        db.client.query(query, job_config=job_config).result()
+        if is_duckdb:
+            db.execute(
+                """
+                MERGE silver_v2_claims.entity_resolution_queue AS target
+                USING (SELECT $placeholder_entity_id AS placeholder_entity_id) AS source
+                ON target.placeholder_entity_id = source.placeholder_entity_id
+                   AND target.status = 'PENDING'
+                WHEN NOT MATCHED THEN
+                  INSERT (queue_id, raw_entity_string, normalized_string, domain,
+                          placeholder_entity_id, first_seen_at, attempt_count,
+                          status, created_at)
+                  VALUES ($queue_id, $raw_name, $norm, $domain,
+                          $placeholder_entity_id, current_timestamp, 0,
+                          'PENDING', current_timestamp)
+                """,
+                query_parameters=[
+                    ScalarQueryParameter("queue_id", "STRING", queue_id),
+                    ScalarQueryParameter("raw_name", "STRING", raw_name),
+                    ScalarQueryParameter("norm", "STRING", norm),
+                    ScalarQueryParameter("domain", "STRING", domain or ""),
+                    ScalarQueryParameter(
+                        "placeholder_entity_id", "STRING", placeholder_entity_id
+                    ),
+                ],
+            )
+        else:
+            query = f"""
+                MERGE `{project_id}.silver_v2_claims.entity_resolution_queue` AS target
+                USING (SELECT @placeholder_entity_id AS placeholder_entity_id) AS source
+                ON target.placeholder_entity_id = source.placeholder_entity_id
+                   AND target.status = 'PENDING'
+                WHEN NOT MATCHED THEN
+                  INSERT (queue_id, raw_entity_string, normalized_string, domain,
+                          placeholder_entity_id, first_seen_at, attempt_count,
+                          status, created_at)
+                  VALUES (@queue_id, @raw_name, @norm, @domain,
+                          @placeholder_entity_id, CURRENT_TIMESTAMP(), 0,
+                          'PENDING', CURRENT_TIMESTAMP())
+            """
+            job_config = _bigquery.QueryJobConfig(
+                query_parameters=[
+                    ScalarQueryParameter("queue_id", "STRING", queue_id),
+                    ScalarQueryParameter("raw_name", "STRING", raw_name),
+                    ScalarQueryParameter("norm", "STRING", norm),
+                    ScalarQueryParameter("domain", "STRING", domain or ""),
+                    ScalarQueryParameter(
+                        "placeholder_entity_id", "STRING", placeholder_entity_id
+                    ),
+                ]
+            )
+            db.client.query(query, job_config=job_config).result()
     except Exception as exc:
         logger.warning(f"_write_entity_resolution_queue failed for {raw_name!r}: {exc}")
 
@@ -1698,8 +1775,13 @@ def write_claim_entity_links(
     Returns the list of link row dicts that were written (may be empty).
     Non-fatal: BQ write errors are logged but do not raise.
     """
+    if db is None:
+        return []
+
     project_id = os.environ.get("GCP_PROJECT_ID", "")
-    if not project_id or db is None:
+    is_duckdb = os.environ.get("DB_BACKEND", "bigquery").lower() == "duckdb"
+
+    if not project_id and not is_duckdb:
         return []
 
     now = datetime.now(timezone.utc)
@@ -1781,7 +1863,11 @@ def write_claim_entity_links(
     for ts_col in ("created_at",):
         df[ts_col] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
 
-    table_ref = f"{project_id}.silver_v2_claims.claim_entity_link"
+    # table_ref: "project.dataset.table" for BQ, "dataset.table" for DuckDB
+    if is_duckdb:
+        table_ref = "silver_v2_claims.claim_entity_link"
+    else:
+        table_ref = f"{project_id}.silver_v2_claims.claim_entity_link"
     try:
         job_config = __import__(
             "google.cloud.bigquery", fromlist=["LoadJobConfig"]
@@ -1799,7 +1885,7 @@ def write_claim_entity_links(
         )
     except Exception as exc:
         logger.error(
-            f"BQ write failed for silver_v2_claims.claim_entity_link "
+            f"write failed for silver_v2_claims.claim_entity_link "
             f"(claim_id={claim_id}): {exc}",
             exc_info=True,
         )
@@ -1819,9 +1905,16 @@ def write_claim_state_history(
 
     Returns True if the row was written, False on error.
     Non-fatal: errors are logged but do not propagate.
+
+    Supports both BigQuery (GCP_PROJECT_ID set) and DuckDB (DB_BACKEND=duckdb).
     """
+    if db is None:
+        return False
+
     project_id = os.environ.get("GCP_PROJECT_ID", "")
-    if not project_id or db is None:
+    is_duckdb = os.environ.get("DB_BACKEND", "bigquery").lower() == "duckdb"
+
+    if not project_id and not is_duckdb:
         return False
 
     now = datetime.now(timezone.utc)
@@ -1845,7 +1938,11 @@ def write_claim_state_history(
     # effective_to is nullable TIMESTAMP
     df["effective_to"] = pd.to_datetime(df["effective_to"], utc=True, errors="coerce")
 
-    table_ref = f"{project_id}.silver_v2_claims.claim_state_history"
+    # table_ref: "project.dataset.table" for BQ, "dataset.table" for DuckDB
+    if is_duckdb:
+        table_ref = "silver_v2_claims.claim_state_history"
+    else:
+        table_ref = f"{project_id}.silver_v2_claims.claim_state_history"
     try:
         job_config = __import__(
             "google.cloud.bigquery", fromlist=["LoadJobConfig"]
@@ -1862,7 +1959,7 @@ def write_claim_state_history(
         return True
     except Exception as exc:
         logger.error(
-            f"BQ write failed for silver_v2_claims.claim_state_history "
+            f"write failed for silver_v2_claims.claim_state_history "
             f"(claim_id={claim_id}): {exc}",
             exc_info=True,
         )

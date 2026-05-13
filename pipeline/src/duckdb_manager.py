@@ -49,33 +49,98 @@ def _translate_bq_sql(sql: str) -> str:
     Translate BigQuery SQL dialect to DuckDB-compatible SQL.
 
     Handles:
-    - `project.dataset.table` backtick refs → dataset.table
-    - `dataset.table` backtick refs → dataset.table
+    - OPTIONS(...) clauses stripped
+    - PARTITION BY / CLUSTER BY DDL clauses stripped
+    - SAFE_CAST → TRY_CAST
+    - CURRENT_TIMESTAMP() → current_timestamp
+    - GENERATE_UUID() → gen_random_uuid()::VARCHAR
+    - BigQuery JSON type → VARCHAR
+    - BQ-only type keywords in DDL (STRING, INT64, FLOAT64, BOOL, ARRAY<T>)
+    - WHEN NOT MATCHED BY SOURCE → stripped (unsupported in DuckDB)
+    - `project.dataset.table` backtick refs → "dataset"."table"
+    - `dataset.table` backtick refs → "dataset"."table"
+    - single-part `identifier` → "identifier"
     - @param → $param named-parameter syntax
-    - BQ-only type keywords in DDL (STRING, INT64, FLOAT64, ARRAY<T>)
     """
-    # `project.dataset.table` — strip the project prefix, keep dataset.table
+    # Strip OPTIONS(...) — must go before other substitutions
+    sql = re.sub(r"\bOPTIONS\s*\([^)]*\)", "", sql, flags=re.IGNORECASE | re.DOTALL)
+
+    # Strip PARTITION BY ... clause at DDL level (up to next keyword or end)
     sql = re.sub(
-        r"`[^`]+\.([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)`",
-        r"\1.\2",
+        r"\bPARTITION\s+BY\s+[^\n,;()]+(?:\([^)]*\))?",
+        "",
+        sql,
+        flags=re.IGNORECASE,
+    )
+
+    # Strip CLUSTER BY ... clause
+    sql = re.sub(r"\bCLUSTER\s+BY\s+[^\n,;()]+", "", sql, flags=re.IGNORECASE)
+
+    # SAFE_CAST → TRY_CAST
+    sql = re.sub(r"\bSAFE_CAST\b", "TRY_CAST", sql, flags=re.IGNORECASE)
+
+    # CURRENT_TIMESTAMP() → current_timestamp
+    sql = re.sub(
+        r"\bCURRENT_TIMESTAMP\s*\(\s*\)",
+        "current_timestamp",
+        sql,
+        flags=re.IGNORECASE,
+    )
+
+    # GENERATE_UUID() → gen_random_uuid()::VARCHAR
+    sql = re.sub(
+        r"\bGENERATE_UUID\s*\(\s*\)",
+        "gen_random_uuid()::VARCHAR",
+        sql,
+        flags=re.IGNORECASE,
+    )
+
+    # BigQuery JSON type → VARCHAR (not JSON 'literal' strings)
+    sql = re.sub(r"\bJSON\b(?!\s*')", "VARCHAR", sql, flags=re.IGNORECASE)
+
+    # BQ DDL type aliases → DuckDB equivalents
+    # ARRAY<T> patterns must come before scalar type substitutions (e.g. ARRAY<STRING>
+    # must be replaced before STRING → VARCHAR fires, otherwise it becomes ARRAY<VARCHAR>).
+    # Note: no trailing \b after > since > is a non-word char and \b would not match.
+    sql = re.sub(r"\bARRAY<STRING>", "VARCHAR[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<VARCHAR>", "VARCHAR[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<FLOAT64>", "DOUBLE[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<DOUBLE>", "DOUBLE[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<INT64>", "BIGINT[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<BIGINT>", "BIGINT[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<BOOL>", "BOOLEAN[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bINT64\b", "BIGINT", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bFLOAT64\b", "DOUBLE", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bSTRING\b", "VARCHAR", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bBOOL\b", "BOOLEAN", sql, flags=re.IGNORECASE)
+
+    # WHEN NOT MATCHED BY SOURCE → unsupported in DuckDB — strip this clause
+    sql = re.sub(
+        r"\bWHEN\s+NOT\s+MATCHED\s+BY\s+SOURCE\b.*?(?=WHEN\b|;|$)",
+        "",
+        sql,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    # Backtick identifier translation (must happen after type substitutions)
+    # `project.dataset.table` → "dataset"."table"
+    sql = re.sub(
+        r"`([^`]+)\.([^`]+)\.([^`]+)`",
+        lambda m: f'"{m.group(2)}"."{m.group(3)}"',
         sql,
     )
-    # `dataset.table` with no project prefix
+    # `dataset.table` → "dataset"."table"
     sql = re.sub(
-        r"`([a-zA-Z_][a-zA-Z0-9_]*)\.([a-zA-Z_][a-zA-Z0-9_]*)`",
-        r"\1.\2",
+        r"`([^`]+)\.([^`]+)`",
+        lambda m: f'"{m.group(1)}"."{m.group(2)}"',
         sql,
     )
-    # Named parameter markers
+    # remaining single-part `identifier` → "identifier"
+    sql = re.sub(r"`([^`]+)`", lambda m: f'"{m.group(1)}"', sql)
+
+    # Named parameter markers (@param → $param for DuckDB named params)
     sql = re.sub(r"@(\w+)", r"$\1", sql)
-    # BQ DDL type aliases → DuckDB equivalents (word-boundary safe)
-    sql = re.sub(r"\bARRAY<STRING>\b", "VARCHAR[]", sql)
-    sql = re.sub(r"\bARRAY<FLOAT64>\b", "DOUBLE[]", sql)
-    sql = re.sub(r"\bARRAY<INT64>\b", "BIGINT[]", sql)
-    sql = re.sub(r"\bARRAY<BOOL>\b", "BOOLEAN[]", sql)
-    sql = re.sub(r"\bINT64\b", "BIGINT", sql)
-    sql = re.sub(r"\bFLOAT64\b", "DOUBLE", sql)
-    sql = re.sub(r"\bSTRING\b", "VARCHAR", sql)
+
     return sql
 
 
@@ -229,6 +294,17 @@ class DuckDBManager:
         self._db_path = db_path or os.environ.get("DUCKDB_PATH", _DEFAULT_DUCKDB_PATH)
         os.makedirs(os.path.dirname(self._db_path), exist_ok=True)
         self._conn = duckdb.connect(self._db_path, read_only=read_only)
+        # Create schemas before setting search_path (DuckDB requires schema to exist)
+        if not read_only:
+            for schema in (
+                "nfl_dead_money",
+                "gold_layer",
+                "silver_v2_claims",
+                "silver_v2_core",
+                "silver_v2_sports",
+                "monetization",
+            ):
+                self._conn.execute(f"CREATE SCHEMA IF NOT EXISTS {schema}")
         self._conn.execute(f"SET search_path = '{_DEFAULT_SCHEMA}'")
         self.client = _DuckDBClientProxy(self._conn)
         logger.info("DuckDBManager: connected to %s", self._db_path)

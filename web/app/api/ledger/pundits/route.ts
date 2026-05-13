@@ -18,6 +18,42 @@ function getBackendHeaders(): Record<string, string> {
         : { Accept: "application/json" };
 }
 
+/**
+ * Server-side helper for SSR — fetches top pundits directly from the backend
+ * without going through the anti-scraping proxy layer.  Used by app/page.tsx
+ * to populate `initialPundits` so the homepage renders real data on the first
+ * HTML response (no blank spinner on FCP).
+ *
+ * @param sport - sport filter ("nfl" | "nba" | "mlb") or undefined for all
+ * @param limit - maximum rows to return (default 20)
+ */
+export async function fetchPunditsSSR(
+    sport?: string,
+    limit = 20
+): Promise<Record<string, unknown>[]> {
+    try {
+        const backendUrl = new URL(`${API_URL}/v1/pundits/`);
+        backendUrl.searchParams.set("limit", String(limit));
+        backendUrl.searchParams.set("sort", "accuracy");
+        if (sport && sport !== "ALL") {
+            backendUrl.searchParams.set("sport", sport.toLowerCase());
+        }
+        const res = await fetch(backendUrl.toString(), {
+            headers: { Accept: "application/json" },
+            next: { revalidate: 300 }, // 5-minute ISR — matches page.tsx revalidate
+        });
+        if (!res.ok) {
+            console.error(`[fetchPunditsSSR] Backend returned ${res.status}`);
+            return [];
+        }
+        const data = await res.json();
+        return (data.pundits || []).map(normalizePundit);
+    } catch (err) {
+        console.error("[fetchPunditsSSR] Error:", err);
+        return [];
+    }
+}
+
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 

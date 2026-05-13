@@ -2,7 +2,7 @@ import Link from "next/link";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { SignUpCta } from "@/components/sign-up-cta";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
-import { fetchPunditsSSR } from "@/app/api/ledger/pundits/route";
+import { fetchPunditsSSR } from "@/lib/ledger-server";
 
 export const revalidate = 300; // 5-minute ISR
 

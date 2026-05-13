@@ -1013,9 +1013,9 @@ def _build_target_entity(utterance: dict, domain: str) -> Optional[str]:
                 {
                     "type": "team",
                     "abbrev": target_team,
-                    "sport": domain_lower.upper()
-                    if domain_lower != "sports"
-                    else "NFL",
+                    "sport": (
+                        domain_lower.upper() if domain_lower != "sports" else "NFL"
+                    ),
                 },
                 ensure_ascii=False,
             )
@@ -1104,9 +1104,11 @@ def write_raw_utterances(
         if rh is None:
             inferred = infer_resolution_horizon(
                 text_val,
-                uttered_at=uttered_at
-                if uttered_at.tzinfo
-                else uttered_at.replace(tzinfo=timezone.utc),
+                uttered_at=(
+                    uttered_at
+                    if uttered_at.tzinfo
+                    else uttered_at.replace(tzinfo=timezone.utc)
+                ),
             )
             if inferred:
                 rh = inferred
@@ -1347,6 +1349,9 @@ def write_silver_v2_claims(
 
     now = datetime.now(timezone.utc)
     rows = []
+    # Track (claim_id, original_utterance) pairs for Phase-3 writes.
+    # The utterance is needed by write_claim_entity_links().
+    claim_utterance_pairs: list[tuple[str, dict]] = []
 
     for u in utterances:
         if not _is_promotable(u, threshold):
@@ -1415,6 +1420,7 @@ def write_silver_v2_claims(
         this_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
         claim_id = str(uuid.uuid4())
+        claim_utterance_pairs.append((claim_id, u))
 
         rows.append(
             {
@@ -1481,7 +1487,386 @@ def write_silver_v2_claims(
         )
         raise
 
+    # -----------------------------------------------------------------------
+    # Phase 3 (#920) — write claim_entity_link + claim_state_history
+    # These writes are non-fatal: a failure logs an error but does not roll back
+    # the claim rows already written above.
+    # -----------------------------------------------------------------------
+    for claim_id, u in claim_utterance_pairs:
+        try:
+            write_claim_entity_links(claim_id, u, domain, db)
+        except Exception as exc:
+            logger.error(
+                f"write_claim_entity_links failed for claim {claim_id}: {exc}",
+                exc_info=True,
+            )
+        try:
+            write_claim_state_history(claim_id, db)
+        except Exception as exc:
+            logger.error(
+                f"write_claim_state_history failed for claim {claim_id}: {exc}",
+                exc_info=True,
+            )
+
     return len(rows)
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 (#920) — entity resolution + claim_entity_link + claim_state_history
+# ---------------------------------------------------------------------------
+
+# Placeholder entity prefix used when an entity mention cannot be resolved.
+# entity_id = "unresolved:{sha256_of_normalized_string}"
+_UNRESOLVED_ENTITY_PREFIX = "unresolved:"
+
+
+def _normalize_entity_string(raw: str) -> str:
+    """Lower-case, strip, and collapse whitespace for fuzzy matching."""
+    import unicodedata
+
+    nfd = unicodedata.normalize("NFD", raw or "")
+    ascii_str = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
+    return " ".join(ascii_str.lower().split())
+
+
+def _placeholder_entity_id(raw: str) -> str:
+    """
+    Build the placeholder entity_id for an unresolvable entity mention.
+    Format: 'unresolved:{sha256_of_normalized_raw_string[:16]}'
+    """
+    norm = _normalize_entity_string(raw)
+    h = hashlib.sha256(norm.encode("utf-8")).hexdigest()
+    return f"{_UNRESOLVED_ENTITY_PREFIX}{h}"
+
+
+def _resolve_entity_id(
+    raw_name: str,
+    domain: str,
+    db: "DBManager",
+) -> tuple[str, bool]:
+    """
+    Look up a raw entity name in silver_v2_core.entity by alias.
+
+    Returns (entity_id, is_resolved) where:
+    - is_resolved=True  → found a real entity in silver_v2_core.entity
+    - is_resolved=False → no match; caller must use placeholder + queue
+
+    The lookup is best-effort: on any BQ error the function returns
+    (placeholder_id, False) so extraction continues without interruption.
+    """
+    if not raw_name or not raw_name.strip():
+        return "", False
+
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id or db is None:
+        return _placeholder_entity_id(raw_name), False
+
+    norm = _normalize_entity_string(raw_name)
+    try:
+        query = f"""
+            SELECT e.entity_id
+            FROM `{project_id}.silver_v2_core.entity_alias` ea
+            JOIN `{project_id}.silver_v2_core.entity` e USING (entity_id)
+            WHERE LOWER(ea.alias_text) = @norm_name
+            LIMIT 1
+        """
+        job_config = _bigquery.QueryJobConfig(
+            query_parameters=[
+                ScalarQueryParameter("norm_name", "STRING", norm),
+            ]
+        )
+        rows = list(db.client.query(query, job_config=job_config).result())
+        if rows:
+            return str(rows[0]["entity_id"]), True
+    except Exception as exc:
+        logger.debug(f"entity alias lookup failed for {raw_name!r}: {exc}")
+
+    return _placeholder_entity_id(raw_name), False
+
+
+def _ensure_placeholder_entity(
+    raw_name: str,
+    placeholder_entity_id: str,
+    domain: str,
+    db: "DBManager",
+) -> None:
+    """
+    Upsert a placeholder entity row in silver_v2_core.entity.
+
+    Uses MERGE on entity_id so re-running the extractor is idempotent.
+    Non-fatal: any BQ error is logged and swallowed.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id or db is None:
+        return
+
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    try:
+        query = f"""
+            MERGE `{project_id}.silver_v2_core.entity` AS target
+            USING (SELECT @entity_id AS entity_id) AS source
+            ON target.entity_id = source.entity_id
+            WHEN NOT MATCHED THEN
+              INSERT (entity_id, entity_kind, primary_domain, created_at, notes)
+              VALUES (@entity_id, 'unresolved', @domain, CURRENT_TIMESTAMP(), @notes)
+        """
+        job_config = _bigquery.QueryJobConfig(
+            query_parameters=[
+                ScalarQueryParameter("entity_id", "STRING", placeholder_entity_id),
+                ScalarQueryParameter("domain", "STRING", domain or ""),
+                ScalarQueryParameter(
+                    "notes",
+                    "STRING",
+                    f"Placeholder for unresolved entity: {raw_name!r}",
+                ),
+            ]
+        )
+        db.client.query(query, job_config=job_config).result()
+    except Exception as exc:
+        logger.warning(
+            f"_ensure_placeholder_entity failed for {raw_name!r} "
+            f"(id={placeholder_entity_id}): {exc}"
+        )
+
+
+def _write_entity_resolution_queue(
+    raw_name: str,
+    placeholder_entity_id: str,
+    domain: str,
+    db: "DBManager",
+) -> None:
+    """
+    Insert a row into silver_v2_claims.entity_resolution_queue for an
+    unresolvable entity mention.  Idempotent via MERGE on placeholder_entity_id.
+    Non-fatal.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id or db is None:
+        return
+
+    norm = _normalize_entity_string(raw_name)
+    queue_id = str(uuid.uuid4())
+    try:
+        query = f"""
+            MERGE `{project_id}.silver_v2_claims.entity_resolution_queue` AS target
+            USING (SELECT @placeholder_entity_id AS placeholder_entity_id) AS source
+            ON target.placeholder_entity_id = source.placeholder_entity_id
+               AND target.status = 'PENDING'
+            WHEN NOT MATCHED THEN
+              INSERT (queue_id, raw_entity_string, normalized_string, domain,
+                      placeholder_entity_id, first_seen_at, attempt_count,
+                      status, created_at)
+              VALUES (@queue_id, @raw_name, @norm, @domain,
+                      @placeholder_entity_id, CURRENT_TIMESTAMP(), 0,
+                      'PENDING', CURRENT_TIMESTAMP())
+        """
+        job_config = _bigquery.QueryJobConfig(
+            query_parameters=[
+                ScalarQueryParameter("queue_id", "STRING", queue_id),
+                ScalarQueryParameter("raw_name", "STRING", raw_name),
+                ScalarQueryParameter("norm", "STRING", norm),
+                ScalarQueryParameter("domain", "STRING", domain or ""),
+                ScalarQueryParameter(
+                    "placeholder_entity_id", "STRING", placeholder_entity_id
+                ),
+            ]
+        )
+        db.client.query(query, job_config=job_config).result()
+    except Exception as exc:
+        logger.warning(f"_write_entity_resolution_queue failed for {raw_name!r}: {exc}")
+
+
+def write_claim_entity_links(
+    claim_id: str,
+    utterance: dict,
+    domain: str,
+    db: "DBManager",
+) -> list[dict]:
+    """
+    Build and write claim_entity_link rows for one claim.
+
+    Extracts entity mentions from:
+      - utterance['target_player'] or utterance['target_player_name']
+      - utterance['target_team']
+      - utterance['subject']
+      - utterance['target_entity'] (JSON blob with player/team fields)
+
+    Each mention is looked up against silver_v2_core.entity_alias.
+    On miss: a placeholder entity is created and an entity_resolution_queue
+    row is inserted.
+
+    Returns the list of link row dicts that were written (may be empty).
+    Non-fatal: BQ write errors are logged but do not raise.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id or db is None:
+        return []
+
+    now = datetime.now(timezone.utc)
+    link_rows = []
+
+    # Collect raw entity mentions with their intended roles
+    mentions: list[tuple[str, str]] = []  # (raw_name, role)
+
+    player_name = (
+        utterance.get("target_player") or utterance.get("target_player_name") or ""
+    ).strip()
+    if player_name:
+        mentions.append((player_name, "subject"))
+
+    team_name = (utterance.get("target_team") or "").strip()
+    if team_name:
+        mentions.append((team_name, "context"))
+
+    subject_name = (utterance.get("subject") or "").strip()
+    if subject_name and subject_name != player_name:
+        mentions.append((subject_name, "subject"))
+
+    # target_entity JSON blob (Issue #688 polymorphic entity)
+    te = utterance.get("target_entity")
+    if te:
+        if isinstance(te, str):
+            try:
+                te = json.loads(te)
+            except (json.JSONDecodeError, TypeError):
+                te = {}
+        if isinstance(te, dict):
+            te_player = (te.get("player_name") or "").strip()
+            te_team = (te.get("team") or "").strip()
+            if te_player and te_player not in (player_name, subject_name):
+                mentions.append((te_player, "subject"))
+            if te_team and te_team != team_name:
+                mentions.append((te_team, "context"))
+
+    if not mentions:
+        return []
+
+    seen_ids: set[str] = set()
+    ordinal = 0
+    for raw_name, role in mentions:
+        if not raw_name:
+            continue
+
+        entity_id, is_resolved = _resolve_entity_id(raw_name, domain, db)
+        if not entity_id:
+            entity_id = _placeholder_entity_id(raw_name)
+            is_resolved = False
+
+        if not is_resolved:
+            _ensure_placeholder_entity(raw_name, entity_id, domain, db)
+            _write_entity_resolution_queue(raw_name, entity_id, domain, db)
+
+        # Deduplicate — same entity_id in the same role only once per claim
+        dedup_key = f"{entity_id}:{role}"
+        if dedup_key in seen_ids:
+            continue
+        seen_ids.add(dedup_key)
+
+        link_rows.append(
+            {
+                "link_id": str(uuid.uuid4()),
+                "claim_id": claim_id,
+                "entity_id": entity_id,
+                "entity_role": role,
+                "ordinal": ordinal,
+                "created_at": now,
+            }
+        )
+        ordinal += 1
+
+    if not link_rows:
+        return []
+
+    df = pd.DataFrame(link_rows)
+    for ts_col in ("created_at",):
+        df[ts_col] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
+
+    table_ref = f"{project_id}.silver_v2_claims.claim_entity_link"
+    try:
+        job_config = __import__(
+            "google.cloud.bigquery", fromlist=["LoadJobConfig"]
+        ).LoadJobConfig(write_disposition="WRITE_APPEND")
+        df_clean = df.copy()
+        for col in df_clean.columns:
+            if df_clean[col].dtype == object:
+                df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
+        job = db.client.load_table_from_dataframe(
+            df_clean, table_ref, job_config=job_config
+        )
+        job.result()
+        logger.debug(
+            f"Wrote {len(link_rows)} claim_entity_link rows for claim {claim_id}"
+        )
+    except Exception as exc:
+        logger.error(
+            f"BQ write failed for silver_v2_claims.claim_entity_link "
+            f"(claim_id={claim_id}): {exc}",
+            exc_info=True,
+        )
+
+    return link_rows
+
+
+def write_claim_state_history(
+    claim_id: str,
+    db: "DBManager",
+) -> bool:
+    """
+    Insert a PENDING claim_state_history row for a newly ingested claim.
+
+    effective_from = NOW(), effective_to = NULL (open/current state)
+    effective_source = 'ingestion'
+
+    Returns True if the row was written, False on error.
+    Non-fatal: errors are logged but do not propagate.
+    """
+    project_id = os.environ.get("GCP_PROJECT_ID", "")
+    if not project_id or db is None:
+        return False
+
+    now = datetime.now(timezone.utc)
+    row = {
+        "history_id": str(uuid.uuid4()),
+        "claim_id": claim_id,
+        "state": "PENDING",
+        "effective_from": now,
+        "effective_to": None,
+        "effective_source": "ingestion",
+        "resolution_id": None,
+        "brier_score": None,
+        "binary_correct": None,
+        "notes": None,
+        "created_at": now,
+    }
+
+    df = pd.DataFrame([row])
+    for ts_col in ("effective_from", "created_at"):
+        df[ts_col] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
+    # effective_to is nullable TIMESTAMP
+    df["effective_to"] = pd.to_datetime(df["effective_to"], utc=True, errors="coerce")
+
+    table_ref = f"{project_id}.silver_v2_claims.claim_state_history"
+    try:
+        job_config = __import__(
+            "google.cloud.bigquery", fromlist=["LoadJobConfig"]
+        ).LoadJobConfig(write_disposition="WRITE_APPEND")
+        df_clean = df.copy()
+        for col in df_clean.columns:
+            if df_clean[col].dtype == object:
+                df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
+        job = db.client.load_table_from_dataframe(
+            df_clean, table_ref, job_config=job_config
+        )
+        job.result()
+        logger.debug(f"Wrote PENDING claim_state_history row for claim {claim_id}")
+        return True
+    except Exception as exc:
+        logger.error(
+            f"BQ write failed for silver_v2_claims.claim_state_history "
+            f"(claim_id={claim_id}): {exc}",
+            exc_info=True,
+        )
+        return False
 
 
 def _write_extraction_run(
@@ -2997,17 +3382,29 @@ def run_extraction(
             # Rate limiting — configurable per provider
             time.sleep(4)
 
-        # Batch ingest all predictions into the cryptographic ledger
-        if all_predictions and not dry_run:
+        # Batch ingest all predictions into the cryptographic ledger (legacy path).
+        # DUAL_WRITE_LEGACY (default: true) — set to "false" in Phase 5 to stop
+        # writing to gold_layer.prediction_ledger once silver_v2_claims is the
+        # canonical store. Until then, both paths receive every claim.
+        _dual_write = os.environ.get("DUAL_WRITE_LEGACY", "true").lower() != "false"
+        if all_predictions and not dry_run and _dual_write:
             try:
                 hashes = ingest_batch(all_predictions, db=db)
                 summary["predictions_ingested"] = len(hashes)
                 logger.info(
-                    f"Ingested {len(hashes)} predictions into cryptographic ledger."
+                    f"Ingested {len(hashes)} predictions into cryptographic ledger "
+                    f"(DUAL_WRITE_LEGACY={_dual_write})."
                 )
             except Exception as e:
                 logger.error(f"Failed to ingest predictions to ledger: {e}")
                 summary["errors"] += 1
+        elif all_predictions and not dry_run and not _dual_write:
+            # Legacy write disabled — silver_v2_claims is now canonical.
+            summary["predictions_ingested"] = 0
+            logger.info(
+                f"DUAL_WRITE_LEGACY=false — skipped {len(all_predictions)} legacy "
+                "ingest_batch writes; silver_v2_claims.claim is the write target."
+            )
 
         # Mark processed
         if processed_hashes and not dry_run:

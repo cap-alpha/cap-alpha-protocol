@@ -45,6 +45,50 @@ _DEFAULT_DB_PATH = _PIPELINE_DIR / "data" / "local.duckdb"
 # BQ → DuckDB DDL translation
 # ---------------------------------------------------------------------------
 
+def _strip_options_clauses(sql: str) -> str:
+    """
+    Strip BigQuery OPTIONS(...) clauses from SQL.
+
+    The naive regex ``OPTIONS\\s*\\([^)]*\\)`` breaks when the description string
+    contains a literal ``)``.  This function walks the string character-by-character
+    so it correctly handles quoted content inside the OPTIONS clause.
+    """
+    result: list[str] = []
+    i = 0
+    n = len(sql)
+    while i < n:
+        # Case-insensitive match for the word OPTIONS
+        if sql[i:i+7].upper() == "OPTIONS" and (i == 0 or not sql[i-1].isalnum()):
+            j = i + 7
+            # Skip whitespace between OPTIONS and (
+            while j < n and sql[j] in (" ", "\t", "\n", "\r"):
+                j += 1
+            if j < n and sql[j] == "(":
+                # Consume everything until the matching close paren,
+                # respecting single- and double-quoted strings.
+                depth = 1
+                j += 1  # move past the opening (
+                in_single = False
+                in_double = False
+                while j < n and depth > 0:
+                    c = sql[j]
+                    if c == "'" and not in_double:
+                        in_single = not in_single
+                    elif c == '"' and not in_single:
+                        in_double = not in_double
+                    elif c == "(" and not in_single and not in_double:
+                        depth += 1
+                    elif c == ")" and not in_single and not in_double:
+                        depth -= 1
+                    j += 1
+                # Skip the matched OPTIONS(...) — emit nothing
+                i = j
+                continue
+        result.append(sql[i])
+        i += 1
+    return "".join(result)
+
+
 def translate_ddl(sql: str, project_id: str = "local") -> str:
     """
     Translate BigQuery DDL to DuckDB-compatible DDL.
@@ -66,8 +110,10 @@ def translate_ddl(sql: str, project_id: str = "local") -> str:
     # Template substitution for {project_id}
     sql = sql.replace("{project_id}", project_id)
 
-    # OPTIONS(...) — strip entire clause (must happen before other substitutions)
-    sql = re.sub(r"\bOPTIONS\s*\([^)]*\)", "", sql, flags=re.IGNORECASE | re.DOTALL)
+    # OPTIONS(...) — strip entire clause using a paren-depth-aware parser
+    # (must happen before other substitutions; the naive regex breaks when
+    # description strings contain literal parentheses)
+    sql = _strip_options_clauses(sql)
 
     # PARTITION BY ... (up to CLUSTER BY, OPTIONS, or end of line)
     sql = re.sub(
@@ -103,19 +149,21 @@ def translate_ddl(sql: str, project_id: str = "local") -> str:
     # Match JSON as a type keyword (not followed by a string literal)
     sql = re.sub(r"\bJSON\b(?!\s*'[^']*')", "VARCHAR", sql, flags=re.IGNORECASE)
 
-    # BQ type aliases → DuckDB equivalents
+    # ARRAY<T> patterns must fire BEFORE scalar type substitutions.
+    # If STRING→VARCHAR fires first, ARRAY<STRING> becomes ARRAY<VARCHAR> which
+    # then silently fails to match the no-trailing-\b pattern below.
+    # No trailing \b: > is a non-word char; \b after > only matches when the
+    # next char is a word char (not space/comma), causing silent non-matches.
+    sql = re.sub(r"\bARRAY<STRING>", "VARCHAR[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<FLOAT64>", "DOUBLE[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<INT64>", "BIGINT[]", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"\bARRAY<BOOL>", "BOOLEAN[]", sql, flags=re.IGNORECASE)
+
+    # Scalar BQ type aliases → DuckDB equivalents (after ARRAY<T> patterns above)
     sql = re.sub(r"\bSTRING\b", "VARCHAR", sql, flags=re.IGNORECASE)
     sql = re.sub(r"\bINT64\b", "BIGINT", sql, flags=re.IGNORECASE)
     sql = re.sub(r"\bFLOAT64\b", "DOUBLE", sql, flags=re.IGNORECASE)
     sql = re.sub(r"\bBOOL\b", "BOOLEAN", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<VARCHAR>\b", "VARCHAR[]", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<DOUBLE>\b", "DOUBLE[]", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<BIGINT>\b", "BIGINT[]", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<BOOLEAN>\b", "BOOLEAN[]", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<STRING>\b", "VARCHAR[]", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<FLOAT64>\b", "DOUBLE[]", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<INT64>\b", "BIGINT[]", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"\bARRAY<BOOL>\b", "BOOLEAN[]", sql, flags=re.IGNORECASE)
 
     # WHEN NOT MATCHED BY SOURCE → unsupported in DuckDB — strip
     sql = re.sub(

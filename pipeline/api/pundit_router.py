@@ -34,7 +34,7 @@ from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryP
 from api.api_key_auth import verify_api_key
 from src.calibration import CALIBRATION_TABLE
 from src.cryptographic_ledger import verify_chain_integrity
-from src.db_manager import DBManager
+from src.db_manager import DBManager, get_db_manager
 from src.resolution_engine import get_pundit_accuracy_summary
 from src.rolling_windows import get_pundit_rolling_accuracy
 from src.scoring import get_pundit_stats
@@ -58,8 +58,12 @@ router = APIRouter(
 
 
 def get_db() -> DBManager:
-    """FastAPI dependency — yields a DBManager, closes on teardown."""
-    db = DBManager()
+    """FastAPI dependency — yields a DBManager, closes on teardown.
+
+    Respects DB_BACKEND env var: "duckdb" returns a DuckDBManager for local
+    development when BigQuery billing is unavailable.  Default is BigQuery.
+    """
+    db = get_db_manager()
     try:
         yield db
     finally:

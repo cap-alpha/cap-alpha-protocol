@@ -5,7 +5,7 @@ import {
     logBlockedRequest,
     LEDGER_MAX_LIMIT,
 } from "@/lib/anti-scraping";
-import { API_URL, normalizePundit } from "@/lib/ledger-server";
+import { getApiUrl, normalizePundit } from "@/lib/ledger-server";
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
@@ -38,7 +38,8 @@ export async function GET(req: Request) {
     }
 
     // Build backend URL, forwarding all query params
-    const backendUrl = new URL(`${API_URL}/v1/pundits/`);
+    const apiUrl = await getApiUrl();
+    const backendUrl = new URL(`${apiUrl}/v1/pundits/`);
     // Forward all incoming query params to backend (with enforced limit)
     searchParams.forEach((value, key) => {
         if (key !== "limit") {
@@ -74,7 +75,7 @@ export async function GET(req: Request) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error("[Ledger Pundits API] Backend fetch error:", {
             error: errorMsg,
-            backendUrl: API_URL,
+            backendUrl: apiUrl,
         });
         return NextResponse.json({ pundits: [] }, { status: 502 });
     }

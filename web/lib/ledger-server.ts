@@ -1,7 +1,99 @@
-export const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+/**
+ * Server-side helpers for talking to the Pundit Prediction Ledger API.
+ *
+ * Discovery strategy:
+ *   1. `API_URL` / `NEXT_PUBLIC_API_URL` env var (explicit override; highest priority)
+ *   2. Production Cloud Run URL (default for cap-alpha.co traffic)
+ *   3. `http://localhost:8000`, `http://localhost:8080` (laptop fallback for local dev)
+ *
+ * The first candidate that returns a non-5xx response to a probe within
+ * PROBE_TIMEOUT_MS wins. The resolved URL is memoized for the Node process
+ * lifetime so the probe cost is paid once per cold start, not per request.
+ *
+ * Behavior when all candidates fail: returns the production URL so downstream
+ * fetches produce a consistent error message; the client UI's error state
+ * (see PunditLeaderboardPreview) surfaces it.
+ */
+
+const PRODUCTION_URL = "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+const LOCALHOST_CANDIDATES = ["http://localhost:8000", "http://localhost:8080"];
+const ENV_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
+const PROBE_TIMEOUT_MS = 800;
+const PROBE_PATH = "/v1/pundits/?limit=1";
+
+let resolvedApiUrl: string | null = null;
+let resolutionInFlight: Promise<string> | null = null;
+
+async function probeUrl(url: string): Promise<boolean> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
+    try {
+        const res = await fetch(`${url}${PROBE_PATH}`, {
+            signal: controller.signal,
+            headers: { Accept: "application/json" },
+        });
+        return res.status < 500;
+    } catch {
+        return false;
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function resolveApiUrl(): Promise<string> {
+    if (resolvedApiUrl) return resolvedApiUrl;
+    if (resolutionInFlight) return resolutionInFlight;
+
+    resolutionInFlight = (async () => {
+        // 1. Explicit override — trust the operator, no probe needed.
+        if (ENV_URL) {
+            console.log(`[ledger-server] Using API_URL from env: ${ENV_URL}`);
+            resolvedApiUrl = ENV_URL;
+            return ENV_URL;
+        }
+
+        // 2. Production first — the common case for deployed traffic.
+        if (await probeUrl(PRODUCTION_URL)) {
+            console.log(`[ledger-server] Using production API: ${PRODUCTION_URL}`);
+            resolvedApiUrl = PRODUCTION_URL;
+            return PRODUCTION_URL;
+        }
+
+        // 3. Localhost fallback — laptop dev when production is down or offline.
+        for (const candidate of LOCALHOST_CANDIDATES) {
+            if (await probeUrl(candidate)) {
+                console.log(`[ledger-server] Production unreachable; using local API: ${candidate}`);
+                resolvedApiUrl = candidate;
+                return candidate;
+            }
+        }
+
+        // 4. Everything failed. Return production URL so the downstream
+        // fetch produces a single consistent error; don't memoize the
+        // failure — next cold-start request will retry the probe.
+        console.error("[ledger-server] No API reachable — falling back to production URL for error surface");
+        resolutionInFlight = null;
+        return PRODUCTION_URL;
+    })();
+
+    return resolutionInFlight;
+}
+
+/**
+ * Returns the resolved API base URL. First call probes candidates; subsequent
+ * calls return the memoized result. Always await — never use synchronously.
+ */
+export async function getApiUrl(): Promise<string> {
+    return resolveApiUrl();
+}
+
+/**
+ * @deprecated Use `await getApiUrl()` instead. Kept as a fallback for any
+ * caller that needs the constant before probing has resolved — returns the
+ * production URL unconditionally, which is the right default for SSR cold
+ * starts on Vercel.
+ */
+export const API_URL = ENV_URL || PRODUCTION_URL;
 
 export function normalizePundit(p: Record<string, unknown>): Record<string, unknown> {
     const resolvedCount = (p.resolved_count as number | undefined) ?? 0;
@@ -28,7 +120,8 @@ export async function fetchPunditsSSR(
     limit = 20
 ): Promise<Record<string, unknown>[]> {
     try {
-        const backendUrl = new URL(`${API_URL}/v1/pundits/`);
+        const apiUrl = await getApiUrl();
+        const backendUrl = new URL(`${apiUrl}/v1/pundits/`);
         backendUrl.searchParams.set("limit", String(limit));
         backendUrl.searchParams.set("sort", "accuracy");
         if (sport && sport !== "ALL") {

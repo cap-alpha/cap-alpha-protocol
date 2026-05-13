@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { PunditProfileClient } from "./PunditProfileClient";
 import { punditJsonLd } from "@/lib/structured-data";
+import { getApiUrl } from "@/lib/ledger-server";
 
 // ---------------------------------------------------------------------------
 // Types — shared between server and client
@@ -71,18 +72,14 @@ export interface PredictionsResponse {
 // Server-side data fetch
 // ---------------------------------------------------------------------------
 
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
-
 async function fetchPunditDetail(punditId: string): Promise<{
     pundit: PunditSummary;
     accuracy_by_category: CategoryBreakdown[];
 } | null> {
     try {
+        const apiUrl = await getApiUrl();
         const res = await fetch(
-            `${API_URL}/v1/pundits/${encodeURIComponent(punditId)}`,
+            `${apiUrl}/v1/pundits/${encodeURIComponent(punditId)}`,
             { next: { revalidate: 300 } }
         );
         if (res.status === 404) return null;
@@ -95,8 +92,9 @@ async function fetchPunditDetail(punditId: string): Promise<{
 
 async function fetchInitialPredictions(punditId: string): Promise<PredictionsResponse | null> {
     try {
+        const apiUrl = await getApiUrl();
         const res = await fetch(
-            `${API_URL}/v1/pundits/${encodeURIComponent(punditId)}/predictions?page=1&page_size=20`,
+            `${apiUrl}/v1/pundits/${encodeURIComponent(punditId)}/predictions?page=1&page_size=20`,
             { next: { revalidate: 60 } }
         );
         if (!res.ok) return null;

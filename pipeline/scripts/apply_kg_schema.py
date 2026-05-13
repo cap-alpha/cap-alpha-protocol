@@ -293,14 +293,117 @@ def _load_dotenv_if_available() -> None:
         pass
 
 
-def main(dry_run: bool = False) -> None:
+def _verify_tables_duckdb(db) -> list[str]:
+    """
+    Verify Phase 1 schema against a DuckDB backend.
+
+    Uses INFORMATION_SCHEMA queries that work in DuckDB (no project prefix).
+    Returns a list of failure messages; empty = all good.
+    """
+    failures: list[str] = []
+
+    for dataset, table, _obj_type, expected_cols in EXPECTED_OBJECTS:
+        # Check columns exist (DuckDB INFORMATION_SCHEMA uses schema/table_name)
+        try:
+            cols_df = db.fetch_df(
+                f"SELECT column_name FROM information_schema.columns "
+                f"WHERE table_schema = '{dataset}' AND table_name = '{table}'"
+            )
+            actual_cols = set(cols_df["column_name"].tolist()) if not cols_df.empty else set()
+        except Exception as exc:
+            failures.append(f"ERROR checking {dataset}.{table}: {exc}")
+            continue
+
+        if not actual_cols:
+            failures.append(f"MISSING TABLE: {dataset}.{table}")
+            continue
+
+        missing_cols = [c for c in expected_cols if c not in actual_cols]
+        if missing_cols:
+            failures.append(f"MISSING COLUMNS on {dataset}.{table}: {missing_cols}")
+            log.error("  FAIL  %s.%s — missing columns: %s", dataset, table, missing_cols)
+        else:
+            log.info(
+                "  PASS  %s.%s — %d required column(s) present",
+                dataset, table, len(expected_cols),
+            )
+
+    for dataset, table, column in EXPECTED_ALTER_COLUMNS:
+        try:
+            cols_df = db.fetch_df(
+                f"SELECT column_name FROM information_schema.columns "
+                f"WHERE table_schema = '{dataset}' AND table_name = '{table}'"
+                f"  AND column_name = '{column}'"
+            )
+            if cols_df.empty:
+                failures.append(f"MISSING COLUMN: {dataset}.{table}.{column}")
+                log.error("  FAIL  %s.%s.%s — column not found", dataset, table, column)
+            else:
+                log.info("  PASS  %s.%s.%s — column present", dataset, table, column)
+        except Exception as exc:
+            failures.append(f"ERROR checking {dataset}.{table}.{column}: {exc}")
+
+    return failures
+
+
+def _run_check_duckdb() -> None:
+    """
+    Read-only verification of Phase 1 KG schema against DuckDB (DB_BACKEND=duckdb).
+
+    Invoked by --check when DB_BACKEND=duckdb (or when GCP_PROJECT_ID is absent).
+    """
+    # Allow pipeline/src to be importable regardless of CWD.
+    # db_manager.py uses `from src.duckdb_manager import ...` which requires
+    # the *pipeline* directory (parent of src/) to be on sys.path.
+    pipeline_dir = pathlib.Path(__file__).parent.parent
+    if str(pipeline_dir) not in sys.path:
+        sys.path.insert(0, str(pipeline_dir))
+
+    try:
+        from src.db_manager import get_db_manager  # type: ignore[import-untyped]
+    except ImportError:
+        log.error("Cannot import get_db_manager from pipeline/src/db_manager.py")
+        sys.exit(1)
+
+    db = get_db_manager()
+    log.info("DuckDB verification — path: %s", getattr(db, "_db_path", "unknown"))
+    log.info("")
+    log.info("--- Phase 1 verification (DuckDB) ---")
+
+    failures = _verify_tables_duckdb(db)
+
+    if failures:
+        log.error("VERIFICATION FAILED — %d issue(s):", len(failures))
+        for f in failures:
+            log.error("  %s", f)
+        sys.exit(1)
+
+    log.info("")
+    log.info("=== Phase 1 verification PASSED (DuckDB) ===")
+    log.info("  Tables confirmed: claim_entity_link, entity_resolution_queue, claim_state_history")
+    log.info("  Columns confirmed: entity_attribute_event.value_entity_id")
+    log.info("  Columns confirmed: claim.legacy_prediction_hash, claim.legacy_chain_hash")
+
+
+def main(dry_run: bool = False, check: bool = False) -> None:
     _load_dotenv_if_available()
+
+    # --check with DB_BACKEND=duckdb uses the local DuckDB file (no GCP creds needed)
+    if check and os.environ.get("DB_BACKEND", "").lower() == "duckdb":
+        _run_check_duckdb()
+        return
 
     project_id = os.environ.get("GCP_PROJECT_ID")
     if not project_id:
-        log.error(
-            "GCP_PROJECT_ID is not set. Run: source .env && python3 pipeline/scripts/apply_kg_schema.py"
-        )
+        if check:
+            log.error(
+                "GCP_PROJECT_ID not set and DB_BACKEND != duckdb.  "
+                "For DuckDB: DB_BACKEND=duckdb python3 pipeline/scripts/apply_kg_schema.py --check"
+            )
+        else:
+            log.error(
+                "GCP_PROJECT_ID is not set. Run: source .env && python3 pipeline/scripts/apply_kg_schema.py"
+            )
         sys.exit(1)
 
     log.info("Phase 1 KG schema migration — project: %s", project_id)
@@ -378,5 +481,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Print the statements that would run without executing them.",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help=(
+            "Read-only verification: confirm migration 028 was fully applied. "
+            "Use DB_BACKEND=duckdb for local DuckDB (no GCP creds needed). "
+            "Example: DB_BACKEND=duckdb python3 pipeline/scripts/apply_kg_schema.py --check"
+        ),
+    )
     args = parser.parse_args()
-    main(dry_run=args.dry_run)
+    main(dry_run=args.dry_run, check=args.check)

@@ -293,29 +293,31 @@ def _load_dotenv_if_available() -> None:
         pass
 
 
-def _verify_tables_duckdb(db) -> list[str]:
+def _verify_tables_duckdb(conn) -> list[str]:
     """
-    Verify Phase 1 schema against a DuckDB backend.
+    Verify Phase 1 schema against a DuckDB connection.
 
     Uses INFORMATION_SCHEMA queries that work in DuckDB (no project prefix).
+    ``conn`` is a raw duckdb.DuckDBPyConnection.
     Returns a list of failure messages; empty = all good.
     """
     failures: list[str] = []
 
     for dataset, table, _obj_type, expected_cols in EXPECTED_OBJECTS:
-        # Check columns exist (DuckDB INFORMATION_SCHEMA uses schema/table_name)
+        # Check columns exist (DuckDB INFORMATION_SCHEMA uses table_schema/table_name)
         try:
-            cols_df = db.fetch_df(
-                f"SELECT column_name FROM information_schema.columns "
+            df = conn.execute(
+                "SELECT column_name FROM information_schema.columns "
                 f"WHERE table_schema = '{dataset}' AND table_name = '{table}'"
-            )
-            actual_cols = set(cols_df["column_name"].tolist()) if not cols_df.empty else set()
+            ).df()
+            actual_cols = set(df["column_name"].tolist()) if not df.empty else set()
         except Exception as exc:
             failures.append(f"ERROR checking {dataset}.{table}: {exc}")
             continue
 
         if not actual_cols:
             failures.append(f"MISSING TABLE: {dataset}.{table}")
+            log.error("  FAIL  %s.%s — table not found", dataset, table)
             continue
 
         missing_cols = [c for c in expected_cols if c not in actual_cols]
@@ -330,12 +332,12 @@ def _verify_tables_duckdb(db) -> list[str]:
 
     for dataset, table, column in EXPECTED_ALTER_COLUMNS:
         try:
-            cols_df = db.fetch_df(
-                f"SELECT column_name FROM information_schema.columns "
-                f"WHERE table_schema = '{dataset}' AND table_name = '{table}'"
+            df = conn.execute(
+                "SELECT column_name FROM information_schema.columns "
+                f"WHERE table_schema = '{dataset}' AND table_name = '{table}' "
                 f"  AND column_name = '{column}'"
-            )
-            if cols_df.empty:
+            ).df()
+            if df.empty:
                 failures.append(f"MISSING COLUMN: {dataset}.{table}.{column}")
                 log.error("  FAIL  %s.%s.%s — column not found", dataset, table, column)
             else:
@@ -350,27 +352,34 @@ def _run_check_duckdb() -> None:
     """
     Read-only verification of Phase 1 KG schema against DuckDB (DB_BACKEND=duckdb).
 
-    Invoked by --check when DB_BACKEND=duckdb (or when GCP_PROJECT_ID is absent).
+    Uses a raw duckdb connection so it works regardless of which DuckDBManager
+    version is installed in pipeline/src (avoids SET search_path ordering issues).
     """
-    # Allow pipeline/src to be importable regardless of CWD.
-    # db_manager.py uses `from src.duckdb_manager import ...` which requires
-    # the *pipeline* directory (parent of src/) to be on sys.path.
-    pipeline_dir = pathlib.Path(__file__).parent.parent
-    if str(pipeline_dir) not in sys.path:
-        sys.path.insert(0, str(pipeline_dir))
-
     try:
-        from src.db_manager import get_db_manager  # type: ignore[import-untyped]
+        import duckdb
     except ImportError:
-        log.error("Cannot import get_db_manager from pipeline/src/db_manager.py")
+        log.error("duckdb package not installed. Run: pip install duckdb")
         sys.exit(1)
 
-    db = get_db_manager()
-    log.info("DuckDB verification — path: %s", getattr(db, "_db_path", "unknown"))
+    pipeline_dir = pathlib.Path(__file__).parent.parent
+    default_db = pipeline_dir / "data" / "local.duckdb"
+    db_path = os.environ.get("DUCKDB_PATH", str(default_db))
+
+    if not pathlib.Path(db_path).exists():
+        log.error(
+            "DuckDB file not found: %s\n"
+            "Run first: DB_BACKEND=duckdb python3 pipeline/scripts/init_local_db.py",
+            db_path,
+        )
+        sys.exit(1)
+
+    conn = duckdb.connect(db_path, read_only=True)
+    log.info("DuckDB verification — path: %s", db_path)
     log.info("")
     log.info("--- Phase 1 verification (DuckDB) ---")
 
-    failures = _verify_tables_duckdb(db)
+    failures = _verify_tables_duckdb(conn)
+    conn.close()
 
     if failures:
         log.error("VERIFICATION FAILED — %d issue(s):", len(failures))

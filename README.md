@@ -1,89 +1,118 @@
-# Cap Alpha Protocol (CAP)
+# Cap Alpha — Pundit Prediction Ledger
 
-**Institutional-Grade Intelligence Engine for NFL Capital Velocity & Roster Optimization**
+A tamper-evident ledger that tracks what NFL analysts actually predicted, scores them on outcome accuracy, and publishes the results.
 
-> **Status**: Production (v2.1 - Active)
-> **Architecture**: Medallion (DuckDB) | Temporal Feature Store | Next.js
-> **Performance**: R² = **0.91** (High-Cap Portfolio Management)
-
-## Executive Summary
-
-The **Cap Alpha Protocol** is a quantitative auditing and predictive inference system designed to price **Second-Order Volatility** in the $20B NFL human capital market. By integrating 15 years of longitudinal contract and play-by-play data, the CAP identifies "Liquidity Traps"—inefficiencies where unforced errors ("The Discipline Tax") and structural contract decay silently deplete franchise enterprise value.
-
-Built for **Maximum Fidelity**, the protocol follows two architectural mandates:
-1.  **Temporal Integrity**: A strict Date-Based Feature Store (`valid_from`, `valid_until`) ensures zero temporal leakage across 41,000+ observations.
-2.  **Portfolio Segmentation**: Statistical focus on high-cap assets (Contracts > $10M) where signal-to-noise is highest (R²=0.91), providing actionable intelligence for franchise decision-makers.
+Live at **[cap-alpha.co](https://cap-alpha.co)**
 
 ---
 
-## Documentation Architecture
+## What this is (and is not)
 
-This repository is structured as a mono-repo containing the data pipeline, analysis engine, and frontend application.
+The sports media industry has no accountability layer. Analysts make confident predictions on draft picks, trades, and player performance; the predictions vanish; the analysts repeat the cycle. This project changes that by extracting predictions from RSS feeds, YouTube transcripts, and podcasts at ingest time, storing each claim in a SHA-256 chained ledger, resolving claims against ground-truth outcomes, and computing per-pundit accuracy scores using Brier scoring weighted by timeliness.
 
-| Documentation | Description | Target Audience |
-| :--- | :--- | :--- |
-| **[INDEX.md](INDEX.md)** | **Master Documentation Index** - Start here for deep technical details. | Developers, Architects |
-| **[pipeline/README.md](pipeline/README.md)** | ETL, Airflow DAGs, and Python script usage. | Data Engineers |
-| **[web/README.md](web/README.md)** | Next.js Frontend setup and architecture. | Frontend Engineers |
-| **[PREDICTION_FEATURE_SET.md](PREDICTION_FEATURE_SET.md)** | Definition of the 28-feature risk vector. | Data Scientists |
+**This is not a sports-betting tool.** It is a pundit accountability ledger.
+
+The editorial model uses three layers of evidence: what the analyst **said**, what they likely **meant** (intent, framing, hedging), and what actually **happened**. Scoring axes go beyond binary correct/incorrect — they include lead time, claim specificity, and category (draft picks, contracts, player performance).
 
 ---
 
-## System Architecture
+## Architecture
 
-### 1. Medallion Data Architecture (DuckDB)
-Processing flow for 15+ years of NFL financial data:
-- **Bronze**: Raw HTML scrapes (Spotrac, PFR) stored as JSON/Parquet.
-- **Silver**: Cleaned, typed tables (`dim_players`, `fact_contracts`, `fact_player_efficiency`).
-- **Gold**: Feature Store (`feature_values`) and Prediction Results.
+```mermaid
+flowchart TD
+    A[RSS / YouTube / Podcasts] -->|scrape + ingest| B[Bronze Layer\nraw_pundit_media]
+    B -->|LLM extraction\nOllama Qwen2.5:32b| C[Silver Layer\nsilver_v2_claims]
+    C -->|SHA-256 chain write| D[Gold Layer\nprediction_ledger]
+    D -->|resolution_engine.py| E[Gold Layer\nprediction_resolutions]
+    D --> F[Gold Layer\nfeature_store]
+    F -->|XGBoost training| G[Risk Model\npipeline/models/]
+    E --> H[FastAPI\npipeline/api/]
+    G --> H
+    H -->|HTTP| I[Next.js Frontend\ncap-alpha.co]
+```
 
-### 2. Date-Based Feature Store
-A custom-built Feature Store that manages time-travel. Unlike standard "Year-based" models, this system handles precise dates (e.g., September 1st Cutoff).
-- **Table**: `feature_values`
-- **Retrieval**: `FeatureStore.get_historical_features(as_of_date)`
+All layers live in BigQuery (`nfl_dead_money` dataset). Bronze is raw scraped content. Silver holds cleaned, typed claims. Gold holds the ledger, resolutions, and ML features. All BigQuery access is funnelled through `pipeline/src/db_manager.py`.
 
-### 3. XGBoost "Risk Engine"
-A Walk-Forward Validation pipeline that trains on past data to predict future inefficiencies.
-- **Target**: `edce_risk` (Efficiency Decay)
-- **Validation**: Rolling window backtest (2018-2025).
+### Key components
+
+| Component | Path | Does |
+|---|---|---|
+| Media ingestor | `pipeline/src/media_ingestor.py` | Pulls RSS, YouTube, podcast feeds |
+| LLM extractor | `pipeline/src/assertion_extractor.py` | Extracts structured predictions via Ollama |
+| Cryptographic ledger | `pipeline/src/cryptographic_ledger.py` | SHA-256 chained append-only writes |
+| Resolution engine | `pipeline/src/resolution_engine.py` | Matches predictions to outcomes, computes Brier score |
+| Feature factory | `pipeline/src/feature_factory.py` | Builds ML feature vectors |
+| Risk model | `pipeline/src/train_model.py` | XGBoost, walk-forward validation |
+| REST API | `pipeline/api/pundit_router.py` | `/v1/pundits/`, `/v1/leaderboard`, `/v1/predictions/` |
+| Frontend | `web/app/` | Next.js 14 with Clerk auth, pundit detail pages, leaderboard |
 
 ---
 
-## Setup & Usage
+## Local setup
 
-### Prerequisites
-- Docker Engine & Docker Compose (Required for bypassing macOS SIP/Sandbox limits)
-- Make
-
-### Quickstart (Data Pipeline via Containerization)
-**CRITICAL**: Do not run Python natively. Due to macOS restrictions on SQLite/DuckDB file locks and headless browser automation, all operations must run inside Docker.
-
-**Vercel / Next.js Deployment**: DuckDB `1.1.1` requires prebuilt binaries. Vercel must be pinned to **Node 20.x** in `web/package.json` to prevent source compilation failures (`node-pre-gyp` falling back and failing due to ABI limits).
-
+Requires Python 3.13+ and Node 20+. Tests and linting run without Docker.
 
 ```bash
-# 1. Build and boot the immutable container environment
-docker compose up -d
+# 1. Bootstrap venv + git hooks
+make setup
 
-# 2. Materialize Features (Populate Feature Store)
-docker compose exec pipeline bash -c "python src/materialize_features.py"
+# 2. Run unit tests
+make test
 
-# 3. Train Risk Model
-docker compose exec pipeline bash -c "python src/train_model.py"
+# 3. Lint
+make lint
 
-# 4. Run E2E Playwright Suite (Without host caching EPERM blocks)
-docker compose run e2e
+# 4. Start the API (from pipeline/)
+cd pipeline && uvicorn api.main:app --reload
+
+# 5. Start the frontend
+cd web && npm run dev
 ```
-*Alternatively, use the provided `Makefile` (e.g., `make pipeline`, `make test-e2e`) for streamlined aliases.*
+
+Docker is only needed for browser-based scraping (`make pipeline-scrape`) and Playwright E2E tests (`make test-e2e`).
+
+Set `GCP_PROJECT_ID`, `GOOGLE_APPLICATION_CREDENTIALS`, and `OLLAMA_BASE_URL` as environment variables before running the pipeline. Settings live in `pipeline/config/settings.yaml`. For local testing without BigQuery, set `USE_LOCAL_DB=1` to use a DuckDB fallback.
 
 ---
 
-## Results Summary (2026 Audit)
+## Tech stack
 
-The **"Low Cap Chaos"** hypothesis was confirmed. The model is highly predictive for substantial contracts but stochastic for minimum-wage players.
+- **Data warehouse**: BigQuery (medallion architecture: bronze / silver / gold)
+- **LLM extraction**: Ollama — Qwen2.5:32b running locally (zero cloud inference cost)
+- **ML**: XGBoost, scikit-learn, SHAP; walk-forward backtest
+- **Ledger integrity**: SHA-256 hash chain, verified at `/v1/integrity/verify`
+- **Pipeline orchestration**: Python + Airflow DAG (`pipeline/dags/`)
+- **API**: FastAPI + Cloud Run
+- **Frontend**: Next.js 14, TypeScript, Tailwind, Clerk auth, Stripe billing
+- **CI**: GitHub Actions with required preflight gate and merge queue
 
-| Cap Bucket | Count | R2 Score | Strategy |
-| :--- | :--- | :--- | :--- |
-| **High Cap (>$10M)** | 39,734 | **0.91** | **Trust Implicitly** |
-| Mid Cap ($2M-$10M) | 114,424 | **0.51** | Use as Signal |
-| Low Cap (<$2M) | 332,001 | 0.03 | **Ignore** |
+---
+
+## API
+
+The REST API is public and key-gated. Interactive schema at [cap-alpha.co/docs](https://cap-alpha.co/docs).
+
+```
+GET /v1/leaderboard              — ranked pundits by weighted accuracy score
+GET /v1/pundits/{id}             — pundit detail with accuracy by category
+GET /v1/pundits/{id}/predictions — paginated prediction history
+GET /v1/integrity/verify         — SHA-256 chain integrity check
+```
+
+---
+
+## Repository layout
+
+```
+pipeline/        Python ETL, LLM extraction, resolution engine, FastAPI
+  src/           Core pipeline modules
+  api/           FastAPI app and routers
+  tests/         pytest unit tests (make test)
+  config/        YAML configs: LLM provider, media sources, ML hyperparams
+  models/        Trained XGBoost artifacts (gitignored)
+web/             Next.js frontend
+  app/           App Router pages: ledger, dashboard, draft, docs
+  lib/           Shared utilities, API key tier definitions
+dbt/             dbt models for dim/fct marts on top of gold layer
+docs/            API reference, scoring methodology
+```

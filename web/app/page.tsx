@@ -18,13 +18,13 @@ export default async function LandingPage() {
     return (
         <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
             {/* ── Hero ── */}
-            <section className="relative flex flex-col items-center justify-center text-center px-6 pt-20 pb-10 overflow-hidden">
+            <section className="relative flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-16 sm:pt-20 pb-10 overflow-hidden">
                 {/* Background glow */}
                 <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[320px] bg-emerald-500/8 rounded-full blur-[120px]" />
                 </div>
 
-                <div className="relative z-10 max-w-2xl mx-auto space-y-4">
+                <div className="relative z-10 w-full max-w-2xl mx-auto space-y-4">
                     {/* Live indicator */}
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -32,18 +32,18 @@ export default async function LandingPage() {
                     </div>
 
                     {/* Hero headline — 2 lines max */}
-                    <h1 className="font-display font-black text-4xl sm:text-5xl lg:text-6xl tracking-tight leading-tight text-white">
+                    <h1 className="font-display font-black text-3xl sm:text-5xl lg:text-6xl tracking-tight leading-tight text-white">
                         The most accurate sports pundits, ranked.
                     </h1>
-                    <p className="text-lg text-zinc-400 leading-snug">
+                    <p className="text-base sm:text-lg text-zinc-400 leading-snug">
                         Every prediction tracked, scored, and sealed.
                     </p>
 
-                    {/* Single CTA */}
+                    {/* Single CTA — min 44px height for Apple HIG tap target */}
                     <div className="pt-2">
                         <Link
                             href="/ledger"
-                            className="inline-flex items-center gap-2 px-7 py-3.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-base transition-colors shadow-[0_0_24px_rgba(16,185,129,0.3)] hover:shadow-[0_0_32px_rgba(16,185,129,0.5)]"
+                            className="inline-flex items-center gap-2 min-h-[44px] px-7 py-3 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-bold text-base transition-colors shadow-[0_0_24px_rgba(16,185,129,0.3)] hover:shadow-[0_0_32px_rgba(16,185,129,0.5)]"
                         >
                             See the full ledger →
                         </Link>
@@ -52,8 +52,9 @@ export default async function LandingPage() {
             </section>
 
             {/* ── Live Leaderboard Preview ── (immediately below hero, no scroll on desktop) */}
-            <section className="w-full px-6 pb-16">
-                <div className="max-w-2xl mx-auto">
+            {/* overflow-x-hidden prevents any inner table from causing page-level horizontal scroll */}
+            <section className="w-full px-4 sm:px-6 pb-16 overflow-x-hidden">
+                <div className="max-w-2xl mx-auto min-w-0">
                     {/* sport prop drives the API filter; topic switcher (#774) will override at runtime */}
                     {/* initialPundits pre-populated server-side — eliminates blank spinner on FCP */}
                     <PunditLeaderboardPreview sport="NFL" initialPundits={initialPundits} />
@@ -61,7 +62,7 @@ export default async function LandingPage() {
             </section>
 
             {/* ── Waitlist ── (stays per product milestone gating) */}
-            <section className="w-full px-6 py-16 border-t border-zinc-900">
+            <section className="w-full px-4 sm:px-6 py-16 border-t border-zinc-900">
                 <div className="max-w-xl mx-auto text-center space-y-4">
                     <p className="text-xs font-mono uppercase tracking-widest text-zinc-500">
                         Early access
@@ -75,12 +76,12 @@ export default async function LandingPage() {
             </section>
 
             {/* ── Footer ── */}
-            <footer className="border-t border-zinc-900 px-6 py-8 mt-auto">
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-400">
+            <footer className="border-t border-zinc-900 px-4 sm:px-6 py-8 mt-auto">
+                <div className="max-w-5xl mx-auto flex flex-col items-center gap-4 text-xs text-zinc-400">
                     <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
                         Pundit Ledger
                     </span>
-                    <div className="flex items-center gap-6">
+                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
                         <Link href="/ledger" className="hover:text-white transition-colors">Leaderboard</Link>
                         <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
                         <Link href="/methodology" className="hover:text-white transition-colors">Methodology</Link>

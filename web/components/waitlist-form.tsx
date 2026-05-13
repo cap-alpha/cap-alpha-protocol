@@ -76,34 +76,36 @@ export function WaitlistForm({ source }: { source?: string } = {}) {
     }
 
     return (
-        <form action={action} className="w-full max-w-md mx-auto flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-grow">
-                <Input
-                    type="email"
-                    name="email"
-                    placeholder="Enter your email..."
-                    required
-                    className="h-14 bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-emerald-500 focus-visible:border-emerald-500 pl-4 w-full"
+        <div className="w-full max-w-md mx-auto space-y-2">
+            <form action={action} className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-grow min-w-0">
+                    <Input
+                        type="email"
+                        name="email"
+                        placeholder="Enter your email..."
+                        required
+                        className="h-14 bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus-visible:ring-emerald-500 focus-visible:border-emerald-500 pl-4 w-full"
+                        disabled={status === "loading"}
+                    />
+                </div>
+                <Button
+                    type="submit"
                     disabled={status === "loading"}
-                />
-            </div>
-            <Button
-                type="submit"
-                disabled={status === "loading"}
-                className="h-14 px-8 bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-lg rounded-md transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] whitespace-nowrap group"
-            >
-                {status === "loading" ? (
-                    <span className="animate-pulse">Joining...</span>
-                ) : (
-                    <>
-                        Join Waitlist
-                        <ChevronRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
-                    </>
-                )}
-            </Button>
+                    className="h-14 min-h-[44px] px-8 bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-lg rounded-md transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] whitespace-nowrap group"
+                >
+                    {status === "loading" ? (
+                        <span className="animate-pulse">Joining...</span>
+                    ) : (
+                        <>
+                            Join Waitlist
+                            <ChevronRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                        </>
+                    )}
+                </Button>
+            </form>
             {status === "error" && (
-                <p className="absolute -bottom-8 left-0 text-red-400 text-xs font-mono">{message}</p>
+                <p className="text-red-400 text-xs font-mono text-left">{message}</p>
             )}
-        </form>
+        </div>
     );
 }

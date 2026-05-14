@@ -569,6 +569,7 @@ class TestVerifyKgMigration:
 
         mock_bq = MagicMock()
         monkeypatch.setattr(v, "bigquery", mock_bq)
+        monkeypatch.delenv("DB_BACKEND", raising=False)
         monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
 
         nonzero_row = MagicMock()
@@ -589,6 +590,7 @@ class TestVerifyKgMigration:
 
         mock_bq = MagicMock()
         monkeypatch.setattr(v, "bigquery", mock_bq)
+        monkeypatch.delenv("DB_BACKEND", raising=False)
         monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
 
         def make_zero_job(sql, *args, **kwargs):

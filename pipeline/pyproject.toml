@@ -64,7 +64,13 @@ addopts = "-v --strict-markers --tb=short --disable-warnings"
 # ---------------------------------------------------------------------------
 [tool.coverage.run]
 source = ["src"]
-omit = ["*/tests/*", "*/__pycache__/*", "*/site-packages/*"]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    # Selenium driver loop — untestable without a live browser; excluded from denominator
+    "*/src/spotrac_scraper_v2.py",
+]
 
 [tool.coverage.report]
 exclude_lines = [

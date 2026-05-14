@@ -7,3 +7,12 @@ line_length = 88
 
 [tool.ruff]
 extend = "pipeline/pyproject.toml"
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/site-packages/*",
+    # Selenium driver loop — untestable without a live browser; excluded from denominator
+    "*/src/spotrac_scraper_v2.py",
+]

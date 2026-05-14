@@ -159,17 +159,19 @@ function processRawPundits(raw: PunditStat[]): PunditStat[] {
     return filtered.slice(0, 10);
 }
 
+const FETCH_TIMEOUT_MS = 10_000;
+
 /**
  * Three-state fetch helper.
  *   - resolves with PunditStat[] on success
- *   - rejects on network error or non-ok HTTP status
+ *   - rejects on network error, non-ok HTTP status, or timeout
  */
-async function fetchPundits(sport: Sport): Promise<PunditStat[]> {
+async function fetchPundits(sport: Sport, signal?: AbortSignal): Promise<PunditStat[]> {
     const params = new URLSearchParams({ limit: "20", sort: "accuracy" });
     if (sport !== "ALL") {
         params.set("sport", sport.toLowerCase());
     }
-    const res = await fetch(`/api/ledger/pundits?${params.toString()}`);
+    const res = await fetch(`/api/ledger/pundits?${params.toString()}`, { signal });
     if (!res.ok) {
         throw new Error(`HTTP ${res.status}`);
     }
@@ -218,13 +220,17 @@ export function PunditLeaderboardPreview({
         setFetchState("loading");
 
         const attemptFetch = (isRetry: boolean) => {
-            fetchPundits(activeSport)
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+            fetchPundits(activeSport, controller.signal)
                 .then((result) => {
+                    clearTimeout(timeoutId);
                     if (cancelled) return;
                     setPundits(result);
                     setFetchState("idle");
                 })
                 .catch((err) => {
+                    clearTimeout(timeoutId);
                     if (cancelled) return;
                     console.error(`[Leaderboard] Fetch${isRetry ? " retry" : ""} error:`, err);
                     if (!isRetry && !retryScheduled.current) {
@@ -296,19 +302,23 @@ export function PunditLeaderboardPreview({
                     <div className="flex flex-col items-center gap-3 text-center px-4">
                         <WifiOff className="w-5 h-5 text-zinc-600" />
                         <p className="text-sm font-mono text-zinc-500">
-                            Ledger temporarily unavailable — retrying…
+                            Ledger temporarily unavailable.
                         </p>
                         <button
                             onClick={() => {
-                                // Allow the user to manually trigger a fresh fetch
-                                // by toggling state so the useEffect re-runs.
+                                const controller = new AbortController();
+                                const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
                                 setFetchState("loading");
-                                fetchPundits(activeSport)
+                                fetchPundits(activeSport, controller.signal)
                                     .then((result) => {
+                                        clearTimeout(timeoutId);
                                         setPundits(result);
                                         setFetchState("idle");
                                     })
-                                    .catch(() => setFetchState("error"));
+                                    .catch(() => {
+                                        clearTimeout(timeoutId);
+                                        setFetchState("error");
+                                    });
                             }}
                             className="text-xs font-mono text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
                         >

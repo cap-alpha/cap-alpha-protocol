@@ -70,7 +70,17 @@ export async function GET(req: Request) {
         // Inject honeypot fields at the top level to fingerprint scrapers.
         // Issue: #884
         const responseBody = injectHoneypotFields({ pundits });
-        return NextResponse.json(responseBody);
+
+        // Edge-cache the JSON response for 5 minutes (s-maxage=300), then serve
+        // stale while revalidating for up to 24 h (stale-while-revalidate=86400).
+        // This means Vercel's edge serves cached JSON instantly to every visitor
+        // except the one unlucky revalidator — exactly what we want for data that
+        // changes at most once per day.
+        return NextResponse.json(responseBody, {
+            headers: {
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400",
+            },
+        });
     } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error("[Ledger Pundits API] Backend fetch error:", {

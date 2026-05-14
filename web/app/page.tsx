@@ -4,7 +4,11 @@ import { SignUpCta } from "@/components/sign-up-cta";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
 import { fetchPunditsSSR } from "@/lib/ledger-server";
 
-export const revalidate = 300; // 5-minute ISR
+// Pundit accuracy updates at most daily (new resolutions land overnight).
+// 1-hour page-level ISR keeps HTML fresh enough while avoiding the cold-render
+// penalty on every visitor.  The inner fetchPunditsSSR call uses its own
+// 5-minute revalidate window so data can update independently of this HTML cache.
+export const revalidate = 3600; // 1-hour ISR
 
 export default async function LandingPage() {
     // Fetch top NFL pundits server-side so the first HTML response includes

@@ -53,10 +53,17 @@ export async function GET(req: Request) {
     }
 
     try {
+        // Cache the backend fetch for 5 min so the expensive upstream call is
+        // deduplicated across requests, while the response stays uncached at the
+        // edge.  We cannot use s-maxage here: injectHoneypotFields is time-seeded
+        // (see web/lib/anti-scraping.ts), so caching the response body would serve
+        // identical honeypot values to every visitor, defeating per-request
+        // fingerprinting.
         const res = await fetch(backendUrl.toString(), {
             headers: {
                 "Accept": "application/json",
             },
+            next: { revalidate: 300 },
         });
 
         if (!res.ok) {
@@ -71,16 +78,7 @@ export async function GET(req: Request) {
         // Issue: #884
         const responseBody = injectHoneypotFields({ pundits });
 
-        // Edge-cache the JSON response for 5 minutes (s-maxage=300), then serve
-        // stale while revalidating for up to 24 h (stale-while-revalidate=86400).
-        // This means Vercel's edge serves cached JSON instantly to every visitor
-        // except the one unlucky revalidator — exactly what we want for data that
-        // changes at most once per day.
-        return NextResponse.json(responseBody, {
-            headers: {
-                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=86400",
-            },
-        });
+        return NextResponse.json(responseBody);
     } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error("[Ledger Pundits API] Backend fetch error:", {

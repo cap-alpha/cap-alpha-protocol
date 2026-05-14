@@ -57,15 +57,18 @@ jobs:
       - name: Pre-warm edge cache (homepage + leaderboard API)
         # Curl both critical paths so the first real visitor gets cached HTML/JSON
         # instead of a cold-edge-cache miss hitting Cloud Run.
-        # --fail-with-body (-f): treat 4xx/5xx as errors but still print body.
-        # We use || true so a transient warm-up failure never blocks the deploy.
+        # -f (--fail): exit non-zero on 4xx/5xx; body is discarded via -o /dev/null.
+        # -H User-Agent: avoids the bot rate-limit ledger in middleware (curl UA is blocked).
+        # We use || echo so a transient warm-up failure never blocks the deploy.
         run: |
           echo "=== Pre-warming homepage ==="
-          curl -fsS -o /dev/null -w "homepage: %{time_total}s\n" \
+          curl -fsS -o /dev/null -w "homepage: HTTP %{http_code} in %{time_total}s\n" \
             --max-time 30 \
+            -H "User-Agent: cap-alpha-prewarm/1.0 (GHA)" \
             https://cap-alpha.co/ || echo "homepage warm-up failed (non-blocking)"
 
           echo "=== Pre-warming leaderboard API ==="
-          curl -fsS -o /dev/null -w "leaderboard API: %{time_total}s\n" \
+          curl -fsS -o /dev/null -w "leaderboard API: HTTP %{http_code} in %{time_total}s\n" \
             --max-time 30 \
+            -H "User-Agent: cap-alpha-prewarm/1.0 (GHA)" \
             "https://cap-alpha.co/api/ledger/pundits?limit=20&sort=accuracy" || echo "leaderboard API warm-up failed (non-blocking)"

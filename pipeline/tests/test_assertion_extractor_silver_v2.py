@@ -101,9 +101,17 @@ class _DBStub:
 class TestWriteClaimEntityLinks:
     """Unit tests for write_claim_entity_links (Phase 3 / #920)."""
 
-    def setup_method(self):
-        """Ensure GCP_PROJECT_ID is set for all tests in this class."""
-        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+    @pytest.fixture(autouse=True)
+    def _bq_env(self, monkeypatch):
+        """Force BigQuery backend for every test in this class.
+
+        test_promote_claims sets DB_BACKEND=duckdb at module-import time, which
+        poisons the process environment. Without this fixture, _resolve_entity_id
+        takes the DuckDB path, hits missing fetch_df on _DBStub, swallows the
+        exception, and returns a placeholder — causing false failures.
+        """
+        monkeypatch.delenv("DB_BACKEND", raising=False)
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
 
     def _call(self, claim_id, utterance, domain="nfl", query_rows=None):
         from src.assertion_extractor import write_claim_entity_links
@@ -236,8 +244,11 @@ class TestWriteClaimEntityLinks:
 class TestWriteClaimStateHistory:
     """Unit tests for write_claim_state_history (Phase 3 / #920)."""
 
-    def setup_method(self):
-        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+    @pytest.fixture(autouse=True)
+    def _bq_env(self, monkeypatch):
+        """Force BigQuery backend — see TestWriteClaimEntityLinks._bq_env for rationale."""
+        monkeypatch.delenv("DB_BACKEND", raising=False)
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
 
     def _call(self, claim_id):
         from src.assertion_extractor import write_claim_state_history
@@ -315,8 +326,11 @@ class TestWriteSilverV2ClaimsPhase3Integration:
     claim_entity_link and claim_state_history after the main claim write.
     """
 
-    def setup_method(self):
-        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+    @pytest.fixture(autouse=True)
+    def _bq_env(self, monkeypatch):
+        """Force BigQuery backend — see TestWriteClaimEntityLinks._bq_env for rationale."""
+        monkeypatch.delenv("DB_BACKEND", raising=False)
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
 
     def _make_db_stub(self):
         """DB stub that also supports query() calls (for alias lookups)."""
@@ -604,6 +618,12 @@ class TestDualWriteLegacyFlag:
 
 class TestEntityResolutionHelpers:
     """Unit tests for _placeholder_entity_id, _normalize_entity_string."""
+
+    @pytest.fixture(autouse=True)
+    def _bq_env(self, monkeypatch):
+        """Force BigQuery backend — see TestWriteClaimEntityLinks._bq_env for rationale."""
+        monkeypatch.delenv("DB_BACKEND", raising=False)
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
 
     def test_placeholder_entity_id_format(self):
         """Placeholder entity_id must be 'unresolved:{sha256_hex}'."""

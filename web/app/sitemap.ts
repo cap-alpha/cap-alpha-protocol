@@ -1,14 +1,10 @@
 import { MetadataRoute } from "next";
+import { getApiUrl } from "@/lib/ledger-server";
 
 export const revalidate = 86400; // revalidate daily
 
 const BASE_URL =
     process.env.NEXT_PUBLIC_APP_URL ?? "https://cap-alpha.co";
-
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 // ---------------------------------------------------------------------------
 // Static routes
@@ -84,6 +80,7 @@ const staticRoutes: MetadataRoute.Sitemap = [
 
 async function getPunditRoutes(): Promise<MetadataRoute.Sitemap> {
     try {
+        const apiUrl = await getApiUrl();
         const internalApiKey = process.env.CAP_ALPHA_INTERNAL_API_KEY;
         const headers: Record<string, string> = { Accept: "application/json" };
         if (internalApiKey) {
@@ -93,7 +90,7 @@ async function getPunditRoutes(): Promise<MetadataRoute.Sitemap> {
                 "[sitemap] CAP_ALPHA_INTERNAL_API_KEY is not set — pundits fetch may return 401"
             );
         }
-        const res = await fetch(`${API_URL}/v1/pundits/`, {
+        const res = await fetch(`${apiUrl}/v1/pundits/`, {
             headers,
             // next.js fetch cache options
             next: { revalidate: 86400 },
@@ -171,13 +168,14 @@ function getTeamRoutes(): MetadataRoute.Sitemap {
 
 async function getPlayerRoutes(): Promise<MetadataRoute.Sitemap> {
     try {
+        const apiUrl = await getApiUrl();
         const internalApiKey = process.env.CAP_ALPHA_INTERNAL_API_KEY;
         const headers: Record<string, string> = { Accept: "application/json" };
         if (internalApiKey) {
             headers["x-api-key"] = internalApiKey;
         }
         // Fetch top players by claim count from the entity leaderboard
-        const res = await fetch(`${API_URL}/v1/entities/leaderboard?entity_type=player&limit=100`, {
+        const res = await fetch(`${apiUrl}/v1/entities/leaderboard?entity_type=player&limit=100`, {
             headers,
             next: { revalidate: 86400 },
         });

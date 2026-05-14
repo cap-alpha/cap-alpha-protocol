@@ -1,6 +1,14 @@
 import { Metadata } from "next";
 import { CheckCircle2, XCircle, AlertTriangle, Activity, BarChart3, Database, Shield, TrendingUp } from "lucide-react";
 import type { QualityResponse, WaitlistGate } from "@/app/api/quality/route";
+import type { QualityExtendedResponse } from "@/app/api/quality/extended/route";
+import {
+    SilverCoveragePanel,
+    ProvenanceCompletenessPanel,
+    TestabilityDistributionPanel,
+    ProviderMixPanel,
+    AccuracyByCategoryPanel,
+} from "@/components/quality-panels-extended";
 
 export const revalidate = 300;
 
@@ -106,6 +114,18 @@ async function getResolutionStats(): Promise<ResolutionStatsResponse | null> {
             `${FASTAPI_BASE}/v1/quality/resolution-stats`,
             { next: { revalidate: 300 } }
         );
+        if (!res.ok) return null;
+        return res.json();
+    } catch {
+        return null;
+    }
+}
+
+async function getExtendedQuality(): Promise<QualityExtendedResponse | null> {
+    try {
+        const res = await fetch(`${INTERNAL_API_BASE}/api/quality/extended`, {
+            next: { revalidate: 300 },
+        });
         if (!res.ok) return null;
         return res.json();
     } catch {
@@ -479,10 +499,11 @@ function BrierTrendPanel({ data }: { data: ResolutionStatsResponse }) {
 // ---------------------------------------------------------------------------
 
 export default async function QualityPage() {
-    const [data, extractionHealth, resolutionStats] = await Promise.all([
+    const [data, extractionHealth, resolutionStats, extendedQuality] = await Promise.all([
         getQualityData(),
         getExtractionHealth(),
         getResolutionStats(),
+        getExtendedQuality(),
     ]);
 
     const totalUtterances = data.dailyTrend.reduce(
@@ -637,6 +658,42 @@ export default async function QualityPage() {
                     <BrierTrendPanel data={resolutionStats} />
                 )}
 
+                {/* ── Launch-milestone panels ──────────────────────────────── */}
+                {extendedQuality && (
+                    <section className="space-y-6">
+                        <SectionHeader
+                            icon={BarChart3}
+                            title="Pipeline Coverage &amp; Provenance"
+                            subtitle="Live DB counts — cached 5 min"
+                        />
+
+                        {/* Row 1: Silver coverage + provenance completeness */}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <SilverCoveragePanel
+                                data={extendedQuality.silverCoverage}
+                            />
+                            <ProvenanceCompletenessPanel
+                                data={extendedQuality.provenanceCompleteness}
+                            />
+                        </div>
+
+                        {/* Row 2: Testability distribution + provider mix */}
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <TestabilityDistributionPanel
+                                data={extendedQuality.testabilityBuckets}
+                            />
+                            <ProviderMixPanel
+                                data={extendedQuality.providerMix}
+                            />
+                        </div>
+
+                        {/* Row 3: Accuracy by category (full width) */}
+                        <AccuracyByCategoryPanel
+                            data={extendedQuality.accuracyByCategory}
+                        />
+                    </section>
+                )}
+
                 {/* Footer note */}
                 <p className="text-xs text-zinc-700 border-t border-zinc-900 pt-6">
                     Metrics computed from{" "}
@@ -647,7 +704,7 @@ export default async function QualityPage() {
                     <code className="font-mono">
                         gold_layer.prediction_ledger
                     </code>
-                    . Page cached for 1 hour. Admin drill-down at{" "}
+                    . Page cached for 5 minutes. Admin drill-down at{" "}
                     <a
                         href="/admin/quality/runs"
                         className="text-zinc-500 hover:text-zinc-400 underline"

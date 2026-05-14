@@ -519,12 +519,21 @@ def resolve_draft_picks(
     # SportsDataIO stores the top ~22 first-round picks as 0-indexed
     # (CollegeDraftRound=0, CollegeDraftPick=0 = #1 overall pick).
     # Normalize to 1-indexed so all downstream comparisons are consistent.
-    zero_indexed_mask = (draft_data["draft_round"] == 0) & (
-        draft_data["draft_pick"] >= 0
+    #
+    # Fix for Issue #935 ("Round 0.0" in outcome_notes): the previous mask
+    # used `draft_pick >= 0` which silently skips NaN draft_pick values, leaving
+    # those rows with draft_round=0 un-normalized and producing "Round 0.0" in
+    # outcome_notes.  We now normalize draft_round=0 → 1 unconditionally, and
+    # only shift draft_pick for rows where it is not-null and >= 0.
+    round_zero_mask = draft_data["draft_round"] == 0
+    draft_data.loc[round_zero_mask, "draft_round"] = 1
+    pick_shift_mask = (
+        round_zero_mask
+        & draft_data["draft_pick"].notna()
+        & (draft_data["draft_pick"] >= 0)
     )
-    draft_data.loc[zero_indexed_mask, "draft_round"] = 1
-    draft_data.loc[zero_indexed_mask, "draft_pick"] = (
-        draft_data.loc[zero_indexed_mask, "draft_pick"] + 1
+    draft_data.loc[pick_shift_mask, "draft_pick"] = (
+        draft_data.loc[pick_shift_mask, "draft_pick"] + 1
     )
 
     logger.info(

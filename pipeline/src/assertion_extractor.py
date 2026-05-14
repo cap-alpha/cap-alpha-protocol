@@ -1626,29 +1626,55 @@ def compute_claim_norm_key(
 def check_claim_is_duplicate(
     norm_key: str,
     db: "DBManager",
+    source_url: Optional[str] = None,
+    pundit_id: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Query prediction_ledger for an existing claim with the given norm_key.
+    Query prediction_ledger for an existing claim with the given norm_key,
+    scoped to the same (pundit_id, source_url) when provided.
+
+    Scoping to source_url+pundit_id prevents two problems:
+      1. Same article extracted twice (re-run / prompt drift) — same source_url
+         same pundit yields duplicate rows that differ only in extracted_claim
+         phrasing. Scoping suppresses the re-extraction correctly.
+      2. Over-suppression across articles — without scoping, a Schrager mock
+         for Carnell Tate would suppress a McShay mock for the same player, even
+         though they are genuinely independent predictions.
 
     Returns the canonical prediction_hash if a duplicate is found, or None if
     this is a new unique claim.  Uses a LIMIT 1 query so it is O(1) in BigQuery
     with the CLUSTER BY on claim_norm_key (added by migration 015).
+
+    Fix for Issue #935: previously this queried ALL rows with claim_norm_key,
+    causing cross-article dedup suppression and missing same-article duplicates
+    that snuck through _deduplicate_claims' similarity threshold.
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
     if not project_id:
         logger.warning("GCP_PROJECT_ID not set; skipping dedup check")
         return None
 
+    query_params = [ScalarQueryParameter("norm_key", "STRING", norm_key)]
+    scope_filter = ""
+    if source_url and pundit_id:
+        scope_filter = "AND source_url = @source_url AND pundit_id = @pundit_id "
+        query_params += [
+            ScalarQueryParameter("source_url", "STRING", source_url),
+            ScalarQueryParameter("pundit_id", "STRING", pundit_id),
+        ]
+    elif source_url:
+        scope_filter = "AND source_url = @source_url "
+        query_params.append(ScalarQueryParameter("source_url", "STRING", source_url))
+
     query = f"""
         SELECT prediction_hash
         FROM `{project_id}.{LEDGER_TABLE}`
         WHERE claim_norm_key = @norm_key
+          {scope_filter}
         LIMIT 1
     """
     try:
-        job_config = QueryJobConfig(
-            query_parameters=[ScalarQueryParameter("norm_key", "STRING", norm_key)]
-        )
+        job_config = QueryJobConfig(query_parameters=query_params)
         df = db.fetch_df(query, job_config=job_config)
         if df.empty:
             return None
@@ -2873,7 +2899,12 @@ def run_extraction(
                     target_team=pred.get("target_team"),
                     season_year=pred.get("season_year"),
                 )
-                canonical_hash = check_claim_is_duplicate(norm_key, db)
+                canonical_hash = check_claim_is_duplicate(
+                    norm_key,
+                    db,
+                    source_url=source_url,
+                    pundit_id=str(pundit_id),
+                )
                 if canonical_hash is not None:
                     # Duplicate found: log it and skip ingestion into the ledger.
                     # We compute a hash for the incoming (suppressed) claim so the

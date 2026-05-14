@@ -5,34 +5,7 @@ import {
     logBlockedRequest,
     LEDGER_MAX_LIMIT,
 } from "@/lib/anti-scraping";
-
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
-
-// Normalize backend field names (resolved_count / correct_count) to the
-// legacy web contract (resolved_predictions / correct_predictions /
-// incorrect_predictions) so all frontend consumers stay consistent.
-function normalizePundit(p: Record<string, unknown>): Record<string, unknown> {
-    const resolvedCount = (p.resolved_count as number | undefined) ?? 0;
-    const correctCount = (p.correct_count as number | undefined) ?? 0;
-    return {
-        ...p,
-        resolved_predictions:
-            p.resolved_predictions !== undefined
-                ? p.resolved_predictions
-                : resolvedCount,
-        correct_predictions:
-            p.correct_predictions !== undefined
-                ? p.correct_predictions
-                : correctCount,
-        incorrect_predictions:
-            p.incorrect_predictions !== undefined
-                ? p.incorrect_predictions
-                : resolvedCount - correctCount,
-    };
-}
+import { getApiUrl, normalizePundit } from "@/lib/ledger-server";
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
@@ -65,7 +38,8 @@ export async function GET(req: Request) {
     }
 
     // Build backend URL, forwarding all query params
-    const backendUrl = new URL(`${API_URL}/v1/pundits/`);
+    const apiUrl = await getApiUrl();
+    const backendUrl = new URL(`${apiUrl}/v1/pundits/`);
     // Forward all incoming query params to backend (with enforced limit)
     searchParams.forEach((value, key) => {
         if (key !== "limit") {
@@ -101,7 +75,7 @@ export async function GET(req: Request) {
         const errorMsg = err instanceof Error ? err.message : String(err);
         console.error("[Ledger Pundits API] Backend fetch error:", {
             error: errorMsg,
-            backendUrl: API_URL,
+            backendUrl: apiUrl,
         });
         return NextResponse.json({ pundits: [] }, { status: 502 });
     }

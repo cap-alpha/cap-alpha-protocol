@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Activity, Flame, Snowflake } from "lucide-react";
+import { Activity, Flame, Snowflake, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/animated-counter";
 import { HoverableRow } from "@/components/hoverable-row";
@@ -136,42 +136,122 @@ interface PunditLeaderboardPreviewProps {
      * Defaults to "NFL" per issue #883 (topic-agnostic leaderboard with NFL as primary).
      */
     sport?: string;
+    /**
+     * Pre-fetched pundit data from the server component (SSR).
+     * When provided, the component renders immediately without a loading spinner
+     * on first contentful paint.  The useEffect re-fetches only when the user
+     * switches the sport filter tab.
+     */
+    initialPundits?: Record<string, unknown>[];
 }
 
-export function PunditLeaderboardPreview({ sport: sportProp = "NFL" }: PunditLeaderboardPreviewProps) {
-    const [activeSport, setActiveSport] = useState<Sport>(
-        SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "NFL"
+/** Normalise the raw backend/SSR record into a typed PunditStat. */
+function toPunditStat(p: Record<string, unknown>): PunditStat {
+    return p as unknown as PunditStat;
+}
+
+/** Filter + sort helper — shared between SSR seed and client refetch paths. */
+function processRawPundits(raw: PunditStat[]): PunditStat[] {
+    const filtered = raw.filter(
+        (p) => p.resolved_predictions >= 5 && p.accuracy_rate !== null
     );
-    const [pundits, setPundits] = useState<PunditStat[]>([]);
-    const [loading, setLoading] = useState(true);
+    filtered.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
+    return filtered.slice(0, 10);
+}
+
+const FETCH_TIMEOUT_MS = 10_000;
+
+/**
+ * Three-state fetch helper.
+ *   - resolves with PunditStat[] on success
+ *   - rejects on network error, non-ok HTTP status, or timeout
+ */
+async function fetchPundits(sport: Sport, signal?: AbortSignal): Promise<PunditStat[]> {
+    const params = new URLSearchParams({ limit: "20", sort: "accuracy" });
+    if (sport !== "ALL") {
+        params.set("sport", sport.toLowerCase());
+    }
+    const res = await fetch(`/api/ledger/pundits?${params.toString()}`, { signal });
+    if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    return processRawPundits((data.pundits || []).map(toPunditStat));
+}
+
+export function PunditLeaderboardPreview({
+    sport: sportProp = "NFL",
+    initialPundits,
+}: PunditLeaderboardPreviewProps) {
+    const defaultSport: Sport = SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "NFL";
+    const [activeSport, setActiveSport] = useState<Sport>(defaultSport);
+
+    // Seed from SSR data when available so the first render is not empty.
+    const seedPundits = initialPundits
+        ? processRawPundits(initialPundits.map(toPunditStat))
+        : [];
+    const [pundits, setPundits] = useState<PunditStat[]>(seedPundits);
+
+    /**
+     * Three distinct UI states — never conflate them:
+     *   "idle"    — SSR data is present; no background fetch needed on first paint
+     *   "loading" — fetch in-flight (initial load or sport switch)
+     *   "error"   — fetch failed and retry also failed; show inline message
+     */
+    type FetchState = "idle" | "loading" | "error";
+    const [fetchState, setFetchState] = useState<FetchState>(
+        seedPundits.length > 0 ? "idle" : "loading"
+    );
+
+    // Track whether a retry is currently scheduled so we don't double-schedule.
+    const retryScheduled = useRef(false);
 
     useEffect(() => {
-        setLoading(true);
-        const params = new URLSearchParams({ limit: "20", sort: "accuracy" });
-        if (activeSport !== "ALL") {
-            params.set("sport", activeSport.toLowerCase());
+        // Skip the initial client fetch for the default sport when SSR data was
+        // provided — the page already rendered with real data.  Re-fetch only
+        // when the user switches to a different sport tab.
+        if (activeSport === defaultSport && seedPundits.length > 0) {
+            return;
         }
-        fetch(`/api/ledger/pundits?${params.toString()}`)
-            .then((r) => {
-                if (!r.ok) {
-                    console.error(`[Leaderboard] API returned ${r.status}`);
-                    return { pundits: [] };
-                }
-                return r.json();
-            })
-            .then((data) => {
-                const all: PunditStat[] = (data.pundits || []).filter(
-                    (p: PunditStat) => p.resolved_predictions >= 5 && p.accuracy_rate !== null
-                );
-                // Sort by accuracy desc
-                all.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
-                // Top 10 for table; featured card requires >= 20 resolved picks
-                setPundits(all.slice(0, 10));
-            })
-            .catch((err) => {
-                console.error("[Leaderboard] Fetch error:", err);
-            })
-            .finally(() => setLoading(false));
+
+        let cancelled = false;
+        retryScheduled.current = false;
+
+        setFetchState("loading");
+
+        const attemptFetch = (isRetry: boolean) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+            fetchPundits(activeSport, controller.signal)
+                .then((result) => {
+                    clearTimeout(timeoutId);
+                    if (cancelled) return;
+                    setPundits(result);
+                    setFetchState("idle");
+                })
+                .catch((err) => {
+                    clearTimeout(timeoutId);
+                    if (cancelled) return;
+                    console.error(`[Leaderboard] Fetch${isRetry ? " retry" : ""} error:`, err);
+                    if (!isRetry && !retryScheduled.current) {
+                        // First attempt failed — schedule a single retry after 3 s.
+                        retryScheduled.current = true;
+                        setTimeout(() => {
+                            if (!cancelled) attemptFetch(true);
+                        }, 3000);
+                    } else {
+                        // Retry also failed — surface the error state.
+                        setFetchState("error");
+                    }
+                });
+        };
+
+        attemptFetch(false);
+
+        return () => {
+            cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [activeSport]);
 
     /**
@@ -210,11 +290,40 @@ export function PunditLeaderboardPreview({ sport: sportProp = "NFL" }: PunditLea
                 ))}
             </div>
 
-            {loading ? (
+            {fetchState === "loading" ? (
                 <div className="flex items-center justify-center h-40">
                     <div className="flex items-center gap-2 text-zinc-400">
                         <Activity className="w-4 h-4 animate-pulse" />
                         <span className="text-sm font-mono">Loading ledger…</span>
+                    </div>
+                </div>
+            ) : fetchState === "error" ? (
+                <div className="flex items-center justify-center h-40">
+                    <div className="flex flex-col items-center gap-3 text-center px-4">
+                        <WifiOff className="w-5 h-5 text-zinc-600" />
+                        <p className="text-sm font-mono text-zinc-500">
+                            Ledger temporarily unavailable.
+                        </p>
+                        <button
+                            onClick={() => {
+                                const controller = new AbortController();
+                                const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+                                setFetchState("loading");
+                                fetchPundits(activeSport, controller.signal)
+                                    .then((result) => {
+                                        clearTimeout(timeoutId);
+                                        setPundits(result);
+                                        setFetchState("idle");
+                                    })
+                                    .catch(() => {
+                                        clearTimeout(timeoutId);
+                                        setFetchState("error");
+                                    });
+                            }}
+                            className="text-xs font-mono text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
+                        >
+                            Try again
+                        </button>
                     </div>
                 </div>
             ) : pundits.length === 0 ? (

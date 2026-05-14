@@ -435,7 +435,7 @@ class TestRunExtractionDedupGate:
             "award_prediction", "Patrick Mahomes", "KC", 2026
         )
 
-        def side_effect(norm_key, db):
+        def side_effect(norm_key, db, source_url=None, pundit_id=None):
             if norm_key == mahomes_key:
                 return "canonical_mahomes_hash"
             return None

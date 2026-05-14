@@ -167,6 +167,15 @@ CREATE TABLE IF NOT EXISTS gold_layer.prediction_ledger (
     claim_norm_key      VARCHAR
 );
 
+-- Unique index enforcing no two rows with the same (pundit_id, source_url, claim_norm_key).
+-- DuckDB treats each NULL as distinct in a UNIQUE index (NULLS NOT DISTINCT is not the
+-- default), so rows with claim_norm_key = NULL (pre-dedup-era rows) are naturally exempt.
+-- This is the DuckDB-side enforcement of the app-layer dedup added in Issue #935.
+-- BigQuery does not support unique constraints; the application layer (check_claim_is_duplicate
+-- scoped to pundit_id + source_url) provides equivalent protection in production.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ledger_pundit_source_norm
+    ON gold_layer.prediction_ledger (pundit_id, source_url, claim_norm_key);
+
 CREATE TABLE IF NOT EXISTS gold_layer.prediction_resolutions (
     prediction_hash       VARCHAR     NOT NULL,
     resolution_status     VARCHAR     NOT NULL,

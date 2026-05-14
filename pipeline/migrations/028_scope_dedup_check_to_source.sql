@@ -1,0 +1,71 @@
+-- Migration 028: Scope dedup gate to (pundit_id, source_url, claim_norm_key)
+-- Issue #935 — silver: duplicate extraction rows for same prediction
+--
+-- ROOT CAUSE (documented)
+-- -----------------------
+-- The Phase 0 exact-match dedup gate (Issue #808) queried prediction_ledger
+-- for ANY row matching `claim_norm_key` without scoping to the originating
+-- source or pundit.  This had two failure modes:
+--
+--   1. SAME-ARTICLE DUPLICATES SLIP THROUGH
+--      The extractor may produce two slightly-different `extracted_claim` strings
+--      from the same article (e.g. "will be selected #7 overall" vs "will be
+--      drafted #7 overall").  `_deduplicate_claims()` uses SequenceMatcher with
+--      threshold=0.75; phrasings below that threshold both pass to the ledger.
+--      On the FIRST run, neither is in the ledger yet, so the dedup check
+--      (`check_claim_is_duplicate`) returns None for both and BOTH get ingested.
+--      Scoping to `(pundit_id, source_url)` means the second claim in the batch
+--      finds the first already in the ledger and is suppressed.
+--
+--   2. CROSS-ARTICLE OVER-SUPPRESSION
+--      Without scoping, a Schrager final mock for Carnell Tate would suppress
+--      a McShay mock for the same player even though they are genuinely
+--      independent predictions.  The norm_key `(draft_pick|carnell tate||2026)`
+--      matched across different articles, silently dropping valid claims.
+--
+-- RESOLUTION
+-- ----------
+-- `check_claim_is_duplicate` now accepts `source_url` and `pundit_id` and
+-- adds them to the WHERE clause when provided.  The call site in `run_extraction`
+-- always passes both.  The effective uniqueness constraint is:
+--   (pundit_id, source_url, claim_norm_key)
+--
+-- BigQuery does not support enforcing UNIQUE constraints at the storage layer.
+-- This migration documents the application-layer invariant.  The DuckDB schema
+-- enforces it via a partial UNIQUE INDEX added to init_duckdb.py.
+--
+-- ROUND 0.0 FIX (also in this changeset)
+-- ----------------------------------------
+-- `resolve_draft_picks` in resolve_daily.py had a normalization mask:
+--   (draft_round == 0) & (draft_pick >= 0)
+-- NaN comparisons with >= return False in pandas, so rows with draft_round=0
+-- and draft_pick=NaN were not normalized.  Their round stayed as 0.0 and
+-- produced "Round 0.0" in outcome_notes (an invalid round value).
+-- Fixed by splitting the mask: unconditionally normalize draft_round=0 → 1,
+-- and only shift draft_pick for rows where it is not-null and >= 0.
+--
+-- NO DDL REQUIRED FOR BIGQUERY — constraint is application-layer only.
+-- The DuckDB partial unique index is in init_duckdb.py's _SCHEMA_SQL.
+--
+-- Verification queries (run against DuckDB after the fix is deployed):
+--
+--   -- 1. No duplicate (pundit_id, source_url, claim_norm_key) tuples
+--   SELECT pundit_id, source_url, claim_norm_key, COUNT(*) AS n
+--   FROM gold_layer.prediction_ledger
+--   WHERE claim_norm_key IS NOT NULL
+--   GROUP BY 1,2,3
+--   HAVING COUNT(*) > 1;
+--   -- expect: 0 rows
+--
+--   -- 2. No "Round 0.0" in outcome_notes
+--   SELECT COUNT(*) FROM gold_layer.prediction_resolutions
+--   WHERE outcome_notes LIKE '%Round 0.0%';
+--   -- expect: 0
+--
+--   -- 3. Schrager/Tate dedup check
+--   SELECT pundit_name, target_player_name, extracted_claim, outcome_notes
+--   FROM gold_layer.prediction_ledger l
+--   LEFT JOIN gold_layer.prediction_resolutions r USING (prediction_hash)
+--   WHERE pundit_name = 'Peter Schrager'
+--     AND target_player_name = 'Carnell Tate';
+--   -- expect: 1 row (not 2)

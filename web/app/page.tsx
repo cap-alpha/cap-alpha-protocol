@@ -2,10 +2,15 @@ import Link from "next/link";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { SignUpCta } from "@/components/sign-up-cta";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
+import { fetchPunditsSSR } from "@/lib/ledger-server";
 
 export const revalidate = 300; // 5-minute ISR
 
-export default function LandingPage() {
+export default async function LandingPage() {
+    // Fetch top NFL pundits server-side so the first HTML response includes
+    // real leaderboard data — no blank "Loading ledger…" spinner on FCP.
+    const initialPundits = await fetchPunditsSSR("NFL", 20);
+
     return (
         <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
             {/* ── Hero ── */}
@@ -46,7 +51,8 @@ export default function LandingPage() {
             <section className="w-full px-6 pb-16">
                 <div className="max-w-2xl mx-auto">
                     {/* sport prop drives the API filter; topic switcher (#774) will override at runtime */}
-                    <PunditLeaderboardPreview sport="NFL" />
+                    {/* initialPundits pre-populated server-side — eliminates blank spinner on FCP */}
+                    <PunditLeaderboardPreview sport="NFL" initialPundits={initialPundits} />
                 </div>
             </section>
 

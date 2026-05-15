@@ -94,13 +94,13 @@ export default async function LandingPage() {
                     <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
                         Pundit Ledger
                     </span>
-                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2">
-                        <Link href="/ledger" className="hover:text-white transition-colors">Leaderboard</Link>
-                        <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-                        <Link href="/methodology" className="hover:text-white transition-colors">Methodology</Link>
-                        <Link href="/legal/terms" className="hover:text-white transition-colors">Terms</Link>
-                        <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy</Link>
-                        <Link href="/legal/acceptable-use" className="hover:text-white transition-colors">Acceptable Use</Link>
+                    <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-0">
+                        <Link href="/ledger" className="min-h-[44px] inline-flex items-center hover:text-white transition-colors">Leaderboard</Link>
+                        <Link href="/pricing" className="min-h-[44px] inline-flex items-center hover:text-white transition-colors">Pricing</Link>
+                        <Link href="/methodology" className="min-h-[44px] inline-flex items-center hover:text-white transition-colors">Methodology</Link>
+                        <Link href="/legal/terms" className="min-h-[44px] inline-flex items-center hover:text-white transition-colors">Terms</Link>
+                        <Link href="/legal/privacy" className="min-h-[44px] inline-flex items-center hover:text-white transition-colors">Privacy</Link>
+                        <Link href="/legal/acceptable-use" className="min-h-[44px] inline-flex items-center hover:text-white transition-colors">Acceptable Use</Link>
                     </div>
                     <span>© {new Date().getFullYear()} Pundit Ledger. All predictions verified.</span>
                 </div>

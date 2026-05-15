@@ -146,8 +146,9 @@ LOCAL_DUCKDB := $(REPO_ROOT)/pipeline/data/local.duckdb
 
 dev-seed: ## Init local DuckDB schema and load golden seed predictions
 	@mkdir -p $(REPO_ROOT)/pipeline/data
+	@rm -f $(LOCAL_DUCKDB)
 	$(PY) USE_LOCAL_DB=1 LOCAL_DB_PATH=$(LOCAL_DUCKDB) \
-		PYTHONPATH=$(REPO_ROOT)/pipeline \
+		PYTHONPATH=$(CURDIR)/pipeline \
 		python -c "from src.db_manager import DBManager; db = DBManager(); print('[dev-seed] schema ready at $(LOCAL_DUCKDB)'); db.close()"
 	$(PY) DUCKDB_PATH=$(LOCAL_DUCKDB) \
 		python $(REPO_ROOT)/pipeline/scripts/load_golden_seed.py

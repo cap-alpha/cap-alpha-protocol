@@ -250,6 +250,21 @@ make test-e2e
 - Bundled PRs make reverts exponentially harder: reverting C4 should not undo C3, M7, and M8.
 - The PR template has a required checkbox enforcing this; fill it out before opening.
 
+### AC checklist rule — before using "Closes #N"
+
+**Before writing "Closes #N" in a PR body, re-read every AC item in issue #N.**
+
+For each AC item:
+- **Done by this PR** → check it off in the issue body (`- [ ]` → `- [x]`) before opening the PR.
+- **Not done, but will be done in a follow-up** → file the follow-up issue NOW, before opening this PR, and reference it: `Follow-up: #<new>`. Cross out the deferred AC item in the issue with `~~- [ ] item~~`.
+- **Intentionally dropped** → cross it out with `~~- [ ] item~~` and add a comment explaining why.
+
+**If any AC item remains unchecked and has no follow-up issue filed, use "Refs #N" instead of "Closes #N"** — this keeps the issue open and avoids premature closure.
+
+CI enforces this via `ac_checklist_gate.yml` (advisory for now, becomes blocking once the M-LAUNCH backlog clears).
+
+**Why this matters:** In a 2026-05-14 spot-check, 28 of 28 M-LAUNCH milestone issues were closed with all AC boxes unchecked and zero verification evidence. The Gate 0/Gate 1 security, performance, and legal checks were bulk-closed when spec PRs landed — none of the actual audits ran. This rule prevents recurrence.
+
 ### Decision authority — what to do without asking
 - **Code changes**: refactor, fix bugs, add features described in an issue — just do it.
 - **File creation/deletion**: create new modules, tests, migrations as needed.

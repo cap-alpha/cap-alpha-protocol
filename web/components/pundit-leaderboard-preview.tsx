@@ -278,7 +278,7 @@ export function PunditLeaderboardPreview({
                         key={s}
                         onClick={() => setActiveSport(s)}
                         className={cn(
-                            "px-3 py-1 rounded text-xs font-mono font-semibold uppercase tracking-wide transition-colors border",
+                            "px-3 py-1 min-h-[44px] inline-flex items-center justify-center rounded text-xs font-mono font-semibold uppercase tracking-wide transition-colors border",
                             activeSport === s
                                 ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
                                 : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
@@ -397,7 +397,7 @@ export function PunditLeaderboardPreview({
             <div className="pt-1 text-center">
                 <Link
                     href="/ledger"
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                    className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
                 >
                     View full ledger →
                 </Link>

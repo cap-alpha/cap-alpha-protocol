@@ -677,7 +677,8 @@ CREATE TABLE IF NOT EXISTS gold_layer.prediction_ledger (
   resolution_notes    VARCHAR,
   prompt_version      VARCHAR,
   llm_provider        VARCHAR,
-  llm_model           VARCHAR
+  llm_model           VARCHAR,
+  claim_norm_key      VARCHAR
 );
 
 -- ---- gold_layer.prediction_resolutions ----
@@ -802,9 +803,15 @@ class LocalDBManager:
       - MERGE ... WHEN NOT MATCHED BY SOURCE → standard MERGE (BY SOURCE dropped)
     """
 
-    def __init__(self, db_path: str = "pipeline/local_dev.duckdb"):
+    def __init__(self, db_path: str = ""):
         import duckdb  # local import so BQ-only installs aren't broken
 
+        if not db_path:
+            db_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "data",
+                "local.duckdb",
+            )
         self._duck = duckdb.connect(db_path)
         self.dataset_id = "main"
         self._setup_schema()
@@ -1140,7 +1147,7 @@ class _LocalJob:
 
 def _dbmanager_new(cls, *args, **kwargs):
     if os.environ.get("USE_LOCAL_DB", "").lower() in ("1", "true", "yes"):
-        db_path = os.environ.get("LOCAL_DB_PATH", "pipeline/local_dev.duckdb")
+        db_path = os.environ.get("LOCAL_DB_PATH", "")
         # Fully initialise LocalDBManager here and return it.
         # Python will still call DBManager.__init__ on the returned object;
         # we guard against that with the isinstance check in __init__.

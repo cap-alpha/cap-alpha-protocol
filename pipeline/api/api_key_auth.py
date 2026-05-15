@@ -29,7 +29,7 @@ import hmac
 import logging
 import os
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import Depends, Header, HTTPException
 from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter
@@ -110,7 +110,7 @@ def get_db_for_auth() -> DBManager:
 
 
 def verify_api_key(
-    x_api_key: str = Header(..., description="API key in the form capk_live_..."),
+    x_api_key: Optional[str] = Header(None, description="API key in the form capk_live_..."),
     db: DBManager = Depends(get_db_for_auth),
 ) -> Dict[str, Any]:
     """
@@ -118,7 +118,19 @@ def verify_api_key(
 
     Returns the key row dict on success.
     Raises HTTP 401 when key is missing/invalid, HTTP 403 when revoked/expired.
+
+    Set API_AUTH_DISABLED=1 to bypass BQ lookup in local dev (no-op key injected).
     """
+    if os.environ.get("API_AUTH_DISABLED", "").lower() in ("1", "true", "yes"):
+        return {
+            "key_id": "local-dev",
+            "user_id": "local-dev-user",
+            "tier": "enterprise",
+            "status": "active",
+            "scopes": [],
+            "name": "Local Dev Bypass (API_AUTH_DISABLED)",
+        }
+
     if not x_api_key:
         raise HTTPException(status_code=401, detail="Missing X-API-Key header")
 

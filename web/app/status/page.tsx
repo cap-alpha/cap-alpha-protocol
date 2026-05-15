@@ -59,8 +59,8 @@ async function runChecks(): Promise<ServiceCheck[]> {
     const results = await Promise.allSettled([
         // 1. API health endpoint
         checkWithTimeout(`${APP_URL}/api/health`),
-        // 2. Ledger API (first page)
-        checkWithTimeout(`${APP_URL}/api/ledger?limit=1`, 6000),
+        // 2. Ledger API (first page) — /api/ledger/pundits is the correct route (#961)
+        checkWithTimeout(`${APP_URL}/api/ledger/pundits?limit=1`, 6000),
         // 3. Clerk (auth) — ping their status page API
         checkWithTimeout("https://status.clerk.com/api/v2/status.json", 4000),
         // 4. Stripe — ping their status API

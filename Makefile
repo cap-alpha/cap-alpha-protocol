@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2 backfill-entities
+.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2 backfill-entities dev-api
 
 PYTHON ?= python3
 # Resolve VENV to the main repo root — works from both the main checkout and worktrees.
@@ -43,6 +43,11 @@ venv:
 # -----------------------------------------------------------------------------
 # LOCAL DEV — lint + test via venv (no Docker required)
 # -----------------------------------------------------------------------------
+
+# Start FastAPI locally with DuckDB (billing-free). Must run from repo root.
+# Issue #963 — running from pipeline/ dir fails with ModuleNotFoundError.
+dev-api:
+	$(PY) USE_LOCAL_DB=1 uvicorn pipeline.api.main:app --reload --port 8000
 
 test:
 	$(PY) PYTHONPATH=$${PYTHONPATH:+$$PYTHONPATH:}$$(pwd)/pipeline \

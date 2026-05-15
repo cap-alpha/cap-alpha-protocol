@@ -84,6 +84,7 @@ export default function DraftScoreboard() {
   const year = params.year as string;
   const [data, setData] = useState<DraftData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
 
   const fetchData = useCallback(async () => {
@@ -98,6 +99,8 @@ export default function DraftScoreboard() {
       setLastRefresh(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch");
+    } finally {
+      setLoading(false);
     }
   }, [year]);
 
@@ -182,10 +185,17 @@ export default function DraftScoreboard() {
       </header>
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {error && !data && (
+        {loading && !data && !error && (
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-12 text-center">
+            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent mb-4" />
+            <p className="text-lg text-zinc-400">Loading scoreboard…</p>
+          </div>
+        )}
+
+        {!loading && error && !data && (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 p-12 text-center">
             <p className="text-lg text-zinc-400">
-              Scoreboard loading...
+              Scoreboard unavailable
             </p>
             <p className="mt-2 text-sm text-zinc-600">
               The prediction engine is warming up. Retrying automatically.

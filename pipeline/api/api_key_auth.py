@@ -94,8 +94,11 @@ def _hash_key(raw_key: str) -> str:
     return hashlib.sha256((pepper + raw_key).encode()).hexdigest()
 
 
-def get_db_for_auth() -> DBManager:
-    """Dependency-injected DBManager for auth path (separate from per-request get_db)."""
+def get_db_for_auth():
+    """Dependency-injected DBManager for auth path. Skipped when API_AUTH_DISABLED=1."""
+    if os.environ.get("API_AUTH_DISABLED", "").lower() in ("1", "true", "yes"):
+        yield None
+        return
     db = DBManager()
     try:
         yield db

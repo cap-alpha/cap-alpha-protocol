@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2 backfill-entities
+.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2 backfill-entities dev-api dev-seed
 
 PYTHON ?= python3
 # Resolve VENV to the main repo root — works from both the main checkout and worktrees.
@@ -137,6 +137,27 @@ backfill-entities:
 	$(PY) DB_BACKEND=duckdb DUCKDB_PATH=$(REPO_ROOT)/pipeline/data/local.duckdb \
 		PYTHONPATH=$(REPO_ROOT)/pipeline \
 		python -m src.backfill_entities
+
+# -----------------------------------------------------------------------------
+# LOCAL DEV — FastAPI + DuckDB, no GCP required
+# -----------------------------------------------------------------------------
+
+LOCAL_DUCKDB := $(REPO_ROOT)/pipeline/data/local.duckdb
+
+dev-seed: ## Init local DuckDB schema and load golden seed predictions
+	@mkdir -p $(REPO_ROOT)/pipeline/data
+	$(PY) USE_LOCAL_DB=1 LOCAL_DB_PATH=$(LOCAL_DUCKDB) \
+		PYTHONPATH=$(REPO_ROOT)/pipeline \
+		python -c "from src.db_manager import DBManager; db = DBManager(); print('[dev-seed] schema ready at $(LOCAL_DUCKDB)'); db.close()"
+	$(PY) DUCKDB_PATH=$(LOCAL_DUCKDB) \
+		python $(REPO_ROOT)/pipeline/scripts/load_golden_seed.py
+
+dev-api: ## Start FastAPI locally with DuckDB backend — no BQ or GCP needed
+	@echo "Starting local API at http://localhost:8000 (DuckDB: $(LOCAL_DUCKDB))"
+	@echo "Run 'make dev-seed' first if the leaderboard is empty."
+	$(PY) USE_LOCAL_DB=1 API_AUTH_DISABLED=1 LOCAL_DB_PATH=$(LOCAL_DUCKDB) \
+		PYTHONPATH=$(REPO_ROOT)/pipeline \
+		uvicorn pipeline.api.main:app --reload --port 8000
 
 # -----------------------------------------------------------------------------
 # WEB

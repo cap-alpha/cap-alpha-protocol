@@ -151,7 +151,7 @@ dev-seed: ## Init local DuckDB schema and load golden seed predictions
 		PYTHONPATH=$(CURDIR)/pipeline \
 		python -c "from src.db_manager import DBManager; db = DBManager(); print('[dev-seed] schema ready at $(LOCAL_DUCKDB)'); db.close()"
 	$(PY) DUCKDB_PATH=$(LOCAL_DUCKDB) \
-		python $(REPO_ROOT)/pipeline/scripts/load_golden_seed.py
+		python $(CURDIR)/pipeline/scripts/load_golden_seed.py
 
 dev-api: ## Start FastAPI locally with DuckDB backend — no BQ or GCP needed
 	@echo "Starting local API at http://localhost:8000 (DuckDB: $(LOCAL_DUCKDB))"

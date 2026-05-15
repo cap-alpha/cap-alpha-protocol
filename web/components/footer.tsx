@@ -62,7 +62,7 @@ const Footer = () => {
                         <span>All Rights Reserved</span>
                         <span className="h-1 w-1 bg-slate-600 rounded-full" aria-hidden="true"></span>
                         <a
-                            href={`https://github.com/ucalegon206/cap-alpha-protocol/commit/${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
+                            href={`https://github.com/cap-alpha/cap-alpha-protocol/commit/${process.env.NEXT_PUBLIC_COMMIT_SHA}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="font-mono text-slate-400 hover:text-emerald-500 transition-colors"

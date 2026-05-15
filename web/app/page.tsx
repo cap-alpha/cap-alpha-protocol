@@ -70,13 +70,13 @@ export default function LandingPage() {
                     <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
                         Pundit Ledger
                     </span>
-                    <div className="flex items-center gap-6">
-                        <Link href="/ledger" className="hover:text-white transition-colors">Leaderboard</Link>
-                        <Link href="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-                        <Link href="/methodology" className="hover:text-white transition-colors">Methodology</Link>
-                        <Link href="/legal/terms" className="hover:text-white transition-colors">Terms</Link>
-                        <Link href="/legal/privacy" className="hover:text-white transition-colors">Privacy</Link>
-                        <Link href="/legal/acceptable-use" className="hover:text-white transition-colors">Acceptable Use</Link>
+                    <div className="flex flex-wrap items-center gap-6">
+                        <Link href="/ledger" className="hover:text-white transition-colors min-h-[44px] inline-flex items-center">Leaderboard</Link>
+                        <Link href="/pricing" className="hover:text-white transition-colors min-h-[44px] inline-flex items-center">Pricing</Link>
+                        <Link href="/methodology" className="hover:text-white transition-colors min-h-[44px] inline-flex items-center">Methodology</Link>
+                        <Link href="/legal/terms" className="hover:text-white transition-colors min-h-[44px] inline-flex items-center">Terms</Link>
+                        <Link href="/legal/privacy" className="hover:text-white transition-colors min-h-[44px] inline-flex items-center">Privacy</Link>
+                        <Link href="/legal/acceptable-use" className="hover:text-white transition-colors min-h-[44px] inline-flex items-center">Acceptable Use</Link>
                     </div>
                     <span>© {new Date().getFullYear()} Pundit Ledger. All predictions verified.</span>
                 </div>

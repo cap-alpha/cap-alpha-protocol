@@ -61,7 +61,7 @@ export function AffiliateCTA({
                 target="_blank"
                 rel="noopener noreferrer sponsored"
                 onClick={handleClick}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="inline-flex items-center gap-2 min-h-[44px] text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
             >
                 {ctaText}
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
@@ -112,7 +112,7 @@ export function AffiliateInlineLink({
             {" · "}
             <Link
                 href="/legal/disclosure"
-                className="text-zinc-600 hover:text-zinc-400 transition-colors text-[11px]"
+                className="text-zinc-600 hover:text-zinc-400 transition-colors text-[11px] min-h-[44px] inline-flex items-center"
             >
                 Affiliate disclosure
             </Link>
@@ -166,7 +166,7 @@ export function AffiliateCta({ platform, context, className = "" }: AffiliateCta
                 target="_blank"
                 rel="noopener noreferrer sponsored"
                 onClick={() => trackCtaClick(platform, context)}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="inline-flex items-center gap-2 min-h-[44px] text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
             >
                 {ctaText}
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />

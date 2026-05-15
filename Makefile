@@ -155,8 +155,8 @@ dev-seed: ## Init local DuckDB schema and load golden seed predictions
 dev-api: ## Start FastAPI locally with DuckDB backend — no BQ or GCP needed
 	@echo "Starting local API at http://localhost:8000 (DuckDB: $(LOCAL_DUCKDB))"
 	@echo "Run 'make dev-seed' first if the leaderboard is empty."
-	$(PY) USE_LOCAL_DB=1 API_AUTH_DISABLED=1 LOCAL_DB_PATH=$(LOCAL_DUCKDB) \
-		PYTHONPATH=$(CURDIR)/pipeline \
+	$(PY) USE_LOCAL_DB=1 API_AUTH_DISABLED=1 MIN_RESOLVED_CLAIMS=1 \
+		LOCAL_DB_PATH=$(LOCAL_DUCKDB) PYTHONPATH=$(CURDIR)/pipeline \
 		uvicorn pipeline.api.main:app --reload --port 8000
 
 # -----------------------------------------------------------------------------

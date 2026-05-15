@@ -1043,9 +1043,33 @@ def load(db_path: str, dry_run: bool) -> None:
             row,
         )
 
+    # Seed pundit_registry so published_only=True queries return results
+    seeded_pundits = {(s["pundit_id"], s["pundit_name"]) for s in RAW_SEEDS}
+    existing_pundits = {
+        row[0]
+        for row in conn.execute(
+            "SELECT pundit_id FROM nfl_dead_money.pundit_registry"
+        ).fetchall()
+    }
+    registry_inserted = 0
+    for pundit_id, pundit_name in seeded_pundits:
+        if pundit_id in existing_pundits:
+            continue
+        conn.execute(
+            """
+            INSERT INTO nfl_dead_money.pundit_registry (
+                pundit_id, pundit_name, enabled, published,
+                polling_cadence, created_at, updated_at
+            ) VALUES (?, ?, TRUE, TRUE, 'daily', ?, ?)
+            """,
+            (pundit_id, pundit_name, now, now),
+        )
+        registry_inserted += 1
+
     conn.close()
     print(f"\n  Inserted {len(ledger_rows)} ledger rows.")
     print(f"  Inserted {len(resolution_rows)} resolution rows.")
+    print(f"  Inserted {registry_inserted} pundit_registry rows (published=TRUE).")
     print("Done.")
 
 

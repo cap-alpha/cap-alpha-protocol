@@ -157,7 +157,7 @@ dev-api: ## Start FastAPI locally with DuckDB backend — no BQ or GCP needed
 	@echo "Run 'make dev-seed' first if the leaderboard is empty."
 	$(PY) USE_LOCAL_DB=1 API_AUTH_DISABLED=1 MIN_RESOLVED_CLAIMS=1 \
 		LOCAL_DB_PATH=$(LOCAL_DUCKDB) PYTHONPATH=$(CURDIR)/pipeline \
-		uvicorn pipeline.api.main:app --reload --port 8000
+		uvicorn pipeline.api.main:app --reload --reload-dir $(CURDIR)/pipeline --port 8000
 
 # -----------------------------------------------------------------------------
 # WEB

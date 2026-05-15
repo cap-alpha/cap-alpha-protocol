@@ -1,0 +1,31 @@
+name: AC Checklist Gate
+
+# Fails if a PR uses "Closes/Fixes/Resolves #N" and issue N has unchecked
+# acceptance-criteria items ( - [ ] ).
+#
+# Escape hatches:
+#   - Label the issue `ac-waiver` — gate skips that issue entirely.
+#   - Cross out an item with ~~- [ ] item~~ — counts as intentionally dropped.
+#   - Use "Refs #N" instead of "Closes #N" — keeps the issue open, no gate.
+#
+# Currently advisory (name ends in [advisory]) while we clear the existing
+# M-LAUNCH backlog (#949). Remove [advisory] once clean.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+jobs:
+  ac-gate:
+    name: Verify closing issues have all ACs checked [advisory]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Run AC gate check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          REPO: ${{ github.repository }}
+        run: python3 scripts/check_ac_gate.py

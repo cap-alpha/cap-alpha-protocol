@@ -28,7 +28,7 @@ feedparser
 tabulate
 praw
 google-cloud-bigquery
-duckdb>=1.0
+duckdb>=1.5.3
 google-genai
 anthropic
 google-api-python-client

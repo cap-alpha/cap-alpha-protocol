@@ -2,7 +2,7 @@ pandas-gbq
 nfl-data-py>=0.3.3
 db-dtypes
 xgboost
-shap>=0.40.0
+shap>=0.52.0
 scikit-learn
 matplotlib
 joblib

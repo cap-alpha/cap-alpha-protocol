@@ -13,7 +13,13 @@
  * Behavior when all candidates fail: returns the production URL so downstream
  * fetches produce a consistent error message; the client UI's error state
  * (see PunditLeaderboardPreview) surfaces it.
+ *
+ * Fallback behavior (issue #960): when the backend is unreachable or returns a
+ * 5xx error, `fetchPunditsSSR` returns the static JSON snapshot from
+ * `web/lib/data/leaderboard-snapshot.json` rather than an empty array.
  */
+
+import { getFallbackPundits } from "./leaderboard-fallback";
 
 const PRODUCTION_URL = "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 const LOCALHOST_CANDIDATES = ["http://localhost:8000", "http://localhost:8080"];
@@ -115,10 +121,15 @@ export function normalizePundit(p: Record<string, unknown>): Record<string, unkn
     };
 }
 
+export interface SSRPunditsResult {
+    pundits: Record<string, unknown>[];
+    fallback: boolean;
+}
+
 export async function fetchPunditsSSR(
     sport?: string,
     limit = 20
-): Promise<Record<string, unknown>[]> {
+): Promise<SSRPunditsResult> {
     try {
         const apiUrl = await getApiUrl();
         const backendUrl = new URL(`${apiUrl}/v1/pundits/`);
@@ -132,13 +143,23 @@ export async function fetchPunditsSSR(
             next: { revalidate: 300 },
         });
         if (!res.ok) {
-            console.error(`[fetchPunditsSSR] Backend returned ${res.status}`);
-            return [];
+            console.error(
+                `[fetchPunditsSSR] Backend returned ${res.status} — serving snapshot fallback (issue #960)`
+            );
+            const fallbackPayload = getFallbackPundits(sport ?? null, limit);
+            return { pundits: (fallbackPayload.pundits as unknown) as Record<string, unknown>[], fallback: true };
         }
         const data = await res.json();
-        return (data.pundits || []).map(normalizePundit);
+        return {
+            pundits: (data.pundits || []).map(normalizePundit),
+            fallback: false,
+        };
     } catch (err) {
-        console.error("[fetchPunditsSSR] Error:", err);
-        return [];
+        console.error(
+            "[fetchPunditsSSR] Network/timeout error — serving snapshot fallback (issue #960):",
+            err
+        );
+        const fallbackPayload = getFallbackPundits(sport ?? null, limit);
+        return { pundits: (fallbackPayload.pundits as unknown) as Record<string, unknown>[], fallback: true };
     }
 }

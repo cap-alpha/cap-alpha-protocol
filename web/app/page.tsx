@@ -13,7 +13,9 @@ export const revalidate = 3600; // 1-hour ISR
 export default async function LandingPage() {
     // Fetch top NFL pundits server-side so the first HTML response includes
     // real leaderboard data — no blank "Loading ledger…" spinner on FCP.
-    const initialPundits = await fetchPunditsSSR("NFL", 20);
+    // When the backend is unavailable, fetchPunditsSSR returns the static snapshot
+    // with fallback=true so the component can render a staleness badge (issue #960).
+    const { pundits: initialPundits, fallback: isFallback } = await fetchPunditsSSR("NFL", 20);
 
     return (
         <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
@@ -57,7 +59,7 @@ export default async function LandingPage() {
                 <div className="max-w-2xl mx-auto min-w-0">
                     {/* sport prop drives the API filter; topic switcher (#774) will override at runtime */}
                     {/* initialPundits pre-populated server-side — eliminates blank spinner on FCP */}
-                    <PunditLeaderboardPreview sport="NFL" initialPundits={initialPundits} />
+                    <PunditLeaderboardPreview sport="NFL" initialPundits={initialPundits} fallback={isFallback} />
                 </div>
             </section>
 

@@ -17,6 +17,12 @@
  * Fallback behavior (issue #960): when the backend is unreachable or returns a
  * 5xx error, `fetchPunditsSSR` returns the static JSON snapshot from
  * `web/lib/data/leaderboard-snapshot.json` rather than an empty array.
+ *
+ * Authentication (issue #960 follow-up): when `CAP_ALPHA_INTERNAL_API_KEY` is
+ * set, every backend request includes `x-api-key` so the Cloud Run router
+ * (dependencies=[Depends(verify_api_key)]) accepts it and serves live data.
+ * If the env var is unset, the header is omitted and the snapshot fallback
+ * catches any resulting 401/422 exactly as it does for 5xx errors.
  */
 
 import { getFallbackPundits } from "./leaderboard-fallback";
@@ -27,6 +33,15 @@ const ENV_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 const PROBE_TIMEOUT_MS = 800;
 const PROBE_PATH = "/v1/pundits/?limit=1";
 
+/**
+ * Returns the `x-api-key` header object when `CAP_ALPHA_INTERNAL_API_KEY` is
+ * configured, or an empty object when not set (probe / dev / missing key).
+ */
+function getAuthHeader(): Record<string, string> {
+    const key = process.env.CAP_ALPHA_INTERNAL_API_KEY;
+    return key ? { "x-api-key": key } : {};
+}
+
 let resolvedApiUrl: string | null = null;
 let resolutionInFlight: Promise<string> | null = null;
 
@@ -36,8 +51,9 @@ async function probeUrl(url: string): Promise<boolean> {
     try {
         const res = await fetch(`${url}${PROBE_PATH}`, {
             signal: controller.signal,
-            headers: { Accept: "application/json" },
+            headers: { Accept: "application/json", ...getAuthHeader() },
         });
+        // Accept any non-5xx response (including 401/422 when key is missing in dev).
         return res.status < 500;
     } catch {
         return false;
@@ -139,7 +155,7 @@ export async function fetchPunditsSSR(
             backendUrl.searchParams.set("sport", sport.toLowerCase());
         }
         const res = await fetch(backendUrl.toString(), {
-            headers: { Accept: "application/json" },
+            headers: { Accept: "application/json", ...getAuthHeader() },
             next: { revalidate: 300 },
         });
         if (!res.ok) {

@@ -8,6 +8,16 @@ import {
 import { getApiUrl, normalizePundit } from "@/lib/ledger-server";
 import { getFallbackPundits } from "@/lib/leaderboard-fallback";
 
+// Include x-api-key when the internal key is configured so the Cloud Run
+// backend (dependencies=[Depends(verify_api_key)]) accepts the request and
+// serves live data. Omitting it gracefully falls back to snapshot.
+function getBackendHeaders(): Record<string, string> {
+    const key = process.env.CAP_ALPHA_INTERNAL_API_KEY;
+    return key
+        ? { Accept: "application/json", "x-api-key": key }
+        : { Accept: "application/json" };
+}
+
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
 
@@ -61,9 +71,7 @@ export async function GET(req: Request) {
         // identical honeypot values to every visitor, defeating per-request
         // fingerprinting.
         const res = await fetch(backendUrl.toString(), {
-            headers: {
-                "Accept": "application/json",
-            },
+            headers: getBackendHeaders(),
             next: { revalidate: 300 },
         });
 

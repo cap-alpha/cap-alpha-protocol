@@ -1,0 +1,152 @@
+{
+  "snapshot_metadata": {
+    "generated_at": "2026-05-29T00:00:00Z",
+    "source": "pipeline/data/local.duckdb",
+    "note": "Snapshot fallback for use when Cloud Run backend is unavailable. Tracks issue #960."
+  },
+  "pundits": [
+    {
+      "pundit_id": "adam-schefter",
+      "pundit_name": "Adam Schefter",
+      "total_predictions": 5,
+      "resolved_predictions": 5,
+      "correct_predictions": 5,
+      "incorrect_predictions": 0,
+      "accuracy_rate": 1.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "dan-graziano",
+      "pundit_name": "Dan Graziano",
+      "total_predictions": 4,
+      "resolved_predictions": 4,
+      "correct_predictions": 4,
+      "incorrect_predictions": 0,
+      "accuracy_rate": 1.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "rich-eisen",
+      "pundit_name": "Rich Eisen",
+      "total_predictions": 3,
+      "resolved_predictions": 3,
+      "correct_predictions": 3,
+      "incorrect_predictions": 0,
+      "accuracy_rate": 1.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "shannon-sharpe",
+      "pundit_name": "Shannon Sharpe",
+      "total_predictions": 3,
+      "resolved_predictions": 3,
+      "correct_predictions": 3,
+      "incorrect_predictions": 0,
+      "accuracy_rate": 1.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "warren-sharp",
+      "pundit_name": "Warren Sharp",
+      "total_predictions": 1,
+      "resolved_predictions": 1,
+      "correct_predictions": 1,
+      "incorrect_predictions": 0,
+      "accuracy_rate": 1.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "dianna-russini",
+      "pundit_name": "Dianna Russini",
+      "total_predictions": 4,
+      "resolved_predictions": 4,
+      "correct_predictions": 3,
+      "incorrect_predictions": 1,
+      "accuracy_rate": 0.75,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "field-yates",
+      "pundit_name": "Field Yates",
+      "total_predictions": 4,
+      "resolved_predictions": 4,
+      "correct_predictions": 3,
+      "incorrect_predictions": 1,
+      "accuracy_rate": 0.75,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "pat-mcafee",
+      "pundit_name": "Pat McAfee",
+      "total_predictions": 3,
+      "resolved_predictions": 3,
+      "correct_predictions": 2,
+      "incorrect_predictions": 1,
+      "accuracy_rate": 0.6666666666666666,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "mike-florio",
+      "pundit_name": "Mike Florio",
+      "total_predictions": 4,
+      "resolved_predictions": 4,
+      "correct_predictions": 2,
+      "incorrect_predictions": 2,
+      "accuracy_rate": 0.5,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "jeremy-fowler",
+      "pundit_name": "Jeremy Fowler",
+      "total_predictions": 4,
+      "resolved_predictions": 4,
+      "correct_predictions": 2,
+      "incorrect_predictions": 2,
+      "accuracy_rate": 0.5,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "colin-cowherd",
+      "pundit_name": "Colin Cowherd",
+      "total_predictions": 3,
+      "resolved_predictions": 3,
+      "correct_predictions": 0,
+      "incorrect_predictions": 3,
+      "accuracy_rate": 0.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "stephen-a-smith",
+      "pundit_name": "Stephen A. Smith",
+      "total_predictions": 2,
+      "resolved_predictions": 2,
+      "correct_predictions": 0,
+      "incorrect_predictions": 2,
+      "accuracy_rate": 0.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "skip-bayless",
+      "pundit_name": "Skip Bayless",
+      "total_predictions": 2,
+      "resolved_predictions": 2,
+      "correct_predictions": 0,
+      "incorrect_predictions": 2,
+      "accuracy_rate": 0.0,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    }
+  ]
+}

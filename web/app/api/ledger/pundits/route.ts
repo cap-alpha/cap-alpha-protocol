@@ -6,6 +6,7 @@ import {
     LEDGER_MAX_LIMIT,
 } from "@/lib/anti-scraping";
 import { getApiUrl, normalizePundit } from "@/lib/ledger-server";
+import { getFallbackPundits } from "@/lib/leaderboard-fallback";
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
@@ -67,8 +68,15 @@ export async function GET(req: Request) {
         });
 
         if (!res.ok) {
-            console.error(`[Ledger API] Backend returned ${res.status}`, await res.text());
-            return NextResponse.json({ pundits: [] }, { status: 502 });
+            console.error(
+                `[Ledger API] Backend returned ${res.status} — serving snapshot fallback (issue #960)`,
+                await res.text()
+            );
+            const sport = searchParams.get("sport");
+            const fallbackPayload = getFallbackPundits(sport, limitCheck.limit);
+            const pundits = fallbackPayload.pundits.map(normalizePundit as (p: unknown) => Record<string, unknown>);
+            const responseBody = injectHoneypotFields({ pundits, fallback: true });
+            return NextResponse.json(responseBody);
         }
 
         const data = await res.json();
@@ -81,10 +89,14 @@ export async function GET(req: Request) {
         return NextResponse.json(responseBody);
     } catch (err) {
         const errorMsg = err instanceof Error ? err.message : String(err);
-        console.error("[Ledger Pundits API] Backend fetch error:", {
+        console.error("[Ledger Pundits API] Backend fetch error — serving snapshot fallback (issue #960):", {
             error: errorMsg,
             backendUrl: apiUrl,
         });
-        return NextResponse.json({ pundits: [] }, { status: 502 });
+        const sport = searchParams.get("sport");
+        const fallbackPayload = getFallbackPundits(sport, limitCheck.limit);
+        const pundits = fallbackPayload.pundits.map(normalizePundit as (p: unknown) => Record<string, unknown>);
+        const responseBody = injectHoneypotFields({ pundits, fallback: true });
+        return NextResponse.json(responseBody);
     }
 }

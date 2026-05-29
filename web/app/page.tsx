@@ -3,7 +3,10 @@ import { WaitlistForm } from "@/components/waitlist-form";
 import { SignUpCta } from "@/components/sign-up-cta";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
 import { TrackedPredictionCard } from "@/components/tracked-prediction-card";
+import { TrustStrip } from "@/components/trust-strip";
+import { RecentResolutionsTicker } from "@/components/recent-resolutions-ticker";
 import { fetchPunditsSSR } from "@/lib/ledger-server";
+import { fetchRecentResolutionsSSR } from "@/lib/recent-resolutions-server";
 
 // Pundit accuracy updates at most daily (new resolutions land overnight).
 // 1-hour page-level ISR keeps HTML fresh enough while avoiding the cold-render
@@ -12,11 +15,17 @@ import { fetchPunditsSSR } from "@/lib/ledger-server";
 export const revalidate = 3600; // 1-hour ISR
 
 export default async function LandingPage() {
-    // Fetch top NFL pundits server-side so the first HTML response includes
-    // real leaderboard data — no blank "Loading ledger…" spinner on FCP.
-    // When the backend is unavailable, fetchPunditsSSR returns the static snapshot
-    // with fallback=true so the component can render a staleness badge (issue #960).
-    const { pundits: initialPundits, fallback: isFallback } = await fetchPunditsSSR("NFL", 20);
+    // Fetch top NFL pundits and recent resolutions server-side in parallel so
+    // the first HTML response includes real data — no blank spinners on FCP.
+    // Both helpers fall back to static snapshots when the backend is unavailable
+    // (issue #960).
+    const [
+        { pundits: initialPundits, fallback: isFallback },
+        { resolutions, fallback: resolutionsFallback },
+    ] = await Promise.all([
+        fetchPunditsSSR("NFL", 20),
+        fetchRecentResolutionsSSR(5),
+    ]);
 
     return (
         <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
@@ -54,7 +63,10 @@ export default async function LandingPage() {
                 </div>
             </section>
 
-            {/* ── Tracked Prediction ── thesis demo above leaderboard */}
+            {/* ── Trust Strip ── scale signals: pundits scored, predictions verified, resolution rate */}
+            <TrustStrip />
+
+            {/* ── Tracked Prediction ── thesis demo card (PR #927) */}
             <section className="w-full px-6 pb-10">
                 <div className="max-w-2xl mx-auto space-y-3">
                     <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
@@ -64,15 +76,18 @@ export default async function LandingPage() {
                 </div>
             </section>
 
-            {/* ── Live Leaderboard Preview ── (immediately below hero, no scroll on desktop) */}
+            {/* ── Live Leaderboard Preview ── (below trust strip + thesis card) */}
             {/* overflow-x-hidden prevents any inner table from causing page-level horizontal scroll */}
-            <section className="w-full px-4 sm:px-6 pb-16 overflow-x-hidden">
+            <section className="w-full px-4 sm:px-6 pb-8 overflow-x-hidden">
                 <div className="max-w-2xl mx-auto min-w-0">
                     {/* sport prop drives the API filter; topic switcher (#774) will override at runtime */}
                     {/* initialPundits pre-populated server-side — eliminates blank spinner on FCP */}
                     <PunditLeaderboardPreview sport="NFL" initialPundits={initialPundits} fallback={isFallback} />
                 </div>
             </section>
+
+            {/* ── Recent Resolutions Ticker ── last 5 resolved verdicts */}
+            <RecentResolutionsTicker resolutions={resolutions} fallback={resolutionsFallback} />
 
             {/* ── Waitlist ── (stays per product milestone gating) */}
             <section className="w-full px-4 sm:px-6 py-16 border-t border-zinc-900">

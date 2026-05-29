@@ -1,0 +1,90 @@
+{
+  "snapshot_metadata": {
+    "generated_at": "2026-05-29T00:00:00Z",
+    "source": "pipeline/data/local.duckdb",
+    "query": "SELECT l.pundit_name, l.pundit_id, l.extracted_claim, r.binary_correct, r.resolved_at, r.brier_score FROM gold_layer.prediction_ledger l JOIN gold_layer.prediction_resolutions r USING (prediction_hash) ORDER BY r.resolved_at DESC LIMIT 10",
+    "note": "Snapshot fallback for recent resolutions when Cloud Run backend is unavailable. Tracks issue #960."
+  },
+  "resolutions": [
+    {
+      "pundit_name": "Jeremy Fowler",
+      "pundit_id": "jeremy-fowler",
+      "extracted_claim": "Cam Ward goes #1 overall in the 2025 NFL Draft",
+      "binary_correct": true,
+      "resolved_at": "2025-04-24T16:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Field Yates",
+      "pundit_id": "field-yates",
+      "extracted_claim": "A quarterback goes #1 overall in the 2025 NFL Draft",
+      "binary_correct": true,
+      "resolved_at": "2025-04-24T16:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Dan Graziano",
+      "pundit_id": "dan-graziano",
+      "extracted_claim": "Tennessee Titans take a QB #1 overall in the 2025 NFL Draft",
+      "binary_correct": true,
+      "resolved_at": "2025-04-24T16:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Dianna Russini",
+      "pundit_id": "dianna-russini",
+      "extracted_claim": "Travis Hunter goes to New England Patriots at #4 in 2025 Draft",
+      "binary_correct": false,
+      "resolved_at": "2025-04-24T16:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Colin Cowherd",
+      "pundit_id": "colin-cowherd",
+      "extracted_claim": "Shedeur Sanders goes #1 overall in the 2025 NFL Draft",
+      "binary_correct": false,
+      "resolved_at": "2025-04-24T16:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Adam Schefter",
+      "pundit_id": "adam-schefter",
+      "extracted_claim": "Abdul Carter goes #3 overall to New York Giants in 2025 Draft",
+      "binary_correct": true,
+      "resolved_at": "2025-04-24T16:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Jeremy Fowler",
+      "pundit_id": "jeremy-fowler",
+      "extracted_claim": "Shedeur Sanders goes #2 overall (Cleveland Browns) in 2025 Draft",
+      "binary_correct": false,
+      "resolved_at": "2025-04-24T16:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Stephen A. Smith",
+      "pundit_id": "stephen-a-smith",
+      "extracted_claim": "Patrick Mahomes throws for 300+ yards in Super Bowl LIX",
+      "binary_correct": false,
+      "resolved_at": "2025-02-09T15:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Dianna Russini",
+      "pundit_id": "dianna-russini",
+      "extracted_claim": "Eagles score 35+ points in Super Bowl LIX",
+      "binary_correct": true,
+      "resolved_at": "2025-02-09T15:59:00Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Rich Eisen",
+      "pundit_id": "rich-eisen",
+      "extracted_claim": "Jalen Hurts wins Super Bowl LIX MVP",
+      "binary_correct": true,
+      "resolved_at": "2025-02-09T15:59:00Z",
+      "brier_score": null
+    }
+  ]
+}

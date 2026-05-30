@@ -1,5 +1,5 @@
 import { MetadataRoute } from "next";
-import { getApiUrl } from "@/lib/ledger-server";
+import { getApiUrl, getAuthHeader } from "@/lib/ledger-server";
 
 export const revalidate = 86400; // revalidate daily
 
@@ -81,18 +81,8 @@ const staticRoutes: MetadataRoute.Sitemap = [
 async function getPunditRoutes(): Promise<MetadataRoute.Sitemap> {
     try {
         const apiUrl = await getApiUrl();
-        const internalApiKey = process.env.CAP_ALPHA_INTERNAL_API_KEY;
-        const headers: Record<string, string> = { Accept: "application/json" };
-        if (internalApiKey) {
-            headers["x-api-key"] = internalApiKey;
-        } else {
-            console.warn(
-                "[sitemap] CAP_ALPHA_INTERNAL_API_KEY is not set — pundits fetch may return 401"
-            );
-        }
         const res = await fetch(`${apiUrl}/v1/pundits/`, {
-            headers,
-            // next.js fetch cache options
+            headers: { Accept: "application/json", ...getAuthHeader() },
             next: { revalidate: 86400 },
         });
 
@@ -169,14 +159,8 @@ function getTeamRoutes(): MetadataRoute.Sitemap {
 async function getPlayerRoutes(): Promise<MetadataRoute.Sitemap> {
     try {
         const apiUrl = await getApiUrl();
-        const internalApiKey = process.env.CAP_ALPHA_INTERNAL_API_KEY;
-        const headers: Record<string, string> = { Accept: "application/json" };
-        if (internalApiKey) {
-            headers["x-api-key"] = internalApiKey;
-        }
-        // Fetch top players by claim count from the entity leaderboard
         const res = await fetch(`${apiUrl}/v1/entities/leaderboard?entity_type=player&limit=100`, {
-            headers,
+            headers: { Accept: "application/json", ...getAuthHeader() },
             next: { revalidate: 86400 },
         });
 

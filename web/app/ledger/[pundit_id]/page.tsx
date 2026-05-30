@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { PunditProfileClient } from "./PunditProfileClient";
 import { punditJsonLd } from "@/lib/structured-data";
-import { getApiUrl } from "@/lib/ledger-server";
+import { getApiUrl, getAuthHeader } from "@/lib/ledger-server";
 
 // ---------------------------------------------------------------------------
 // Types — shared between server and client
@@ -80,7 +80,7 @@ async function fetchPunditDetail(punditId: string): Promise<{
         const apiUrl = await getApiUrl();
         const res = await fetch(
             `${apiUrl}/v1/pundits/${encodeURIComponent(punditId)}`,
-            { next: { revalidate: 300 } }
+            { next: { revalidate: 300 }, headers: { Accept: "application/json", ...getAuthHeader() } }
         );
         if (res.status === 404) return null;
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -95,7 +95,7 @@ async function fetchInitialPredictions(punditId: string): Promise<PredictionsRes
         const apiUrl = await getApiUrl();
         const res = await fetch(
             `${apiUrl}/v1/pundits/${encodeURIComponent(punditId)}/predictions?page=1&page_size=20`,
-            { next: { revalidate: 60 } }
+            { next: { revalidate: 60 }, headers: { Accept: "application/json", ...getAuthHeader() } }
         );
         if (!res.ok) return null;
         return res.json();

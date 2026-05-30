@@ -37,7 +37,7 @@ const PROBE_PATH = "/v1/pundits/?limit=1";
  * Returns the `x-api-key` header object when `CAP_ALPHA_INTERNAL_API_KEY` is
  * configured, or an empty object when not set (probe / dev / missing key).
  */
-function getAuthHeader(): Record<string, string> {
+export function getAuthHeader(): Record<string, string> {
     const key = process.env.CAP_ALPHA_INTERNAL_API_KEY;
     return key ? { "x-api-key": key } : {};
 }

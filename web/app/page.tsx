@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { WaitlistForm } from "@/components/waitlist-form";
-import { SignUpCta } from "@/components/sign-up-cta";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
 import { TrackedPredictionCard } from "@/components/tracked-prediction-card";
 import { TrustStrip } from "@/components/trust-strip";
@@ -45,15 +44,16 @@ export default async function LandingPage() {
                     {/* Live indicator */}
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                        Live Edge Report
+                        Prediction Receipts
                     </div>
 
                     {/* Hero headline — 2 lines max */}
                     <h1 className="font-display font-black text-3xl sm:text-5xl lg:text-6xl tracking-tight leading-tight text-white">
-                        The most accurate sports pundits, ranked.
+                        Sports pundits guess.{" "}
+                        <span className="text-emerald-400">We keep the receipts.</span>
                     </h1>
                     <p className="text-base sm:text-lg text-zinc-400 leading-snug">
-                        Real predictions. Real verdicts. Cryptographically sealed.
+                        Every prediction logged. Every verdict public.
                     </p>
 
                     {/* Single CTA — min 44px height for Apple HIG tap target */}
@@ -77,22 +77,20 @@ export default async function LandingPage() {
                 </div>
             </section>
 
-            {/* ── Tracked Prediction ── thesis demo card (PR #927) */}
+            {/* ── Tracked Prediction ── thesis demo card */}
             <section className="w-full px-6 pb-10">
-                <div className="max-w-2xl mx-auto space-y-3">
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
-                        Tracked Prediction
-                    </p>
+                <div className="max-w-2xl mx-auto">
                     <TrackedPredictionCard />
                 </div>
             </section>
 
-            {/* ── Live Leaderboard Preview ── (below trust strip + thesis card) */}
+            {/* ── Leaderboard Preview ── */}
             {/* overflow-x-hidden prevents any inner table from causing page-level horizontal scroll */}
             <section className="w-full px-4 sm:px-6 pb-8 overflow-x-hidden">
-                <div className="max-w-2xl mx-auto min-w-0">
-                    {/* sport prop drives the API filter; topic switcher (#774) will override at runtime */}
-                    {/* initialPundits pre-populated server-side — eliminates blank spinner on FCP */}
+                <div className="max-w-2xl mx-auto min-w-0 space-y-4">
+                    <h2 className="text-xs font-mono uppercase tracking-widest text-zinc-500">
+                        Least Wrong, Recently
+                    </h2>
                     <PunditLeaderboardPreview sport="NFL" initialPundits={initialPundits} fallback={isFallback} />
                 </div>
             </section>
@@ -110,7 +108,6 @@ export default async function LandingPage() {
                         Get notified at launch.
                     </h2>
                     <WaitlistForm />
-                    <SignUpCta />
                 </div>
             </section>
 

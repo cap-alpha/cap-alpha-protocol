@@ -804,7 +804,9 @@ def get_pundit_accuracy_summary(
                 f"ON l.pundit_id = pr.pundit_id AND pr.published = TRUE"
             )
         min_resolved = max(0, int(min_resolved_claims))
-        query = f"""
+
+        def _build_query(pjoin: str) -> str:
+            return f"""
             SELECT
                 l.pundit_id,
                 l.pundit_name,
@@ -822,16 +824,35 @@ def get_pundit_accuracy_summary(
             LEFT JOIN `{project_id}.{RESOLUTIONS_TABLE}` r
                 ON l.prediction_hash = r.prediction_hash
             {quality_join}
-            {published_join}
+            {pjoin}
             {where_sql}
             GROUP BY l.pundit_id, l.pundit_name, sport
             HAVING COUNTIF(r.resolution_status IN ('CORRECT', 'INCORRECT')) >= {min_resolved}
             ORDER BY avg_weighted_score DESC NULLS LAST
         """
+
         query_parameters = (
             [bigquery.ScalarQueryParameter("sport", "STRING", sport)] if sport else []
         )
-        return db.fetch_df(query, query_parameters=query_parameters)
+        try:
+            return db.fetch_df(
+                _build_query(published_join), query_parameters=query_parameters
+            )
+        except Exception as primary_err:
+            # Migration 015 (ADD COLUMN published) may not yet be applied to this BQ
+            # project.  When published_only=True causes a "Name published not found"
+            # error, fall back to no filter so the leaderboard returns real data
+            # instead of an empty result or 500.  Once migration 015 is applied and
+            # pundits are marked published via src.publish_tier1_pundits, the filter
+            # will engage automatically on the next call.  Issue #960.
+            if published_only and "published" in str(primary_err).lower():
+                logger.warning(
+                    "published_only=True failed — migration 015 not yet applied; "
+                    "falling back to unfiltered query. Error: %s",
+                    primary_err,
+                )
+                return db.fetch_df(_build_query(""), query_parameters=query_parameters)
+            raise
     finally:
         if close_db:
             db.close()

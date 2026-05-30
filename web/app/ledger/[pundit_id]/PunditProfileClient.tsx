@@ -966,6 +966,8 @@ interface Props {
     punditId: string;
     isFollowing: boolean;
     isAuthenticated: boolean;
+    /** True when the backend was unreachable and stats came from the static snapshot. */
+    snapshotFallback?: boolean;
 }
 
 const VALID_FILTER_CATS: FilterCategory[] = [
@@ -983,6 +985,7 @@ export function PunditProfileClient({
     punditId,
     isFollowing,
     isAuthenticated,
+    snapshotFallback = false,
 }: Props) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -1063,9 +1066,11 @@ export function PunditProfileClient({
         [punditId] // eslint-disable-line react-hooks/exhaustive-deps
     );
 
-    // When tab changes, reload
+    // When tab changes, reload (skip in snapshot fallback mode — backend is offline)
     useEffect(() => {
-        loadPredictions(1, activeTab);
+        if (!snapshotFallback) {
+            loadPredictions(1, activeTab);
+        }
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Client-side filter + sort
@@ -1124,6 +1129,28 @@ export function PunditProfileClient({
             {/* Post-follow confirmation banner — dismiss-on-scroll, no modal (#769) */}
             {showFollowBanner && (
                 <PostFollowBanner punditName={pundit.pundit_name} />
+            )}
+
+            {/* Snapshot fallback notice — shown when backend is offline */}
+            {snapshotFallback && (
+                <div
+                    role="status"
+                    style={{
+                        background: "#FEF3C7",
+                        borderBottom: "1px solid #FCD34D",
+                        padding: "10px clamp(16px, 5vw, 40px)",
+                        fontSize: 13,
+                        color: "#92400E",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                    }}
+                >
+                    <span aria-hidden="true">⚠</span>
+                    <span>
+                        Stats shown from cached snapshot · Predictions list will return when live data is back online
+                    </span>
+                </div>
             )}
 
             {/* Breadcrumb */}
@@ -1484,7 +1511,9 @@ export function PunditProfileClient({
                                     fontSize: 14,
                                 }}
                             >
-                                No claims found for this filter.
+                                {snapshotFallback
+                                    ? "Predictions list will return when live data is back online."
+                                    : "No claims found for this filter."}
                             </div>
                         ) : (
                             sorted.map((p) => <ClaimCard key={p.prediction_hash} p={p} />)

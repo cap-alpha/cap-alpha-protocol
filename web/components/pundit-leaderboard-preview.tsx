@@ -363,7 +363,7 @@ export function PunditLeaderboardPreview({
                 </div>
             ) : pundits.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-600 text-sm">
-                    No pundit data yet — pipeline populating soon.
+                    No scored pundits for this sport yet.
                 </div>
             ) : (
                 <>

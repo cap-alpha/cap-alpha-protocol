@@ -447,6 +447,15 @@ export function PunditLeaderboardPreview({
                     View full ledger →
                 </Link>
             </div>
+
+            {/* Methodology disclaimer — context for what "accuracy" means here. #993 */}
+            {pundits.length > 0 && (
+                <p className="pt-2 text-center text-[11px] leading-relaxed text-zinc-600 max-w-2xl mx-auto">
+                    Accuracy = predictions resolved CORRECT ÷ total resolved (VOID excluded).
+                    Some entries aggregate multiple writers under a publication byline; individual writers may differ.
+                    Click any name to see the underlying claims and how each was resolved.
+                </p>
+            )}
         </div>
     );
 }

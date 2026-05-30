@@ -150,10 +150,31 @@ function toPunditStat(p: Record<string, unknown>): PunditStat {
     return p as unknown as PunditStat;
 }
 
-/** Filter + sort helper — shared between SSR seed and client refetch paths. */
+/**
+ * Staff bucket IDs that aggregate multiple writers under a publication byline.
+ * They distort individual-accountability rankings and are excluded from the
+ * leaderboard (same logic applied previously to pft_staff and athletic_nfl_staff).
+ */
+const STAFF_BUCKET_IDS = new Set([
+    "espn_nfl_staff",
+    "pft_staff",
+    "athletic_nfl_staff",
+]);
+
+/**
+ * Filter + sort helper — shared between SSR seed and client refetch paths.
+ *
+ * minPicks = 3 (was 5): with our current corpus size ~5 picks is too aggressive
+ * and filters out real-name pundits (Dan Patrick, Jeremy Fowler, etc.) while
+ * leaving staff bucket IDs at the top. Staff buckets are also excluded entirely.
+ */
 function processRawPundits(raw: PunditStat[]): PunditStat[] {
+    const minPicks = 3;
     const filtered = raw.filter(
-        (p) => p.resolved_predictions >= 5 && p.accuracy_rate !== null
+        (p) =>
+            p.resolved_predictions >= minPicks &&
+            p.accuracy_rate !== null &&
+            !STAFF_BUCKET_IDS.has(p.pundit_id)
     );
     filtered.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
     return filtered.slice(0, 10);
@@ -202,6 +223,9 @@ export function PunditLeaderboardPreview({
             })
             .catch((err) => {
                 console.error("[Leaderboard] Fetch error:", err);
+                // Clear stale data so a different sport tab never shows the
+                // previous sport's pundits (e.g. NBA tab showing NFL pundits).
+                setPundits([]);
             })
             .finally(() => setLoading(false));
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -252,7 +276,9 @@ export function PunditLeaderboardPreview({
                 </div>
             ) : pundits.length === 0 ? (
                 <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-600 text-sm">
-                    No pundit data yet — pipeline populating soon.
+                    {activeSport !== "ALL" && activeSport !== "NFL"
+                        ? `No scored pundits for ${activeSport} yet — pipeline populating soon.`
+                        : "No pundit data yet — pipeline populating soon."}
                 </div>
             ) : (
                 <>

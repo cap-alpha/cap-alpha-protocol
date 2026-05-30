@@ -164,8 +164,16 @@ export default async function PunditProfilePage({
         notFound();
     }
 
-    // Resolve follow state server-side — zero client flicker
-    const { userId } = auth();
+    // Resolve follow state server-side — zero client flicker.
+    // Clerk v5 throws if its middleware is not in the request pipeline; catch
+    // defensively so a middleware misconfiguration never surfaces as a 500.
+    let userId: string | null = null;
+    try {
+        const authResult = auth();
+        userId = authResult.userId ?? null;
+    } catch {
+        // Clerk middleware not running on this path — isFollowing defaults to false
+    }
     let isFollowing = false;
     if (userId) {
         try {

@@ -2,7 +2,7 @@
   "snapshot_metadata": {
     "generated_at": "2026-05-29T23:00:00Z",
     "source": "BigQuery cap-alpha-protocol.gold_layer (direct query)",
-    "note": "Regenerated after retroactive fuzzy-match fix (#997/#1000). Resolver now credits pick predictions within ±3 of actual when team matches (tracker jitter). 22 rows flipped INCORRECT→CORRECT across 9 pundits. Excluded pft_staff and athletic_nfl_staff: extraction-audit (#993) found 100% report-of-fact contamination — their sources were post-event draft trackers, not real predictions.",
+    "note": "Regenerated after retroactive fuzzy-match fix (#997/#1000). Resolver now credits pick predictions within \u00b13 of actual when team matches (tracker jitter). 22 rows flipped INCORRECT\u2192CORRECT across 9 pundits. Excluded pft_staff and athletic_nfl_staff: extraction-audit (#993) found 100% report-of-fact contamination \u2014 their sources were post-event draft trackers, not real predictions.",
     "total_resolved": 90,
     "total_pundits": 13
   },
@@ -92,17 +92,6 @@
       "correct_predictions": 2,
       "incorrect_predictions": 2,
       "accuracy_rate": 0.5,
-      "avg_brier_score": null,
-      "sport": "NFL"
-    },
-    {
-      "pundit_id": "espn_nfl_staff",
-      "pundit_name": "ESPN NFL Staff",
-      "total_predictions": 314,
-      "resolved_predictions": 35,
-      "correct_predictions": 12,
-      "incorrect_predictions": 23,
-      "accuracy_rate": 0.3428571428571428,
       "avg_brier_score": null,
       "sport": "NFL"
     },

@@ -42,11 +42,22 @@ export function getFallbackPundits(
 ): PunditApiPayload {
     const allPundits = snapshot.pundits as PunditRecord[];
 
+    // The snapshot only contains NFL pundits. Return empty for any other sport
+    // so NBA/MLB tabs don't incorrectly show NFL names.
+    const normalizedSport = sport ? sport.toUpperCase() : "ALL";
+    if (normalizedSport !== "ALL" && normalizedSport !== "NFL") {
+        return {
+            pundits: [],
+            fallback: true,
+            fallback_metadata: snapshot.snapshot_metadata,
+        };
+    }
+
     const filtered =
-        !sport || sport.toUpperCase() === "ALL"
+        normalizedSport === "ALL"
             ? allPundits
             : allPundits.filter(
-                  (p) => p.sport.toUpperCase() === sport.toUpperCase()
+                  (p) => p.sport.toUpperCase() === normalizedSport
               );
 
     const sorted = [...filtered].sort((a, b) => {

@@ -23,6 +23,13 @@ interface PunditStat {
 const SPORTS = ["ALL", "NFL", "NBA", "MLB"] as const;
 type Sport = (typeof SPORTS)[number];
 
+/** Aggregated staff buckets — excluded from individual rankings (distort accuracy). */
+const STAFF_BUCKET_IDS = new Set([
+    "espn_nfl_staff",
+    "pft_staff",
+    "athletic_nfl_staff",
+]);
+
 function AccuracyDisplay({ rate }: { rate: number | null }) {
     if (rate === null) return <span className="text-2xl font-black font-mono text-zinc-600 tabular-nums">—</span>;
     const pct = Math.round(rate * 100);
@@ -160,13 +167,15 @@ function toPunditStat(p: Record<string, unknown>): PunditStat {
  *  When `isFallback` is true, the resolved-picks threshold is lowered from 5 → 3
  *  so all 13 snapshot pundits render (largest corpus has 5 picks).
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function processRawPundits(raw: PunditStat[], _isFallback = false): PunditStat[] {
+function processRawPundits(raw: PunditStat[]): PunditStat[] {
     // Lower threshold to 3 in all modes so real pundits like Dan Patrick (4 resolved)
     // and Jeremy Fowler (2 resolved) are not filtered out.
     const minPicks = 3;
     const filtered = raw.filter(
-        (p) => p.resolved_predictions >= minPicks && p.accuracy_rate !== null
+        (p) =>
+            !STAFF_BUCKET_IDS.has(p.pundit_id) &&
+            p.resolved_predictions >= minPicks &&
+            p.accuracy_rate !== null
     );
     filtered.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
     return filtered.slice(0, 10);
@@ -196,7 +205,7 @@ async function fetchPundits(sport: Sport, signal?: AbortSignal): Promise<FetchPu
     const data = await res.json();
     const isFallback = !!data.fallback;
     return {
-        pundits: processRawPundits((data.pundits || []).map(toPunditStat), isFallback),
+        pundits: processRawPundits((data.pundits || []).map(toPunditStat)),
         fallback: isFallback,
     };
 }
@@ -211,7 +220,7 @@ export function PunditLeaderboardPreview({
 
     // Seed from SSR data when available so the first render is not empty.
     const seedPundits = initialPundits
-        ? processRawPundits(initialPundits.map(toPunditStat), fallback)
+        ? processRawPundits(initialPundits.map(toPunditStat))
         : [];
     const [pundits, setPundits] = useState<PunditStat[]>(seedPundits);
     // Track whether currently-displayed data is from the snapshot fallback.
@@ -266,7 +275,8 @@ export function PunditLeaderboardPreview({
                             if (!cancelled) attemptFetch(true);
                         }, 3000);
                     } else {
-                        // Retry also failed — surface the error state.
+                        // Retry also failed — surface the error state; clear stale tab data.
+                        setPundits([]);
                         setFetchState("error");
                     }
                 });

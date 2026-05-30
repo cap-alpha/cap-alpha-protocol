@@ -63,6 +63,7 @@ except TypeError:
     _YT_API_V1 = False
 
 from src.db_manager import DBManager
+from src.post_event_filter import is_post_event_article
 from src.youtube_client import (
     _api_key_available,
     build_video_text,
@@ -101,6 +102,9 @@ class MediaItem:
     raw_metadata: Optional[str] = None
     match_method: Optional[str] = (
         None  # author_field|byline_scan|source_default|unmatched
+    )
+    is_post_event: bool = (
+        False  # TRUE when heuristic detects a post-event article (#996)
     )
 
 
@@ -1066,6 +1070,28 @@ def ingest_source(
     # Enrich with full article text if configured
     items = _enrich_with_full_text(items, source)
 
+    # Tag post-event articles (Issue #996) — sets is_post_event=True when heuristic fires.
+    # Items are still written to bronze so we have full audit history, but they will be
+    # excluded from LLM extraction by the is_post_event filter in get_unprocessed_media.
+    flagged_post_event = 0
+    tagged_items = []
+    for item in items:
+        if is_post_event_article(
+            url=item.source_url,
+            title=item.title,
+            published_at=item.published_at,
+            source_id=item.source_id,
+        ):
+            item = replace(item, is_post_event=True)
+            flagged_post_event += 1
+        tagged_items.append(item)
+    items = tagged_items
+    if flagged_post_event:
+        logger.info(
+            f"[{source_id}] Post-event filter flagged {flagged_post_event} article(s) "
+            f"as is_post_event=TRUE (will be skipped during extraction)"
+        )
+
     # Dedup against existing BQ data
     existing_hashes = get_existing_hashes(db, source_id, dedup_window)
     new_items = [item for item in items if item.content_hash not in existing_hashes]
@@ -1089,6 +1115,7 @@ def ingest_source(
                 "fetch_source_type": item.fetch_source_type,
                 "sport": item.sport,
                 "raw_metadata": item.raw_metadata,
+                "is_post_event": item.is_post_event,
             }
             for item in new_items
         ]

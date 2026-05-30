@@ -93,7 +93,7 @@ const FAQ_JSONLD = {
             acceptedAnswer: {
                 "@type": "Answer",
                 text:
-                    "Open a public dispute by filing a GitHub issue at github.com/ucalegon206/cap-alpha-protocol/issues with the prediction URL, the resolution shown (CORRECT/INCORRECT/VOID), the resolution you believe is correct, and a citation to an authoritative source. Alternatively email corrections@cap-alpha.co. Confirmed scoring errors result in a correction entry — the original prediction remains visible with the updated resolution and a public note explaining the change. The ledger is immutable; nothing is ever silently overwritten.",
+                    "Open a public dispute by filing a GitHub issue at github.com/cap-alpha/cap-alpha-protocol/issues with the prediction URL, the resolution shown (CORRECT/INCORRECT/VOID), the resolution you believe is correct, and a citation to an authoritative source. Alternatively email corrections@cap-alpha.co. Confirmed scoring errors result in a correction entry — the original prediction remains visible with the updated resolution and a public note explaining the change. The ledger is immutable; nothing is ever silently overwritten.",
             },
         },
     ],
@@ -1216,7 +1216,7 @@ export default function MethodologyPage() {
                                 and a link to authoritative source data.
                             </p>
                             <a
-                                href="https://github.com/ucalegon206/cap-alpha-protocol/issues/new?labels=dispute&title=Dispute%3A%20%5Bprediction-id%5D"
+                                href="https://github.com/cap-alpha/cap-alpha-protocol/issues/new?labels=dispute&title=Dispute%3A%20%5Bprediction-id%5D"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="inline-flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"

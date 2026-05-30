@@ -3,7 +3,7 @@ API Key Authentication — FastAPI dependency for /v1/* routes.
 
 Schema (monetization.api_keys):
   key_id         STRING  — primary key, prefix "capk_"
-  key_hash       STRING  — HMAC-SHA256(pepper, raw_key)
+  key_hash       STRING  — SHA-256(pepper || raw_key)
   key_last_four  STRING  — last 4 chars of the raw key
   user_id        STRING  — Clerk user id
   tier           STRING  — free | pro | api_starter | api_growth | enterprise
@@ -15,7 +15,9 @@ Schema (monetization.api_keys):
   last_used_ip   STRING (nullable)
   name           STRING  — user-supplied label
 
-Hashing: HMAC-SHA256(pepper, raw_key).  Pepper from env var API_KEY_PEPPER.
+Hashing: SHA-256(pepper || raw_key).  Pepper from env var API_KEY_PEPPER.
+Must match web/lib/api-keys/index.ts hashApiKey() exactly — both sides hit the
+same BigQuery table.
 
 Startup behaviour:
   - In production (PROD=1 or ENV=production), an absent or short (<16 bytes)
@@ -25,11 +27,10 @@ Startup behaviour:
 """
 
 import hashlib
-import hmac
 import logging
 import os
 import sys
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import Depends, Header, HTTPException
 from google.cloud.bigquery import QueryJobConfig, ScalarQueryParameter
@@ -85,23 +86,19 @@ def _full_table(project_id: str) -> str:
 
 
 def _hash_key(raw_key: str) -> str:
-    """HMAC-SHA256(pepper, raw_key).
+    """SHA-256(pepper || raw_key) — must stay in sync with web/lib/api-keys/index.ts hashApiKey().
 
-    Using HMAC instead of sha256(pepper || raw_key) is the standard for
-    keyed hashing; it avoids length-extension issues and is explicit about
-    the key vs. data roles.
-
-    Raises RuntimeError if pepper is unset in production (enforced at module
-    import via _check_pepper; the call here is defensive for test monkeypatching).
+    Both sides write/read the same BigQuery column, so the algorithm must be identical.
     """
     pepper = os.environ.get("API_KEY_PEPPER", "")
-    return hmac.new(
-        pepper.encode(), raw_key.encode(), hashlib.sha256
-    ).hexdigest()
+    return hashlib.sha256((pepper + raw_key).encode()).hexdigest()
 
 
-def get_db_for_auth() -> DBManager:
-    """Dependency-injected DBManager for auth path (separate from per-request get_db)."""
+def get_db_for_auth():
+    """Dependency-injected DBManager for auth path. Skipped when API_AUTH_DISABLED=1."""
+    if os.environ.get("API_AUTH_DISABLED", "").lower() in ("1", "true", "yes"):
+        yield None
+        return
     db = DBManager()
     try:
         yield db
@@ -110,7 +107,7 @@ def get_db_for_auth() -> DBManager:
 
 
 def verify_api_key(
-    x_api_key: str = Header(..., description="API key in the form capk_live_..."),
+    x_api_key: Optional[str] = Header(None, description="API key in the form capk_live_..."),
     db: DBManager = Depends(get_db_for_auth),
 ) -> Dict[str, Any]:
     """
@@ -118,7 +115,19 @@ def verify_api_key(
 
     Returns the key row dict on success.
     Raises HTTP 401 when key is missing/invalid, HTTP 403 when revoked/expired.
+
+    Set API_AUTH_DISABLED=1 to bypass BQ lookup in local dev (no-op key injected).
     """
+    if os.environ.get("API_AUTH_DISABLED", "").lower() in ("1", "true", "yes"):
+        return {
+            "key_id": "local-dev",
+            "user_id": "local-dev-user",
+            "tier": "enterprise",
+            "status": "active",
+            "scopes": [],
+            "name": "Local Dev Bypass (API_AUTH_DISABLED)",
+        }
+
     if not x_api_key:
         raise HTTPException(status_code=401, detail="Missing X-API-Key header")
 

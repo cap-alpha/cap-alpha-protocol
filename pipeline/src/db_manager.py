@@ -583,11 +583,11 @@ CREATE TABLE IF NOT EXISTS nfl_dead_money.raw_pundit_media (
 CREATE TABLE IF NOT EXISTS nfl_dead_money.pundit_registry (
   pundit_id         VARCHAR   NOT NULL,
   pundit_name       VARCHAR   NOT NULL,
-  sport             VARCHAR   NOT NULL,
   source_ids        VARCHAR[],
   match_authors     VARCHAR[],
   enabled           BOOLEAN   NOT NULL,
   is_source_default BOOLEAN,
+  published         BOOLEAN   DEFAULT FALSE,
   polling_cadence   VARCHAR   NOT NULL,
   last_seen_at      TIMESTAMP,
   posts_per_month   DOUBLE,
@@ -677,7 +677,8 @@ CREATE TABLE IF NOT EXISTS gold_layer.prediction_ledger (
   resolution_notes    VARCHAR,
   prompt_version      VARCHAR,
   llm_provider        VARCHAR,
-  llm_model           VARCHAR
+  llm_model           VARCHAR,
+  claim_norm_key      VARCHAR
 );
 
 -- ---- gold_layer.prediction_resolutions ----
@@ -802,9 +803,15 @@ class LocalDBManager:
       - MERGE ... WHEN NOT MATCHED BY SOURCE → standard MERGE (BY SOURCE dropped)
     """
 
-    def __init__(self, db_path: str = "pipeline/local_dev.duckdb"):
+    def __init__(self, db_path: str = ""):
         import duckdb  # local import so BQ-only installs aren't broken
 
+        if not db_path:
+            db_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                "data",
+                "local.duckdb",
+            )
         self._duck = duckdb.connect(db_path)
         self.dataset_id = "main"
         self._setup_schema()
@@ -850,6 +857,55 @@ class LocalDBManager:
         return query
 
     @staticmethod
+    def _extract_balanced(s: str, start: int) -> tuple[str, int]:
+        """Return (content_inside_parens, index_after_close) for s[start-1]=='('."""
+        depth = 1
+        i = start
+        while i < len(s) and depth:
+            if s[i] == "(":
+                depth += 1
+            elif s[i] == ")":
+                depth -= 1
+            i += 1
+        return s[start : i - 1], i
+
+    @staticmethod
+    def _replace_countif(q: str) -> str:
+        """COUNTIF(expr) → SUM(CASE WHEN expr THEN 1 ELSE 0 END)."""
+        out, i = [], 0
+        for m in re.finditer(r"\bCOUNTIF\s*\(", q, re.IGNORECASE):
+            out.append(q[i : m.start()])
+            content, i = LocalDBManager._extract_balanced(q, m.end())
+            out.append(f"SUM(CASE WHEN {content} THEN 1 ELSE 0 END)")
+        out.append(q[i:])
+        return "".join(out)
+
+    @staticmethod
+    def _replace_safe_divide(q: str) -> str:
+        """SAFE_DIVIDE(a, b) → a / NULLIF(b, 0)."""
+        out, i = [], 0
+        for m in re.finditer(r"\bSAFE_DIVIDE\s*\(", q, re.IGNORECASE):
+            out.append(q[i : m.start()])
+            # Extract full argument list, then split on the top-level comma
+            content, i = LocalDBManager._extract_balanced(q, m.end())
+            depth, split = 0, -1
+            for k, c in enumerate(content):
+                if c == "(":
+                    depth += 1
+                elif c == ")":
+                    depth -= 1
+                elif c == "," and depth == 0:
+                    split = k
+                    break
+            if split == -1:
+                out.append(f"SAFE_DIVIDE({content})")  # fallback — leave as-is
+            else:
+                a, b = content[:split].strip(), content[split + 1 :].strip()
+                out.append(f"({a}) / NULLIF({b}, 0)")
+        out.append(q[i:])
+        return "".join(out)
+
+    @staticmethod
     def _translate_query(query: str, query_parameters=None) -> str:
         """Translate BigQuery SQL to DuckDB SQL."""
         q = LocalDBManager._substitute_params(query, query_parameters)
@@ -867,6 +923,12 @@ class LocalDBManager:
 
         # Strip CLUSTER BY ... clause
         q = re.sub(r"\bCLUSTER\s+BY\s+[^\n,;()]+", "", q, flags=re.IGNORECASE)
+
+        # COUNTIF(expr) → SUM(CASE WHEN expr THEN 1 ELSE 0 END)
+        q = LocalDBManager._replace_countif(q)
+
+        # SAFE_DIVIDE(a, b) → a / NULLIF(b, 0)
+        q = LocalDBManager._replace_safe_divide(q)
 
         # SAFE_CAST → TRY_CAST
         q = re.sub(r"\bSAFE_CAST\b", "TRY_CAST", q, flags=re.IGNORECASE)
@@ -1140,7 +1202,7 @@ class _LocalJob:
 
 def _dbmanager_new(cls, *args, **kwargs):
     if os.environ.get("USE_LOCAL_DB", "").lower() in ("1", "true", "yes"):
-        db_path = os.environ.get("LOCAL_DB_PATH", "pipeline/local_dev.duckdb")
+        db_path = os.environ.get("LOCAL_DB_PATH", "")
         # Fully initialise LocalDBManager here and return it.
         # Python will still call DBManager.__init__ on the returned object;
         # we guard against that with the isinstance check in __init__.

@@ -34,7 +34,7 @@ from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryP
 from api.api_key_auth import verify_api_key
 from src.calibration import CALIBRATION_TABLE
 from src.cryptographic_ledger import verify_chain_integrity
-from src.db_manager import DBManager
+from src.db_manager import DBManager, get_db_manager
 from src.resolution_engine import get_pundit_accuracy_summary
 from src.rolling_windows import get_pundit_rolling_accuracy
 from src.scoring import get_pundit_stats
@@ -58,8 +58,12 @@ router = APIRouter(
 
 
 def get_db() -> DBManager:
-    """FastAPI dependency — yields a DBManager, closes on teardown."""
-    db = DBManager()
+    """FastAPI dependency — yields a DBManager, closes on teardown.
+
+    Respects DB_BACKEND env var: "duckdb" returns a DuckDBManager for local
+    development when BigQuery billing is unavailable.  Default is BigQuery.
+    """
+    db = get_db_manager()
     try:
         yield db
     finally:
@@ -177,8 +181,12 @@ def leaderboard(
     Accepts ?min_quality=0.7 to restrict to high-quality predictions only.
     """
     try:
+        min_resolved = int(os.environ.get("MIN_RESOLVED_CLAIMS", "5"))
         df = get_pundit_accuracy_summary(
-            db=db, min_quality=min_quality, min_resolved_claims=5, published_only=True
+            db=db,
+            min_quality=min_quality,
+            min_resolved_claims=min_resolved,
+            published_only=True,
         )
         if df.empty:
             return {"leaderboard": [], "total": 0}
@@ -229,8 +237,12 @@ def list_pundits(
     Accepts ?min_quality=0.7 to compute stats using only high-quality predictions.
     """
     try:
+        min_resolved = int(os.environ.get("MIN_RESOLVED_CLAIMS", "5"))
         df = get_pundit_accuracy_summary(
-            db=db, min_quality=min_quality, min_resolved_claims=5, published_only=True
+            db=db,
+            min_quality=min_quality,
+            min_resolved_claims=min_resolved,
+            published_only=True,
         )
 
         # Left-join calibration metrics (brier_score, overconfidence_score)
@@ -329,12 +341,23 @@ def pundit_detail(
             if not cal_df.empty:
                 row = cal_df.iloc[0]
                 import json as _json
+
                 calibration = {
-                    "brier_score": row["brier_score"] if row["brier_score"] is not None else None,
-                    "overconfidence_score": row["overconfidence_score"] if row["overconfidence_score"] is not None else None,
-                    "reliability_bins": _json.loads(row["reliability_bins"]) if row.get("reliability_bins") else [],
-                    "n_predictions": int(row["calibration_n"]) if row.get("calibration_n") is not None else None,
-                    "computed_at": str(row["calibration_computed_at"]) if row.get("calibration_computed_at") is not None else None,
+                    "brier_score": row["brier_score"]
+                    if row["brier_score"] is not None
+                    else None,
+                    "overconfidence_score": row["overconfidence_score"]
+                    if row["overconfidence_score"] is not None
+                    else None,
+                    "reliability_bins": _json.loads(row["reliability_bins"])
+                    if row.get("reliability_bins")
+                    else [],
+                    "n_predictions": int(row["calibration_n"])
+                    if row.get("calibration_n") is not None
+                    else None,
+                    "computed_at": str(row["calibration_computed_at"])
+                    if row.get("calibration_computed_at") is not None
+                    else None,
                 }
         except Exception as cal_err:
             logger.warning("Calibration fetch failed for %s: %s", pundit_id, cal_err)
@@ -517,9 +540,14 @@ def recent_predictions(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/predictions/similar", summary="Similar predictions by player or team in same category")
+@router.get(
+    "/predictions/similar",
+    summary="Similar predictions by player or team in same category",
+)
 def similar_predictions(
-    utterance_id: str = Query(..., description="prediction_hash of the reference prediction"),
+    utterance_id: str = Query(
+        ..., description="prediction_hash of the reference prediction"
+    ),
     limit: int = Query(default=10, ge=1, le=50),
     db: DBManager = Depends(get_db),
 ) -> Dict[str, Any]:
@@ -550,12 +578,18 @@ def similar_predictions(
         ref_df = _parameterized_query(db, ref_query, ref_params)
 
         if ref_df.empty:
-            raise HTTPException(status_code=404, detail=f"Prediction '{utterance_id}' not found")
+            raise HTTPException(
+                status_code=404, detail=f"Prediction '{utterance_id}' not found"
+            )
 
         ref = ref_df.iloc[0]
-        target_player_id: str | None = ref["target_player_id"] if ref["target_player_id"] else None
+        target_player_id: str | None = (
+            ref["target_player_id"] if ref["target_player_id"] else None
+        )
         target_team: str | None = ref["target_team"] if ref["target_team"] else None
-        claim_category: str | None = ref["claim_category"] if ref["claim_category"] else None
+        claim_category: str | None = (
+            ref["claim_category"] if ref["claim_category"] else None
+        )
 
         # If neither player nor team is set, return empty — nothing to match on
         if not target_player_id and not target_team:
@@ -570,7 +604,9 @@ def similar_predictions(
         overlap_clauses: List[str] = []
         if target_player_id:
             overlap_clauses.append("l.target_player_id = @target_player_id")
-            params.append(ScalarQueryParameter("target_player_id", "STRING", target_player_id))
+            params.append(
+                ScalarQueryParameter("target_player_id", "STRING", target_player_id)
+            )
         if target_team:
             overlap_clauses.append("l.target_team = @target_team")
             params.append(ScalarQueryParameter("target_team", "STRING", target_team))
@@ -579,7 +615,9 @@ def similar_predictions(
         category_clause = ""
         if claim_category:
             category_clause = "AND l.claim_category = @claim_category"
-            params.append(ScalarQueryParameter("claim_category", "STRING", claim_category))
+            params.append(
+                ScalarQueryParameter("claim_category", "STRING", claim_category)
+            )
 
         query = f"""
             SELECT
@@ -614,7 +652,9 @@ def similar_predictions(
         raise
     except Exception as e:
         logger.error(f"Similar predictions error for {utterance_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch similar predictions")
+        raise HTTPException(
+            status_code=500, detail="Failed to fetch similar predictions"
+        )
 
 
 # ---------------------------------------------------------------------------

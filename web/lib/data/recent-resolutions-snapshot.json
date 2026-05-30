@@ -1,0 +1,90 @@
+{
+  "snapshot_metadata": {
+    "generated_at": "2026-05-29T21:52:00Z",
+    "source": "BigQuery cap-alpha-protocol.gold_layer (direct query)",
+    "query": "SELECT l.pundit_name, l.pundit_id, l.extracted_claim, r.binary_correct, r.resolved_at, r.brier_score FROM gold_layer.prediction_ledger l JOIN gold_layer.prediction_resolutions r USING (prediction_hash) JOIN nfl_dead_money.pundit_registry pr ON l.pundit_id = pr.pundit_id AND pr.published = TRUE WHERE r.resolution_status IN ('CORRECT','INCORRECT') ORDER BY r.resolved_at DESC LIMIT 10",
+    "note": "Regenerated after migration 015 applied and pundits published. Issue #990."
+  },
+  "resolutions": [
+    {
+      "pundit_name": "The Athletic NFL Staff",
+      "pundit_id": "athletic_nfl_staff",
+      "extracted_claim": "Fernando Mendoza was the first overall pick in the 2026 NFL Draft",
+      "binary_correct": true,
+      "resolved_at": "2026-05-05T20:19:44Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Myles Simmons",
+      "pundit_id": "myles_simmons",
+      "extracted_claim": "Fernando Mendoza will be the No. 1 overall pick in this year's draft",
+      "binary_correct": true,
+      "resolved_at": "2026-05-03T14:19:08Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "ESPN NFL Staff",
+      "pundit_id": "espn_nfl_staff",
+      "extracted_claim": "C.J. Stroud will be a top-5 pick in the 2026 NFL Draft",
+      "binary_correct": true,
+      "resolved_at": "2026-05-03T14:18:58Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Michael David Smith",
+      "pundit_id": "michael_david_smith",
+      "extracted_claim": "Arvell Reese will be drafted No. 2 overall in 2026",
+      "binary_correct": false,
+      "resolved_at": "2026-05-03T14:18:52Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Jeremy Fowler",
+      "pundit_id": "jeremy_fowler",
+      "extracted_claim": "The Giants will reload with a pair of top-10 selections on Thursday night.",
+      "binary_correct": true,
+      "resolved_at": "2026-05-03T14:18:37Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Pat McAfee",
+      "pundit_id": "pat_mcafee",
+      "extracted_claim": "The Raiders will select Fernando Mendoza with the first pick in the 2026 NFL draft.",
+      "binary_correct": true,
+      "resolved_at": "2026-05-02T16:55:30Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Charean Williams",
+      "pundit_id": "charean_williams",
+      "extracted_claim": "The Cardinals will select Jeremiyah Love at No. 3 in the 2026 NFL Draft",
+      "binary_correct": false,
+      "resolved_at": "2026-05-02T16:55:12Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Josh Alper",
+      "pundit_id": "josh_alper",
+      "extracted_claim": "David Bailey will not be picked by the Jets at No. 2 in 2026",
+      "binary_correct": true,
+      "resolved_at": "2026-05-02T16:55:10Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "ESPN NFL Staff",
+      "pundit_id": "espn_nfl_staff",
+      "extracted_claim": "Fernando Mendoza will be picked No. 1 in the 2026 NFL draft",
+      "binary_correct": true,
+      "resolved_at": "2026-05-01T17:07:37Z",
+      "brier_score": null
+    },
+    {
+      "pundit_name": "Pat McAfee",
+      "pundit_id": "pat_mcafee",
+      "extracted_claim": "Sauce Gardner was selected by the Indianapolis Colts in the first round of the 2026 NFL Draft.",
+      "binary_correct": true,
+      "resolved_at": "2026-04-28T14:24:46Z",
+      "brier_score": null
+    }
+  ]
+}

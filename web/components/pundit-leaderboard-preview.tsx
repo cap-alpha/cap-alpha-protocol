@@ -143,6 +143,12 @@ interface PunditLeaderboardPreviewProps {
      * switches the sport filter tab.
      */
     initialPundits?: Record<string, unknown>[];
+    /**
+     * When true, data is served from the static snapshot (backend unavailable).
+     * Lowers the resolved-picks threshold from 5 → 3 and renders a staleness badge.
+     * Tracks issue #960.
+     */
+    fallback?: boolean;
 }
 
 /** Normalise the raw backend/SSR record into a typed PunditStat. */
@@ -150,10 +156,14 @@ function toPunditStat(p: Record<string, unknown>): PunditStat {
     return p as unknown as PunditStat;
 }
 
-/** Filter + sort helper — shared between SSR seed and client refetch paths. */
-function processRawPundits(raw: PunditStat[]): PunditStat[] {
+/** Filter + sort helper — shared between SSR seed and client refetch paths.
+ *  When `isFallback` is true, the resolved-picks threshold is lowered from 5 → 3
+ *  so all 13 snapshot pundits render (largest corpus has 5 picks).
+ */
+function processRawPundits(raw: PunditStat[], isFallback = false): PunditStat[] {
+    const minPicks = isFallback ? 3 : 5;
     const filtered = raw.filter(
-        (p) => p.resolved_predictions >= 5 && p.accuracy_rate !== null
+        (p) => p.resolved_predictions >= minPicks && p.accuracy_rate !== null
     );
     filtered.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
     return filtered.slice(0, 10);
@@ -161,12 +171,17 @@ function processRawPundits(raw: PunditStat[]): PunditStat[] {
 
 const FETCH_TIMEOUT_MS = 10_000;
 
+interface FetchPunditsResult {
+    pundits: PunditStat[];
+    fallback: boolean;
+}
+
 /**
  * Three-state fetch helper.
- *   - resolves with PunditStat[] on success
+ *   - resolves with { pundits, fallback } on success (fallback=true when snapshot served)
  *   - rejects on network error, non-ok HTTP status, or timeout
  */
-async function fetchPundits(sport: Sport, signal?: AbortSignal): Promise<PunditStat[]> {
+async function fetchPundits(sport: Sport, signal?: AbortSignal): Promise<FetchPunditsResult> {
     const params = new URLSearchParams({ limit: "20", sort: "accuracy" });
     if (sport !== "ALL") {
         params.set("sport", sport.toLowerCase());
@@ -176,21 +191,28 @@ async function fetchPundits(sport: Sport, signal?: AbortSignal): Promise<PunditS
         throw new Error(`HTTP ${res.status}`);
     }
     const data = await res.json();
-    return processRawPundits((data.pundits || []).map(toPunditStat));
+    const isFallback = !!data.fallback;
+    return {
+        pundits: processRawPundits((data.pundits || []).map(toPunditStat), isFallback),
+        fallback: isFallback,
+    };
 }
 
 export function PunditLeaderboardPreview({
     sport: sportProp = "NFL",
     initialPundits,
+    fallback = false,
 }: PunditLeaderboardPreviewProps) {
     const defaultSport: Sport = SPORTS.includes(sportProp as Sport) ? (sportProp as Sport) : "NFL";
     const [activeSport, setActiveSport] = useState<Sport>(defaultSport);
 
     // Seed from SSR data when available so the first render is not empty.
     const seedPundits = initialPundits
-        ? processRawPundits(initialPundits.map(toPunditStat))
+        ? processRawPundits(initialPundits.map(toPunditStat), fallback)
         : [];
     const [pundits, setPundits] = useState<PunditStat[]>(seedPundits);
+    // Track whether currently-displayed data is from the snapshot fallback.
+    const [isFallback, setIsFallback] = useState<boolean>(fallback);
 
     /**
      * Three distinct UI states — never conflate them:
@@ -226,7 +248,8 @@ export function PunditLeaderboardPreview({
                 .then((result) => {
                     clearTimeout(timeoutId);
                     if (cancelled) return;
-                    setPundits(result);
+                    setPundits(result.pundits);
+                    setIsFallback(result.fallback);
                     setFetchState("idle");
                 })
                 .catch((err) => {
@@ -268,6 +291,17 @@ export function PunditLeaderboardPreview({
 
     return (
         <div className="space-y-4">
+            {/* Staleness badge — shown when data is from the snapshot fallback (issue #960).
+                Uses reactive isFallback state so it updates correctly on sport-tab switches. */}
+            {isFallback && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-400/80">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60 shrink-0" />
+                    <span className="text-[11px] font-mono tracking-wide">
+                        Data archive · Apr 2025 · refresh paused
+                    </span>
+                </div>
+            )}
+
             {/* Sport filter pills */}
             <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1 hidden sm:inline">
@@ -278,7 +312,7 @@ export function PunditLeaderboardPreview({
                         key={s}
                         onClick={() => setActiveSport(s)}
                         className={cn(
-                            "px-3 py-1 rounded text-xs font-mono font-semibold uppercase tracking-wide transition-colors border",
+                            "px-3 py-1 min-h-[44px] inline-flex items-center justify-center rounded text-xs font-mono font-semibold uppercase tracking-wide transition-colors border",
                             activeSport === s
                                 ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
                                 : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
@@ -312,7 +346,8 @@ export function PunditLeaderboardPreview({
                                 fetchPundits(activeSport, controller.signal)
                                     .then((result) => {
                                         clearTimeout(timeoutId);
-                                        setPundits(result);
+                                        setPundits(result.pundits);
+                                        setIsFallback(result.fallback);
                                         setFetchState("idle");
                                     })
                                     .catch(() => {
@@ -327,8 +362,18 @@ export function PunditLeaderboardPreview({
                     </div>
                 </div>
             ) : pundits.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-600 text-sm">
-                    No pundit data yet — pipeline populating soon.
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-sm">
+                    <p className="text-zinc-400">No scored pundits for this sport yet.</p>
+                    <p className="mt-2 text-xs text-zinc-600">
+                        Check{" "}
+                        <Link
+                            href="/status"
+                            className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2"
+                        >
+                            /status
+                        </Link>{" "}
+                        for pipeline health.
+                    </p>
                 </div>
             ) : (
                 <>
@@ -397,11 +442,20 @@ export function PunditLeaderboardPreview({
             <div className="pt-1 text-center">
                 <Link
                     href="/ledger"
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                    className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
                 >
                     View full ledger →
                 </Link>
             </div>
+
+            {/* Methodology disclaimer — context for what "accuracy" means here. #993 */}
+            {pundits.length > 0 && (
+                <p className="pt-2 text-center text-[11px] leading-relaxed text-zinc-600 max-w-2xl mx-auto">
+                    Accuracy = predictions resolved CORRECT ÷ total resolved (VOID excluded).
+                    Some entries aggregate multiple writers under a publication byline; individual writers may differ.
+                    Click any name to see the underlying claims and how each was resolved.
+                </p>
+            )}
         </div>
     );
 }

@@ -1,9 +1,5 @@
 import { NextResponse } from "next/server";
-
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+import { getAuthHeader, API_URL } from "@/lib/ledger-server";
 
 interface Prediction {
     prediction_hash: string;
@@ -62,9 +58,7 @@ export async function GET(
 
     try {
         const res = await fetch(`${API_URL}/v1/draft/${year}`, {
-            headers: {
-                "Accept": "application/json",
-            },
+            headers: { Accept: "application/json", ...getAuthHeader() },
         });
 
         if (!res.ok) {

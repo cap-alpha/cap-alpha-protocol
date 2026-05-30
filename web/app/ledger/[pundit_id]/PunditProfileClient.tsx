@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -357,15 +357,135 @@ function AccuracyBarRow({
 }
 
 // ---------------------------------------------------------------------------
-// ClaimCard
+// Three-layer evidence card helpers
+// ---------------------------------------------------------------------------
+
+/** Layer label + accent color tokens */
+const LAYER = {
+    said: {
+        label: "SAID",
+        bg: "rgba(113,113,122,0.06)",       // zinc-500 tint
+        border: "rgba(113,113,122,0.18)",
+        labelColor: "#52525B",              // zinc-600
+        labelBg: "rgba(113,113,122,0.10)",
+    },
+    meant: {
+        label: "MEANT",
+        bg: "rgba(6,182,212,0.05)",         // cyan-500 tint
+        border: "rgba(6,182,212,0.20)",
+        labelColor: "#0891B2",              // cyan-600
+        labelBg: "rgba(6,182,212,0.10)",
+    },
+    happened_correct: {
+        label: "HAPPENED",
+        bg: "rgba(26,122,74,0.06)",
+        border: "rgba(26,122,74,0.20)",
+        labelColor: "#1A7A4A",
+        labelBg: "rgba(26,122,74,0.10)",
+    },
+    happened_incorrect: {
+        label: "HAPPENED",
+        bg: "rgba(185,28,28,0.07)",
+        border: "rgba(185,28,28,0.25)",
+        labelColor: "#991B1B",          // red-800 — higher contrast on light bg
+        labelBg: "rgba(185,28,28,0.14)",
+    },
+    happened_pending: {
+        label: "HAPPENED",
+        bg: "rgba(184,134,11,0.05)",
+        border: "rgba(184,134,11,0.18)",
+        labelColor: "#92400E",
+        labelBg: "rgba(184,134,11,0.10)",
+    },
+} as const;
+
+type LayerKey = keyof typeof LAYER;
+
+function happenedKey(status: string): LayerKey {
+    if (status === "CORRECT") return "happened_correct";
+    if (status === "INCORRECT") return "happened_incorrect";
+    return "happened_pending";
+}
+
+/** Single labeled layer row */
+function EvidenceLayer({
+    layerKey,
+    children,
+}: {
+    layerKey: LayerKey;
+    children: React.ReactNode;
+}) {
+    const t = LAYER[layerKey];
+    return (
+        <div
+            style={{
+                display: "flex",
+                gap: 10,
+                padding: "10px 12px",
+                background: t.bg,
+                border: `1px solid ${t.border}`,
+                borderRadius: 3,
+                alignItems: "flex-start",
+            }}
+            aria-label={`${t.label} layer`}
+        >
+            {/* Layer label pill */}
+            <span
+                style={{
+                    flexShrink: 0,
+                    fontSize: 9,
+                    fontWeight: 800,
+                    letterSpacing: "1.2px",
+                    textTransform: "uppercase",
+                    color: t.labelColor,
+                    background: t.labelBg,
+                    border: `1px solid ${t.border}`,
+                    padding: "2px 7px",
+                    borderRadius: 2,
+                    fontFamily: "var(--font-mono), monospace",
+                    lineHeight: 1.6,
+                    marginTop: 1,
+                }}
+            >
+                {t.label}
+            </span>
+            {/* Content */}
+            <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
+        </div>
+    );
+}
+
+/** Category display label */
+const CAT_LABELS: Record<string, string> = {
+    game_outcome: "Game Outcome",
+    player_performance: "Player Perf.",
+    trade: "Trade / Move",
+    draft_pick: "Draft Pick",
+    injury: "Injury",
+    contract: "Contract",
+};
+
+// ---------------------------------------------------------------------------
+// ClaimCard — three-layer evidence model (SAID / MEANT / HAPPENED)
 // ---------------------------------------------------------------------------
 
 function ClaimCard({ p }: { p: Prediction }) {
     const borderColor = claimBorderColor(p.resolution_status);
-    const claimText = p.extracted_claim || p.raw_assertion_text || "(no claim text)";
     const dateStr = fmtDate(p.ingestion_timestamp);
-    // Build source label: try to extract domain from source_url
+
+    // SAID layer: prefer raw_assertion_text; fall back to extracted_claim
+    const saidText = p.raw_assertion_text || p.extracted_claim || "(no claim text)";
+
+    // MEANT layer: extracted_claim as structured interpretation; plus entity chips
+    const meantText = p.extracted_claim || p.raw_assertion_text || null;
+    const rawDiffersFromExtracted =
+        p.raw_assertion_text &&
+        p.extracted_claim &&
+        p.raw_assertion_text.trim() !== p.extracted_claim.trim();
+
+    // Source domain label
     let sourceLabel = "";
+    let sourceHref = p.source_url ?? null;
     if (p.source_url) {
         try {
             const domain = new URL(p.source_url).hostname.replace(/^www\./, "");
@@ -375,129 +495,80 @@ function ClaimCard({ p }: { p: Prediction }) {
         }
     }
 
-    // Entity chips — derive from target_player_name/target_team for linking
+    // Entity chips
     const playerName = p.target_player_name ?? p.target_player_id ?? null;
     const teamAbbr = p.target_team ?? null;
+    const catLabel = p.claim_category ? (CAT_LABELS[p.claim_category] ?? p.claim_category) : null;
 
-    // Derive a URL-safe anchor id from the hash. Strip "sha256:" prefix and
-    // use first 12 hex chars — enough for uniqueness on a single pundit page.
+    // HAPPENED layer tokens
+    const hKey = happenedKey(p.resolution_status);
+    const happenedColor = LAYER[hKey].labelColor;
+
+    // Anchor id for deep-linking
     const anchorId = p.prediction_hash
         ? `prediction-${p.prediction_hash.replace(/^sha256:/, "").slice(0, 12)}`
         : undefined;
 
-    // utterance_id for similar predictions call = hash_short (12 chars, no prefix)
+    // utterance_id for similar predictions
     const utteranceId = p.prediction_hash
         ? p.prediction_hash.replace(/^sha256:/, "").slice(0, 12)
         : null;
+
     return (
-        <div
+        <article
             id={anchorId}
+            aria-label={`Prediction: ${saidText.slice(0, 80)}`}
             style={{
                 background: DS.card,
                 border: `1px solid ${DS.border}`,
-                marginBottom: 12,
-                padding: "18px 20px 18px 23px",
+                marginBottom: 14,
                 position: "relative",
                 borderLeft: `3px solid ${borderColor}`,
+                overflow: "hidden",
             }}
         >
-            {/* Top row: date + badge */}
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    marginBottom: 8,
-                }}
-            >
-                <div
-                    style={{
-                        fontFamily: "var(--font-mono), monospace",
-                        fontSize: 11,
-                        color: DS.textLt,
-                    }}
-                >
-                    {dateStr}
-                    {sourceLabel && ` · ${sourceLabel}`}
-                </div>
-                <ClaimBadge status={p.resolution_status} />
-            </div>
-
-            {/* Claim quote */}
-            <div
-                style={{
-                    fontFamily: "var(--font-serif), Georgia, serif",
-                    fontStyle: "italic",
-                    fontSize: 15,
-                    lineHeight: 1.55,
-                    color: DS.textMd,
-                    margin: "6px 0 12px",
-                }}
-            >
-                &ldquo;{claimText}&rdquo;
-            </div>
-
-            {/* Bottom row: entities + confidence + hash */}
+            {/* Card header: date + badge */}
             <div
                 style={{
                     display: "flex",
                     justifyContent: "space-between",
                     alignItems: "center",
-                    flexWrap: "wrap",
-                    gap: 8,
+                    padding: "10px 16px 0",
                 }}
             >
-                {/* Entity chips — linked to player/team pages */}
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                    {playerName && (
-                        <Link
-                            href={`/player/${slugifyPlayer(playerName)}`}
-                            style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: DS.navy,
-                                background: `rgba(26,39,68,0.07)`,
-                                padding: "3px 10px",
-                                border: `1px solid rgba(26,39,68,0.12)`,
-                                textDecoration: "none",
-                            }}
-                        >
-                            {playerName}
-                        </Link>
-                    )}
-                    {teamAbbr && (
-                        <Link
-                            href={`/team/${encodeURIComponent(teamAbbr)}`}
-                            style={{
-                                fontSize: 11,
-                                fontWeight: 600,
-                                color: DS.navy,
-                                background: `rgba(26,39,68,0.07)`,
-                                padding: "3px 10px",
-                                border: `1px solid rgba(26,39,68,0.12)`,
-                                textDecoration: "none",
-                            }}
-                        >
-                            {teamAbbr}
-                        </Link>
-                    )}
-                    {p.season_year && (
+                <div
+                    style={{
+                        fontFamily: "var(--font-mono), monospace",
+                        fontSize: 10,
+                        color: DS.textLt,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                    }}
+                >
+                    <span>{dateStr}</span>
+                    {catLabel && (
                         <span
                             style={{
-                                fontSize: 11,
+                                fontSize: 9,
+                                fontWeight: 700,
+                                letterSpacing: "0.6px",
+                                textTransform: "uppercase",
                                 color: DS.textLt,
-                                fontFamily: "var(--font-mono), monospace",
+                                background: DS.raised,
+                                border: `1px solid ${DS.borderLt}`,
+                                padding: "1px 6px",
+                                borderRadius: 2,
                             }}
                         >
-                            {p.season_year}
+                            {catLabel}
                         </span>
                     )}
                 </div>
-
-                {/* Right side: confidence + hash */}
-                <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <ClaimBadge status={p.resolution_status} />
                     <ConfBar confidence={p.confidence} status={p.resolution_status} />
-                    <div
+                    <span
                         style={{
                             fontFamily: "var(--font-mono), monospace",
                             fontSize: 9,
@@ -505,31 +576,196 @@ function ClaimCard({ p }: { p: Prediction }) {
                         }}
                     >
                         {hashShort(p.prediction_hash)}
-                    </div>
+                    </span>
                 </div>
             </div>
 
-            {/* Outcome notes for wrong predictions */}
-            {p.outcome_notes && p.resolution_status === "INCORRECT" && (
-                <div
-                    style={{
-                        marginTop: 8,
-                        fontSize: 12,
-                        color: DS.neg,
-                        fontStyle: "italic",
-                        lineHeight: 1.4,
-                    }}
-                >
-                    {p.outcome_notes}
-                </div>
-            )}
+            {/* Three-layer evidence stack */}
+            <div
+                style={{
+                    padding: "10px 16px 14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                }}
+            >
+                {/* ── Layer 1: SAID ── */}
+                <EvidenceLayer layerKey="said">
+                    <div>
+                        <div
+                            style={{
+                                fontFamily: "var(--font-serif), Georgia, serif",
+                                fontStyle: "italic",
+                                fontSize: 14,
+                                lineHeight: 1.6,
+                                color: DS.textMd,
+                            }}
+                        >
+                            &ldquo;{saidText}&rdquo;
+                        </div>
+                        {sourceHref && (
+                            <a
+                                href={sourceHref}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 3,
+                                    marginTop: 5,
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                    color: "#52525B",
+                                    textDecoration: "none",
+                                    borderBottom: "1px dotted #9CA3AF",
+                                }}
+                                aria-label={`Read original source on ${sourceLabel}`}
+                            >
+                                Read original{sourceLabel ? ` on ${sourceLabel}` : ""} →
+                            </a>
+                        )}
+                        {!sourceHref && sourceLabel && (
+                            <span
+                                style={{
+                                    display: "inline-block",
+                                    marginTop: 5,
+                                    fontSize: 10,
+                                    color: DS.textLt,
+                                }}
+                            >
+                                via {sourceLabel}
+                            </span>
+                        )}
+                    </div>
+                </EvidenceLayer>
 
-            {/* Provenance toggle */}
-            <ClaimProvenance p={p} />
+                {/* ── Layer 2: MEANT ── */}
+                <EvidenceLayer layerKey="meant">
+                    <div>
+                        {/* Show extracted interpretation only if it differs from raw */}
+                        {rawDiffersFromExtracted && meantText && (
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    lineHeight: 1.5,
+                                    color: "#0E7490",      // cyan-700
+                                    marginBottom: 6,
+                                    fontStyle: "italic",
+                                }}
+                            >
+                                {meantText}
+                            </div>
+                        )}
+                        {/* Entity chips */}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                            {playerName && (
+                                <Link
+                                    href={`/player/${slugifyPlayer(playerName)}`}
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        color: "#0E7490",
+                                        background: "rgba(6,182,212,0.08)",
+                                        padding: "3px 10px",
+                                        border: "1px solid rgba(6,182,212,0.25)",
+                                        textDecoration: "none",
+                                        borderRadius: 2,
+                                    }}
+                                    aria-label={`Player: ${playerName}`}
+                                >
+                                    {playerName}
+                                </Link>
+                            )}
+                            {teamAbbr && (
+                                <Link
+                                    href={`/team/${encodeURIComponent(teamAbbr)}`}
+                                    style={{
+                                        fontSize: 11,
+                                        fontWeight: 600,
+                                        color: "#0E7490",
+                                        background: "rgba(6,182,212,0.08)",
+                                        padding: "3px 10px",
+                                        border: "1px solid rgba(6,182,212,0.25)",
+                                        textDecoration: "none",
+                                        borderRadius: 2,
+                                    }}
+                                    aria-label={`Team: ${teamAbbr}`}
+                                >
+                                    {teamAbbr}
+                                </Link>
+                            )}
+                            {p.season_year && (
+                                <span
+                                    style={{
+                                        fontSize: 11,
+                                        color: "#0891B2",
+                                        fontFamily: "var(--font-mono), monospace",
+                                        background: "rgba(6,182,212,0.06)",
+                                        padding: "3px 8px",
+                                        border: "1px solid rgba(6,182,212,0.15)",
+                                        borderRadius: 2,
+                                    }}
+                                >
+                                    {p.season_year}
+                                </span>
+                            )}
+                            {!playerName && !teamAbbr && !p.season_year && (
+                                <span style={{ fontSize: 12, color: DS.textLt, fontStyle: "italic" }}>
+                                    No structured entities extracted
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </EvidenceLayer>
 
-            {/* Similar predictions expander — #769 */}
-            <SimilarPredictionsExpander utteranceId={utteranceId} limit={3} />
-        </div>
+                {/* ── Layer 3: HAPPENED ── */}
+                <EvidenceLayer layerKey={hKey}>
+                    {p.resolution_status === "PENDING" ? (
+                        <span
+                            style={{
+                                fontSize: 13,
+                                color: "#92400E",
+                                fontStyle: "italic",
+                            }}
+                        >
+                            Awaiting outcome
+                        </span>
+                    ) : (
+                        <div>
+                            <div
+                                style={{
+                                    fontSize: 13,
+                                    fontWeight: 600,
+                                    color: happenedColor,
+                                    marginBottom: p.outcome_notes ? 4 : 0,
+                                }}
+                            >
+                                {p.resolution_status === "CORRECT" ? "Prediction verified correct" : "Prediction did not occur"}
+                            </div>
+                            {p.outcome_notes && (
+                                <div
+                                    style={{
+                                        fontSize: 12,
+                                        color: DS.textMd,
+                                        lineHeight: 1.5,
+                                        fontStyle: "italic",
+                                    }}
+                                >
+                                    {p.outcome_notes}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </EvidenceLayer>
+            </div>
+
+            {/* Provenance toggle — extraction metadata (collapsed by default) */}
+            <div style={{ padding: "0 16px 12px" }}>
+                <ClaimProvenance p={p} />
+                {/* Similar predictions expander — #769 */}
+                <SimilarPredictionsExpander utteranceId={utteranceId} limit={3} />
+            </div>
+        </article>
     );
 }
 
@@ -730,6 +966,8 @@ interface Props {
     punditId: string;
     isFollowing: boolean;
     isAuthenticated: boolean;
+    /** True when the backend was unreachable and stats came from the static snapshot. */
+    snapshotFallback?: boolean;
 }
 
 const VALID_FILTER_CATS: FilterCategory[] = [
@@ -747,6 +985,7 @@ export function PunditProfileClient({
     punditId,
     isFollowing,
     isAuthenticated,
+    snapshotFallback = false,
 }: Props) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -827,9 +1066,11 @@ export function PunditProfileClient({
         [punditId] // eslint-disable-line react-hooks/exhaustive-deps
     );
 
-    // When tab changes, reload
+    // When tab changes, reload (skip in snapshot fallback mode — backend is offline)
     useEffect(() => {
-        loadPredictions(1, activeTab);
+        if (!snapshotFallback) {
+            loadPredictions(1, activeTab);
+        }
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Client-side filter + sort
@@ -890,12 +1131,34 @@ export function PunditProfileClient({
                 <PostFollowBanner punditName={pundit.pundit_name} />
             )}
 
+            {/* Snapshot fallback notice — shown when backend is offline */}
+            {snapshotFallback && (
+                <div
+                    role="status"
+                    style={{
+                        background: "#FEF3C7",
+                        borderBottom: "1px solid #FCD34D",
+                        padding: "10px clamp(16px, 5vw, 40px)",
+                        fontSize: 13,
+                        color: "#92400E",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                    }}
+                >
+                    <span aria-hidden="true">⚠</span>
+                    <span>
+                        Stats shown from cached snapshot · Predictions list will return when live data is back online
+                    </span>
+                </div>
+            )}
+
             {/* Breadcrumb */}
             <div
                 style={{
                     background: DS.card,
                     borderBottom: `1px solid ${DS.border}`,
-                    padding: "10px 40px",
+                    padding: "10px clamp(16px, 5vw, 40px)",
                     fontSize: 12,
                     color: DS.textLt,
                 }}
@@ -912,14 +1175,14 @@ export function PunditProfileClient({
             </div>
 
             {/* ===== PUNDIT HEADER ===== */}
-            <div style={{ background: DS.navy, color: "#fff", padding: "40px" }}>
+            <div style={{ background: DS.navy, color: "#fff", padding: "clamp(20px, 5vw, 40px)" }}>
                 <div
                     style={{
                         maxWidth: 1100,
                         margin: "0 auto",
                         display: "grid",
                         gridTemplateColumns: "auto 1fr auto",
-                        gap: 32,
+                        gap: "clamp(16px, 4vw, 32px)",
                         alignItems: "start",
                     }}
                 >
@@ -1067,7 +1330,8 @@ export function PunditProfileClient({
                 style={{
                     background: DS.card,
                     borderBottom: `1px solid ${DS.border}`,
-                    padding: "0 40px",
+                    padding: "0 clamp(16px, 5vw, 40px)",
+                    overflowX: "auto",
                 }}
             >
                 <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex" }}>
@@ -1106,7 +1370,7 @@ export function PunditProfileClient({
             </div>
 
             {/* ===== MAIN CONTENT ===== */}
-            <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 40px" }}>
+            <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px clamp(16px, 5vw, 40px)" }}>
                 <div
                     style={{
                         display: "grid",
@@ -1211,11 +1475,32 @@ export function PunditProfileClient({
                                     textAlign: "center",
                                     padding: "48px 0",
                                     color: DS.textLt,
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     fontFamily: "var(--font-mono), monospace",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: 12,
                                 }}
+                                aria-busy="true"
+                                aria-label="Loading predictions"
                             >
-                                Loading claims…
+                                {/* Spinner ring */}
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    style={{
+                                        animation: "spin 0.9s linear infinite",
+                                        color: DS.gold,
+                                    }}
+                                    aria-hidden="true"
+                                >
+                                    <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" strokeDasharray="28 56" strokeLinecap="round" />
+                                </svg>
+                                <span style={{ color: DS.textLt, fontSize: 13 }}>Loading claims…</span>
                             </div>
                         ) : sorted.length === 0 ? (
                             <div
@@ -1226,7 +1511,9 @@ export function PunditProfileClient({
                                     fontSize: 14,
                                 }}
                             >
-                                No claims found for this filter.
+                                {snapshotFallback
+                                    ? "Predictions list will return when live data is back online."
+                                    : "No claims found for this filter."}
                             </div>
                         ) : (
                             sorted.map((p) => <ClaimCard key={p.prediction_hash} p={p} />)
@@ -1260,8 +1547,28 @@ export function PunditProfileClient({
                                     color: DS.textLt,
                                     fontSize: 12,
                                     fontFamily: "var(--font-mono), monospace",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 8,
                                 }}
+                                aria-busy="true"
+                                aria-label="Loading more predictions"
                             >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    style={{
+                                        animation: "spin 0.9s linear infinite",
+                                        color: DS.gold,
+                                        flexShrink: 0,
+                                    }}
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" strokeDasharray="28 56" strokeLinecap="round" />
+                                </svg>
                                 Loading…
                             </div>
                         )}
@@ -1451,7 +1758,7 @@ function TrustStrap({
             style={{
                 background: "rgba(255,255,255,0.04)",
                 borderTop: "1px solid rgba(255,255,255,0.07)",
-                padding: "10px 40px",
+                padding: "10px clamp(16px, 5vw, 40px)",
             }}
         >
             <div

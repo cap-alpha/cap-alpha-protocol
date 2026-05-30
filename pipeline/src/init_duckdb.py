@@ -55,7 +55,8 @@ CREATE TABLE IF NOT EXISTS nfl_dead_money.raw_pundit_media (
     content_type          VARCHAR,
     fetch_source_type     VARCHAR,
     raw_metadata          VARCHAR,
-    sport                 VARCHAR     DEFAULT 'NFL'
+    sport                 VARCHAR     DEFAULT 'NFL',
+    is_post_event         BOOLEAN     DEFAULT FALSE
 );
 
 CREATE TABLE IF NOT EXISTS nfl_dead_money.processed_media_hashes (

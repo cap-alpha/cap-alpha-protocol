@@ -70,6 +70,33 @@ sources:
       - id: matt_bowen
         name: "Matt Bowen"
         match_authors: ["Matt Bowen"]
+      - id: bill_barnwell
+        name: "Bill Barnwell"
+        match_authors: ["Bill Barnwell", "Barnwell"]
+      - id: mina_kimes
+        name: "Mina Kimes"
+        match_authors: ["Mina Kimes", "Kimes"]
+      - id: seth_wickersham
+        name: "Seth Wickersham"
+        match_authors: ["Seth Wickersham", "Wickersham"]
+      - id: marcus_spears
+        name: "Marcus Spears"
+        match_authors: ["Marcus Spears", "Spears"]
+      - id: louis_riddick
+        name: "Louis Riddick"
+        match_authors: ["Louis Riddick", "Riddick"]
+      - id: domonique_foxworth
+        name: "Domonique Foxworth"
+        match_authors: ["Domonique Foxworth", "Foxworth"]
+      - id: mike_greenberg
+        name: "Mike Greenberg"
+        match_authors: ["Mike Greenberg", "Greenberg"]
+      - id: sarah_spain
+        name: "Sarah Spain"
+        match_authors: ["Sarah Spain"]
+      - id: max_kellerman
+        name: "Max Kellerman"
+        match_authors: ["Max Kellerman", "Kellerman"]
 
   # theringer_nfl removed: returns HTML not XML (permanently dead — 2026-05)
 
@@ -107,9 +134,239 @@ sources:
       - id: jeff_howe
         name: "Jeff Howe"
         match_authors: ["Jeff Howe"]
+      - id: mike_sando
+        name: "Mike Sando"
+        match_authors: ["Mike Sando", "Sando"]
+      - id: robert_mays
+        name: "Robert Mays"
+        match_authors: ["Robert Mays"]
+      - id: sheil_kapadia
+        name: "Sheil Kapadia"
+        match_authors: ["Sheil Kapadia", "Kapadia"]
+      - id: jonathan_jones_athletic
+        name: "Jonathan Jones"
+        match_authors: ["Jonathan Jones"]
+      - id: kalyn_kahler
+        name: "Kalyn Kahler"
+        match_authors: ["Kalyn Kahler"]
+      - id: bob_mcmanaman
+        name: "Bob McManaman"
+        match_authors: ["Bob McManaman", "McManaman"]
+      - id: nicki_jhabvala
+        name: "Nicki Jhabvala"
+        match_authors: ["Nicki Jhabvala", "Jhabvala"]
+      - id: dan_pompei
+        name: "Dan Pompei"
+        match_authors: ["Dan Pompei", "Pompei"]
 
   # nfl_official removed: malformed XML from ad injection (permanently dead — 2026-05)
   # si_nfl removed: malformed XML (permanently dead — 2026-05)
+
+  # The Ringer NFL — long-form analytical NFL content from Ringer writers
+  # High prediction density: training camp assessments, power rankings, draft grades
+  # theringer.com/nfl/rss returns 404; The Ringer NFL Show podcast is the active feed.
+  - id: the_ringer_nfl
+    name: "The Ringer NFL"
+    sport: "NFL"
+    type: podcast
+    scrape_full_text: true
+    url: "https://feeds.megaphone.fm/the-ringer-nfl-show"
+    enabled: true  # validated 2026-05-30: 200, active podcast feed with NFL prediction content
+    priority_tier: 1  # Tier 1: analytical long-form; high testable prediction density
+    default_pundit:
+      id: ringer_nfl_staff
+      name: "The Ringer NFL Staff"
+    pundits:
+      - id: robert_mays
+        name: "Robert Mays"
+        match_authors: ["Robert Mays"]
+      - id: sheil_kapadia
+        name: "Sheil Kapadia"
+        match_authors: ["Sheil Kapadia", "Kapadia"]
+      - id: kevin_clark_ringer
+        name: "Kevin Clark"
+        match_authors: ["Kevin Clark"]
+      - id: danny_kelly
+        name: "Danny Kelly"
+        match_authors: ["Danny Kelly", "Kelly"]
+      - id: michael_lombardi
+        name: "Michael Lombardi"
+        match_authors: ["Michael Lombardi", "Lombardi"]
+      - id: nora_princiotti
+        name: "Nora Princiotti"
+        match_authors: ["Nora Princiotti", "Princiotti"]
+      - id: chris_ryan_ringer
+        name: "Chris Ryan"
+        match_authors: ["Chris Ryan"]
+
+  # Pro Football Focus — advanced analytics grades + season predictions
+  # Expected very high testability rate: explicit grade predictions, player rankings
+  - id: pff_nfl
+    name: "Pro Football Focus (PFF)"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.pff.com/feed"
+    enabled: true  # validated 2026-05-30: 200, 25 items, real NFL analytics content; no Elite auth required for feed
+    priority_tier: 1  # Tier 1: quantified analytics predictions; extremely high testability
+    default_pundit:
+      id: pff_staff
+      name: "PFF Staff"
+    pundits:
+      - id: sam_monson
+        name: "Sam Monson"
+        match_authors: ["Sam Monson", "Monson"]
+      - id: steve_palazzolo
+        name: "Steve Palazzolo"
+        match_authors: ["Steve Palazzolo", "Palazzolo"]
+      - id: eric_eager
+        name: "Eric Eager"
+        match_authors: ["Eric Eager", "Eager"]
+      - id: mike_renner
+        name: "Mike Renner"
+        match_authors: ["Mike Renner", "Renner"]
+
+  # The Draft Network — pre-draft analysis and prospect predictions
+  # High prediction density around draft season; testable against actual draft results
+  - id: draft_network
+    name: "The Draft Network"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://thedraftnetwork.com/feed"
+    # blocked: RSS endpoint resolves to /404 page (2026-05-30); site has no active RSS feed
+    enabled: false
+    priority_tier: 2  # Tier 2: draft-period spike; predictions testable against actual picks
+    default_pundit:
+      id: draft_network_staff
+      name: "Draft Network Staff"
+    pundits:
+      - id: kyle_crabbs
+        name: "Kyle Crabbs"
+        match_authors: ["Kyle Crabbs", "Crabbs"]
+      - id: jordan_reid
+        name: "Jordan Reid"
+        match_authors: ["Jordan Reid", "Reid"]
+      - id: trevor_sikkema
+        name: "Trevor Sikkema"
+        match_authors: ["Trevor Sikkema", "Sikkema"]
+
+  # NFL Media / NFL.com Analysis — official NFL site editorial content
+  # Insiders + analysts publishing predictions directly on NFL.com
+  - id: nfl_com_analysis
+    name: "NFL.com Analysis"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.nfl.com/rss/rsslanding?searchString=analysis"
+    # blocked: nfl.com RSS endpoint unreachable (connection timeout, 000) as of 2026-05-30
+    enabled: false
+    priority_tier: 2  # Tier 2: official NFL editorial; moderate prediction density
+    default_pundit:
+      id: nfl_com_staff
+      name: "NFL.com Staff"
+    pundits:
+      - id: gregg_rosenthal
+        name: "Gregg Rosenthal"
+        match_authors: ["Gregg Rosenthal", "Rosenthal"]
+      - id: marc_sessler
+        name: "Marc Sessler"
+        match_authors: ["Marc Sessler", "Sessler"]
+      - id: adam_rank
+        name: "Adam Rank"
+        match_authors: ["Adam Rank", "Rank"]
+      - id: dan_hanzus
+        name: "Dan Hanzus"
+        match_authors: ["Dan Hanzus", "Hanzus"]
+      - id: elliot_harrison
+        name: "Elliot Harrison"
+        match_authors: ["Elliot Harrison", "Harrison"]
+
+  # The Athletic NFL Show (podcast via YouTube)
+  # Weekly podcast with panelists making explicit predictions; high claim density
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: athletic_nfl_show_podcast
+    name: "The Athletic NFL Show"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCsj-SjMCpVMJpvSTZlVT3ug"
+    enabled: false  # TODO: verify channel_id for The Athletic NFL Show on YouTube
+    priority_tier: 1  # Tier 1: dedicated prediction podcast; very high testable claim density
+    keyword_filter:
+      - "NFL"
+      - "football"
+      - "quarterback"
+      - "draft"
+      - "playoffs"
+      - "Super Bowl"
+    pundits:
+      - id: dianna_russini
+        name: "Dianna Russini"
+        match_authors: ["Dianna Russini"]
+      - id: jeff_howe
+        name: "Jeff Howe"
+        match_authors: ["Jeff Howe"]
+      - id: mike_sando
+        name: "Mike Sando"
+        match_authors: ["Mike Sando", "Sando"]
+      - id: robert_mays
+        name: "Robert Mays"
+        match_authors: ["Robert Mays"]
+
+  # Locked On NFL Network — daily 20-min team-level prediction podcast series
+  # High density: weekly picks, player prop-style predictions, standings forecasts
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: locked_on_nfl
+    name: "Locked On NFL"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCN3aNm3Ir8YQI-Bz_ExgPTA"
+    enabled: false  # TODO: verify channel_id — Locked On NFL umbrella channel
+    priority_tier: 2  # Tier 2: high volume franchise-level predictions; variable host quality
+    default_pundit:
+      id: locked_on_nfl_host
+      name: "Locked On NFL Host"
+    pundits: []
+
+  # Sports Info Solutions (SIS) — analytics publisher with season previews
+  # Very high testability: DVOA-style predictive rankings published pre-season
+  - id: sports_info_solutions
+    name: "Sports Info Solutions Blog"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.sportsinfosolutions.com/feed/"
+    enabled: true  # validated 2026-05-30: inside.sportsinfosolutions.com redirects to www; 200, real SIS analytics content
+    priority_tier: 1  # Tier 1: quantified analytics predictions; high testability
+    default_pundit:
+      id: sis_staff
+      name: "SIS Staff"
+    pundits:
+      - id: daniel_nolen
+        name: "Daniel Nolen"
+        match_authors: ["Daniel Nolen", "Nolen"]
+
+  # ESPN Stats & Info — data-driven NFL analysis and record-book predictions
+  - id: espn_stats_info
+    name: "ESPN Stats & Info"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.espn.com/espn/rss/nfl/insider"
+    # blocked: URL returns ESPN front-page TOP feed, not NFL Stats & Info content (2026-05-30);
+    # ESPN Stats & Info blog (espn.go.com/espn/blogs) is defunct; no valid replacement URL found
+    enabled: false
+    priority_tier: 1  # Tier 1: quantified predictions attached to historical context
+    default_pundit:
+      id: espn_stats_staff
+      name: "ESPN Stats & Info"
+    pundits:
+      - id: kevin_seifert
+        name: "Kevin Seifert"
+        match_authors: ["Kevin Seifert", "Seifert"]
+      - id: mike_clay
+        name: "Mike Clay"
+        match_authors: ["Mike Clay", "Clay"]
 
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
   # On self-hosted runner with home IP, YouTube transcript fetching works without
@@ -126,6 +383,15 @@ sources:
       - id: pat_mcafee
         name: "Pat McAfee"
         match_authors: ["Pat McAfee"]
+      - id: aj_hawk
+        name: "AJ Hawk"
+        match_authors: ["AJ Hawk", "A.J. Hawk", "Hawk"]
+      - id: brock_holt_mcafee
+        name: "Brock"
+        match_authors: ["Brock"]
+      - id: paul_alexander_mcafee
+        name: "Paul Alexander"
+        match_authors: ["Paul Alexander"]
 
   # Requires yt-dlp (brew install yt-dlp)
   - id: undisputed
@@ -392,6 +658,12 @@ sources:
       - id: nate_burleson
         name: "Nate Burleson"
         match_authors: ["Nate Burleson"]
+      - id: jamie_erdahl
+        name: "Jamie Erdahl"
+        match_authors: ["Jamie Erdahl", "Erdahl"]
+      - id: cynthia_frelund
+        name: "Cynthia Frelund"
+        match_authors: ["Cynthia Frelund", "Frelund"]
 
   # Around the NFL Podcast — official NFL podcast with weekly predictions
   # Episodes published as YouTube videos; transcripts via yt-dlp
@@ -459,6 +731,110 @@ sources:
       name: "FanSided NFL Staff"
     pundits: []
 
+  # SiriusXM NFL Radio — daily NFL show; Rich Gannon, Solomon Patton, Pat Kirwan hosts
+  # Requires yt-dlp (brew install yt-dlp) — YouTube mirror of SiriusXM clips
+  - id: siriusxm_nfl_radio
+    name: "SiriusXM NFL Radio"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC0MYn7tCsHhCjRiJCvEpT1A"
+    # blocked: no public SiriusXM NFL Radio YouTube channel found (2026-05-30);
+    # SiriusXM content is subscription-only; no public RSS or YouTube mirror identified
+    enabled: false
+    priority_tier: 2  # Tier 2: daily show; consistent pundit picks and game predictions
+    pundits:
+      - id: pat_kirwan
+        name: "Pat Kirwan"
+        match_authors: ["Pat Kirwan", "Kirwan"]
+      - id: jim_miller_siriusxm
+        name: "Jim Miller"
+        match_authors: ["Jim Miller"]
+      - id: rich_gannon
+        name: "Rich Gannon"
+        match_authors: ["Rich Gannon", "Gannon"]
+
+  # ESPN NFL Live / NFL Countdown — pregame show analysts making weekly game predictions
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: espn_nfl_countdown
+    name: "ESPN NFL Countdown"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCiWLfSweyRNmLpgEHekhoAg"
+    # blocked: channel_id UCiWLfSweyRNmLpgEHekhoAg is ESPN's main channel (all sports),
+    # not NFL Countdown-specific; no dedicated NFL Countdown channel found (2026-05-30)
+    enabled: false
+    priority_tier: 1  # Tier 1: high-density weekly picks + Super Bowl predictions every season
+    keyword_filter:
+      - "NFL"
+      - "picks"
+      - "prediction"
+      - "preview"
+      - "countdown"
+      - "Sunday"
+    pundits:
+      - id: rex_ryan
+        name: "Rex Ryan"
+        match_authors: ["Rex Ryan", "Ryan"]
+      - id: randy_moss_espn
+        name: "Randy Moss"
+        match_authors: ["Randy Moss", "Moss"]
+      - id: sam_acho
+        name: "Sam Acho"
+        match_authors: ["Sam Acho", "Acho"]
+      - id: patricia_traina
+        name: "Patricia Traina"
+        match_authors: ["Patricia Traina", "Traina"]
+
+  # NFL Happy Hour / Move the Sticks — NFL.com podcast via YouTube
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: move_the_sticks
+    name: "Move the Sticks (NFL.com)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCB0MQRpoSorhpB0nD6GGm0g"
+    # blocked: channel_id UCB0MQRpoSorhpB0nD6GGm0g returns 404 (2026-05-30);
+    # Move the Sticks has no active public YouTube channel or podcast RSS feed found
+    enabled: false
+    priority_tier: 1  # Tier 1: dedicated draft/evaluation podcast; high testable prediction density
+    pundits:
+      - id: daniel_jeremiah
+        name: "Daniel Jeremiah"
+        match_authors: ["Daniel Jeremiah", "Jeremiah", "DJ"]
+      - id: bucky_brooks
+        name: "Bucky Brooks"
+        match_authors: ["Bucky Brooks", "Brooks"]
+
+  # CBS Sports HQ / NFL YouTube show
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: cbs_sports_hq_nfl
+    name: "CBS Sports HQ NFL"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIHBybdj3lSb4jg0U4CLZMA"
+    # blocked: channel_id UCIHBybdj3lSb4jg0U4CLZMA returns 404; CBS Sports HQ is a linear
+    # streaming channel (no standalone YouTube); CBS Sports main YT is Paramount+/Golazo content (2026-05-30)
+    enabled: false
+    priority_tier: 2  # Tier 2: multi-pundit show; medium prediction density
+    default_pundit:
+      id: cbs_sports_hq_staff
+      name: "CBS Sports HQ Staff"
+    pundits:
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco", "Prisco"]
+      - id: will_brinson
+        name: "Will Brinson"
+        match_authors: ["Will Brinson", "Brinson"]
+      - id: john_breech
+        name: "John Breech"
+        match_authors: ["John Breech", "Breech"]
+      - id: ryan_wilson_cbs
+        name: "Ryan Wilson"
+        match_authors: ["Ryan Wilson"]
+      - id: tyler_sullivan_cbs
+        name: "Tyler Sullivan"
+        match_authors: ["Tyler Sullivan"]
+
   # The MMQB / Sports Illustrated FMIA successor feed
   - id: si_mmqb
     name: "Sports Illustrated MMQB"
@@ -475,6 +851,12 @@ sources:
       - id: conor_orr
         name: "Conor Orr"
         match_authors: ["Conor Orr", "Orr"]
+      - id: jenny_vrentas
+        name: "Jenny Vrentas"
+        match_authors: ["Jenny Vrentas", "Vrentas"]
+      - id: greg_bedard
+        name: "Greg Bedard"
+        match_authors: ["Greg Bedard", "Bedard"]
 
 # ── Finance / Financial Pundit Feeds ─────────────────────────────────────
   - id: ritholtz_big_picture
@@ -659,6 +1041,372 @@ sources:
       - id: nouriel_roubini
         name: "Nouriel Roubini"
         match_authors: ["Nouriel Roubini", "Roubini", "Dr. Doom"]
+
+  # ── NBA Sources (issue #983 — multi-domain corpus phase 1) ─────────────────
+  # NBA insider + analysis ecosystem. Woj/Shams trade-deadline market is
+  # directly analogous to Schefter/Rapoport for NFL claim density.
+
+  - id: espn_nba
+    name: "ESPN NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.espn.com/espn/rss/nba/news"
+    enabled: true
+    priority_tier: 1  # Tier 1: Woj + NBA insiders; very high trade/signing claim density
+    default_pundit:
+      id: espn_nba_staff
+      name: "ESPN NBA Staff"
+    pundits:
+      - id: adrian_wojnarowski
+        name: "Adrian Wojnarowski"
+        match_authors: ["Adrian Wojnarowski", "Wojnarowski", "Woj", "wojnarowski"]
+      - id: brian_windhorst
+        name: "Brian Windhorst"
+        match_authors: ["Brian Windhorst", "Windhorst"]
+      - id: zach_lowe
+        name: "Zach Lowe"
+        match_authors: ["Zach Lowe", "ZachLowe"]
+      - id: jonathan_givony
+        name: "Jonathan Givony"
+        match_authors: ["Jonathan Givony", "Givony"]
+      - id: tim_bontemps
+        name: "Tim Bontemps"
+        match_authors: ["Tim Bontemps", "Bontemps"]
+
+  - id: theathletic_nba
+    name: "The Athletic NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://theathletic.com/feeds/rss/news/?sport=basketball"
+    enabled: true
+    priority_tier: 1  # Tier 1: Shams + long-form NBA analysis; high claim density
+    keyword_filter:
+      - "NBA"
+      - "basketball"
+      - "trade"
+      - "free agent"
+      - "draft"
+      - "contract"
+      - "coach"
+      - "playoff"
+      - "Finals"
+    default_pundit:
+      id: athletic_nba_staff
+      name: "The Athletic NBA Staff"
+    pundits:
+      - id: shams_charania
+        name: "Shams Charania"
+        match_authors: ["Shams Charania", "Charania", "Shams"]
+      - id: sam_amick
+        name: "Sam Amick"
+        match_authors: ["Sam Amick", "Amick"]
+      - id: jovan_buha
+        name: "Jovan Buha"
+        match_authors: ["Jovan Buha", "Buha"]
+
+  - id: ringer_nba
+    name: "The Ringer NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.theringer.com/rss/nba/index.xml"
+    enabled: true
+    priority_tier: 1  # Tier 1: Kevin O'Connor + long-form prediction-dense NBA analysis
+    default_pundit:
+      id: ringer_nba_staff
+      name: "The Ringer NBA Staff"
+    pundits:
+      - id: kevin_oconnor
+        name: "Kevin O'Connor"
+        match_authors: ["Kevin O'Connor", "Kevin OConnor", "KOC"]
+      - id: bill_simmons_nba
+        name: "Bill Simmons"
+        match_authors: ["Bill Simmons", "Simmons", "The Sports Guy"]
+      - id: justin_verrier
+        name: "Justin Verrier"
+        match_authors: ["Justin Verrier", "Verrier"]
+
+  - id: si_nba
+    name: "Sports Illustrated NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.si.com/rss/si_nba.rss"
+    # blocked: si.com sport-specific RSS feeds defunct (si_nba.rss → 404); SI/Minute Media
+    # removed all tag-based RSS endpoints; no working SI NBA feed found (2026-05-30)
+    enabled: false
+    priority_tier: 2  # Tier 2: mixed analysis + news; moderate prediction density
+    default_pundit:
+      id: si_nba_staff
+      name: "SI NBA Staff"
+    pundits:
+      - id: rob_mahoney
+        name: "Rob Mahoney"
+        match_authors: ["Rob Mahoney", "Mahoney"]
+
+  - id: bleacher_report_nba
+    name: "Bleacher Report NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://bleacherreport.com/articles/feed?tag_id=9"
+    # blocked: Bleacher Report NBA tag feed returns 404; B/R deprecated article RSS feeds
+    # after pivoting to B/R streaming app; no working replacement found (2026-05-30)
+    enabled: false
+    priority_tier: 2  # Tier 2: high-volume opinion; good for claim diversity
+    default_pundit:
+      id: br_nba_staff
+      name: "Bleacher Report NBA Staff"
+    pundits:
+      - id: jake_fischer
+        name: "Jake Fischer"
+        match_authors: ["Jake Fischer", "Fischer"]
+      - id: eric_pincus
+        name: "Eric Pincus"
+        match_authors: ["Eric Pincus", "Pincus"]
+
+  # NBA on TNT / Inside the NBA (YouTube) — Requires yt-dlp
+  - id: inside_the_nba
+    name: "Inside the NBA (TNT)"
+    sport: "NBA"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
+    # blocked: channel_id UCEjOSbbaOfgnfRODEEMYlCw is FreeDawkins (highlights channel), not
+    # Inside the NBA; TNT NBA deal ended 2025, show moved to Amazon/NBC; no active clip channel found (2026-05-30)
+    enabled: false
+    priority_tier: 1  # Tier 1: Shaq/Barkley/Kenny prediction-dense debate show
+    keyword_filter:
+      - "Inside the NBA"
+      - "predictions"
+      - "playoffs"
+    pundits:
+      - id: charles_barkley
+        name: "Charles Barkley"
+        match_authors: ["Charles Barkley", "Barkley", "Chuck"]
+      - id: kenny_smith
+        name: "Kenny Smith"
+        match_authors: ["Kenny Smith", "The Jet"]
+      - id: shaquille_oneal
+        name: "Shaquille O'Neal"
+        match_authors: ["Shaquille O'Neal", "Shaq", "O'Neal"]
+
+  # Bill Simmons Podcast (Ringer) — NBA predictions, trade grades, playoff picks
+  # YouTube channel_id was wrong; active feed is Megaphone podcast RSS
+  - id: bill_simmons_podcast
+    name: "The Bill Simmons Podcast"
+    sport: "NBA"
+    type: podcast
+    url: "https://feeds.megaphone.fm/the-bill-simmons-podcast"
+    enabled: true  # validated 2026-05-30: 200, active podcast with NBA trade grades and playoff picks
+    priority_tier: 1  # Tier 1: Simmons is extremely prediction-dense; trade grades + season picks
+    keyword_filter:
+      - "NBA"
+      - "playoffs"
+      - "trade"
+      - "draft"
+    pundits:
+      - id: bill_simmons
+        name: "Bill Simmons"
+        match_authors: ["Bill Simmons", "Simmons", "The Sports Guy"]
+
+  # Hoop Collective (ESPN) — NBA analysis podcast
+  # Requires yt-dlp
+  - id: hoop_collective
+    name: "Hoop Collective (ESPN)"
+    sport: "NBA"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=ESPN_HOOP_COLLECTIVE"
+    # blocked: ESPN_HOOP_COLLECTIVE is a placeholder, not a real channel_id; no valid
+    # YouTube channel or podcast RSS feed found for Hoop Collective (2026-05-30)
+    enabled: false
+    priority_tier: 1  # Tier 1: Windhorst/Lowe analytics-driven NBA predictions
+    pundits:
+      - id: brian_windhorst
+        name: "Brian Windhorst"
+        match_authors: ["Brian Windhorst", "Windhorst"]
+      - id: zach_lowe
+        name: "Zach Lowe"
+        match_authors: ["Zach Lowe", "ZachLowe"]
+
+  # ── Finance expansion (issue #983 — multi-domain corpus phase 1) ─────────────
+  # Appending to existing finance block. High-signal macro + market prediction voices.
+
+  - id: money_stuff_bloomberg
+    name: "Money Stuff (Matt Levine / Bloomberg)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.bloomberg.com/opinion/authors/ARbTQlRLRjE/matthew-s-levine.rss"
+    # blocked: Bloomberg RSS requires Bloomberg Terminal / paid auth (2026-05-30);
+    # URL returns 200 but response is behind paywall — auth-required, not parseable without credentials
+    enabled: false
+    proxy_required: true
+    priority_tier: 1  # Tier 1: extremely high testable-claim density on finance/markets
+    default_pundit:
+      id: matt_levine
+      name: "Matt Levine"
+    pundits:
+      - id: matt_levine
+        name: "Matt Levine"
+        match_authors: ["Matt Levine", "Matthew Levine", "Money Stuff"]
+
+  - id: doomberg
+    name: "Doomberg (energy/macro)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://doomberg.substack.com/feed"
+    enabled: true
+    priority_tier: 1  # Tier 1: contrarian macro + energy-market predictions; high claim density
+    default_pundit:
+      id: doomberg_team
+      name: "Doomberg"
+    pundits:
+      - id: doomberg_team
+        name: "Doomberg"
+        match_authors: ["Doomberg", "doomberg"]
+
+  - id: macrotourist
+    name: "The MacroTourist (Kevin Muir)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.themacrotourist.com/feed.xml"
+    # blocked: feed.xml returns 404; Substack and alternative feeds also unreachable;
+    # site appears inactive / author Kevin Muir no longer publishing publicly (2026-05-30)
+    enabled: false
+    priority_tier: 1  # Tier 1: macro trading predictions with explicit entry/exit calls
+    default_pundit:
+      id: kevin_muir
+      name: "Kevin Muir"
+    pundits:
+      - id: kevin_muir
+        name: "Kevin Muir"
+        match_authors: ["Kevin Muir", "MacroTourist", "macrotourist"]
+
+  - id: oaktree_memos
+    name: "Oaktree Capital Memos (Howard Marks)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.oaktreecapital.com/insights/memos/rss"
+    # blocked: Oaktree Capital has no RSS feed; /insights/memos page exists (200) but
+    # no RSS/Atom link tag; scraping would be required to extract memos (2026-05-30)
+    enabled: false
+    priority_tier: 1  # Tier 1: Howard Marks memos are prediction-dense market-cycle calls
+    default_pundit:
+      id: howard_marks
+      name: "Howard Marks"
+    pundits:
+      - id: howard_marks
+        name: "Howard Marks"
+        match_authors: ["Howard Marks", "Marks"]
+
+  - id: ark_invest_research
+    name: "ARK Invest Research (Cathie Wood)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.ark-invest.com/feed/"
+    enabled: true  # validated 2026-05-30: ark-invest.com/feed redirects to www.ark-invest.com/feed/; 200, real ARK research content
+    priority_tier: 1  # Tier 1: Cathie Wood 5-year price targets are directly testable
+    default_pundit:
+      id: cathie_wood
+      name: "Cathie Wood"
+    pundits:
+      - id: cathie_wood
+        name: "Cathie Wood"
+        match_authors: ["Cathie Wood", "Wood", "ARK Invest"]
+
+  - id: pershing_square_letters
+    name: "Pershing Square Letters (Bill Ackman)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://pershingsquareholdings.com/media/press-releases/rss/"
+    # blocked: RSS URL redirects to site homepage (not an RSS feed); Pershing Square
+    # letters page (/media/) returns 404; no working RSS found — scraping required (2026-05-30)
+    enabled: false
+    priority_tier: 1  # Tier 1: Ackman public letters contain explicit price target calls
+    default_pundit:
+      id: bill_ackman
+      name: "Bill Ackman"
+    pundits:
+      - id: bill_ackman
+        name: "Bill Ackman"
+        match_authors: ["Bill Ackman", "Ackman", "Pershing Square"]
+
+  - id: the_diff
+    name: "The Diff (Byrne Hobart)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://thediff.co/feed"
+    enabled: true
+    priority_tier: 1  # Tier 1: long-form finance/tech market analysis with testable theses
+    default_pundit:
+      id: byrne_hobart
+      name: "Byrne Hobart"
+    pundits:
+      - id: byrne_hobart
+        name: "Byrne Hobart"
+        match_authors: ["Byrne Hobart", "Hobart", "thediff"]
+
+  - id: epsilon_theory
+    name: "Epsilon Theory (Ben Hunt)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.epsilontheory.com/feed/"
+    enabled: true
+    priority_tier: 2  # Tier 2: narrative-finance analysis; predictions embedded in long-form essays
+    default_pundit:
+      id: ben_hunt
+      name: "Ben Hunt"
+    pundits:
+      - id: ben_hunt
+        name: "Ben Hunt"
+        match_authors: ["Ben Hunt", "bwhunt", "Epsilon Theory"]
+
+  - id: wsj_markets
+    name: "WSJ Markets"
+    sport: finance
+    type: rss
+    scrape_full_text: false  # WSJ paywalled; headline + lede only
+    url: "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+    enabled: true
+    priority_tier: 2  # Tier 2: major market commentary; moderate prediction density
+    default_pundit:
+      id: wsj_markets_staff
+      name: "WSJ Markets Staff"
+    pundits:
+      - id: greg_ip
+        name: "Greg Ip"
+        match_authors: ["Greg Ip", "Greg IP"]
+      - id: james_mackintosh
+        name: "James Mackintosh"
+        match_authors: ["James Mackintosh", "Mackintosh"]
+
+  - id: cnbc_pro_markets
+    name: "CNBC Pro Markets"
+    sport: finance
+    type: rss
+    scrape_full_text: false  # CNBC Pro paywalled; headline + lede only
+    url: "https://www.cnbc.com/id/20910258/device/rss/rss.html"
+    enabled: true
+    priority_tier: 2  # Tier 2: TV market punditry; good for claim volume
+    default_pundit:
+      id: cnbc_markets_staff
+      name: "CNBC Markets Staff"
+    pundits:
+      - id: mike_santoli
+        name: "Mike Santoli"
+        match_authors: ["Mike Santoli", "Santoli"]
+      - id: jim_cramer
+        name: "Jim Cramer"
+        match_authors: ["Jim Cramer", "Cramer", "Mad Money"]
 
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:

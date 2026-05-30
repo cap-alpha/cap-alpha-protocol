@@ -3,16 +3,12 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Metadata } from "next";
 import { MyPunditsClient } from "./MyPunditsClient";
+import { getAuthHeader, API_URL as BACKEND_URL } from "@/lib/ledger-server";
 
 export const metadata: Metadata = {
     title: "My Pundits | Cap Alpha",
     description: "Pundits you're following on Cap Alpha — accuracy summaries, recent resolutions, and pending predictions.",
 };
-
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 interface PunditSummary {
     pundit_id: string;
@@ -31,8 +27,8 @@ interface PunditSummary {
 async function fetchPunditSummary(punditId: string): Promise<PunditSummary | null> {
     try {
         const res = await fetch(
-            `${API_URL}/v1/pundits/${encodeURIComponent(punditId)}`,
-            { next: { revalidate: 300 } }
+            `${BACKEND_URL}/v1/pundits/${encodeURIComponent(punditId)}`,
+            { next: { revalidate: 300 }, headers: { Accept: "application/json", ...getAuthHeader() } }
         );
         if (!res.ok) return null;
         const data = await res.json();

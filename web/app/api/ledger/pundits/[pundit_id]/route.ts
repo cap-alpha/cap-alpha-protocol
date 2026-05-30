@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { injectHoneypotFields } from "@/lib/anti-scraping";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
+import { getAuthHeader, API_URL } from "@/lib/ledger-server";
 
 export async function GET(
     _req: Request,
@@ -10,7 +9,7 @@ export async function GET(
     const { pundit_id } = params;
     try {
         const res = await fetch(`${API_URL}/v1/pundits/${encodeURIComponent(pundit_id)}`, {
-            headers: { Accept: "application/json" },
+            headers: { Accept: "application/json", ...getAuthHeader() },
         });
 
         if (res.status === 404) {

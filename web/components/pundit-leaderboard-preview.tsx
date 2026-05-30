@@ -362,8 +362,18 @@ export function PunditLeaderboardPreview({
                     </div>
                 </div>
             ) : pundits.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-zinc-600 text-sm">
-                    No scored pundits for this sport yet.
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-sm">
+                    <p className="text-zinc-400">No scored pundits for this sport yet.</p>
+                    <p className="mt-2 text-xs text-zinc-600">
+                        Check{" "}
+                        <Link
+                            href="/status"
+                            className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2"
+                        >
+                            /status
+                        </Link>{" "}
+                        for pipeline health.
+                    </p>
                 </div>
             ) : (
                 <>

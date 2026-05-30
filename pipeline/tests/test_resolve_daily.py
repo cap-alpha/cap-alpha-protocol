@@ -981,6 +981,190 @@ class TestResolveDraftPicks:
         summary = resolve_draft_picks(mock_db, dry_run=False)
         assert summary["checked"] == 0
 
+    # -----------------------------------------------------------------------
+    # Fuzzy-match regression tests (issue #997)
+    # -----------------------------------------------------------------------
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_fuzzy_within3_team_matches_is_correct(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """Predicted pick #38 for NE, actual pick #39 by NE → CORRECT (±1, team match).
+
+        Regression for issue #997: post-event tracker off-by-one was marking
+        correct predictions as INCORRECT.
+        """
+        # Build a player drafted at #39 by NE
+        fuzzy_data = pd.DataFrame(
+            [
+                {
+                    "Name": "John Doe",
+                    "name_lower": "john doe",
+                    "draft_year": 2026,
+                    "draft_round": 2,
+                    "draft_pick": 39,
+                    "draft_team": "NE",
+                    "current_team": "NE",
+                    "undrafted": False,
+                }
+            ]
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "John Doe drafted by Patriots at pick No. 38 in 2026",
+                    "season_year": 2026,
+                    "target_player_id": "John Doe",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = fuzzy_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is True, (
+            "pick #38 vs actual #39 with matching team should be CORRECT (fuzzy ±3)"
+        )
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_fuzzy_within3_wrong_team_is_incorrect(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """Predicted pick #38 for CHI, actual pick #39 by NE → INCORRECT (team mismatch).
+
+        Even a ±1 pick delta should not flip to CORRECT when the team is wrong.
+        """
+        fuzzy_data = pd.DataFrame(
+            [
+                {
+                    "Name": "John Doe",
+                    "name_lower": "john doe",
+                    "draft_year": 2026,
+                    "draft_round": 2,
+                    "draft_pick": 39,
+                    "draft_team": "NE",
+                    "current_team": "NE",
+                    "undrafted": False,
+                }
+            ]
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    # Claim says Bears (#38), actual is Patriots (#39)
+                    "claim": "John Doe drafted by Bears at pick No. 38 in 2026",
+                    "season_year": 2026,
+                    "target_player_id": "John Doe",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = fuzzy_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is False, (
+            "pick delta ±1 with team mismatch should remain INCORRECT"
+        )
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_fuzzy_beyond3_team_matches_is_incorrect(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """Predicted pick #32 for NE, actual pick #39 by NE → INCORRECT (delta=7 > ±3).
+
+        Pick delta > 3 is a real prediction error even when the team matches.
+        """
+        fuzzy_data = pd.DataFrame(
+            [
+                {
+                    "Name": "Jane Smith",
+                    "name_lower": "jane smith",
+                    "draft_year": 2026,
+                    "draft_round": 1,
+                    "draft_pick": 39,
+                    "draft_team": "NE",
+                    "current_team": "NE",
+                    "undrafted": False,
+                }
+            ]
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Jane Smith drafted by Patriots at pick No. 32 in 2026",
+                    "season_year": 2026,
+                    "target_player_id": "Jane Smith",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = fuzzy_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is False, (
+            "pick delta 7 (>±3) should remain INCORRECT even with team match"
+        )
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_fuzzy_exact3_team_matches_is_correct(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """Predicted pick #36 for NE, actual pick #39 by NE → CORRECT (delta=3, boundary)."""
+        fuzzy_data = pd.DataFrame(
+            [
+                {
+                    "Name": "Boundary Case",
+                    "name_lower": "boundary case",
+                    "draft_year": 2026,
+                    "draft_round": 2,
+                    "draft_pick": 39,
+                    "draft_team": "NE",
+                    "current_team": "NE",
+                    "undrafted": False,
+                }
+            ]
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Boundary Case drafted by Patriots at pick No. 36 in 2026",
+                    "season_year": 2026,
+                    "target_player_id": "Boundary Case",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = fuzzy_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is True, (
+            "pick delta exactly 3 with team match should be CORRECT (inclusive boundary)"
+        )
+
 
 # ---------------------------------------------------------------------------
 # _resolve_team_claim

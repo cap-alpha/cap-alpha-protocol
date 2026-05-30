@@ -636,9 +636,42 @@ def resolve_draft_picks(
         ]
 
         if "pick_number" in parsed and pd.notna(actual_pick):
-            correct = int(actual_pick) == parsed["pick_number"]
+            predicted_pick = parsed["pick_number"]
+            actual_pick_int = int(actual_pick)
+            pick_delta = abs(actual_pick_int - predicted_pick)
+
+            # Extract claimed team from the claim text for fuzzy-match evaluation.
+            claimed_team: Optional[str] = None
+            claim_lower_for_team = claim.lower()
+            for pattern, abbr in _TEAM_PATTERNS.items():
+                if pattern in claim_lower_for_team:
+                    claimed_team = abbr
+                    break
+
+            team_matches = (
+                claimed_team is not None
+                and actual_team is not None
+                and claimed_team == actual_team
+            )
+
+            if actual_pick_int == predicted_pick:
+                # Exact match — always correct.
+                correct = True
+                match_type = "exact"
+            elif team_matches and pick_delta <= 3:
+                # Rule 2: team matches and pick is within ±3 — correct.
+                # Covers post-event tracker off-by-one/two errors (issue #997).
+                correct = True
+                match_type = f"fuzzy±{pick_delta}+team"
+            else:
+                # Rule 3 / Rule 4: pick is off and either team is wrong or delta > 3.
+                correct = False
+                match_type = "mismatch"
+
             notes_parts.append(
-                f"Claimed pick #{parsed['pick_number']}, actual #{int(actual_pick)}"
+                f"Claimed pick #{predicted_pick} ({claimed_team or 'no-team'}), "
+                f"actual #{actual_pick_int} ({actual_team}); "
+                f"match={match_type}"
             )
         elif "top_n" in parsed and pd.notna(actual_pick):
             correct = int(actual_pick) <= parsed["top_n"]

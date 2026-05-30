@@ -213,7 +213,15 @@ export default async function PunditProfilePage({
     }
 
     // Resolve follow state server-side — zero client flicker
-    const { userId } = auth();
+    // Wrapped in try/catch: Clerk v5 throws when clerkMiddleware() is absent on
+    // this route. See Option B follow-up issue for the proper middleware fix.
+    let userId: string | null = null;
+    try {
+        const authResult = auth();
+        userId = authResult.userId ?? null;
+    } catch {
+        // Clerk middleware not configured on this route — isFollowing defaults to false
+    }
     let isFollowing = false;
     if (userId) {
         try {

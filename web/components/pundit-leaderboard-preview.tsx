@@ -160,8 +160,11 @@ function toPunditStat(p: Record<string, unknown>): PunditStat {
  *  When `isFallback` is true, the resolved-picks threshold is lowered from 5 → 3
  *  so all 13 snapshot pundits render (largest corpus has 5 picks).
  */
-function processRawPundits(raw: PunditStat[], isFallback = false): PunditStat[] {
-    const minPicks = isFallback ? 3 : 5;
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function processRawPundits(raw: PunditStat[], _isFallback = false): PunditStat[] {
+    // Lower threshold to 3 in all modes so real pundits like Dan Patrick (4 resolved)
+    // and Jeremy Fowler (2 resolved) are not filtered out.
+    const minPicks = 3;
     const filtered = raw.filter(
         (p) => p.resolved_predictions >= minPicks && p.accuracy_rate !== null
     );

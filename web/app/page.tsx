@@ -7,6 +7,7 @@ import { TrustStrip } from "@/components/trust-strip";
 import { RecentResolutionsTicker } from "@/components/recent-resolutions-ticker";
 import { fetchPunditsSSR } from "@/lib/ledger-server";
 import { fetchRecentResolutionsSSR } from "@/lib/recent-resolutions-server";
+import snapshot from "@/lib/data/leaderboard-snapshot.json";
 
 // Pundit accuracy updates at most daily (new resolutions land overnight).
 // 1-hour page-level ISR keeps HTML fresh enough while avoiding the cold-render
@@ -26,6 +27,10 @@ export default async function LandingPage() {
         fetchPunditsSSR("NFL", 20),
         fetchRecentResolutionsSSR(5),
     ]);
+
+    // snapshot.pundits is the authoritative source for hero stats.
+    // initialPundits is truncated (top-20) so we use the full snapshot for aggregate counts.
+    const snapshotData = snapshot.pundits;
 
     return (
         <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
@@ -48,7 +53,7 @@ export default async function LandingPage() {
                         The most accurate sports pundits, ranked.
                     </h1>
                     <p className="text-base sm:text-lg text-zinc-400 leading-snug">
-                        Every prediction tracked, scored, and sealed.
+                        Real predictions. Real verdicts. Cryptographically sealed.
                     </p>
 
                     {/* Single CTA — min 44px height for Apple HIG tap target */}
@@ -60,11 +65,17 @@ export default async function LandingPage() {
                             See the full ledger →
                         </Link>
                     </div>
+
+                    {/* ── Animated stats strip — live ledger counts ── */}
+                    {/* Numbers come from the snapshot (read server-side); AnimatedCounter runs client-side */}
+                    <TrustStrip
+                        pundits={snapshotData.map((p) => ({
+                            total_predictions: p.total_predictions,
+                            resolved_predictions: p.resolved_predictions,
+                        }))}
+                    />
                 </div>
             </section>
-
-            {/* ── Trust Strip ── scale signals: pundits scored, predictions verified, resolution rate */}
-            <TrustStrip />
 
             {/* ── Tracked Prediction ── thesis demo card (PR #927) */}
             <section className="w-full px-6 pb-10">

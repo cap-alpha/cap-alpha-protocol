@@ -40,6 +40,8 @@ jobs:
           # placeholder allows `vercel build` to import those modules without throwing
           # "Neither apiKey nor config.authenticator provided". Real key used at runtime.
           STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY || 'sk_test_placeholder_for_ci_build' }}
+          # Baked into the footer as a clickable commit link (web/components/footer.tsx).
+          NEXT_PUBLIC_COMMIT_SHA: ${{ github.sha }}
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy Project Artifacts to Vercel

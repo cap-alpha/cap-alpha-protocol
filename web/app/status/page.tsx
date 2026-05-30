@@ -60,7 +60,7 @@ async function runChecks(): Promise<ServiceCheck[]> {
         // 1. API health endpoint
         checkWithTimeout(`${APP_URL}/api/health`),
         // 2. Ledger API (first page)
-        checkWithTimeout(`${APP_URL}/api/ledger?limit=1`, 6000),
+        checkWithTimeout(`${APP_URL}/api/ledger/pundits?limit=1`, 6000),
         // 3. Clerk (auth) — ping their status page API
         checkWithTimeout("https://status.clerk.com/api/v2/status.json", 4000),
         // 4. Stripe — ping their status API

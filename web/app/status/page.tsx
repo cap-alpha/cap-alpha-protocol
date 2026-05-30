@@ -8,7 +8,28 @@
  */
 
 import { Metadata } from "next";
+import { headers } from "next/headers";
 import { CheckCircle2, XCircle, AlertTriangle, Activity } from "lucide-react";
+
+const PRODUCTION_APP_URL = "https://cap-alpha.co";
+
+/**
+ * Base URL for same-origin health probes. Prefer the incoming request host so
+ * /status checks the deployment the user is on (avoids VERCEL_URL preview URLs
+ * that can return 401 under deployment protection). Issue #961.
+ */
+async function resolveStatusCheckBaseUrl(): Promise<string> {
+    const requestHeaders = await headers();
+    const host =
+        requestHeaders.get("x-forwarded-host")?.split(",")[0]?.trim() ??
+        requestHeaders.get("host");
+    if (host) {
+        const proto =
+            requestHeaders.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? "https";
+        return `${proto}://${host}`;
+    }
+    return process.env.NEXT_PUBLIC_APP_URL ?? PRODUCTION_APP_URL;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -52,9 +73,7 @@ async function checkWithTimeout(
 }
 
 async function runChecks(): Promise<ServiceCheck[]> {
-    const APP_URL =
-        process.env.NEXT_PUBLIC_APP_URL ||
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+    const APP_URL = await resolveStatusCheckBaseUrl();
 
     const results = await Promise.allSettled([
         // 1. API health endpoint

@@ -6,6 +6,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 import { PunditProfileClient } from "./PunditProfileClient";
 import { punditJsonLd } from "@/lib/structured-data";
 import { getApiUrl, getAuthHeader } from "@/lib/ledger-server";
+import snapshot from "@/lib/data/leaderboard-snapshot.json";
 
 // ---------------------------------------------------------------------------
 // Types — shared between server and client
@@ -105,6 +106,48 @@ async function fetchInitialPredictions(punditId: string): Promise<PredictionsRes
 }
 
 // ---------------------------------------------------------------------------
+// Snapshot fallback — when backend is unavailable, serve stats from the
+// static leaderboard-snapshot.json so leaderboard links never 404.
+// Follow-up to provision CAP_ALPHA_INTERNAL_API_KEY tracked in issue #1018.
+// ---------------------------------------------------------------------------
+
+function getPunditFromSnapshot(punditId: string): {
+    pundit: PunditSummary;
+    accuracy_by_category: [];
+} | null {
+    const record = (snapshot.pundits as Array<{
+        pundit_id: string;
+        pundit_name: string;
+        total_predictions: number;
+        resolved_predictions: number;
+        correct_predictions: number;
+        incorrect_predictions: number;
+        accuracy_rate: number | null;
+        avg_brier_score: number | null;
+        sport: string;
+    }>).find((p) => p.pundit_id === punditId);
+
+    if (!record) return null;
+
+    return {
+        pundit: {
+            pundit_id: record.pundit_id,
+            pundit_name: record.pundit_name,
+            sport: record.sport,
+            total_predictions: record.total_predictions,
+            resolved_count: record.resolved_predictions,
+            correct_count: record.correct_predictions,
+            accuracy_rate: record.accuracy_rate,
+            avg_brier_score: record.avg_brier_score,
+            brier_score: record.avg_brier_score,
+            avg_weighted_score: null,
+            overconfidence_score: null,
+        },
+        accuracy_by_category: [],
+    };
+}
+
+// ---------------------------------------------------------------------------
 // generateMetadata — issue #777
 // ---------------------------------------------------------------------------
 
@@ -113,7 +156,8 @@ export async function generateMetadata({
 }: {
     params: { pundit_id: string };
 }): Promise<Metadata> {
-    const data = await fetchPunditDetail(params.pundit_id);
+    const data = await fetchPunditDetail(params.pundit_id)
+        ?? getPunditFromSnapshot(params.pundit_id);
     if (!data) {
         return { title: "Pundit Not Found | Pundit Ledger" };
     }
@@ -153,10 +197,16 @@ export default async function PunditProfilePage({
 }: {
     params: { pundit_id: string };
 }) {
-    const [detail, initialPreds] = await Promise.all([
+    const [liveDetail, initialPreds] = await Promise.all([
         fetchPunditDetail(params.pundit_id),
         fetchInitialPredictions(params.pundit_id),
     ]);
+
+    // Fall back to the static snapshot when the backend is unavailable (e.g.
+    // missing CAP_ALPHA_INTERNAL_API_KEY → 422 → proxy 502). Predictions will
+    // be empty in fallback mode; show a clear offline banner instead of 404.
+    const snapshotFallback = !liveDetail;
+    const detail = liveDetail ?? getPunditFromSnapshot(params.pundit_id);
 
     if (!detail) {
         notFound();
@@ -196,10 +246,11 @@ export default async function PunditProfilePage({
                 <PunditProfileClient
                     pundit={detail.pundit}
                     accuracyByCategory={detail.accuracy_by_category}
-                    initialPredictions={initialPreds}
+                    initialPredictions={snapshotFallback ? null : initialPreds}
                     punditId={params.pundit_id}
                     isFollowing={isFollowing}
                     isAuthenticated={!!userId}
+                    snapshotFallback={snapshotFallback}
                 />
             </Suspense>
         </>

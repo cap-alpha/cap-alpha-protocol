@@ -1211,6 +1211,7 @@ export default function LedgerPage() {
                         activeTab={activeTab}
                         pundits={sorted}
                         recent={recent}
+                        sportFilter={sportFilter}
                         onOpenDrawer={openDrawer}
                         isPolling={false}
                     />
@@ -1385,12 +1386,14 @@ function TabContent({
     activeTab,
     pundits,
     recent,
+    sportFilter,
     onOpenDrawer,
     isPolling,
 }: {
     activeTab: "leaderboard" | "recent";
     pundits: PunditStat[];
     recent: RecentPrediction[];
+    sportFilter: string;
     onOpenDrawer: (p: RecentPrediction, sources: RecentPrediction[]) => void;
     isPolling: boolean;
 }) {
@@ -1441,7 +1444,7 @@ function TabContent({
                 transition={{ duration: 0.2 }}
             >
                 {activeTab === "leaderboard" ? (
-                    <LeaderboardTab pundits={pundits} />
+                    <LeaderboardTab pundits={pundits} sportFilter={sportFilter} />
                 ) : (
                     <div className="space-y-4">
                         {/* Search bar — only shown on Recent tab */}
@@ -1483,11 +1486,31 @@ function TabContent({
 // Leaderboard tab
 // ---------------------------------------------------------------------------
 
-function LeaderboardTab({ pundits }: { pundits: PunditStat[] }) {
+function LeaderboardTab({
+    pundits,
+    sportFilter,
+}: {
+    pundits: PunditStat[];
+    sportFilter: string;
+}) {
     if (pundits.length === 0) {
         return (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-zinc-500 text-sm">
-                No pundit data yet — pipeline populating soon.
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-16 text-center text-sm">
+                <p className="text-zinc-400">
+                    {sportFilter !== "ALL"
+                        ? `No scored pundits for ${sportFilter} yet.`
+                        : "No scored pundits yet."}
+                </p>
+                <p className="mt-2 text-xs text-zinc-600">
+                    Check{" "}
+                    <Link
+                        href="/status"
+                        className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2"
+                    >
+                        system status
+                    </Link>{" "}
+                    for pipeline health.
+                </p>
             </div>
         );
     }

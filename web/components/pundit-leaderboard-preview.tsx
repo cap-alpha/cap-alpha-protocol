@@ -336,29 +336,40 @@ export function PunditLeaderboardPreview({
                     <div className="flex flex-col items-center gap-3 text-center px-4">
                         <WifiOff className="w-5 h-5 text-zinc-600" />
                         <p className="text-sm font-mono text-zinc-500">
-                            Ledger temporarily unavailable.
+                            Data temporarily unavailable.
                         </p>
-                        <button
-                            onClick={() => {
-                                const controller = new AbortController();
-                                const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-                                setFetchState("loading");
-                                fetchPundits(activeSport, controller.signal)
-                                    .then((result) => {
-                                        clearTimeout(timeoutId);
-                                        setPundits(result.pundits);
-                                        setIsFallback(result.fallback);
-                                        setFetchState("idle");
-                                    })
-                                    .catch(() => {
-                                        clearTimeout(timeoutId);
-                                        setFetchState("error");
-                                    });
-                            }}
-                            className="text-xs font-mono text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
-                        >
-                            Try again
-                        </button>
+                        <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-mono">
+                            <button
+                                onClick={() => {
+                                    const controller = new AbortController();
+                                    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+                                    setFetchState("loading");
+                                    fetchPundits(activeSport, controller.signal)
+                                        .then((result) => {
+                                            clearTimeout(timeoutId);
+                                            setPundits(result.pundits);
+                                            setIsFallback(result.fallback);
+                                            setFetchState("idle");
+                                        })
+                                        .catch(() => {
+                                            clearTimeout(timeoutId);
+                                            setFetchState("error");
+                                        });
+                                }}
+                                className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
+                            >
+                                Try again
+                            </button>
+                            <span className="text-zinc-700" aria-hidden="true">
+                                ·
+                            </span>
+                            <Link
+                                href="/status"
+                                className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
+                            >
+                                System status
+                            </Link>
+                        </div>
                     </div>
                 </div>
             ) : pundits.length === 0 ? (

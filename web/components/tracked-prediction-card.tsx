@@ -15,9 +15,10 @@
 
 const PREDICTION = {
     said: {
+        // Pick #7 header from Schrager's mock + his stated reasoning.
         quote:
-            "I take a lot of pride in being as accurate as possible, but I also sort of love that no one has the firmest grasp on what is going to happen Thursday.",
-        attribution: "Peter Schrager, ESPN — 2026 NFL Mock Draft (final round 1 predictions)",
+            "Carnell Tate, WR, Ohio State. There are a lot of good options on the board, including Ohio State safety Caleb Downs. But Washington has to help Jayden Daniels and get this offense back on track.",
+        attribution: "Peter Schrager, ESPN — 2026 NFL Mock Draft, pick #7 (Washington Commanders)",
         sourceUrl:
             "https://www.espn.com/nfl/draft2026/story/_/id/48550650/2026-nfl-mock-draft-peter-schrager-insider-intel-final-first-round-picks-predictions",
         sourceLinkText: "ESPN · May 2026",

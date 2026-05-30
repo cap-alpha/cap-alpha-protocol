@@ -385,10 +385,10 @@ const LAYER = {
     },
     happened_incorrect: {
         label: "HAPPENED",
-        bg: "rgba(185,28,28,0.05)",
-        border: "rgba(185,28,28,0.18)",
-        labelColor: "#B91C1C",
-        labelBg: "rgba(185,28,28,0.10)",
+        bg: "rgba(185,28,28,0.07)",
+        border: "rgba(185,28,28,0.25)",
+        labelColor: "#991B1B",          // red-800 — higher contrast on light bg
+        labelBg: "rgba(185,28,28,0.14)",
     },
     happened_pending: {
         label: "HAPPENED",
@@ -1131,7 +1131,7 @@ export function PunditProfileClient({
                 style={{
                     background: DS.card,
                     borderBottom: `1px solid ${DS.border}`,
-                    padding: "10px 40px",
+                    padding: "10px clamp(16px, 5vw, 40px)",
                     fontSize: 12,
                     color: DS.textLt,
                 }}
@@ -1148,14 +1148,14 @@ export function PunditProfileClient({
             </div>
 
             {/* ===== PUNDIT HEADER ===== */}
-            <div style={{ background: DS.navy, color: "#fff", padding: "40px" }}>
+            <div style={{ background: DS.navy, color: "#fff", padding: "clamp(20px, 5vw, 40px)" }}>
                 <div
                     style={{
                         maxWidth: 1100,
                         margin: "0 auto",
                         display: "grid",
                         gridTemplateColumns: "auto 1fr auto",
-                        gap: 32,
+                        gap: "clamp(16px, 4vw, 32px)",
                         alignItems: "start",
                     }}
                 >
@@ -1303,7 +1303,8 @@ export function PunditProfileClient({
                 style={{
                     background: DS.card,
                     borderBottom: `1px solid ${DS.border}`,
-                    padding: "0 40px",
+                    padding: "0 clamp(16px, 5vw, 40px)",
+                    overflowX: "auto",
                 }}
             >
                 <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex" }}>
@@ -1342,7 +1343,7 @@ export function PunditProfileClient({
             </div>
 
             {/* ===== MAIN CONTENT ===== */}
-            <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 40px" }}>
+            <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px clamp(16px, 5vw, 40px)" }}>
                 <div
                     style={{
                         display: "grid",
@@ -1447,11 +1448,32 @@ export function PunditProfileClient({
                                     textAlign: "center",
                                     padding: "48px 0",
                                     color: DS.textLt,
-                                    fontSize: 14,
+                                    fontSize: 13,
                                     fontFamily: "var(--font-mono), monospace",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    gap: 12,
                                 }}
+                                aria-busy="true"
+                                aria-label="Loading predictions"
                             >
-                                Loading claims…
+                                {/* Spinner ring */}
+                                <svg
+                                    width="24"
+                                    height="24"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    style={{
+                                        animation: "spin 0.9s linear infinite",
+                                        color: DS.gold,
+                                    }}
+                                    aria-hidden="true"
+                                >
+                                    <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" strokeDasharray="28 56" strokeLinecap="round" />
+                                </svg>
+                                <span style={{ color: DS.textLt, fontSize: 13 }}>Loading claims…</span>
                             </div>
                         ) : sorted.length === 0 ? (
                             <div
@@ -1496,8 +1518,28 @@ export function PunditProfileClient({
                                     color: DS.textLt,
                                     fontSize: 12,
                                     fontFamily: "var(--font-mono), monospace",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 8,
                                 }}
+                                aria-busy="true"
+                                aria-label="Loading more predictions"
                             >
+                                <svg
+                                    width="14"
+                                    height="14"
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    style={{
+                                        animation: "spin 0.9s linear infinite",
+                                        color: DS.gold,
+                                        flexShrink: 0,
+                                    }}
+                                    aria-hidden="true"
+                                >
+                                    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" strokeDasharray="28 56" strokeLinecap="round" />
+                                </svg>
                                 Loading…
                             </div>
                         )}
@@ -1687,7 +1729,7 @@ function TrustStrap({
             style={{
                 background: "rgba(255,255,255,0.04)",
                 borderTop: "1px solid rgba(255,255,255,0.07)",
-                padding: "10px 40px",
+                padding: "10px clamp(16px, 5vw, 40px)",
             }}
         >
             <div

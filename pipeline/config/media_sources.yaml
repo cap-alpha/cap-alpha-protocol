@@ -660,6 +660,356 @@ sources:
         name: "Nouriel Roubini"
         match_authors: ["Nouriel Roubini", "Roubini", "Dr. Doom"]
 
+  # ── NBA Sources (issue #983 — multi-domain corpus phase 1) ─────────────────
+  # NBA insider + analysis ecosystem. Woj/Shams trade-deadline market is
+  # directly analogous to Schefter/Rapoport for NFL claim density.
+
+  - id: espn_nba
+    name: "ESPN NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.espn.com/espn/rss/nba/news"
+    enabled: true
+    priority_tier: 1  # Tier 1: Woj + NBA insiders; very high trade/signing claim density
+    default_pundit:
+      id: espn_nba_staff
+      name: "ESPN NBA Staff"
+    pundits:
+      - id: adrian_wojnarowski
+        name: "Adrian Wojnarowski"
+        match_authors: ["Adrian Wojnarowski", "Wojnarowski", "Woj", "wojnarowski"]
+      - id: brian_windhorst
+        name: "Brian Windhorst"
+        match_authors: ["Brian Windhorst", "Windhorst"]
+      - id: zach_lowe
+        name: "Zach Lowe"
+        match_authors: ["Zach Lowe", "ZachLowe"]
+      - id: jonathan_givony
+        name: "Jonathan Givony"
+        match_authors: ["Jonathan Givony", "Givony"]
+      - id: tim_bontemps
+        name: "Tim Bontemps"
+        match_authors: ["Tim Bontemps", "Bontemps"]
+
+  - id: theathletic_nba
+    name: "The Athletic NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://theathletic.com/feeds/rss/news/?sport=basketball"
+    enabled: true
+    priority_tier: 1  # Tier 1: Shams + long-form NBA analysis; high claim density
+    keyword_filter:
+      - "NBA"
+      - "basketball"
+      - "trade"
+      - "free agent"
+      - "draft"
+      - "contract"
+      - "coach"
+      - "playoff"
+      - "Finals"
+    default_pundit:
+      id: athletic_nba_staff
+      name: "The Athletic NBA Staff"
+    pundits:
+      - id: shams_charania
+        name: "Shams Charania"
+        match_authors: ["Shams Charania", "Charania", "Shams"]
+      - id: sam_amick
+        name: "Sam Amick"
+        match_authors: ["Sam Amick", "Amick"]
+      - id: jovan_buha
+        name: "Jovan Buha"
+        match_authors: ["Jovan Buha", "Buha"]
+
+  - id: ringer_nba
+    name: "The Ringer NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.theringer.com/rss/nba/index.xml"
+    enabled: true
+    priority_tier: 1  # Tier 1: Kevin O'Connor + long-form prediction-dense NBA analysis
+    default_pundit:
+      id: ringer_nba_staff
+      name: "The Ringer NBA Staff"
+    pundits:
+      - id: kevin_oconnor
+        name: "Kevin O'Connor"
+        match_authors: ["Kevin O'Connor", "Kevin OConnor", "KOC"]
+      - id: bill_simmons_nba
+        name: "Bill Simmons"
+        match_authors: ["Bill Simmons", "Simmons", "The Sports Guy"]
+      - id: justin_verrier
+        name: "Justin Verrier"
+        match_authors: ["Justin Verrier", "Verrier"]
+
+  - id: si_nba
+    name: "Sports Illustrated NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.si.com/rss/si_nba.rss"
+    enabled: false  # TODO: verify SI NBA-specific feed URL
+    priority_tier: 2  # Tier 2: mixed analysis + news; moderate prediction density
+    default_pundit:
+      id: si_nba_staff
+      name: "SI NBA Staff"
+    pundits:
+      - id: rob_mahoney
+        name: "Rob Mahoney"
+        match_authors: ["Rob Mahoney", "Mahoney"]
+
+  - id: bleacher_report_nba
+    name: "Bleacher Report NBA"
+    sport: "NBA"
+    type: rss
+    scrape_full_text: true
+    url: "https://bleacherreport.com/articles/feed?tag_id=9"
+    enabled: false  # TODO: verify BR NBA tag feed still active
+    priority_tier: 2  # Tier 2: high-volume opinion; good for claim diversity
+    default_pundit:
+      id: br_nba_staff
+      name: "Bleacher Report NBA Staff"
+    pundits:
+      - id: jake_fischer
+        name: "Jake Fischer"
+        match_authors: ["Jake Fischer", "Fischer"]
+      - id: eric_pincus
+        name: "Eric Pincus"
+        match_authors: ["Eric Pincus", "Pincus"]
+
+  # NBA on TNT / Inside the NBA (YouTube) — Requires yt-dlp
+  - id: inside_the_nba
+    name: "Inside the NBA (TNT)"
+    sport: "NBA"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
+    enabled: false  # TODO: verify channel_id for TNT NBA / Inside the NBA
+    priority_tier: 1  # Tier 1: Shaq/Barkley/Kenny prediction-dense debate show
+    keyword_filter:
+      - "Inside the NBA"
+      - "predictions"
+      - "playoffs"
+    pundits:
+      - id: charles_barkley
+        name: "Charles Barkley"
+        match_authors: ["Charles Barkley", "Barkley", "Chuck"]
+      - id: kenny_smith
+        name: "Kenny Smith"
+        match_authors: ["Kenny Smith", "The Jet"]
+      - id: shaquille_oneal
+        name: "Shaquille O'Neal"
+        match_authors: ["Shaquille O'Neal", "Shaq", "O'Neal"]
+
+  # Bill Simmons Podcast (Ringer) — NBA predictions, trade grades, playoff picks
+  # Requires yt-dlp
+  - id: bill_simmons_podcast
+    name: "The Bill Simmons Podcast"
+    sport: "NBA"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCNGwN5xqo_XsMRkZsPBQlqw"
+    enabled: false  # TODO: verify Ringer/Simmons podcast channel_id
+    priority_tier: 1  # Tier 1: Simmons is extremely prediction-dense; trade grades + season picks
+    keyword_filter:
+      - "NBA"
+      - "playoffs"
+      - "trade"
+      - "draft"
+    pundits:
+      - id: bill_simmons
+        name: "Bill Simmons"
+        match_authors: ["Bill Simmons", "Simmons", "The Sports Guy"]
+
+  # Hoop Collective (ESPN) — NBA analysis podcast
+  # Requires yt-dlp
+  - id: hoop_collective
+    name: "Hoop Collective (ESPN)"
+    sport: "NBA"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=ESPN_HOOP_COLLECTIVE"
+    enabled: false  # TODO: verify ESPN Hoop Collective channel_id
+    priority_tier: 1  # Tier 1: Windhorst/Lowe analytics-driven NBA predictions
+    pundits:
+      - id: brian_windhorst
+        name: "Brian Windhorst"
+        match_authors: ["Brian Windhorst", "Windhorst"]
+      - id: zach_lowe
+        name: "Zach Lowe"
+        match_authors: ["Zach Lowe", "ZachLowe"]
+
+  # ── Finance expansion (issue #983 — multi-domain corpus phase 1) ─────────────
+  # Appending to existing finance block. High-signal macro + market prediction voices.
+
+  - id: money_stuff_bloomberg
+    name: "Money Stuff (Matt Levine / Bloomberg)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.bloomberg.com/opinion/authors/ARbTQlRLRjE/matthew-s-levine.rss"
+    enabled: false  # Bloomberg RSS may require auth/proxy; verify before enabling
+    proxy_required: true
+    priority_tier: 1  # Tier 1: extremely high testable-claim density on finance/markets
+    default_pundit:
+      id: matt_levine
+      name: "Matt Levine"
+    pundits:
+      - id: matt_levine
+        name: "Matt Levine"
+        match_authors: ["Matt Levine", "Matthew Levine", "Money Stuff"]
+
+  - id: doomberg
+    name: "Doomberg (energy/macro)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://doomberg.substack.com/feed"
+    enabled: true
+    priority_tier: 1  # Tier 1: contrarian macro + energy-market predictions; high claim density
+    default_pundit:
+      id: doomberg_team
+      name: "Doomberg"
+    pundits:
+      - id: doomberg_team
+        name: "Doomberg"
+        match_authors: ["Doomberg", "doomberg"]
+
+  - id: macrotourist
+    name: "The MacroTourist (Kevin Muir)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.themacrotourist.com/feed.xml"
+    enabled: false  # TODO: verify feed URL — site may have moved to Substack
+    priority_tier: 1  # Tier 1: macro trading predictions with explicit entry/exit calls
+    default_pundit:
+      id: kevin_muir
+      name: "Kevin Muir"
+    pundits:
+      - id: kevin_muir
+        name: "Kevin Muir"
+        match_authors: ["Kevin Muir", "MacroTourist", "macrotourist"]
+
+  - id: oaktree_memos
+    name: "Oaktree Capital Memos (Howard Marks)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.oaktreecapital.com/insights/memos/rss"
+    enabled: false  # TODO: verify Oaktree RSS exists; may require scraping /insights/memos
+    priority_tier: 1  # Tier 1: Howard Marks memos are prediction-dense market-cycle calls
+    default_pundit:
+      id: howard_marks
+      name: "Howard Marks"
+    pundits:
+      - id: howard_marks
+        name: "Howard Marks"
+        match_authors: ["Howard Marks", "Marks"]
+
+  - id: ark_invest_research
+    name: "ARK Invest Research (Cathie Wood)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://ark-invest.com/feed/"
+    enabled: false  # TODO: verify ARK Research RSS feed URL
+    priority_tier: 1  # Tier 1: Cathie Wood 5-year price targets are directly testable
+    default_pundit:
+      id: cathie_wood
+      name: "Cathie Wood"
+    pundits:
+      - id: cathie_wood
+        name: "Cathie Wood"
+        match_authors: ["Cathie Wood", "Wood", "ARK Invest"]
+
+  - id: pershing_square_letters
+    name: "Pershing Square Letters (Bill Ackman)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://pershingsquareholdings.com/media/press-releases/rss/"
+    enabled: false  # TODO: verify Pershing Square RSS; may require scraping /media/
+    priority_tier: 1  # Tier 1: Ackman public letters contain explicit price target calls
+    default_pundit:
+      id: bill_ackman
+      name: "Bill Ackman"
+    pundits:
+      - id: bill_ackman
+        name: "Bill Ackman"
+        match_authors: ["Bill Ackman", "Ackman", "Pershing Square"]
+
+  - id: the_diff
+    name: "The Diff (Byrne Hobart)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://thediff.co/feed"
+    enabled: true
+    priority_tier: 1  # Tier 1: long-form finance/tech market analysis with testable theses
+    default_pundit:
+      id: byrne_hobart
+      name: "Byrne Hobart"
+    pundits:
+      - id: byrne_hobart
+        name: "Byrne Hobart"
+        match_authors: ["Byrne Hobart", "Hobart", "thediff"]
+
+  - id: epsilon_theory
+    name: "Epsilon Theory (Ben Hunt)"
+    sport: finance
+    type: rss
+    scrape_full_text: true
+    url: "https://www.epsilontheory.com/feed/"
+    enabled: true
+    priority_tier: 2  # Tier 2: narrative-finance analysis; predictions embedded in long-form essays
+    default_pundit:
+      id: ben_hunt
+      name: "Ben Hunt"
+    pundits:
+      - id: ben_hunt
+        name: "Ben Hunt"
+        match_authors: ["Ben Hunt", "bwhunt", "Epsilon Theory"]
+
+  - id: wsj_markets
+    name: "WSJ Markets"
+    sport: finance
+    type: rss
+    scrape_full_text: false  # WSJ paywalled; headline + lede only
+    url: "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+    enabled: true
+    priority_tier: 2  # Tier 2: major market commentary; moderate prediction density
+    default_pundit:
+      id: wsj_markets_staff
+      name: "WSJ Markets Staff"
+    pundits:
+      - id: greg_ip
+        name: "Greg Ip"
+        match_authors: ["Greg Ip", "Greg IP"]
+      - id: james_mackintosh
+        name: "James Mackintosh"
+        match_authors: ["James Mackintosh", "Mackintosh"]
+
+  - id: cnbc_pro_markets
+    name: "CNBC Pro Markets"
+    sport: finance
+    type: rss
+    scrape_full_text: false  # CNBC Pro paywalled; headline + lede only
+    url: "https://www.cnbc.com/id/20910258/device/rss/rss.html"
+    enabled: true
+    priority_tier: 2  # Tier 2: TV market punditry; good for claim volume
+    default_pundit:
+      id: cnbc_markets_staff
+      name: "CNBC Markets Staff"
+    pundits:
+      - id: mike_santoli
+        name: "Mike Santoli"
+        match_authors: ["Mike Santoli", "Santoli"]
+      - id: jim_cramer
+        name: "Jim Cramer"
+        match_authors: ["Jim Cramer", "Cramer", "Mad Money"]
+
 # ── MLB sources (add when ready for Phase 2 expansion) ─────────────────────
 # Example MLB source structure:
 # - id: mlb_trade_rumors

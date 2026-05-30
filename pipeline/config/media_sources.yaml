@@ -70,6 +70,33 @@ sources:
       - id: matt_bowen
         name: "Matt Bowen"
         match_authors: ["Matt Bowen"]
+      - id: bill_barnwell
+        name: "Bill Barnwell"
+        match_authors: ["Bill Barnwell", "Barnwell"]
+      - id: mina_kimes
+        name: "Mina Kimes"
+        match_authors: ["Mina Kimes", "Kimes"]
+      - id: seth_wickersham
+        name: "Seth Wickersham"
+        match_authors: ["Seth Wickersham", "Wickersham"]
+      - id: marcus_spears
+        name: "Marcus Spears"
+        match_authors: ["Marcus Spears", "Spears"]
+      - id: louis_riddick
+        name: "Louis Riddick"
+        match_authors: ["Louis Riddick", "Riddick"]
+      - id: domonique_foxworth
+        name: "Domonique Foxworth"
+        match_authors: ["Domonique Foxworth", "Foxworth"]
+      - id: mike_greenberg
+        name: "Mike Greenberg"
+        match_authors: ["Mike Greenberg", "Greenberg"]
+      - id: sarah_spain
+        name: "Sarah Spain"
+        match_authors: ["Sarah Spain"]
+      - id: max_kellerman
+        name: "Max Kellerman"
+        match_authors: ["Max Kellerman", "Kellerman"]
 
   # theringer_nfl removed: returns HTML not XML (permanently dead — 2026-05)
 
@@ -107,9 +134,234 @@ sources:
       - id: jeff_howe
         name: "Jeff Howe"
         match_authors: ["Jeff Howe"]
+      - id: mike_sando
+        name: "Mike Sando"
+        match_authors: ["Mike Sando", "Sando"]
+      - id: robert_mays
+        name: "Robert Mays"
+        match_authors: ["Robert Mays"]
+      - id: sheil_kapadia
+        name: "Sheil Kapadia"
+        match_authors: ["Sheil Kapadia", "Kapadia"]
+      - id: jonathan_jones_athletic
+        name: "Jonathan Jones"
+        match_authors: ["Jonathan Jones"]
+      - id: kalyn_kahler
+        name: "Kalyn Kahler"
+        match_authors: ["Kalyn Kahler"]
+      - id: bob_mcmanaman
+        name: "Bob McManaman"
+        match_authors: ["Bob McManaman", "McManaman"]
+      - id: nicki_jhabvala
+        name: "Nicki Jhabvala"
+        match_authors: ["Nicki Jhabvala", "Jhabvala"]
+      - id: dan_pompei
+        name: "Dan Pompei"
+        match_authors: ["Dan Pompei", "Pompei"]
 
   # nfl_official removed: malformed XML from ad injection (permanently dead — 2026-05)
   # si_nfl removed: malformed XML (permanently dead — 2026-05)
+
+  # The Ringer NFL — long-form analytical NFL content from Ringer writers
+  # High prediction density: training camp assessments, power rankings, draft grades
+  - id: the_ringer_nfl
+    name: "The Ringer NFL"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.theringer.com/nfl/rss"
+    enabled: false  # TODO: verify feed URL — theringer.com /nfl/rss may require auth
+    priority_tier: 1  # Tier 1: analytical long-form; high testable prediction density
+    default_pundit:
+      id: ringer_nfl_staff
+      name: "The Ringer NFL Staff"
+    pundits:
+      - id: robert_mays
+        name: "Robert Mays"
+        match_authors: ["Robert Mays"]
+      - id: sheil_kapadia
+        name: "Sheil Kapadia"
+        match_authors: ["Sheil Kapadia", "Kapadia"]
+      - id: kevin_clark_ringer
+        name: "Kevin Clark"
+        match_authors: ["Kevin Clark"]
+      - id: danny_kelly
+        name: "Danny Kelly"
+        match_authors: ["Danny Kelly", "Kelly"]
+      - id: michael_lombardi
+        name: "Michael Lombardi"
+        match_authors: ["Michael Lombardi", "Lombardi"]
+      - id: nora_princiotti
+        name: "Nora Princiotti"
+        match_authors: ["Nora Princiotti", "Princiotti"]
+      - id: chris_ryan_ringer
+        name: "Chris Ryan"
+        match_authors: ["Chris Ryan"]
+
+  # Pro Football Focus — advanced analytics grades + season predictions
+  # Expected very high testability rate: explicit grade predictions, player rankings
+  - id: pff_nfl
+    name: "Pro Football Focus (PFF)"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.pff.com/feed"
+    enabled: false  # TODO: verify PFF RSS feed URL; may require PFF Elite subscription
+    priority_tier: 1  # Tier 1: quantified analytics predictions; extremely high testability
+    default_pundit:
+      id: pff_staff
+      name: "PFF Staff"
+    pundits:
+      - id: sam_monson
+        name: "Sam Monson"
+        match_authors: ["Sam Monson", "Monson"]
+      - id: steve_palazzolo
+        name: "Steve Palazzolo"
+        match_authors: ["Steve Palazzolo", "Palazzolo"]
+      - id: eric_eager
+        name: "Eric Eager"
+        match_authors: ["Eric Eager", "Eager"]
+      - id: mike_renner
+        name: "Mike Renner"
+        match_authors: ["Mike Renner", "Renner"]
+
+  # The Draft Network — pre-draft analysis and prospect predictions
+  # High prediction density around draft season; testable against actual draft results
+  - id: draft_network
+    name: "The Draft Network"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://thedraftnetwork.com/feed"
+    enabled: false  # TODO: verify feed URL
+    priority_tier: 2  # Tier 2: draft-period spike; predictions testable against actual picks
+    default_pundit:
+      id: draft_network_staff
+      name: "Draft Network Staff"
+    pundits:
+      - id: kyle_crabbs
+        name: "Kyle Crabbs"
+        match_authors: ["Kyle Crabbs", "Crabbs"]
+      - id: jordan_reid
+        name: "Jordan Reid"
+        match_authors: ["Jordan Reid", "Reid"]
+      - id: trevor_sikkema
+        name: "Trevor Sikkema"
+        match_authors: ["Trevor Sikkema", "Sikkema"]
+
+  # NFL Media / NFL.com Analysis — official NFL site editorial content
+  # Insiders + analysts publishing predictions directly on NFL.com
+  - id: nfl_com_analysis
+    name: "NFL.com Analysis"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.nfl.com/rss/rsslanding?searchString=analysis"
+    enabled: false  # TODO: distinguish analysis feed from breaking news feed (#nfl_network_insiders)
+    priority_tier: 2  # Tier 2: official NFL editorial; moderate prediction density
+    default_pundit:
+      id: nfl_com_staff
+      name: "NFL.com Staff"
+    pundits:
+      - id: gregg_rosenthal
+        name: "Gregg Rosenthal"
+        match_authors: ["Gregg Rosenthal", "Rosenthal"]
+      - id: marc_sessler
+        name: "Marc Sessler"
+        match_authors: ["Marc Sessler", "Sessler"]
+      - id: adam_rank
+        name: "Adam Rank"
+        match_authors: ["Adam Rank", "Rank"]
+      - id: dan_hanzus
+        name: "Dan Hanzus"
+        match_authors: ["Dan Hanzus", "Hanzus"]
+      - id: elliot_harrison
+        name: "Elliot Harrison"
+        match_authors: ["Elliot Harrison", "Harrison"]
+
+  # The Athletic NFL Show (podcast via YouTube)
+  # Weekly podcast with panelists making explicit predictions; high claim density
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: athletic_nfl_show_podcast
+    name: "The Athletic NFL Show"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCsj-SjMCpVMJpvSTZlVT3ug"
+    enabled: false  # TODO: verify channel_id for The Athletic NFL Show on YouTube
+    priority_tier: 1  # Tier 1: dedicated prediction podcast; very high testable claim density
+    keyword_filter:
+      - "NFL"
+      - "football"
+      - "quarterback"
+      - "draft"
+      - "playoffs"
+      - "Super Bowl"
+    pundits:
+      - id: dianna_russini
+        name: "Dianna Russini"
+        match_authors: ["Dianna Russini"]
+      - id: jeff_howe
+        name: "Jeff Howe"
+        match_authors: ["Jeff Howe"]
+      - id: mike_sando
+        name: "Mike Sando"
+        match_authors: ["Mike Sando", "Sando"]
+      - id: robert_mays
+        name: "Robert Mays"
+        match_authors: ["Robert Mays"]
+
+  # Locked On NFL Network — daily 20-min team-level prediction podcast series
+  # High density: weekly picks, player prop-style predictions, standings forecasts
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: locked_on_nfl
+    name: "Locked On NFL"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCN3aNm3Ir8YQI-Bz_ExgPTA"
+    enabled: false  # TODO: verify channel_id — Locked On NFL umbrella channel
+    priority_tier: 2  # Tier 2: high volume franchise-level predictions; variable host quality
+    default_pundit:
+      id: locked_on_nfl_host
+      name: "Locked On NFL Host"
+    pundits: []
+
+  # Sports Info Solutions (SIS) — analytics publisher with season previews
+  # Very high testability: DVOA-style predictive rankings published pre-season
+  - id: sports_info_solutions
+    name: "Sports Info Solutions Blog"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://inside.sportsinfosolutions.com/feed/"
+    enabled: false  # TODO: verify SIS blog RSS feed URL
+    priority_tier: 1  # Tier 1: quantified analytics predictions; high testability
+    default_pundit:
+      id: sis_staff
+      name: "SIS Staff"
+    pundits:
+      - id: daniel_nolen
+        name: "Daniel Nolen"
+        match_authors: ["Daniel Nolen", "Nolen"]
+
+  # ESPN Stats & Info — data-driven NFL analysis and record-book predictions
+  - id: espn_stats_info
+    name: "ESPN Stats & Info"
+    sport: "NFL"
+    type: rss
+    scrape_full_text: true
+    url: "https://www.espn.com/espn/rss/nfl/insider"
+    enabled: false  # TODO: verify ESPN Stats & Info feed; may require ESPN+ auth
+    priority_tier: 1  # Tier 1: quantified predictions attached to historical context
+    default_pundit:
+      id: espn_stats_staff
+      name: "ESPN Stats & Info"
+    pundits:
+      - id: kevin_seifert
+        name: "Kevin Seifert"
+        match_authors: ["Kevin Seifert", "Seifert"]
+      - id: mike_clay
+        name: "Mike Clay"
+        match_authors: ["Mike Clay", "Clay"]
 
   # ── NFL YouTube Channels ────────────────────────────────────────────────────
   # On self-hosted runner with home IP, YouTube transcript fetching works without
@@ -126,6 +378,15 @@ sources:
       - id: pat_mcafee
         name: "Pat McAfee"
         match_authors: ["Pat McAfee"]
+      - id: aj_hawk
+        name: "AJ Hawk"
+        match_authors: ["AJ Hawk", "A.J. Hawk", "Hawk"]
+      - id: brock_holt_mcafee
+        name: "Brock"
+        match_authors: ["Brock"]
+      - id: paul_alexander_mcafee
+        name: "Paul Alexander"
+        match_authors: ["Paul Alexander"]
 
   # Requires yt-dlp (brew install yt-dlp)
   - id: undisputed
@@ -392,6 +653,12 @@ sources:
       - id: nate_burleson
         name: "Nate Burleson"
         match_authors: ["Nate Burleson"]
+      - id: jamie_erdahl
+        name: "Jamie Erdahl"
+        match_authors: ["Jamie Erdahl", "Erdahl"]
+      - id: cynthia_frelund
+        name: "Cynthia Frelund"
+        match_authors: ["Cynthia Frelund", "Frelund"]
 
   # Around the NFL Podcast — official NFL podcast with weekly predictions
   # Episodes published as YouTube videos; transcripts via yt-dlp
@@ -459,6 +726,102 @@ sources:
       name: "FanSided NFL Staff"
     pundits: []
 
+  # SiriusXM NFL Radio — daily NFL show; Rich Gannon, Solomon Patton, Pat Kirwan hosts
+  # Requires yt-dlp (brew install yt-dlp) — YouTube mirror of SiriusXM clips
+  - id: siriusxm_nfl_radio
+    name: "SiriusXM NFL Radio"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC0MYn7tCsHhCjRiJCvEpT1A"
+    enabled: false  # TODO: verify channel_id for SiriusXM NFL Radio YouTube channel
+    priority_tier: 2  # Tier 2: daily show; consistent pundit picks and game predictions
+    pundits:
+      - id: pat_kirwan
+        name: "Pat Kirwan"
+        match_authors: ["Pat Kirwan", "Kirwan"]
+      - id: jim_miller_siriusxm
+        name: "Jim Miller"
+        match_authors: ["Jim Miller"]
+      - id: rich_gannon
+        name: "Rich Gannon"
+        match_authors: ["Rich Gannon", "Gannon"]
+
+  # ESPN NFL Live / NFL Countdown — pregame show analysts making weekly game predictions
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: espn_nfl_countdown
+    name: "ESPN NFL Countdown"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCiWLfSweyRNmLpgEHekhoAg"
+    enabled: false  # TODO: verify channel_id for ESPN NFL Countdown YouTube
+    priority_tier: 1  # Tier 1: high-density weekly picks + Super Bowl predictions every season
+    keyword_filter:
+      - "NFL"
+      - "picks"
+      - "prediction"
+      - "preview"
+      - "countdown"
+      - "Sunday"
+    pundits:
+      - id: rex_ryan
+        name: "Rex Ryan"
+        match_authors: ["Rex Ryan", "Ryan"]
+      - id: randy_moss_espn
+        name: "Randy Moss"
+        match_authors: ["Randy Moss", "Moss"]
+      - id: sam_acho
+        name: "Sam Acho"
+        match_authors: ["Sam Acho", "Acho"]
+      - id: patricia_traina
+        name: "Patricia Traina"
+        match_authors: ["Patricia Traina", "Traina"]
+
+  # NFL Happy Hour / Move the Sticks — NFL.com podcast via YouTube
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: move_the_sticks
+    name: "Move the Sticks (NFL.com)"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCB0MQRpoSorhpB0nD6GGm0g"
+    enabled: false  # TODO: verify channel_id for Move the Sticks / NFL.com podcast channel
+    priority_tier: 1  # Tier 1: dedicated draft/evaluation podcast; high testable prediction density
+    pundits:
+      - id: daniel_jeremiah
+        name: "Daniel Jeremiah"
+        match_authors: ["Daniel Jeremiah", "Jeremiah", "DJ"]
+      - id: bucky_brooks
+        name: "Bucky Brooks"
+        match_authors: ["Bucky Brooks", "Brooks"]
+
+  # CBS Sports HQ / NFL YouTube show
+  # Requires yt-dlp (brew install yt-dlp)
+  - id: cbs_sports_hq_nfl
+    name: "CBS Sports HQ NFL"
+    sport: "NFL"
+    type: youtube_transcript
+    url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIHBybdj3lSb4jg0U4CLZMA"
+    enabled: false  # TODO: verify channel_id for CBS Sports HQ on YouTube
+    priority_tier: 2  # Tier 2: multi-pundit show; medium prediction density
+    default_pundit:
+      id: cbs_sports_hq_staff
+      name: "CBS Sports HQ Staff"
+    pundits:
+      - id: pete_prisco
+        name: "Pete Prisco"
+        match_authors: ["Pete Prisco", "Prisco"]
+      - id: will_brinson
+        name: "Will Brinson"
+        match_authors: ["Will Brinson", "Brinson"]
+      - id: john_breech
+        name: "John Breech"
+        match_authors: ["John Breech", "Breech"]
+      - id: ryan_wilson_cbs
+        name: "Ryan Wilson"
+        match_authors: ["Ryan Wilson"]
+      - id: tyler_sullivan_cbs
+        name: "Tyler Sullivan"
+        match_authors: ["Tyler Sullivan"]
+
   # The MMQB / Sports Illustrated FMIA successor feed
   - id: si_mmqb
     name: "Sports Illustrated MMQB"
@@ -475,6 +838,12 @@ sources:
       - id: conor_orr
         name: "Conor Orr"
         match_authors: ["Conor Orr", "Orr"]
+      - id: jenny_vrentas
+        name: "Jenny Vrentas"
+        match_authors: ["Jenny Vrentas", "Vrentas"]
+      - id: greg_bedard
+        name: "Greg Bedard"
+        match_authors: ["Greg Bedard", "Bedard"]
 
 # ── Finance / Financial Pundit Feeds ─────────────────────────────────────
   - id: ritholtz_big_picture

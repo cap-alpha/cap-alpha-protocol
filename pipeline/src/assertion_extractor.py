@@ -2494,7 +2494,8 @@ def get_unprocessed_media(
                 ON r.content_hash = p.content_hash
             WHERE p.content_hash IS NULL
               AND r.raw_text IS NOT NULL
-              AND LENGTH(r.raw_text) > 50{pundit_filter}{skip_filter}
+              AND LENGTH(r.raw_text) > 50
+              AND (r.is_post_event IS NULL OR r.is_post_event = FALSE){pundit_filter}{skip_filter}
             ORDER BY {priority_case_expr} ASC, r.ingested_at DESC
             LIMIT {fetch_limit}
         """
@@ -2509,7 +2510,8 @@ def get_unprocessed_media(
                    COALESCE(sport, 'NFL') AS sport
             FROM `{project_id}.nfl_dead_money.{RAW_MEDIA_TABLE}`
             WHERE raw_text IS NOT NULL
-              AND LENGTH(raw_text) > 50{fallback_pundit_filter}{fallback_skip_filter}
+              AND LENGTH(raw_text) > 50
+              AND (is_post_event IS NULL OR is_post_event = FALSE){fallback_pundit_filter}{fallback_skip_filter}
             ORDER BY {fallback_priority_case_expr} ASC, ingested_at DESC
             LIMIT {fetch_limit}
         """

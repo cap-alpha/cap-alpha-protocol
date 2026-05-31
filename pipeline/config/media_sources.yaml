@@ -502,7 +502,7 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://www.sharpfootballanalysis.com/feed/"
-    enabled: false  # TODO: verify feed URL before enabling
+    enabled: true  # validated 2026-05-31: 200 OK, real Warren Sharp NFL analytics content
     priority_tier: 1  # Tier 1: data-driven analysis with high prediction density
     pundits:
       - id: warren_sharp
@@ -516,7 +516,7 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://www.cbssports.com/rss/headlines/nfl/"
-    enabled: false  # TODO: verify feed URL before enabling
+    enabled: true  # validated 2026-05-31: 200 OK, real CBS Sports NFL content
     priority_tier: 2  # Tier 2: ESPN-tier mix of analysis + news
     default_pundit:
       id: cbs_sports_staff
@@ -534,8 +534,8 @@ sources:
     sport: "NFL"
     type: rss
     scrape_full_text: true
-    url: "https://www.4for4.com/feed"
-    enabled: false  # TODO: verify feed URL before enabling
+    url: "https://www.4for4.com/articles/rss.xml"
+    enabled: true  # validated 2026-05-31: 200 OK, real 4for4 NFL content; corrected URL from /feed → /articles/rss.xml
     priority_tier: 2  # Tier 2: analytical fantasy/NFL predictions
     pundits: []
 
@@ -545,7 +545,7 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://www.the33rdteam.com/feed/"
-    enabled: false  # TODO: verify feed URL before enabling
+    enabled: true  # validated 2026-05-31: 200 OK, real The 33rd Team NFL content
     priority_tier: 2  # Tier 2: former NFL executives + analytical NFL coverage
     pundits: []
 
@@ -555,8 +555,8 @@ sources:
     sport: "NFL"
     type: rss
     scrape_full_text: true
-    url: "https://sports.yahoo.com/nfl/rss.xml"
-    enabled: false  # TODO: verify feed URL before enabling
+    url: "https://sports.yahoo.com/nfl/rss/"
+    enabled: true  # validated 2026-05-31: 200 OK, real Yahoo Sports NFL content; corrected URL from /nfl/rss.xml → /nfl/rss/
     priority_tier: 3  # Tier 3: wire/news aggregator; low prediction density
     default_pundit:
       id: yahoo_sports_staff
@@ -724,7 +724,9 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://fansided.com/nfl/feed/"
-    enabled: false  # TODO: verify FanSided NFL-specific RSS feed URL
+    # blocked: /nfl/feed/ returns 404; main /feed returns multi-sport XML (NBA+MLB+NFL mixed);
+    # no NFL-specific RSS available — would need keyword_filter or scraping (2026-05-31)
+    enabled: false
     priority_tier: 2  # Tier 2: high volume, mixed quality; good for claim diversity
     default_pundit:
       id: fansided_nfl_staff

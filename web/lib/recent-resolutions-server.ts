@@ -6,7 +6,7 @@
  * when the backend is unavailable (issue #960).
  */
 
-import { getApiUrl } from "./ledger-server";
+import { getApiUrl, getAuthHeader } from "./ledger-server";
 import snapshot from "./data/recent-resolutions-snapshot.json";
 
 export interface Resolution {
@@ -47,7 +47,7 @@ export async function fetchRecentResolutionsSSR(
         backendUrl.searchParams.set("limit", String(limit));
 
         const res = await fetch(backendUrl.toString(), {
-            headers: { Accept: "application/json" },
+            headers: { Accept: "application/json", ...getAuthHeader() },
             next: { revalidate: 300 }, // 5-minute revalidate window
         });
 

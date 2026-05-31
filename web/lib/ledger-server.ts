@@ -31,7 +31,7 @@ const PRODUCTION_URL = "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 const LOCALHOST_CANDIDATES = ["http://localhost:8000", "http://localhost:8080"];
 const ENV_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL;
 const PROBE_TIMEOUT_MS = 800;
-const PROBE_PATH = "/v1/pundits/?limit=1";
+const PROBE_PATH = "/";  // health check — no auth required, avoids BQ lookup on probe
 
 /**
  * Returns the `x-api-key` header object when `CAP_ALPHA_INTERNAL_API_KEY` is

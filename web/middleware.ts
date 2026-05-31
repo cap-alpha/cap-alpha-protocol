@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
 import {
     checkIpRateLimit,
     checkLedgerIpRateLimit,
@@ -12,6 +13,11 @@ import { isBotUserAgent, logBlockedRequest } from "@/lib/anti-scraping";
  * (or 1 req/min for detected bots). All other public-data routes use the
  * broader 100 req/min anonymous limit.
  *
+ * Clerk v5 requires clerkMiddleware() to be the exported default so that
+ * auth() works in server components on every route. The existing rate-limit
+ * logic runs inside the clerkMiddleware handler — behaviour is unchanged.
+ *
+ * Issue: #1012 (proper Clerk middleware integration)
  * Issue: #884 (anti-scraping hardening)
  * Issue: #478 (original anonymous rate limit)
  */
@@ -46,7 +52,7 @@ function getClientIp(request: NextRequest): string {
     return "unknown";
 }
 
-export async function middleware(request: NextRequest) {
+export default clerkMiddleware(async (_auth, request) => {
     const requestHeaders = new Headers(request.headers);
     requestHeaders.set("x-forwarded-proto", "https");
 
@@ -145,7 +151,7 @@ export async function middleware(request: NextRequest) {
             headers: requestHeaders,
         },
     });
-}
+});
 
 export const config = {
     matcher: ["/((?!.*\\..*|_next).*)", "/", "/(api|trpc)(.*)"],

@@ -2,7 +2,7 @@
   "snapshot_metadata": {
     "generated_at": "2026-05-31T05:24:16Z",
     "source": "BigQuery cap-alpha-protocol.gold_layer (direct query)",
-    "note": "Regenerated 2026-05-31 after enabling 5 new NFL sources (sharp_football, cbs_sports_nfl, the_33rd_team, four_for_four, yahoo_sports_nfl). Adds espn_nfl_staff (35 resolved, 12 correct) to leaderboard. Excluded pft_staff and athletic_nfl_staff: extraction-audit (#993) found 100% report-of-fact contamination — their sources were post-event draft trackers, not real predictions.",
+    "note": "Regenerated 2026-05-31 after enabling 5 new NFL sources (sharp_football, cbs_sports_nfl, the_33rd_team, four_for_four, yahoo_sports_nfl). Adds espn_nfl_staff (35 resolved, 12 correct) to leaderboard. Excluded pft_staff and athletic_nfl_staff: extraction-audit (#993) found 100% report-of-fact contamination \u2014 their sources were post-event draft trackers, not real predictions.",
     "total_resolved": 80,
     "total_pundits": 13
   },
@@ -92,17 +92,6 @@
       "correct_predictions": 1,
       "incorrect_predictions": 1,
       "accuracy_rate": 0.5,
-      "avg_brier_score": null,
-      "sport": "NFL"
-    },
-    {
-      "pundit_id": "espn_nfl_staff",
-      "pundit_name": "ESPN NFL Staff",
-      "total_predictions": 314,
-      "resolved_predictions": 35,
-      "correct_predictions": 12,
-      "incorrect_predictions": 23,
-      "accuracy_rate": 0.34285714285714286,
       "avg_brier_score": null,
       "sport": "NFL"
     },

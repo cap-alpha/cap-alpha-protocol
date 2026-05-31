@@ -1,29 +1,29 @@
 {
   "snapshot_metadata": {
-    "generated_at": "2026-05-29T23:00:00Z",
+    "generated_at": "2026-05-31T05:24:16Z",
     "source": "BigQuery cap-alpha-protocol.gold_layer (direct query)",
-    "note": "Regenerated after retroactive fuzzy-match fix (#997/#1000). Resolver now credits pick predictions within \u00b13 of actual when team matches (tracker jitter). 22 rows flipped INCORRECT\u2192CORRECT across 9 pundits. Excluded pft_staff and athletic_nfl_staff: extraction-audit (#993) found 100% report-of-fact contamination \u2014 their sources were post-event draft trackers, not real predictions.",
-    "total_resolved": 90,
+    "note": "Regenerated 2026-05-31 after enabling 5 new NFL sources (sharp_football, cbs_sports_nfl, the_33rd_team, four_for_four, yahoo_sports_nfl). Adds espn_nfl_staff (35 resolved, 12 correct) to leaderboard. Excluded pft_staff and athletic_nfl_staff: extraction-audit (#993) found 100% report-of-fact contamination — their sources were post-event draft trackers, not real predictions.",
+    "total_resolved": 80,
     "total_pundits": 13
   },
   "pundits": [
     {
-      "pundit_id": "dan_patrick",
-      "pundit_name": "Dan Patrick",
-      "total_predictions": 74,
-      "resolved_predictions": 4,
-      "correct_predictions": 4,
+      "pundit_id": "field_yates",
+      "pundit_name": "Field Yates",
+      "total_predictions": 15,
+      "resolved_predictions": 5,
+      "correct_predictions": 5,
       "incorrect_predictions": 0,
       "accuracy_rate": 1.0,
       "avg_brier_score": null,
       "sport": "NFL"
     },
     {
-      "pundit_id": "matt_bowen",
-      "pundit_name": "Matt Bowen",
-      "total_predictions": 68,
-      "resolved_predictions": 1,
-      "correct_predictions": 1,
+      "pundit_id": "dan_patrick",
+      "pundit_name": "Dan Patrick",
+      "total_predictions": 74,
+      "resolved_predictions": 4,
+      "correct_predictions": 4,
       "incorrect_predictions": 0,
       "accuracy_rate": 1.0,
       "avg_brier_score": null,
@@ -41,11 +41,11 @@
       "sport": "NFL"
     },
     {
-      "pundit_id": "field_yates",
-      "pundit_name": "Field Yates",
-      "total_predictions": 15,
-      "resolved_predictions": 5,
-      "correct_predictions": 5,
+      "pundit_id": "matt_bowen",
+      "pundit_name": "Matt Bowen",
+      "total_predictions": 68,
+      "resolved_predictions": 1,
+      "correct_predictions": 1,
       "incorrect_predictions": 0,
       "accuracy_rate": 1.0,
       "avg_brier_score": null,
@@ -74,6 +74,17 @@
       "sport": "NFL"
     },
     {
+      "pundit_id": "pete_prisco",
+      "pundit_name": "Pete Prisco",
+      "total_predictions": 12,
+      "resolved_predictions": 4,
+      "correct_predictions": 2,
+      "incorrect_predictions": 2,
+      "accuracy_rate": 0.5,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
       "pundit_id": "josh_alper",
       "pundit_name": "Josh Alper",
       "total_predictions": 102,
@@ -85,13 +96,24 @@
       "sport": "NFL"
     },
     {
-      "pundit_id": "pete_prisco",
-      "pundit_name": "Pete Prisco",
-      "total_predictions": 12,
-      "resolved_predictions": 4,
-      "correct_predictions": 2,
+      "pundit_id": "espn_nfl_staff",
+      "pundit_name": "ESPN NFL Staff",
+      "total_predictions": 314,
+      "resolved_predictions": 35,
+      "correct_predictions": 12,
+      "incorrect_predictions": 23,
+      "accuracy_rate": 0.34285714285714286,
+      "avg_brier_score": null,
+      "sport": "NFL"
+    },
+    {
+      "pundit_id": "michael_david_smith",
+      "pundit_name": "Michael David Smith",
+      "total_predictions": 71,
+      "resolved_predictions": 3,
+      "correct_predictions": 1,
       "incorrect_predictions": 2,
-      "accuracy_rate": 0.5,
+      "accuracy_rate": 0.3333333333333333,
       "avg_brier_score": null,
       "sport": "NFL"
     },
@@ -110,17 +132,6 @@
       "pundit_id": "mike_florio",
       "pundit_name": "Mike Florio",
       "total_predictions": 159,
-      "resolved_predictions": 3,
-      "correct_predictions": 1,
-      "incorrect_predictions": 2,
-      "accuracy_rate": 0.3333333333333333,
-      "avg_brier_score": null,
-      "sport": "NFL"
-    },
-    {
-      "pundit_id": "michael_david_smith",
-      "pundit_name": "Michael David Smith",
-      "total_predictions": 71,
       "resolved_predictions": 3,
       "correct_predictions": 1,
       "incorrect_predictions": 2,

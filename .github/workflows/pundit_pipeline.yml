@@ -2,8 +2,11 @@ name: Pundit Prediction Pipeline
 
 on:
   schedule:
-    # Run every 30 minutes during active hours (8am-midnight ET = 12:00-04:00 UTC)
-    - cron: '3,33 12-23,0-4 * * *'
+    # Run every 60 minutes during active hours (8am-midnight ET = 12:00-04:00 UTC).
+    # Previously every 30 min; reduced to limit queue churn when the self-hosted
+    # runner is offline (each trigger cancels the previous queued-but-never-started
+    # run, creating a cascade of cancellations with no useful work done).
+    - cron: '3 12-23,0-4 * * *'
     # Run every 2 hours during off-hours
     - cron: '3 5-11 * * *'
   workflow_dispatch:
@@ -23,7 +26,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Fast preflight on a GitHub-hosted runner: checks whether the self-hosted
+  # runner is online before queueing work that will never execute.
+  # If no self-hosted runners are online the main job is skipped, so runs
+  # complete immediately rather than queuing indefinitely and getting cancelled
+  # by the next scheduled trigger.
+  check-runner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    outputs:
+      runner_online: ${{ steps.probe.outputs.runner_online }}
+    steps:
+      - name: Check self-hosted runner availability
+        id: probe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ONLINE=$(gh api /repos/${{ github.repository }}/actions/runners \
+            --jq '[.runners[] | select(.status == "online")] | length')
+          echo "Self-hosted runners online: ${ONLINE}"
+          if [[ "${ONLINE}" -gt 0 ]]; then
+            echo "runner_online=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "runner_online=false" >> "$GITHUB_OUTPUT"
+            echo "WARNING: no self-hosted runners online — skipping pipeline job." \
+              "Restart the runner (launchd service: com.cap-alpha.github-runner) to resume." >&2
+          fi
+
   ingest-extract-resolve:
+    needs: check-runner
+    if: needs.check-runner.outputs.runner_online == 'true'
     runs-on: self-hosted
     timeout-minutes: 30
     permissions:

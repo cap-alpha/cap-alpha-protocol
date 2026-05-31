@@ -131,7 +131,7 @@ def step1_delete_contaminated_predictions(
     bq_ledger = (
         f"`{project_id}.{_LEDGER_TABLE}`"
         if project_id
-        else f'"{_LEDGER_TABLE.replace(".", '"."')}"'
+        else '"' + _LEDGER_TABLE.replace(".", '"."') + '"'
     )
     try:
         row = db.fetch_df(
@@ -150,12 +150,12 @@ def step1_delete_contaminated_predictions(
     bq_utterance = (
         f"`{project_id}.{_RAW_UTTERANCE_TABLE}`"
         if project_id
-        else f'"{_RAW_UTTERANCE_TABLE.replace(".", '"."')}"'
+        else '"' + _RAW_UTTERANCE_TABLE.replace(".", '"."') + '"'
     )
     bq_media = (
         f"`{project_id}.{_RAW_MEDIA_TABLE}`"
         if project_id
-        else f'"{_RAW_MEDIA_TABLE.replace(".", '"."')}"'
+        else '"' + _RAW_MEDIA_TABLE.replace(".", '"."') + '"'
     )
     utterance_count_q = f"""
         SELECT COUNT(*)
@@ -226,12 +226,12 @@ def step2_reset_processed_hashes(
     bq_processed = (
         f"`{project_id}.{_PROCESSED_HASHES_TABLE}`"
         if project_id
-        else f'"{_PROCESSED_HASHES_TABLE.replace(".", '"."')}"'
+        else '"' + _PROCESSED_HASHES_TABLE.replace(".", '"."') + '"'
     )
     bq_media = (
         f"`{project_id}.{_RAW_MEDIA_TABLE}`"
         if project_id
-        else f'"{_RAW_MEDIA_TABLE.replace(".", '"."')}"'
+        else '"' + _RAW_MEDIA_TABLE.replace(".", '"."') + '"'
     )
 
     count_q = f"""

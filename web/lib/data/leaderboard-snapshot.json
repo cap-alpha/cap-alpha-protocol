@@ -1,17 +1,17 @@
 {
   "snapshot_metadata": {
-    "generated_at": "2026-05-31T06:14:02Z",
+    "generated_at": "2026-06-01T00:33:01Z",
     "source": "BigQuery cap-alpha-protocol.gold_layer (direct query)",
     "note": "Staff buckets excluded: espn_nfl_staff, pft_staff, athletic_nfl_staff (issue #995 — post-event contamination distorts individual rankings).",
-    "total_resolved": 161,
-    "total_pundits": 47
+    "total_resolved": 129,
+    "total_pundits": 43
   },
   "pundits": [
     {
-      "pundit_id": "nate_tice",
-      "pundit_name": "Nate Tice",
+      "pundit_id": "field_yates",
+      "pundit_name": "Field Yates",
       "sport": "NFL",
-      "total_predictions": 7,
+      "total_predictions": 15,
       "resolved_predictions": 5,
       "correct_predictions": 5,
       "incorrect_predictions": 0,
@@ -19,10 +19,10 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "field_yates",
-      "pundit_name": "Field Yates",
+      "pundit_id": "nate_tice",
+      "pundit_name": "Nate Tice",
       "sport": "NFL",
-      "total_predictions": 15,
+      "total_predictions": 7,
       "resolved_predictions": 5,
       "correct_predictions": 5,
       "incorrect_predictions": 0,
@@ -118,17 +118,6 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "None",
-      "pundit_name": "Ayrton Ostly",
-      "sport": "NFL",
-      "total_predictions": 6,
-      "resolved_predictions": 4,
-      "correct_predictions": 2,
-      "incorrect_predictions": 2,
-      "accuracy_rate": 0.5,
-      "avg_brier_score": null
-    },
-    {
       "pundit_id": "pete_prisco",
       "pundit_name": "Pete Prisco",
       "sport": "NFL",
@@ -136,28 +125,6 @@
       "resolved_predictions": 4,
       "correct_predictions": 2,
       "incorrect_predictions": 2,
-      "accuracy_rate": 0.5,
-      "avg_brier_score": null
-    },
-    {
-      "pundit_id": "daniel_jeremiah",
-      "pundit_name": "Daniel Jeremiah",
-      "sport": "NFL",
-      "total_predictions": 4,
-      "resolved_predictions": 2,
-      "correct_predictions": 1,
-      "incorrect_predictions": 1,
-      "accuracy_rate": 0.5,
-      "avg_brier_score": null
-    },
-    {
-      "pundit_id": "josh_alper",
-      "pundit_name": "Josh Alper",
-      "sport": "NFL",
-      "total_predictions": 102,
-      "resolved_predictions": 2,
-      "correct_predictions": 1,
-      "incorrect_predictions": 1,
       "accuracy_rate": 0.5,
       "avg_brier_score": null
     },
@@ -177,6 +144,28 @@
       "pundit_name": "Sharp Football Staff",
       "sport": "NFL",
       "total_predictions": 31,
+      "resolved_predictions": 2,
+      "correct_predictions": 1,
+      "incorrect_predictions": 1,
+      "accuracy_rate": 0.5,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "josh_alper",
+      "pundit_name": "Josh Alper",
+      "sport": "NFL",
+      "total_predictions": 102,
+      "resolved_predictions": 2,
+      "correct_predictions": 1,
+      "incorrect_predictions": 1,
+      "accuracy_rate": 0.5,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "daniel_jeremiah",
+      "pundit_name": "Daniel Jeremiah",
+      "sport": "NFL",
+      "total_predictions": 4,
       "resolved_predictions": 2,
       "correct_predictions": 1,
       "incorrect_predictions": 1,
@@ -206,32 +195,10 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "None",
-      "pundit_name": "None",
-      "sport": "NFL",
-      "total_predictions": 20,
-      "resolved_predictions": 14,
-      "correct_predictions": 5,
-      "incorrect_predictions": 9,
-      "accuracy_rate": 0.35714285714285715,
-      "avg_brier_score": null
-    },
-    {
       "pundit_id": "josh_edwards",
       "pundit_name": "Josh Edwards",
       "sport": "NFL",
       "total_predictions": 19,
-      "resolved_predictions": 6,
-      "correct_predictions": 2,
-      "incorrect_predictions": 4,
-      "accuracy_rate": 0.3333333333333333,
-      "avg_brier_score": null
-    },
-    {
-      "pundit_id": "None",
-      "pundit_name": "Shane Hallam",
-      "sport": "NFL",
-      "total_predictions": 6,
       "resolved_predictions": 6,
       "correct_predictions": 2,
       "incorrect_predictions": 4,
@@ -250,17 +217,6 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "charean_williams",
-      "pundit_name": "Charean Williams",
-      "sport": "NFL",
-      "total_predictions": 64,
-      "resolved_predictions": 3,
-      "correct_predictions": 1,
-      "incorrect_predictions": 2,
-      "accuracy_rate": 0.3333333333333333,
-      "avg_brier_score": null
-    },
-    {
       "pundit_id": "michael_david_smith",
       "pundit_name": "Michael David Smith",
       "sport": "NFL",
@@ -272,14 +228,14 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "None",
-      "pundit_name": "Unknown",
+      "pundit_id": "charean_williams",
+      "pundit_name": "Charean Williams",
       "sport": "NFL",
-      "total_predictions": 9,
-      "resolved_predictions": 8,
+      "total_predictions": 64,
+      "resolved_predictions": 3,
       "correct_predictions": 1,
-      "incorrect_predictions": 7,
-      "accuracy_rate": 0.125,
+      "incorrect_predictions": 2,
+      "accuracy_rate": 0.3333333333333333,
       "avg_brier_score": null
     },
     {
@@ -294,17 +250,6 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "t33t_staff",
-      "pundit_name": "The 33rd Team Staff",
-      "sport": "NFL",
-      "total_predictions": 6,
-      "resolved_predictions": 3,
-      "correct_predictions": 0,
-      "incorrect_predictions": 3,
-      "accuracy_rate": 0.0,
-      "avg_brier_score": null
-    },
-    {
       "pundit_id": "cbs_nfl_staff",
       "pundit_name": "CBS Sports NFL Staff",
       "sport": "NFL",
@@ -316,43 +261,10 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "pfr_staff",
-      "pundit_name": "Pro Football Rumors Staff",
-      "sport": "NFL",
-      "total_predictions": 113,
-      "resolved_predictions": 4,
-      "correct_predictions": 0,
-      "incorrect_predictions": 4,
-      "accuracy_rate": 0.0,
-      "avg_brier_score": null
-    },
-    {
       "pundit_id": "pfn_staff",
       "pundit_name": "Pro Football Network Staff",
       "sport": "NFL",
       "total_predictions": 130,
-      "resolved_predictions": 1,
-      "correct_predictions": 0,
-      "incorrect_predictions": 1,
-      "accuracy_rate": 0.0,
-      "avg_brier_score": null
-    },
-    {
-      "pundit_id": "dan_graziano",
-      "pundit_name": "Dan Graziano",
-      "sport": "NFL",
-      "total_predictions": 18,
-      "resolved_predictions": 4,
-      "correct_predictions": 0,
-      "incorrect_predictions": 4,
-      "accuracy_rate": 0.0,
-      "avg_brier_score": null
-    },
-    {
-      "pundit_id": "cbs_general_staff",
-      "pundit_name": "CBS Sports Staff",
-      "sport": "NFL",
-      "total_predictions": 49,
       "resolved_predictions": 1,
       "correct_predictions": 0,
       "incorrect_predictions": 1,
@@ -371,43 +283,54 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "4for4_staff",
-      "pundit_name": "4for4 Staff",
+      "pundit_id": "pfr_staff",
+      "pundit_name": "Pro Football Rumors Staff",
       "sport": "NFL",
-      "total_predictions": 7,
-      "resolved_predictions": 0,
+      "total_predictions": 113,
+      "resolved_predictions": 4,
       "correct_predictions": 0,
-      "incorrect_predictions": 0,
-      "accuracy_rate": null,
+      "incorrect_predictions": 4,
+      "accuracy_rate": 0.0,
       "avg_brier_score": null
     },
     {
-      "pundit_id": "dan_parr",
-      "pundit_name": "Dan Parr",
+      "pundit_id": "cbs_general_staff",
+      "pundit_name": "CBS Sports Staff",
+      "sport": "NFL",
+      "total_predictions": 49,
+      "resolved_predictions": 1,
+      "correct_predictions": 0,
+      "incorrect_predictions": 1,
+      "accuracy_rate": 0.0,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "t33t_staff",
+      "pundit_name": "The 33rd Team Staff",
+      "sport": "NFL",
+      "total_predictions": 6,
+      "resolved_predictions": 3,
+      "correct_predictions": 0,
+      "incorrect_predictions": 3,
+      "accuracy_rate": 0.0,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "dan_graziano",
+      "pundit_name": "Dan Graziano",
+      "sport": "NFL",
+      "total_predictions": 18,
+      "resolved_predictions": 4,
+      "correct_predictions": 0,
+      "incorrect_predictions": 4,
+      "accuracy_rate": 0.0,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "adam_schefter",
+      "pundit_name": "Adam Schefter",
       "sport": "NFL",
       "total_predictions": 2,
-      "resolved_predictions": 0,
-      "correct_predictions": 0,
-      "incorrect_predictions": 0,
-      "accuracy_rate": null,
-      "avg_brier_score": null
-    },
-    {
-      "pundit_id": "espn_nba_staff",
-      "pundit_name": "ESPN NBA Staff",
-      "sport": "NBA",
-      "total_predictions": 66,
-      "resolved_predictions": 0,
-      "correct_predictions": 0,
-      "incorrect_predictions": 0,
-      "accuracy_rate": null,
-      "avg_brier_score": null
-    },
-    {
-      "pundit_id": "rich_eisen",
-      "pundit_name": "Rich Eisen",
-      "sport": "NFL",
-      "total_predictions": 66,
       "resolved_predictions": 0,
       "correct_predictions": 0,
       "incorrect_predictions": 0,
@@ -426,10 +349,10 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "charles_robinson_yahoo",
-      "pundit_name": "Charles Robinson",
+      "pundit_id": "dan_parr",
+      "pundit_name": "Dan Parr",
       "sport": "NFL",
-      "total_predictions": 1,
+      "total_predictions": 2,
       "resolved_predictions": 0,
       "correct_predictions": 0,
       "incorrect_predictions": 0,
@@ -437,10 +360,10 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "rotoballer_staff",
-      "pundit_name": "RotoBaller Staff",
+      "pundit_id": "rich_eisen",
+      "pundit_name": "Rich Eisen",
       "sport": "NFL",
-      "total_predictions": 10,
+      "total_predictions": 66,
       "resolved_predictions": 0,
       "correct_predictions": 0,
       "incorrect_predictions": 0,
@@ -459,10 +382,10 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "brian_windhorst",
-      "pundit_name": "Brian Windhorst",
+      "pundit_id": "espn_nba_staff",
+      "pundit_name": "ESPN NBA Staff",
       "sport": "NBA",
-      "total_predictions": 1,
+      "total_predictions": 66,
       "resolved_predictions": 0,
       "correct_predictions": 0,
       "incorrect_predictions": 0,
@@ -492,10 +415,10 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "adam_schefter",
-      "pundit_name": "Adam Schefter",
+      "pundit_id": "jason_fitzgerald",
+      "pundit_name": "Jason Fitzgerald",
       "sport": "NFL",
-      "total_predictions": 2,
+      "total_predictions": 6,
       "resolved_predictions": 0,
       "correct_predictions": 0,
       "incorrect_predictions": 0,
@@ -503,10 +426,43 @@
       "avg_brier_score": null
     },
     {
-      "pundit_id": "jason_fitzgerald",
-      "pundit_name": "Jason Fitzgerald",
+      "pundit_id": "brian_windhorst",
+      "pundit_name": "Brian Windhorst",
+      "sport": "NBA",
+      "total_predictions": 1,
+      "resolved_predictions": 0,
+      "correct_predictions": 0,
+      "incorrect_predictions": 0,
+      "accuracy_rate": null,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "rotoballer_staff",
+      "pundit_name": "RotoBaller Staff",
       "sport": "NFL",
-      "total_predictions": 6,
+      "total_predictions": 10,
+      "resolved_predictions": 0,
+      "correct_predictions": 0,
+      "incorrect_predictions": 0,
+      "accuracy_rate": null,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "charles_robinson_yahoo",
+      "pundit_name": "Charles Robinson",
+      "sport": "NFL",
+      "total_predictions": 1,
+      "resolved_predictions": 0,
+      "correct_predictions": 0,
+      "incorrect_predictions": 0,
+      "accuracy_rate": null,
+      "avg_brier_score": null
+    },
+    {
+      "pundit_id": "4for4_staff",
+      "pundit_name": "4for4 Staff",
+      "sport": "NFL",
+      "total_predictions": 7,
       "resolved_predictions": 0,
       "correct_predictions": 0,
       "incorrect_predictions": 0,

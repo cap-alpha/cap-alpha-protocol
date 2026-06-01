@@ -106,7 +106,8 @@ SELECT
 FROM `{project_id}.gold_layer.prediction_ledger` l
 LEFT JOIN `{project_id}.gold_layer.prediction_resolutions` r
     ON l.prediction_hash = r.prediction_hash
-WHERE l.pundit_id NOT IN ({staff_list})
+WHERE l.pundit_id IS NOT NULL
+  AND l.pundit_id NOT IN ('None', {staff_list})
 GROUP BY l.pundit_id, l.pundit_name, sport
 ORDER BY
     accuracy_rate DESC NULLS LAST,
@@ -170,9 +171,13 @@ def fetch_snapshot(project_id: str) -> list[dict]:
     pundits = []
     for row in rows:
         row_dict = dict(row)
-        # Belt-and-suspenders: enforce exclusion in Python too
-        if row_dict.get("pundit_id") in STAFF_BUCKET_IDS:
-            logger.warning("Staff bucket leaked through SQL filter — skipping: %s", row_dict["pundit_id"])
+        pid = row_dict.get("pundit_id")
+        # Belt-and-suspenders: filter nulls, "None" strings, and staff buckets in Python too
+        if not pid or pid == "None" or pid in STAFF_BUCKET_IDS:
+            if pid in STAFF_BUCKET_IDS:
+                logger.warning("Staff bucket leaked through SQL filter — skipping: %s", pid)
+            else:
+                logger.warning("Skipping row with null/empty pundit_id: %s", row_dict.get("pundit_name"))
             continue
         pundits.append(_row_to_pundit(row_dict))
 

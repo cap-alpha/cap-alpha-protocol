@@ -26,37 +26,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Fast preflight on a GitHub-hosted runner: checks whether the self-hosted
-  # runner is online before queueing work that will never execute.
-  # If no self-hosted runners are online the main job is skipped, so runs
-  # complete immediately rather than queuing indefinitely and getting cancelled
-  # by the next scheduled trigger.
-  check-runner:
-    runs-on: ubuntu-latest
-    timeout-minutes: 2
-    outputs:
-      runner_online: ${{ steps.probe.outputs.runner_online }}
-    steps:
-      - name: Check self-hosted runner availability
-        id: probe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          # Default to offline so any API error (403, network) degrades to SKIP not FAIL.
-          echo "runner_online=false" >> "$GITHUB_OUTPUT"
-          ONLINE=$(gh api /repos/${{ github.repository }}/actions/runners \
-            --jq '[.runners[] | select(.status == "online")] | length' 2>/dev/null) || ONLINE=0
-          echo "Self-hosted runners online: ${ONLINE}"
-          if [[ "${ONLINE}" -gt 0 ]]; then
-            echo "runner_online=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "WARNING: no self-hosted runners online or API inaccessible — skipping pipeline job." \
-              "Restart the runner (launchd service: com.cap-alpha.github-runner) to resume." >&2
-          fi
-
   ingest-extract-resolve:
-    needs: check-runner
-    if: needs.check-runner.outputs.runner_online == 'true'
     runs-on: self-hosted
     timeout-minutes: 30
     permissions:

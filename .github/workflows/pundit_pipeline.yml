@@ -76,9 +76,12 @@ jobs:
           # The package works at runtime with pandas 2.x and numpy 2.x.
           "$VENV_DIR/bin/pip" install --no-deps "nfl-data-py>=0.3.3"
           # Install the rest of requirements (nfl-data-py already satisfied).
-          "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt
+          # --no-build-isolation: Python 3.14 lacks prebuilt pandas/numpy wheels;
+          # pip builds from source using a sandboxed env that is missing pkg_resources.
+          # This flag lets the build use setuptools already installed in the venv.
+          "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation
           # Force modern numpy/pandas wheels for Python 3.14 compatibility.
-          "$VENV_DIR/bin/pip" install --upgrade "numpy>=2.0" "pandas>=2.0"
+          "$VENV_DIR/bin/pip" install --upgrade "numpy>=2.0" "pandas>=2.0" --no-build-isolation
           echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
           echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH
 

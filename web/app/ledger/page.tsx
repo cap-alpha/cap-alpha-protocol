@@ -838,9 +838,8 @@ export default function LedgerPage() {
     const [loading, setLoading] = useState(true);
     const [sportFilter, setSportFilter] = useState<string>("ALL");
 
-    // Auto-refresh state for the Recent tab
-    const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-    const [secondsSinceRefresh, setSecondsSinceRefresh] = useState<number>(0);
+    // Watermark: last successful pipeline run timestamp (sourced from /api/integrity/head)
+    const [pipelineLastUpdated, setPipelineLastUpdated] = useState<string | null>(null);
 
     // Top-level view: hof | hos | all | in-play (persisted to localStorage)
     const [topView, setTopView] = useState<TopLevelView>("hof");
@@ -849,7 +848,6 @@ export default function LedgerPage() {
     const [inPlayPredictions, setInPlayPredictions] = useState<InPlayPrediction[]>([]);
     const [inPlayLoading, setInPlayLoading] = useState(false);
     const [inPlayFilters, setInPlayFilters] = useState<InPlayFilterState>(DEFAULT_IN_PLAY_FILTERS);
-    const [inPlayLastRefreshed, setInPlayLastRefreshed] = useState<Date | null>(null);
 
     // Inner tabs for "all" view
     const [activeTab, setActiveTab] = useState<"leaderboard" | "recent">(
@@ -887,17 +885,13 @@ export default function LedgerPage() {
         setDrawerSources([]);
     };
 
-    const fetchRecent = (sport: string, isBackground = false) => {
+    const fetchRecent = (sport: string) => {
         return fetch(
             `/api/ledger/recent?limit=30${sport !== "ALL" ? `&sport=${sport}` : ""}`
         )
             .then((r) => r.json())
             .then((recentData: { predictions?: RecentPrediction[] }) => {
                 setRecent(recentData.predictions || []);
-                if (isBackground) {
-                    setLastRefreshed(new Date());
-                    setSecondsSinceRefresh(0);
-                }
             })
             .catch((err) => {
                 console.error("[Ledger] Failed to poll recent:", err);
@@ -915,7 +909,6 @@ export default function LedgerPage() {
             .then((r) => r.json())
             .then((data: { predictions?: InPlayPrediction[] }) => {
                 setInPlayPredictions(data.predictions || []);
-                setInPlayLastRefreshed(new Date());
             })
             .catch((err) => {
                 console.error("[Ledger] Failed to fetch in-play:", err);
@@ -938,8 +931,6 @@ export default function LedgerPage() {
             setPundits(punditsData.pundits || []);
             setRecent(recentData.predictions || []);
             if (statsData) setResolutionStats(statsData);
-            setLastRefreshed(new Date());
-            setSecondsSinceRefresh(0);
         }).catch((err) => {
             console.error("[Ledger] Failed to load data:", err);
         }).finally(() => {
@@ -951,7 +942,7 @@ export default function LedgerPage() {
     useEffect(() => {
         if (topView !== "all" || activeTab !== "recent") return;
         const interval = setInterval(() => {
-            fetchRecent(sportFilter, true);
+            fetchRecent(sportFilter);
         }, 60_000);
         return () => clearInterval(interval);
     }, [topView, activeTab, sportFilter]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -971,16 +962,26 @@ export default function LedgerPage() {
         return () => clearInterval(interval);
     }, [topView, fetchInPlay]);
 
-    // Tick "X seconds ago" counter every second when we have a refresh timestamp
+    // Fetch pipeline watermark on mount — sourced from /api/integrity/head (max ingestion_timestamp)
     useEffect(() => {
-        if (!lastRefreshed) return;
-        const tick = setInterval(() => {
-            setSecondsSinceRefresh(
-                Math.floor((Date.now() - lastRefreshed.getTime()) / 1000)
-            );
-        }, 1_000);
-        return () => clearInterval(tick);
-    }, [lastRefreshed]);
+        fetch("/api/integrity/head", { cache: "no-store" })
+            .then((r) => r.json())
+            .then((data: { head_timestamp?: string | null }) => {
+                if (data.head_timestamp) {
+                    const d = new Date(data.head_timestamp);
+                    const formatted = d.toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                        timeZone: "America/Los_Angeles",
+                    });
+                    setPipelineLastUpdated(formatted);
+                }
+            })
+            .catch(() => {
+                // Silently suppress — watermark just won't render
+            });
+    }, []);
 
     // Sort leaderboard: resolved first (by accuracy desc), then unresolved (by total desc)
     const sorted = [...pundits].sort((a, b) => {
@@ -998,9 +999,6 @@ export default function LedgerPage() {
 
     const totalPredictions = pundits.reduce((s, p) => s + p.total_predictions, 0);
     const totalResolved = pundits.reduce((s, p) => s + p.resolved_predictions, 0);
-    const resolvedFeed = recent.filter(
-        (r) => r.resolution_status === "CORRECT" || r.resolution_status === "INCORRECT"
-    );
 
     const SPORTS = ["ALL", "NFL", "NBA", "MLB"];
 
@@ -1045,6 +1043,11 @@ export default function LedgerPage() {
                                 Every public sports prediction tracked, scored, and sealed on-chain
                                 — so no one can rewrite history.
                             </p>
+                            {pipelineLastUpdated && (
+                                <p className="mt-2 text-xs font-mono text-zinc-600">
+                                    Last updated: {pipelineLastUpdated}
+                                </p>
+                            )}
                         </div>
 
                         {/* Aggregate stats */}
@@ -1161,14 +1164,7 @@ export default function LedgerPage() {
                                             : "border-transparent text-zinc-500 hover:text-zinc-300"
                                     )}
                                 >
-                                    {tab === "leaderboard" ? "Leaderboard" : `Recent (${resolvedFeed.length})`}
-                                    {tab === "recent" && lastRefreshed && (
-                                        <span className="text-[9px] font-mono font-normal normal-case tracking-normal text-zinc-600">
-                                            {secondsSinceRefresh < 5
-                                                ? "Updated just now"
-                                                : `${secondsSinceRefresh}s ago`}
-                                        </span>
-                                    )}
+                                    {tab === "leaderboard" ? "Leaderboard" : "Recent"}
                                 </button>
                             ))}
                         </div>
@@ -1203,7 +1199,6 @@ export default function LedgerPage() {
                         filters={inPlayFilters}
                         onFiltersChange={setInPlayFilters}
                         loading={inPlayLoading}
-                        lastRefreshed={inPlayLastRefreshed}
                         onOpenDrawer={(p) => openDrawer(p as unknown as RecentPrediction, [])}
                     />
                 ) : (
@@ -1235,14 +1230,12 @@ function InPlayTab({
     filters,
     onFiltersChange,
     loading,
-    lastRefreshed,
     onOpenDrawer,
 }: {
     predictions: InPlayPrediction[];
     filters: InPlayFilterState;
     onFiltersChange: (f: InPlayFilterState) => void;
     loading: boolean;
-    lastRefreshed: Date | null;
     onOpenDrawer: (p: InPlayPrediction) => void;
 }) {
     // Apply client-side filters
@@ -1365,13 +1358,6 @@ function InPlayTab({
                         </div>
                     )}
 
-                    {lastRefreshed && (
-                        <p className="text-[10px] font-mono text-zinc-700 text-center">
-                            Updated{" "}
-                            {Math.floor((Date.now() - lastRefreshed.getTime()) / 1000)}s ago
-                            {" · "}refreshes every 60s
-                        </p>
-                    )}
                 </>
             )}
         </div>

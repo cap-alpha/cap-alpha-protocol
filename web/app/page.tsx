@@ -31,6 +31,26 @@ export default async function LandingPage() {
     // initialPundits is truncated (top-20) so we use the full snapshot for aggregate counts.
     const snapshotData = snapshot.pundits;
 
+    // Format the pipeline watermark in Pacific time for the "Last updated" label.
+    // snapshot_metadata.generated_at is an ISO-8601 UTC string set by the nightly
+    // BigQuery export job.  We render it server-side so the label is stable across
+    // client navigations and requires no client JS.
+    const generatedAt = (snapshot.snapshot_metadata as { generated_at?: string }).generated_at;
+    const lastUpdatedLabel = (() => {
+        if (!generatedAt) return "Updated daily ~6am PT";
+        try {
+            const d = new Date(generatedAt);
+            return "Last updated: " + d.toLocaleDateString("en-US", {
+                timeZone: "America/Los_Angeles",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+            });
+        } catch {
+            return "Updated daily ~6am PT";
+        }
+    })();
+
     return (
         <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
             {/* ── Hero ── */}
@@ -41,9 +61,8 @@ export default async function LandingPage() {
                 </div>
 
                 <div className="relative z-10 w-full max-w-2xl mx-auto space-y-4">
-                    {/* Live indicator */}
+                    {/* Static badge — no live/pulse chrome */}
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         Prediction Receipts
                     </div>
 
@@ -66,7 +85,7 @@ export default async function LandingPage() {
                         </Link>
                     </div>
 
-                    {/* ── Animated stats strip — live ledger counts ── */}
+                    {/* ── Animated stats strip — ledger counts from snapshot ── */}
                     {/* Numbers come from the snapshot (read server-side); AnimatedCounter runs client-side */}
                     <TrustStrip
                         pundits={snapshotData.map((p) => ({
@@ -74,6 +93,11 @@ export default async function LandingPage() {
                             resolved_predictions: p.resolved_predictions,
                         }))}
                     />
+
+                    {/* ── Static watermark — no real-time chrome ── */}
+                    <p className="text-[11px] font-mono text-zinc-600 tracking-wide">
+                        {lastUpdatedLabel}
+                    </p>
                 </div>
             </section>
 

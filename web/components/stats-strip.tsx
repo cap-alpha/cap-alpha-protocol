@@ -32,7 +32,7 @@ export function StatsStrip(props: StatsStripProps) {
     return (
         <div
             className="w-full mt-5"
-            aria-label="Live ledger statistics"
+            aria-label="Ledger statistics"
         >
             {/* Mobile: stacked rows; Desktop: horizontal pipe-separated */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-0">

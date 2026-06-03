@@ -120,20 +120,6 @@ async function getPunditRoutes(): Promise<MetadataRoute.Sitemap> {
 }
 
 // ---------------------------------------------------------------------------
-// Dynamic: /draft/[year]  (last 3 years)
-// ---------------------------------------------------------------------------
-
-function getDraftRoutes(): MetadataRoute.Sitemap {
-    const currentYear = new Date().getFullYear();
-    const years = [currentYear - 2, currentYear - 1, currentYear];
-    return years.map((year) => ({
-        url: `${BASE_URL}/draft/${year}`,
-        priority: 0.6,
-        changeFrequency: "weekly" as const,
-    }));
-}
-
-// ---------------------------------------------------------------------------
 // Dynamic: /team/[abbr]  (all 32 NFL teams — static list)
 // ---------------------------------------------------------------------------
 
@@ -208,7 +194,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     return [
         ...staticRoutes,
         ...punditRoutes,
-        ...getDraftRoutes(),
         ...getTeamRoutes(),
         ...playerRoutes,
     ];

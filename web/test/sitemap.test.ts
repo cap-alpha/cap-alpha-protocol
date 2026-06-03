@@ -3,9 +3,8 @@
  *
  * Strategy: the sitemap module exports a default async function that calls
  * the FastAPI backend. Rather than spinning up a server, we test the
- * guaranteed-static parts — the static routes array and the draft-year
- * generation logic — by reading the module source and exercising the pure
- * helper inline.
+ * guaranteed-static parts — the static routes array — by reading the module
+ * source.
  *
  * The `/sitemap.xml` HTTP response is covered by the Playwright E2E suite
  * (tests/e2e/sitemap.spec.ts), which runs against a real deployment.
@@ -23,12 +22,6 @@ const SITEMAP_SRC = readFileSync(
     resolve(__dirname, "../app/sitemap.ts"),
     "utf-8"
 );
-
-// Inline re-implementation of getDraftRoutes (pure, no fetch)
-function getDraftRoutes(currentYear: number): string[] {
-    const years = [currentYear - 2, currentYear - 1, currentYear];
-    return years.map((year) => `/draft/${year}`);
-}
 
 // ---------------------------------------------------------------------------
 // Static routes — contract tests against the source
@@ -69,28 +62,5 @@ describe("sitemap API auth", () => {
     it('passes x-api-key header from CAP_ALPHA_INTERNAL_API_KEY env var', () => {
         expect(SITEMAP_SRC).toContain("CAP_ALPHA_INTERNAL_API_KEY");
         expect(SITEMAP_SRC).toContain('"x-api-key"');
-    });
-});
-
-// ---------------------------------------------------------------------------
-// Draft routes — pure logic, no fetch needed
-// ---------------------------------------------------------------------------
-
-describe("sitemap draft routes", () => {
-    it("generates routes for the 3 most recent draft years", () => {
-        const routes = getDraftRoutes(2025);
-        expect(routes).toEqual(["/draft/2023", "/draft/2024", "/draft/2025"]);
-    });
-
-    it("always produces exactly 3 routes", () => {
-        const routes = getDraftRoutes(2026);
-        expect(routes).toHaveLength(3);
-    });
-
-    it("routes are in ascending year order", () => {
-        const routes = getDraftRoutes(2025);
-        const years = routes.map((r) => parseInt(r.replace("/draft/", "")));
-        expect(years[0]).toBeLessThan(years[1]);
-        expect(years[1]).toBeLessThan(years[2]);
     });
 });

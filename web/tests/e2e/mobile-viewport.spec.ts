@@ -11,7 +11,7 @@ import fs from "fs";
  *  - All public routes tested at 390px width (iPhone 14 Pro)
  *  - No horizontal scroll on any route
  *  - Touch targets ≥ 44×44px on interactive elements
- *  - Routes: /, /ledger, /draft/2025, /sign-in, /sign-up, /legal/terms
+ *  - Routes: /, /ledger, /sign-in, /sign-up, /legal/terms
  *  - Ledger view readable and scrollable on mobile
  *
  * Run with:
@@ -27,13 +27,11 @@ const IPHONE_14_PRO = { width: 390, height: 844 };
  * Notes:
  *  - /pundits does not exist as a standalone route; the pundit leaderboard
  *    lives at /ledger (tested below).
- *  - /draft requires a year segment; /draft/2025 is the canonical URL.
  *  - /legal/ maps to /legal/terms (the root /legal has no page.tsx).
  */
 const PUBLIC_ROUTES = [
     "/",
     "/ledger",
-    "/draft/2025",
     "/sign-in",
     "/sign-up",
     "/legal/terms",

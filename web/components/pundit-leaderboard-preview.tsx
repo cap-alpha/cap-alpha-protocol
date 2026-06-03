@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Activity, Flame, Snowflake, WifiOff } from "lucide-react";
+import { wilsonLowerBound } from "@/lib/wilson";
 import { cn } from "@/lib/utils";
 import { AnimatedCounter } from "@/components/animated-counter";
 import { HoverableRow } from "@/components/hoverable-row";
@@ -164,20 +165,28 @@ function toPunditStat(p: Record<string, unknown>): PunditStat {
 }
 
 /** Filter + sort helper — shared between SSR seed and client refetch paths.
- *  When `isFallback` is true, the resolved-picks threshold is lowered from 5 → 3
- *  so all 13 snapshot pundits render (largest corpus has 5 picks).
+ *
+ * Volume floor: pundits with fewer than MIN_PICKS graded predictions are hidden
+ * so that a 1/1 (100%) outlier cannot top the leaderboard over a 9/10 (90%) pundit.
+ *
+ * Sort key: Wilson score lower bound at 95% CI — not raw accuracy_rate.
+ * Wilson LB penalises small samples: 1/1 → ~0.025, 9/10 → ~0.55, 99/100 → ~0.94.
+ * The user-facing columns (accuracy_rate, pick count) are unchanged.
  */
+const MIN_PICKS = 5;
+
 function processRawPundits(raw: PunditStat[]): PunditStat[] {
-    // Lower threshold to 3 in all modes so real pundits like Dan Patrick (4 resolved)
-    // and Jeremy Fowler (2 resolved) are not filtered out.
-    const minPicks = 3;
     const filtered = raw.filter(
         (p) =>
             !STAFF_BUCKET_IDS.has(p.pundit_id) &&
-            p.resolved_predictions >= minPicks &&
+            p.resolved_predictions >= MIN_PICKS &&
             p.accuracy_rate !== null
     );
-    filtered.sort((a, b) => (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0));
+    filtered.sort((a, b) => {
+        const wbA = wilsonLowerBound(a.correct_predictions, a.resolved_predictions);
+        const wbB = wilsonLowerBound(b.correct_predictions, b.resolved_predictions);
+        return wbB - wbA;
+    });
     return filtered.slice(0, 10);
 }
 

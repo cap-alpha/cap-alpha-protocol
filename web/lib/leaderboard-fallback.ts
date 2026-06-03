@@ -7,6 +7,7 @@
  */
 
 import snapshot from "./data/leaderboard-snapshot.json";
+import { wilsonLowerBound } from "./wilson";
 
 export interface PunditRecord {
     pundit_id: string;
@@ -60,11 +61,12 @@ export function getFallbackPundits(
                   (p) => p.sport.toUpperCase() === normalizedSport
               );
 
+    // Sort by Wilson score lower bound (95% CI) — not raw accuracy_rate.
+    // A pundit with 1/1 (Wilson ≈ 0.025) ranks far below 9/10 (Wilson ≈ 0.55).
     const sorted = [...filtered].sort((a, b) => {
-        const aRate = a.accuracy_rate ?? -1;
-        const bRate = b.accuracy_rate ?? -1;
-        if (bRate !== aRate) return bRate - aRate;
-        return b.total_predictions - a.total_predictions;
+        const wbA = wilsonLowerBound(a.correct_predictions, a.resolved_predictions);
+        const wbB = wilsonLowerBound(b.correct_predictions, b.resolved_predictions);
+        return wbB - wbA;
     });
 
     return {

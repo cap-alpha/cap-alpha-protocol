@@ -71,19 +71,18 @@ jobs:
           VENV_DIR="$HOME/.venv/cap-alpha"
           python3 -m venv "$VENV_DIR"
           "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel
-          # Install nfl-data-py without its declared deps so pip does not
-          # see the pandas<2.0 / numpy<2.0 constraints it ships with.
-          # The package works at runtime with pandas 2.x and numpy 2.x.
-          "$VENV_DIR/bin/pip" install --no-deps "nfl-data-py>=0.3.3"
-          # Pre-install numpy/pandas before requirements.txt to guarantee
-          # binary wheels are used.  pandas 2.2.x has no cp314 (Python 3.14)
-          # wheels; pandas 3.0+ does.  Resolving from the venv cache could
-          # otherwise land on 2.2.3 and trigger a source build that fails
-          # with "No module named pkg_resources" inside pip's build overlay.
+          # Install numpy/pandas FIRST so no conflicting package is present
+          # when pip resolves constraints.  pandas 2.2.x has no cp314 wheels;
+          # pandas 3.0+ does — binary install, no source build needed.
           "$VENV_DIR/bin/pip" install "numpy>=2.0" "pandas>=3.0"
+          # Install nfl-data-py without its declared deps AFTER numpy/pandas.
+          # --no-deps skips the dependency conflict check, so pip does not
+          # exit 1 due to nfl-data-py declaring numpy<2.0 / pandas<2.0.
+          # (The package works at runtime with numpy 2.x and pandas 3.x.)
+          "$VENV_DIR/bin/pip" install --no-deps "nfl-data-py>=0.3.3"
           # Install the rest of requirements (numpy/pandas already satisfied).
-          # --no-build-isolation kept for packages like shap/numba that may
-          # still need a source build on Python 3.14.
+          # --no-build-isolation for packages like shap/numba that may still
+          # need a source build on Python 3.14.
           "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation
           echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
           echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH

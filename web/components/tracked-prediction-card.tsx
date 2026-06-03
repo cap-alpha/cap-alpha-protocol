@@ -15,10 +15,9 @@ interface PredictionEntry {
     fairnessFootnote: string;
 }
 
-// Three demo predictions cycling through the card. Editorial voice: calm
-// reporting — include hedges, never strip them to make pundits look worse.
-// A future PR will source these from the DB (one-concern-per-PR rule).
-const PREDICTIONS: PredictionEntry[] = [
+// All entries must have a non-empty `happened` field (graded predictions only).
+// A future PR will source these from the DB filtered by outcome IS NOT NULL.
+const ALL_PREDICTIONS: PredictionEntry[] = [
     {
         said: {
             quote: "Carnell Tate, WR, Ohio State. There are a lot of good options on the board, including Ohio State safety Caleb Downs. But Washington has to help Jayden Daniels and get this offense back on track.",
@@ -57,10 +56,15 @@ const PREDICTIONS: PredictionEntry[] = [
     },
 ];
 
+// Graded predictions only: `happened` must be a non-empty string.
+// When fewer than 3 are available the component falls back to a static card.
+const PREDICTIONS = ALL_PREDICTIONS.filter((p) => p.happened && p.happened.trim().length > 0);
+
 const ROTATION_MS = 7000;
 const FADE_MS = 180;
 
 export function TrackedPredictionCard() {
+    const rotating = PREDICTIONS.length >= 3;
     const [activeIdx, setActiveIdx] = useState(0);
     const [visible, setVisible] = useState(true);
 
@@ -73,6 +77,7 @@ export function TrackedPredictionCard() {
     }, []);
 
     useEffect(() => {
+        if (!rotating) return;
         const id = setInterval(() => {
             setVisible(false);
             setTimeout(() => {
@@ -81,9 +86,10 @@ export function TrackedPredictionCard() {
             }, FADE_MS);
         }, ROTATION_MS);
         return () => clearInterval(id);
-    }, []);
+    }, [rotating]);
 
-    const p = PREDICTIONS[activeIdx];
+    // Static fallback when fewer than 3 graded predictions exist.
+    const p = PREDICTIONS[rotating ? activeIdx : 0];
 
     return (
         <div>
@@ -91,65 +97,72 @@ export function TrackedPredictionCard() {
                 <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
                     Tracked Prediction
                 </p>
-                <div className="flex items-center gap-1.5" aria-label="Navigate predictions">
-                    {PREDICTIONS.map((_, i) => (
-                        <button
-                            key={i}
-                            onClick={() => goTo(i)}
-                            className={`w-1.5 h-1.5 rounded-full transition-colors ${
-                                i === activeIdx
-                                    ? "bg-emerald-400"
-                                    : "bg-zinc-700 hover:bg-zinc-500"
-                            }`}
-                            aria-label={`View prediction ${i + 1}`}
-                            aria-pressed={i === activeIdx}
-                        />
-                    ))}
-                </div>
+                {rotating && (
+                    <div className="flex items-center gap-1.5" aria-label="Navigate predictions">
+                        {PREDICTIONS.map((_, i) => (
+                            <button
+                                key={i}
+                                onClick={() => goTo(i)}
+                                className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                                    i === activeIdx
+                                        ? "bg-emerald-400"
+                                        : "bg-zinc-700 hover:bg-zinc-500"
+                                }`}
+                                aria-label={`View prediction ${i + 1}`}
+                                aria-pressed={i === activeIdx}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
 
+            {/* 3-column card: Said | Meant | Happened
+                On narrow viewports (<md) the columns stack vertically.
+                On md+ they sit side-by-side with vertical dividers. */}
             <div
                 className={`border border-zinc-800 rounded-lg overflow-hidden transition-opacity duration-[180ms] ${
                     visible ? "opacity-100" : "opacity-0"
                 }`}
             >
-                {/* Said */}
-                <div className="px-5 py-4 border-b border-zinc-800">
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
-                        Said
-                    </p>
-                    <blockquote className="text-sm text-zinc-200 leading-relaxed">
-                        &ldquo;{p.said.quote}&rdquo;
-                    </blockquote>
-                    <p className="mt-1.5 text-xs text-zinc-500">{p.said.attribution}</p>
-                    <a
-                        href={p.said.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block mt-1 text-xs text-zinc-500 hover:text-emerald-400 transition-colors underline underline-offset-2"
-                    >
-                        {p.said.sourceLinkText} ↗
-                    </a>
-                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 divide-y divide-zinc-800 md:divide-y-0 md:divide-x md:divide-zinc-800">
+                    {/* ── Said ── */}
+                    <div className="px-5 py-4 flex flex-col">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
+                            Said
+                        </p>
+                        <blockquote className="text-sm text-zinc-200 leading-relaxed flex-1">
+                            &ldquo;{p.said.quote}&rdquo;
+                        </blockquote>
+                        <p className="mt-2 text-xs text-zinc-500">{p.said.attribution}</p>
+                        <a
+                            href={p.said.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block mt-1 text-xs text-zinc-500 hover:text-emerald-400 transition-colors underline underline-offset-2"
+                        >
+                            {p.said.sourceLinkText} ↗
+                        </a>
+                    </div>
 
-                {/* Meant */}
-                <div className="px-5 py-4 border-b border-zinc-800">
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
-                        Meant
-                    </p>
-                    <p className="text-sm text-zinc-200 leading-relaxed">{p.meant}</p>
-                </div>
+                    {/* ── Meant ── */}
+                    <div className="px-5 py-4 flex flex-col">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
+                            Meant
+                        </p>
+                        <p className="text-sm text-zinc-200 leading-relaxed flex-1">{p.meant}</p>
+                    </div>
 
-                {/* Happened */}
-                <div className="px-5 py-4">
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
-                        Happened
-                    </p>
-                    <p className="text-sm text-zinc-200 leading-relaxed">{p.happened}</p>
-                    <p className="mt-2 text-xs text-emerald-400/80 font-mono">{p.axesCaption}</p>
-                    <p className="mt-2 text-xs text-zinc-400 leading-snug italic">
-                        {p.fairnessFootnote}
-                    </p>
+                    {/* ── Happened ── */}
+                    <div className="px-5 py-4 flex flex-col">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
+                            Happened
+                        </p>
+                        <p className="text-sm text-zinc-200 leading-relaxed flex-1">{p.happened}</p>
+                        <p className="mt-2 text-xs text-emerald-400/80 font-mono">{p.axesCaption}</p>
+                        <p className="mt-2 text-xs text-zinc-400 leading-snug italic">
+                            {p.fairnessFootnote}
+                        </p>
+                    </div>
                 </div>
             </div>
         </div>

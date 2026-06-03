@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isPro, FREE_PREDICTION_CAP } from "@/lib/tier";
+import { getAuthHeader } from "@/lib/ledger-server";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
@@ -18,7 +19,7 @@ export async function GET(
 
     try {
         const res = await fetch(url, {
-            headers: { Accept: "application/json" },
+            headers: { Accept: "application/json", ...getAuthHeader() },
         });
 
         if (res.status === 404) {

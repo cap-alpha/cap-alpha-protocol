@@ -5,6 +5,7 @@ import {
     logBlockedRequest,
     LEDGER_MAX_LIMIT,
 } from "@/lib/anti-scraping";
+import { getAuthHeader } from "@/lib/ledger-server";
 
 const API_URL =
     process.env.API_URL ||
@@ -80,7 +81,7 @@ export async function GET(req: Request) {
 
     try {
         const res = await fetch(backendUrl.toString(), {
-            headers: { Accept: "application/json" },
+            headers: { Accept: "application/json", ...getAuthHeader() },
             // Revalidate every 5 minutes at the edge
             next: { revalidate: 300 },
         } as RequestInit);

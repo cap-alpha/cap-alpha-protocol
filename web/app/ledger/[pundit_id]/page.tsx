@@ -204,9 +204,11 @@ export default async function PunditProfilePage({
 
     // Fall back to the static snapshot when the backend is unavailable (e.g.
     // missing CAP_ALPHA_INTERNAL_API_KEY → 422 → proxy 502). Predictions will
-    // be empty in fallback mode; show a clear offline banner instead of 404.
-    const snapshotFallback = !liveDetail;
+    // be empty in fallback mode but still render the profile from snapshot data.
     const detail = liveDetail ?? getPunditFromSnapshot(params.pundit_id);
+    // Watermark: snapshot generated_at is always available; live data has no
+    // per-pundit updated_at on the summary endpoint today.
+    const dataUpdatedAt: string = (snapshot.snapshot_metadata as { generated_at: string }).generated_at;
 
     if (!detail) {
         notFound();
@@ -254,11 +256,11 @@ export default async function PunditProfilePage({
                 <PunditProfileClient
                     pundit={detail.pundit}
                     accuracyByCategory={detail.accuracy_by_category}
-                    initialPredictions={snapshotFallback ? null : initialPreds}
+                    initialPredictions={initialPreds}
                     punditId={params.pundit_id}
                     isFollowing={isFollowing}
                     isAuthenticated={!!userId}
-                    snapshotFallback={snapshotFallback}
+                    dataUpdatedAt={dataUpdatedAt}
                 />
             </Suspense>
         </>

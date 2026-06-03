@@ -966,8 +966,8 @@ interface Props {
     punditId: string;
     isFollowing: boolean;
     isAuthenticated: boolean;
-    /** True when the backend was unreachable and stats came from the static snapshot. */
-    snapshotFallback?: boolean;
+    /** ISO timestamp of the gold-table watermark (max updated_at / snapshot generated_at). */
+    dataUpdatedAt?: string | null;
 }
 
 const VALID_FILTER_CATS: FilterCategory[] = [
@@ -985,7 +985,7 @@ export function PunditProfileClient({
     punditId,
     isFollowing,
     isAuthenticated,
-    snapshotFallback = false,
+    dataUpdatedAt,
 }: Props) {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -1066,11 +1066,9 @@ export function PunditProfileClient({
         [punditId] // eslint-disable-line react-hooks/exhaustive-deps
     );
 
-    // When tab changes, reload (skip in snapshot fallback mode — backend is offline)
+    // When tab changes, reload from live backend
     useEffect(() => {
-        if (!snapshotFallback) {
-            loadPredictions(1, activeTab);
-        }
+        loadPredictions(1, activeTab);
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Client-side filter + sort
@@ -1131,28 +1129,6 @@ export function PunditProfileClient({
                 <PostFollowBanner punditName={pundit.pundit_name} />
             )}
 
-            {/* Snapshot fallback notice — shown when backend is offline */}
-            {snapshotFallback && (
-                <div
-                    role="status"
-                    style={{
-                        background: "#FEF3C7",
-                        borderBottom: "1px solid #FCD34D",
-                        padding: "10px clamp(16px, 5vw, 40px)",
-                        fontSize: 13,
-                        color: "#92400E",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                    }}
-                >
-                    <span aria-hidden="true">⚠</span>
-                    <span>
-                        Stats shown from cached snapshot · Predictions list will return when live data is back online
-                    </span>
-                </div>
-            )}
-
             {/* Breadcrumb */}
             <div
                 style={{
@@ -1161,17 +1137,41 @@ export function PunditProfileClient({
                     padding: "10px clamp(16px, 5vw, 40px)",
                     fontSize: 12,
                     color: DS.textLt,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 8,
                 }}
             >
-                <Link href="/" style={{ color: DS.gold, textDecoration: "none" }}>
-                    CapAlpha
-                </Link>
-                <span style={{ margin: "0 4px" }}>›</span>
-                <Link href="/ledger" style={{ color: DS.gold, textDecoration: "none" }}>
-                    Pundits
-                </Link>
-                <span style={{ margin: "0 4px" }}>›</span>
-                <span>{pundit.pundit_name}</span>
+                <div>
+                    <Link href="/" style={{ color: DS.gold, textDecoration: "none" }}>
+                        CapAlpha
+                    </Link>
+                    <span style={{ margin: "0 4px" }}>›</span>
+                    <Link href="/ledger" style={{ color: DS.gold, textDecoration: "none" }}>
+                        Pundits
+                    </Link>
+                    <span style={{ margin: "0 4px" }}>›</span>
+                    <span>{pundit.pundit_name}</span>
+                </div>
+                {dataUpdatedAt && (
+                    <span
+                        style={{
+                            fontFamily: "var(--font-mono), monospace",
+                            fontSize: 11,
+                            color: DS.textLt,
+                        }}
+                    >
+                        Last updated:{" "}
+                        {new Date(dataUpdatedAt).toLocaleDateString("en-US", {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                            timeZone: "America/Los_Angeles",
+                        })}
+                    </span>
+                )}
             </div>
 
             {/* ===== PUNDIT HEADER ===== */}
@@ -1511,9 +1511,7 @@ export function PunditProfileClient({
                                     fontSize: 14,
                                 }}
                             >
-                                {snapshotFallback
-                                    ? "Predictions list will return when live data is back online."
-                                    : "No claims found for this filter."}
+                                No claims found for this filter.
                             </div>
                         ) : (
                             sorted.map((p) => <ClaimCard key={p.prediction_hash} p={p} />)

@@ -24,7 +24,6 @@ import { isBotUserAgent, logBlockedRequest } from "@/lib/anti-scraping";
 const LEDGER_PREFIXES = ["/api/ledger/"];
 
 const OTHER_RATE_LIMITED_PREFIXES = [
-    "/api/draft/",
     "/api/search-index",
     "/api/misses",
     "/api/predictions",

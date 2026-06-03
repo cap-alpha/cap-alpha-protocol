@@ -67,17 +67,6 @@ export function Navbar() {
                         >
                             IN PLAY
                         </Link>
-                        {/* Tertiary: Draft scoreboard — high bettor value */}
-                        <Link
-                            href={`/draft/${new Date().getFullYear()}`}
-                            className={`transition-colors hover:text-yellow-300 ${
-                                pathname?.startsWith("/draft")
-                                    ? "text-yellow-300"
-                                    : "text-white/80"
-                            }`}
-                        >
-                            DRAFT
-                        </Link>
                         {/* Trust: Methodology */}
                         <Link
                             href="/methodology"

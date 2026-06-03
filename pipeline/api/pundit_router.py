@@ -41,6 +41,37 @@ from src.scoring import get_pundit_stats
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Wilson score lower bound — sort key for leaderboard (Issue #1032)
+# ---------------------------------------------------------------------------
+
+_Z95 = 1.96  # z-score for 95% confidence interval
+
+
+def wilson_lower_bound(correct: int, n: int, z: float = _Z95) -> float:
+    """Return the lower bound of the Wilson score confidence interval at 95% CI.
+
+    Used as the leaderboard sort key so that a pundit with 1/1 (100%, n=1) ranks
+    far below a pundit with 9/10 (90%, n=10).  A higher value is better.
+
+    Args:
+        correct: Number of correct (positive) outcomes.
+        n:       Total graded predictions (correct + incorrect; VOID excluded).
+        z:       z-score for the desired confidence level.  Default 1.96 = 95%.
+
+    Returns:
+        Wilson lower bound in [0, 1], or 0.0 when n == 0.
+    """
+    if n == 0:
+        return 0.0
+    p = correct / n
+    z2 = z * z
+    centre = p + z2 / (2 * n)
+    margin = z * math.sqrt((p * (1 - p) + z2 / (4 * n)) / n)
+    denominator = 1 + z2 / n
+    return (centre - margin) / denominator
+
+
 # Rate limits by tier (requests per minute)
 TIER_RATE_LIMITS: Dict[str, int] = {
     "free": 10,
@@ -202,8 +233,23 @@ def leaderboard(
         except Exception as stats_err:
             logger.warning(f"Could not load composite scores: {stats_err}")
 
-        # Re-sort by composite_score if present, else keep weighted-score order
-        if "composite_score" in df.columns and df["composite_score"].notna().any():
+        # Sort by Wilson score lower bound (95% CI) so sample size is penalised.
+        # A pundit with 1/1 (Wilson ≈ 0.025) ranks far below 9/10 (Wilson ≈ 0.55).
+        # Wilson LB is the sort key only — accuracy_rate / correct_count are still
+        # the user-facing display columns returned in the payload.
+        correct_col = "correct_count" if "correct_count" in df.columns else None
+        n_col = "resolved_count" if "resolved_count" in df.columns else None
+        if correct_col and n_col:
+            df["wilson_lb"] = df.apply(
+                lambda row: wilson_lower_bound(
+                    int(row[correct_col] or 0),
+                    int(row[n_col] or 0),
+                ),
+                axis=1,
+            )
+            df = df.sort_values("wilson_lb", ascending=False, na_position="last")
+        elif "composite_score" in df.columns and df["composite_score"].notna().any():
+            # Fallback: composite_score when correct/resolved counts are absent
             df = df.sort_values("composite_score", ascending=False, na_position="last")
 
         top = df.head(limit)

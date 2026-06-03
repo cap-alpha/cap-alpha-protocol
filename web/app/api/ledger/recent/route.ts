@@ -5,6 +5,7 @@ import {
     logBlockedRequest,
     LEDGER_MAX_LIMIT,
 } from "@/lib/anti-scraping";
+import { getAuthHeader } from "@/lib/ledger-server";
 
 const API_URL =
     process.env.API_URL ||
@@ -58,6 +59,7 @@ export async function GET(req: Request) {
         const res = await fetch(backendUrl.toString(), {
             headers: {
                 "Accept": "application/json",
+                ...getAuthHeader(),
             },
         });
 

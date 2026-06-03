@@ -304,17 +304,6 @@ export function PunditLeaderboardPreview({
 
     return (
         <div className="space-y-4">
-            {/* Staleness badge — shown when data is from the snapshot fallback (issue #960).
-                Uses reactive isFallback state so it updates correctly on sport-tab switches. */}
-            {isFallback && (
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-500/20 bg-amber-500/5 text-amber-400/80">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400/60 shrink-0" />
-                    <span className="text-[11px] font-mono tracking-wide">
-                        Data archive · Apr 2025 · refresh paused
-                    </span>
-                </div>
-            )}
-
             {/* Sport filter pills */}
             <div className="flex items-center gap-2">
                 <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1 hidden sm:inline">

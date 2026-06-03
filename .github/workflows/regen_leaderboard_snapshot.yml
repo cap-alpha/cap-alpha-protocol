@@ -1,0 +1,94 @@
+name: Regen Leaderboard Snapshot
+
+# Daily regen of web/lib/data/leaderboard-snapshot.json so the homepage
+# never goes stale.  Runs on GitHub-hosted ubuntu (not the self-hosted
+# runner) to stay independent of the pipeline workflow's health.
+#
+# Commits straight to main when the snapshot changes.  Skips the commit
+# when there is no diff to keep history clean.
+
+on:
+  schedule:
+    # Twice daily: 13:00 UTC (06:00 PT morning) and 01:00 UTC (18:00 PT evening)
+    - cron: '0 13 * * *'
+    - cron: '0 1 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: regen-leaderboard-snapshot
+  cancel-in-progress: false
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      id-token: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Use a token that can push to main bypassing branch protection,
+          # or use the default GITHUB_TOKEN (will need branch protection
+          # exception for github-actions[bot]).
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install google-cloud-bigquery db-dtypes pandas
+
+      - name: Authenticate to GCP (Workload Identity)
+        if: vars.WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Authenticate to GCP (JSON key fallback)
+        if: vars.WORKLOAD_IDENTITY_PROVIDER == ''
+        run: |
+          echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/gcp-key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV
+
+      - name: Regenerate snapshot
+        env:
+          GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          PYTHONPATH: ${{ github.workspace }}/pipeline
+        run: |
+          python pipeline/scripts/regen_leaderboard_snapshot.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet web/lib/data/leaderboard-snapshot.json; then
+            echo "No snapshot changes — skipping commit."
+            exit 0
+          fi
+          # Surface a brief summary in the commit body so PR-less commits
+          # still tell the story.
+          STATS=$(python3 -c "
+          import json
+          d = json.load(open('web/lib/data/leaderboard-snapshot.json'))
+          p = d.get('pundits', [])
+          print(f\"pundits={len(p)} predictions={sum(x.get('total_predictions',0) for x in p)} resolved={sum(x.get('resolved_predictions',0) for x in p)} correct={sum(x.get('correct_predictions',0) for x in p)}\")
+          ")
+          git add web/lib/data/leaderboard-snapshot.json
+          git commit -m "chore(snapshot): scheduled leaderboard snapshot regen
+
+          ${STATS}
+
+          [skip ci]"
+          git push origin HEAD:main
+
+      - name: Cleanup
+        if: always()
+        run: rm -f /tmp/gcp-key.json

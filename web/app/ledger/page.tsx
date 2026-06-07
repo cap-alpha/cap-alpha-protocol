@@ -983,13 +983,17 @@ export default function LedgerPage() {
             });
     }, []);
 
-    // Sort leaderboard: resolved first (by accuracy desc), then unresolved (by total desc)
+    // Sort leaderboard: pundits with ≥5 resolved first (by accuracy desc),
+    // then pundits with 1-4 resolved (by total_predictions desc),
+    // then unresolved (by total_predictions desc).
+    // MIN_RESOLVED_FOR_RANK prevents a 1/1 (100%) pundit from outranking a 9/10 (90%) pundit.
+    const MIN_RESOLVED_FOR_RANK = 5;
     const sorted = [...pundits].sort((a, b) => {
-        const aResolved = a.resolved_predictions > 0;
-        const bResolved = b.resolved_predictions > 0;
-        if (aResolved && !bResolved) return -1;
-        if (!aResolved && bResolved) return 1;
-        if (aResolved && bResolved) {
+        const aRankable = a.resolved_predictions >= MIN_RESOLVED_FOR_RANK;
+        const bRankable = b.resolved_predictions >= MIN_RESOLVED_FOR_RANK;
+        if (aRankable && !bRankable) return -1;
+        if (!aRankable && bRankable) return 1;
+        if (aRankable && bRankable) {
             const accDiff = (b.accuracy_rate ?? 0) - (a.accuracy_rate ?? 0);
             if (accDiff !== 0) return accDiff;
             return (a.avg_brier_score ?? 1) - (b.avg_brier_score ?? 1);

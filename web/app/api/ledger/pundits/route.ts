@@ -32,7 +32,7 @@ export async function fetchPunditsSSR(
     limit = 20
 ): Promise<Record<string, unknown>[]> {
     try {
-        const backendUrl = new URL(`${API_URL}/v1/pundits/`);
+        const backendUrl = new URL(`${getApiUrl()}/v1/pundits/`);
         backendUrl.searchParams.set("limit", String(limit));
         backendUrl.searchParams.set("sort", "accuracy");
         if (sport && sport !== "ALL") {

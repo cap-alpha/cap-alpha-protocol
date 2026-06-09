@@ -1,4 +1,4 @@
-.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2 backfill-entities dev-api dev-seed
+.PHONY: up down shell-pipeline venv web-install test lint lint-fix test-e2e pipeline-scrape pipeline-train pipeline-nlp pipeline-validate pipeline-factcheck web-logs setup check type-check resolve-draft resolve-draft-dry setup-triage-agent uninstall-triage-agent agent-identity prune-worktrees backfill-silver-v2 backfill-entities dev-api dev-seed regen-snapshot
 
 PYTHON ?= python3
 # Resolve VENV to the main repo root — works from both the main checkout and worktrees.
@@ -166,3 +166,10 @@ dev-api: ## Start FastAPI locally with DuckDB backend — no BQ or GCP needed
 
 web-logs:
 	$(DOCKER) logs -f web
+
+# -----------------------------------------------------------------------------
+# SNAPSHOT — regenerate static data files
+# -----------------------------------------------------------------------------
+
+regen-snapshot: ## Regenerate leaderboard snapshot from BigQuery (writes web/app/lib/data/leaderboard-snapshot.json)
+	$(VENV)/bin/python pipeline/scripts/regen_leaderboard_snapshot.py

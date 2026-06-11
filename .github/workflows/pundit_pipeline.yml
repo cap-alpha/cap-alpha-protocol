@@ -71,9 +71,16 @@ jobs:
           VENV_DIR="$HOME/.venv/cap-alpha"
           python3 -m venv "$VENV_DIR"
           "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel
-          # Install numpy/pandas FIRST so no conflicting package is present
-          # when pip resolves constraints.  pandas 2.2.x has no cp314 wheels;
-          # pandas 3.0+ does — binary install, no source build needed.
+          # Pre-install the meson PEP-517 build backend before any package that
+          # needs a source build (numpy <2.x, scipy, pandas <3.0 all declare
+          # build-backend = "mesonpy").  Without this, --no-build-isolation pip
+          # calls fail with "BackendUnavailable: Cannot import 'mesonpy'".
+          # meson-python is the PyPI package; it installs the 'mesonpy' module.
+          "$VENV_DIR/bin/pip" install "meson-python>=0.16" "meson>=1.1" "ninja"
+          # Install numpy/pandas FIRST with explicit 2.x/3.x floors so pip never
+          # backtracks to an older version that has no cp314 wheel and requires
+          # a source build.  pandas-gbq declares numpy>=1.26.4 which would
+          # otherwise resolve to numpy 1.26.4 (source-only for cp314).
           "$VENV_DIR/bin/pip" install "numpy>=2.0" "pandas>=3.0"
           # Install nfl-data-py without its declared deps AFTER numpy/pandas.
           # --no-deps skips the dependency conflict check, so pip does not
@@ -81,8 +88,9 @@ jobs:
           # (The package works at runtime with numpy 2.x and pandas 3.x.)
           "$VENV_DIR/bin/pip" install --no-deps "nfl-data-py>=0.3.3"
           # Install the rest of requirements (numpy/pandas already satisfied).
-          # --no-build-isolation for packages like shap/numba that may still
-          # need a source build on Python 3.14.
+          # --no-build-isolation so any remaining source build can see meson-python
+          # installed above rather than spinning up an isolated build env that
+          # also lacks mesonpy.
           "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation
           echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
           echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH

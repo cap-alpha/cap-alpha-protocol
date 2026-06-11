@@ -4,8 +4,12 @@ name: Regen Leaderboard Snapshot
 # never goes stale.  Runs on GitHub-hosted ubuntu (not the self-hosted
 # runner) to stay independent of the pipeline workflow's health.
 #
-# Commits straight to main when the snapshot changes.  Skips the commit
-# when there is no diff to keep history clean.
+# Branch protection on main requires PRs + status checks, so this workflow
+# opens a PR instead of pushing directly to main.  The PR is queued for
+# auto-merge immediately; auto_approve.yml approves it once all required
+# CI checks pass.  If a previous auto-snapshot PR is still open it is
+# closed (superseded) before a new one is opened, so at most one snapshot
+# PR is ever open at a time.
 
 on:
   schedule:
@@ -21,19 +25,19 @@ concurrency:
 jobs:
   regen:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     permissions:
       contents: write
+      pull-requests: write
       id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          # Use a token that can push to main bypassing branch protection,
-          # or use the default GITHUB_TOKEN (will need branch protection
-          # exception for github-actions[bot]).
           token: ${{ secrets.GITHUB_TOKEN }}
+          # Fetch full history so we can branch from the real HEAD of main.
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -65,29 +69,103 @@ jobs:
         run: |
           python pipeline/scripts/regen_leaderboard_snapshot.py
 
-      - name: Commit if changed
+      - name: Open PR if snapshot changed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           if git diff --quiet web/lib/data/leaderboard-snapshot.json; then
-            echo "No snapshot changes — skipping commit."
+            echo "No snapshot changes — nothing to do."
             exit 0
           fi
-          # Surface a brief summary in the commit body so PR-less commits
-          # still tell the story.
+
+          # Collect stats for commit message / PR body.
           STATS=$(python3 -c "
           import json
           d = json.load(open('web/lib/data/leaderboard-snapshot.json'))
           p = d.get('pundits', [])
           print(f\"pundits={len(p)} predictions={sum(x.get('total_predictions',0) for x in p)} resolved={sum(x.get('resolved_predictions',0) for x in p)} correct={sum(x.get('correct_predictions',0) for x in p)}\")
           ")
+          echo "Stats: $STATS"
+
+          # Close any stale auto-snapshot PRs so we never have duplicates.
+          STALE_PRS=$(gh pr list \
+            --repo "$REPO" \
+            --state open \
+            --label "auto-snapshot" \
+            --json number \
+            --jq '.[].number')
+          for OLD_PR in $STALE_PRS; do
+            echo "Closing stale auto-snapshot PR #$OLD_PR (superseded by this run)"
+            gh pr close "$OLD_PR" \
+              --repo "$REPO" \
+              --comment "Superseded by a newer scheduled snapshot run. Closing." \
+              --delete-branch || true
+          done
+
+          # Create a fresh branch from the current HEAD of main.
+          BRANCH="auto/snapshot-$(date -u +%Y-%m-%d-%H%M)"
+          git checkout -b "$BRANCH"
           git add web/lib/data/leaderboard-snapshot.json
           git commit -m "chore(snapshot): scheduled leaderboard snapshot regen
 
           ${STATS}
 
           [skip ci]"
-          git push origin HEAD:main
+          git push origin "$BRANCH"
+
+          # Open a PR.  Label it so future runs can find and close it.
+          PR_URL=$(gh pr create \
+            --repo "$REPO" \
+            --title "chore(snapshot): scheduled leaderboard snapshot regen" \
+            --body "$(cat <<'BODY'
+## Automated snapshot update
+
+This PR was opened by the **Regen Leaderboard Snapshot** scheduled workflow.
+
+### Root cause of PR-based flow
+
+Branch protection on \`main\` requires all changes to go through a PR with at
+least one approval and all required status checks passing. The prior approach
+(direct \`git push origin HEAD:main\`) was rejected by the ruleset
+([run 27290717950](https://github.com/cap-alpha/cap-alpha-protocol/actions/runs/27290717950)).
+
+### New flow
+
+1. Workflow regenerates \`web/lib/data/leaderboard-snapshot.json\` from BigQuery.
+2. If the file changed, a branch \`auto/snapshot-YYYY-MM-DD-HHMM\` is created and pushed.
+3. This PR is opened and immediately queued for auto-merge.
+4. \`auto_approve.yml\` approves it once all required CI checks pass (Lint, Data Quality, test, preflight-build).
+5. The merge queue lands it on \`main\` automatically — no human action needed for routine updates.
+6. If a previous auto-snapshot PR is still open when a new run fires, it is closed (superseded) before the new PR is opened — at most one snapshot PR is open at any time.
+
+### Open question: auto-approval path
+
+The \`auto_approve.yml\` workflow gates approval on a Copilot review being present.
+Snapshot PRs touch only JSON data (no logic), so Copilot review adds no value and
+would permanently block auto-merge. If you want fully-hands-off snapshot updates,
+either: (a) add an exception in \`auto_approve.yml\` to skip the Copilot gate for
+\`auto/snapshot-*\` branches, or (b) approve this class of PR manually once as a
+template. Until then, each snapshot PR will need one manual approval.
+BODY
+)" \
+            --label "auto-snapshot" \
+            --base main \
+            --head "$BRANCH")
+
+          echo "Opened PR: $PR_URL"
+
+          # Extract PR number and queue for auto-merge.
+          PR_NUM=$(echo "$PR_URL" | grep -oE '[0-9]+$')
+          echo "Enabling auto-merge for PR #$PR_NUM"
+          gh pr merge "$PR_NUM" \
+            --repo "$REPO" \
+            --rebase \
+            --auto \
+            || echo "Warning: auto-merge enable failed (PR may need approval first). PR is open and ready to review: $PR_URL"
 
       - name: Cleanup
         if: always()

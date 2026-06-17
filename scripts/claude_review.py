@@ -96,11 +96,7 @@ def call_claude(system: str, user: str) -> str:
     """Call Anthropic API with prompt caching on the system message."""
     import anthropic  # imported here so the script is importable even without the package
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        print("WARNING: ANTHROPIC_API_KEY is not set — skipping Claude review.", file=sys.stderr)
-        sys.exit(0)
-
+    api_key = os.environ["ANTHROPIC_API_KEY"]
     client = anthropic.Anthropic(api_key=api_key)
 
     response = client.messages.create(
@@ -119,8 +115,9 @@ def call_claude(system: str, user: str) -> str:
 
 
 def post_github_comment(repo: str, pr_number: int, body: str, gh_token: str) -> None:
-    import urllib.request
     import json
+    import urllib.error
+    import urllib.request
 
     url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
     payload = json.dumps({"body": body}).encode()
@@ -135,13 +132,15 @@ def post_github_comment(repo: str, pr_number: int, body: str, gh_token: str) -> 
         },
         method="POST",
     )
-    with urllib.request.urlopen(req) as resp:
-        if resp.status not in (200, 201):
-            raise RuntimeError(f"GitHub API returned {resp.status}")
+    try:
+        with urllib.request.urlopen(req) as resp:
+            if resp.status not in (200, 201):
+                raise RuntimeError(f"GitHub API returned {resp.status}")
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(f"GitHub API returned {exc.code}: {exc.reason}") from exc
     print(f"Review comment posted to PR #{pr_number}.")
 
-
-def format_comment(review_text: str, pr_number: int) -> str:
+def format_comment(review_text: str) -> str:
     header = "## Claude Review [advisory]\n\n"
     footer = (
         "\n\n---\n"
@@ -189,9 +188,13 @@ def main() -> None:
 
     system, user = build_prompt(diff)
     print(f"Calling Claude (diff: {diff_lines} lines)…", file=sys.stderr)
-    review_text = call_claude(system, user)
+    try:
+        review_text = call_claude(system, user)
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: Claude API call failed — skipping review. ({exc})", file=sys.stderr)
+        sys.exit(0)
 
-    comment_body = format_comment(review_text, args.pr_number)
+    comment_body = format_comment(review_text)
 
     if args.dry_run or args.pr_number == 0:
         print(comment_body)
@@ -201,7 +204,11 @@ def main() -> None:
         print("ERROR: --repo and --gh-token are required when not in --dry-run mode.", file=sys.stderr)
         sys.exit(1)
 
-    post_github_comment(args.repo, args.pr_number, comment_body, args.gh_token)
+    try:
+        post_github_comment(args.repo, args.pr_number, comment_body, args.gh_token)
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: Failed to post review comment — {exc}", file=sys.stderr)
+        sys.exit(0)
 
 
 if __name__ == "__main__":

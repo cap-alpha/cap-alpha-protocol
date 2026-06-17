@@ -171,5 +171,5 @@ web-logs:
 # SNAPSHOT — regenerate static data files
 # -----------------------------------------------------------------------------
 
-regen-snapshot: ## Regenerate leaderboard snapshot from BigQuery (writes web/app/lib/data/leaderboard-snapshot.json)
+regen-snapshot: ## Regenerate leaderboard snapshot from BigQuery (writes web/lib/data/leaderboard-snapshot.json)
 	$(VENV)/bin/python pipeline/scripts/regen_leaderboard_snapshot.py

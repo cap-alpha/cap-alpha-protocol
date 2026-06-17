@@ -54,8 +54,10 @@ jobs:
       env:
         PYTHONPATH: ${{ github.workspace }}/pipeline
 
+    # Codecov upload is best-effort — tokenless uploads can fail intermittently; CODECOV_TOKEN secret pending.
     - name: Upload coverage reports
       if: always()
+      continue-on-error: true
       uses: codecov/codecov-action@v6
       with:
         files: ./coverage.xml

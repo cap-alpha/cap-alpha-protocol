@@ -21,14 +21,15 @@ const DS = {
     navyLt: "#253660",
     gold: "#B8860B",
     goldLt: "#D4A017",
-    bg: "#F7F4EF",
+    // #FAF8F5 — warm off-white editorial canvas (#1067)
+    bg: "#FAF8F5",
     card: "#FFFFFF",
     raised: "#F0EDE8",
-    border: "#DDD8D0",
+    border: "#E5E1DA",
     borderLt: "#EAE6E0",
-    text: "#1C1C1C",
-    textMd: "#444444",
-    textLt: "#6B6B6B",
+    text: "#1A1A1A",
+    textMd: "#5C5C5C",
+    textLt: "#9A9A9A",
     pos: "#1A7A4A",
     neg: "#B91C1C",
     warn: "#92400E",
@@ -69,7 +70,8 @@ function getInitials(name: string): string {
 function reliabilityLabel(accuracy: number | null): { label: string; color: string } {
     if (accuracy === null) return { label: "Unscored", color: DS.textLt };
     const pct = accuracy * 100;
-    if (pct >= 65) return { label: "Reliable", color: DS.pos };
+    // Navy accent for reliability badge — emerald removed per #1067
+    if (pct >= 65) return { label: "Reliable", color: DS.navy };
     if (pct >= 50) return { label: "Average", color: DS.warn };
     return { label: "Unreliable", color: DS.neg };
 }
@@ -77,7 +79,8 @@ function reliabilityLabel(accuracy: number | null): { label: string; color: stri
 function accuracyColor(accuracy: number | null): string {
     if (accuracy === null) return DS.textLt;
     const pct = accuracy * 100;
-    if (pct >= 65) return DS.pos;
+    // Navy replaces emerald for non-outcome accuracy highlights (#1067)
+    if (pct >= 65) return DS.navy;
     if (pct >= 50) return DS.goldLt;
     return DS.neg;
 }
@@ -109,14 +112,7 @@ function Avatar({ name, accuracy }: { name: string; accuracy: number | null }) {
     const initials = getInitials(name);
     const { label, color } = reliabilityLabel(accuracy);
 
-    // Avatar gradient based on reliability
-    const gradients: Record<string, string> = {
-        Reliable: "linear-gradient(135deg,#1A7A4A,#0a4a2a)",
-        Average: "linear-gradient(135deg,#B8860B,#6b4f07)",
-        Unreliable: "linear-gradient(135deg,#B91C1C,#6b0e0e)",
-        Unscored: "linear-gradient(135deg,#6B6B6B,#333)",
-    };
-
+    // Flat navy background for all reliability states — no gradient (#1067)
     return (
         <div style={{ position: "relative" }}>
             <div
@@ -124,14 +120,14 @@ function Avatar({ name, accuracy }: { name: string; accuracy: number | null }) {
                     width: 100,
                     height: 100,
                     borderRadius: "50%",
-                    background: gradients[label] ?? gradients.Unscored,
-                    border: `3px solid ${DS.gold}`,
+                    background: DS.navy,
+                    border: `3px solid rgba(255,255,255,0.15)`,
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontFamily: "var(--font-serif), Georgia, serif",
                     fontSize: 36,
-                    fontWeight: 900,
+                    fontWeight: 700,
                     color: "#fff",
                 }}
             >
@@ -143,7 +139,7 @@ function Avatar({ name, accuracy }: { name: string; accuracy: number | null }) {
                     bottom: -4,
                     right: -4,
                     background: color,
-                    border: `2px solid ${DS.navy}`,
+                    border: `2px solid ${DS.card}`,
                     borderRadius: 12,
                     padding: "2px 7px",
                     fontSize: 10,
@@ -208,7 +204,8 @@ function ScoreBox({
                     style={{
                         fontSize: 11,
                         marginTop: 4,
-                        color: subUp === true ? "#4ADE80" : subUp === false ? "#F87171" : "rgba(255,255,255,0.45)",
+                        // Trend indicators on navy bg: muted white tones, not emerald/red (#1067)
+                        color: subUp === true ? "rgba(255,255,255,0.75)" : subUp === false ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.45)",
                     }}
                 >
                     {sub}
@@ -304,8 +301,9 @@ function AccuracyBarRow({
     let scoreColor: string = DS.warn;
     if (pct !== null) {
         if (pct >= 60) {
-            fillColor = DS.pos;
-            scoreColor = DS.pos;
+            // Navy accent for "good" accuracy bars — not prediction outcomes (#1067)
+            fillColor = DS.navy;
+            scoreColor = DS.navy;
         } else if (pct < 50) {
             fillColor = DS.neg;
             scoreColor = DS.neg;
@@ -1110,12 +1108,13 @@ export function PunditProfileClient({
         (pundit.brier_score ?? pundit.avg_brier_score) !== null
             ? (pundit.brier_score ?? pundit.avg_brier_score)!.toFixed(3)
             : "—";
+    // Brier score is a calibration metric, not a prediction outcome — use muted tones (#1067)
     const brierColor =
         (pundit.brier_score ?? pundit.avg_brier_score) !== null
             ? (pundit.brier_score ?? pundit.avg_brier_score)! > 0.25
-                ? DS.neg
-                : DS.goldLt
-            : DS.textLt;
+                ? "rgba(255,255,255,0.45)"
+                : "rgba(255,255,255,0.85)"
+            : "rgba(255,255,255,0.35)";
 
     const accuracyDisplay =
         pundit.accuracy_rate !== null
@@ -1145,11 +1144,11 @@ export function PunditProfileClient({
                 }}
             >
                 <div>
-                    <Link href="/" style={{ color: DS.gold, textDecoration: "none" }}>
+                    <Link href="/" style={{ color: DS.navy, textDecoration: "none" }}>
                         CapAlpha
                     </Link>
                     <span style={{ margin: "0 4px" }}>›</span>
-                    <Link href="/ledger" style={{ color: DS.gold, textDecoration: "none" }}>
+                    <Link href="/ledger" style={{ color: DS.navy, textDecoration: "none" }}>
                         Pundits
                     </Link>
                     <span style={{ margin: "0 4px" }}>›</span>
@@ -1296,7 +1295,8 @@ export function PunditProfileClient({
                                     fontFamily: "var(--font-mono), monospace",
                                     fontSize: 28,
                                     fontWeight: 600,
-                                    color: DS.textLt,
+                                    // On navy bg, use explicit white-muted instead of DS.textLt (#1067)
+                                    color: "rgba(255,255,255,0.35)",
                                     lineHeight: 1,
                                 }}
                             >
@@ -1754,8 +1754,9 @@ function TrustStrap({
     return (
         <div
             style={{
-                background: "rgba(255,255,255,0.04)",
-                borderTop: "1px solid rgba(255,255,255,0.07)",
+                background: DS.raised,
+                borderTop: `1px solid ${DS.border}`,
+                borderBottom: `1px solid ${DS.border}`,
                 padding: "10px clamp(16px, 5vw, 40px)",
             }}
         >
@@ -1764,7 +1765,7 @@ function TrustStrap({
                     maxWidth: 1100,
                     margin: "0 auto",
                     fontSize: 11,
-                    color: "rgba(255,255,255,0.45)",
+                    color: DS.textLt,
                     fontFamily: "var(--font-mono), 'JetBrains Mono', monospace",
                     letterSpacing: "0.3px",
                 }}

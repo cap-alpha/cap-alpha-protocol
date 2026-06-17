@@ -1,0 +1,78 @@
+name: "Claude Review [advisory]"
+
+# Adversarial reviewer for ALL PRs — fills the gap left by Copilot,
+# which only fires on user-authored PRs.
+#
+# Non-blocking: named "Claude Review [advisory]" so branch protection
+# never gates merges on this check (matches project advisory convention).
+#
+# Skips when:
+#   - ANTHROPIC_API_KEY secret is not set (exits 0, prints warning)
+#   - PR has the "skip-claude-review" label
+#   - Diff exceeds 30,000 lines
+#   - PR is a draft
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+jobs:
+  claude-review:
+    name: "Claude Review [advisory]"
+    runs-on: ubuntu-latest
+    # Skip draft PRs
+    if: github.event.pull_request.draft == false
+    permissions:
+      contents: read
+      pull-requests: write  # needed to post review comment
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Anthropic SDK
+        run: pip install anthropic>=0.40.0
+
+      - name: Generate diff
+        id: diff
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Fetch the base ref so we can diff against it
+          git fetch origin ${{ github.base_ref }} --depth=1
+
+          DIFF_FILE="$(mktemp)"
+          git diff origin/${{ github.base_ref }}...HEAD > "$DIFF_FILE"
+          echo "diff_file=$DIFF_FILE" >> "$GITHUB_OUTPUT"
+
+          DIFF_LINES=$(wc -l < "$DIFF_FILE")
+          echo "diff_lines=$DIFF_LINES" >> "$GITHUB_OUTPUT"
+          echo "Diff is $DIFF_LINES lines"
+
+      - name: Collect PR labels
+        id: labels
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LABELS=$(gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }} \
+            --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
+          echo "labels=$LABELS" >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python scripts/claude_review.py \
+            --diff-file "${{ steps.diff.outputs.diff_file }}" \
+            --pr-number "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --gh-token "$GH_TOKEN" \
+            --labels "${{ steps.labels.outputs.labels }}"

@@ -71,19 +71,27 @@ jobs:
           VENV_DIR="$HOME/.venv/cap-alpha"
           python3 -m venv "$VENV_DIR"
           "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel
-          # Install numpy/pandas FIRST so no conflicting package is present
-          # when pip resolves constraints.  pandas 2.2.x has no cp314 wheels;
-          # pandas 3.0+ does — binary install, no source build needed.
+          # meson build backend — required for any source-build packages on Python 3.14
+          # (fixes: BackendUnavailable: Cannot import mesonpy)
+          "$VENV_DIR/bin/pip" install "meson-python>=0.16" "meson>=1.1" "ninja"
+          # cython — required by numpy/scipy source builds on Python 3.14
+          # (fixes: Unknown compiler(s): cython)
+          "$VENV_DIR/bin/pip" install "cython>=3.0"
+          # Pre-install numpy/pandas at known-good versions to prevent pandas-gbq
+          # dep resolver from backtracking and triggering a source build.
+          # pandas 2.2.x has no cp314 wheels; pandas 3.0+ does.
           "$VENV_DIR/bin/pip" install "numpy>=2.0" "pandas>=3.0"
-          # Install nfl-data-py without its declared deps AFTER numpy/pandas.
-          # --no-deps skips the dependency conflict check, so pip does not
-          # exit 1 due to nfl-data-py declaring numpy<2.0 / pandas<2.0.
-          # (The package works at runtime with numpy 2.x and pandas 3.x.)
+          # nfl-data-py ships pandas<2.0/numpy<2.0 constraints; bypass with --no-deps.
+          # The package works at runtime with numpy 2.x and pandas 3.x.
           "$VENV_DIR/bin/pip" install --no-deps "nfl-data-py>=0.3.3"
-          # Install the rest of requirements (numpy/pandas already satisfied).
-          # --no-build-isolation for packages like shap/numba that may still
-          # need a source build on Python 3.14.
-          "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation
+          # pandas-gbq installed separately BEFORE bulk install to avoid dep-resolution
+          # loop where it re-evaluates pandas metadata and triggers a source build
+          # even when pandas 3.x is already present.
+          "$VENV_DIR/bin/pip" install "pandas-gbq"
+          # Remaining requirements — --no-deps skips pandas-gbq re-evaluating pandas
+          # metadata (which would trigger another source build even with pandas 3.x
+          # installed). All major packages are already satisfied above.
+          PATH="$VENV_DIR/bin:$PATH" "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation --no-deps
           echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
           echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH
 

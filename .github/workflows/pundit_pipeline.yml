@@ -2,11 +2,8 @@ name: Pundit Prediction Pipeline
 
 on:
   schedule:
-    # Run every 60 minutes during active hours (8am-midnight ET = 12:00-04:00 UTC).
-    # Previously every 30 min; reduced to limit queue churn when the self-hosted
-    # runner is offline (each trigger cancels the previous queued-but-never-started
-    # run, creating a cascade of cancellations with no useful work done).
-    - cron: '3 12-23,0-4 * * *'
+    # Run every 30 minutes during active hours (8am-midnight ET = 12:00-04:00 UTC)
+    - cron: '3,33 12-23,0-4 * * *'
     # Run every 2 hours during off-hours
     - cron: '3 5-11 * * *'
   workflow_dispatch:
@@ -27,7 +24,7 @@ concurrency:
 
 jobs:
   ingest-extract-resolve:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
@@ -37,55 +34,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v6
 
-      - name: Verify Ollama + models
-        run: |
-          curl -sf http://localhost:11434/api/tags | python3 -c "
-          import sys, json
-          data = json.load(sys.stdin)
-          models = [m['name'] for m in data.get('models', [])]
-          needed = 'qwen2.5:32b'
-          if not any(needed in m for m in models):
-              print(f'ERROR: {needed} not found. Run: ollama pull qwen2.5:32b')
-              sys.exit(1)
-          print(f'Ollama ready. Models: {models}')
-          "
-
-      - name: Check AC power
-        id: power
-        run: |
-          STATUS=$(system_profiler SPPowerDataType 2>/dev/null | grep "Currently in Use" | head -1 || true)
-          if echo "$STATUS" | grep -q "No"; then
-            echo "on_battery=true" >> $GITHUB_OUTPUT
-          else
-            echo "on_battery=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Skip on battery
-        if: steps.power.outputs.on_battery == 'true'
-        run: |
-          echo "On battery — skipping extraction to preserve battery life"
-          exit 0
-
       - name: Install Dependencies
         run: |
-          VENV_DIR="$HOME/.venv/cap-alpha"
-          python3 -m venv "$VENV_DIR"
-          "$VENV_DIR/bin/pip" install --upgrade pip setuptools wheel
-          # Install numpy/pandas FIRST so no conflicting package is present
-          # when pip resolves constraints.  pandas 2.2.x has no cp314 wheels;
-          # pandas 3.0+ does — binary install, no source build needed.
-          "$VENV_DIR/bin/pip" install "numpy>=2.0" "pandas>=3.0"
-          # Install nfl-data-py without its declared deps AFTER numpy/pandas.
-          # --no-deps skips the dependency conflict check, so pip does not
-          # exit 1 due to nfl-data-py declaring numpy<2.0 / pandas<2.0.
-          # (The package works at runtime with numpy 2.x and pandas 3.x.)
-          "$VENV_DIR/bin/pip" install --no-deps "nfl-data-py>=0.3.3"
-          # Install the rest of requirements (numpy/pandas already satisfied).
-          # --no-build-isolation for packages like shap/numba that may still
-          # need a source build on Python 3.14.
-          "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation
-          echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
-          echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH
+          pip install --upgrade pip setuptools wheel
+          # nfl-data-py ships pandas<2.0/numpy<2.0 constraints; bypass with --no-deps.
+          # The package works at runtime with current numpy/pandas.
+          pip install --no-deps "nfl-data-py>=0.3.3"
+          pip install -r pipeline/requirements.txt
 
       - name: Authenticate to GCP (Workload Identity)
         # Preferred path: workload identity federation — no key file written to disk.
@@ -113,7 +68,6 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/pipeline
           GITHUB_SHA: ${{ github.sha }}
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 scripts/apply_migrations.py
 
@@ -122,7 +76,6 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m src.media_ingestor
 
@@ -131,14 +84,13 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m scripts.seed_pundit_registry
 
       - name: Extract predictions
-        if: steps.power.outputs.on_battery != 'true'
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
           # CI provenance — written to silver_v2_claims.extraction_run by run_extraction()
           GITHUB_SHA: ${{ github.sha }}
@@ -146,18 +98,14 @@ jobs:
           GITHUB_RUN_ID: ${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
 
       - name: Verify extraction produced output
-        if: steps.power.outputs.on_battery != 'true'
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-          GOOGLE_APPLICATION_CREDENTIALS: /tmp/gcp-key.json
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 scripts/check_extraction_health.py --window-minutes 120 --min-count 1
 
@@ -167,7 +115,6 @@ jobs:
           SPORTS_DATA_IO_API_KEY: ${{ secrets.SPORTS_DATA_IO_API_KEY }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()"
 
@@ -176,7 +123,6 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 -m src.resolve_daily
 
@@ -186,7 +132,6 @@ jobs:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
-          source "$VENV_DIR/bin/activate"
           cd pipeline
           python3 - <<'PY'
           from src.db_manager import DBManager

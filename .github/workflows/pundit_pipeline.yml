@@ -88,10 +88,9 @@ jobs:
           # loop where it re-evaluates pandas metadata and triggers a source build
           # even when pandas 3.x is already present.
           "$VENV_DIR/bin/pip" install "pandas-gbq"
-          # Remaining requirements — --no-deps skips pandas-gbq re-evaluating pandas
-          # metadata (which would trigger another source build even with pandas 3.x
-          # installed). All major packages are already satisfied above.
-          PATH="$VENV_DIR/bin:$PATH" "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation --no-deps
+          # Remaining requirements — pandas/numpy/pandas-gbq already pinned above,
+          # so pip sees them as satisfied and skips source rebuilds.
+          PATH="$VENV_DIR/bin:$PATH" "$VENV_DIR/bin/pip" install -r pipeline/requirements.txt --no-build-isolation
           echo "VENV_DIR=$HOME/.venv/cap-alpha" >> $GITHUB_ENV
           echo "$HOME/.venv/cap-alpha/bin" >> $GITHUB_PATH
 

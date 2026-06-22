@@ -104,7 +104,7 @@ def call_claude(system: str, user: str) -> str:
     client = anthropic.Anthropic(api_key=api_key)
 
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-opus-4-7",
         max_tokens=2048,
         system=[
             {
@@ -146,7 +146,7 @@ def format_comment(review_text: str, pr_number: int) -> str:
     footer = (
         "\n\n---\n"
         "_This review is advisory and does not block merges. "
-        "Model: `claude-sonnet-4-6`. "
+        "Model: `claude-opus-4-7`. "
         "To skip: add the `skip-claude-review` label._"
     )
     return header + review_text + footer

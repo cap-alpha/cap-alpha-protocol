@@ -36,11 +36,13 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install --upgrade pip setuptools wheel
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip setuptools wheel
           # nfl-data-py ships pandas<2.0/numpy<2.0 constraints; bypass with --no-deps.
           # The package works at runtime with current numpy/pandas.
-          pip install --no-deps "nfl-data-py>=0.3.3"
-          pip install -r pipeline/requirements.txt
+          .venv/bin/pip install --no-deps "nfl-data-py>=0.3.3"
+          .venv/bin/pip install -r pipeline/requirements.txt
+          echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
       - name: Authenticate to GCP (Workload Identity)
         # Preferred path: workload identity federation — no key file written to disk.

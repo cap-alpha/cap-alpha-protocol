@@ -11,27 +11,30 @@
 #   openai:  OPENAI_API_KEY
 #   ollama:  none (local, optionally OLLAMA_BASE_URL)
 #
-# Cloud runner strategy (2026-06, issue #1089):
-#   Pipeline runs on ubuntu-latest GitHub-hosted runners.
-#   Gemini Flash handles extraction — eliminates mac-local runner SPOF.
-#   Required secret: GEMINI_API_KEY in GitHub Actions.
+# Provider strategy (2026-06, issue #1089):
+#   Local dev: Ollama (offline, zero cloud cost) — default in this file.
+#   CI / production: Gemini Flash — overridden via env vars in GitHub Actions:
+#     LLM_EXTRACTION_PROVIDER=gemini LLM_EXTRACTION_MODEL=gemini-2.5-flash
+#   This keeps unit tests (which assert Ollama default) and local dev intact.
 
 # Primary extraction (full claim extraction)
 extraction:
-  provider: gemini              # gemini | claude | openai | ollama
-  model: gemini-2.5-flash       # provider-specific model ID; overridden by LLM_EXTRACTION_MODEL env var
+  provider: ollama              # gemini | claude | openai | ollama; overridden by LLM_EXTRACTION_PROVIDER env var
+  model: qwen2.5:32b            # provider-specific model ID; overridden by LLM_EXTRACTION_MODEL env var
+  base_url: http://localhost:11434
   timeout: 120
   temperature: 0.1
-  rate_limit_seconds: 1.0       # Gemini paid tier ~1000 RPM; overridden by LLM_EXTRACTION_RATE_LIMIT env var
+  rate_limit_seconds: 0.0       # no rate limiting for local inference; overridden by LLM_EXTRACTION_RATE_LIMIT env var
   # gemini models: gemini-2.5-flash (fast+cheap), gemini-2.5-pro (highest quality)
   # claude models: claude-sonnet-4-6, claude-haiku-4-5-20251001
   # openai models: gpt-4o, gpt-4o-mini
-  # ollama models: qwen2.5:32b (local only, requires mac-local runner)
+  # ollama models: qwen2.5:32b, qwen2.5:7b
 
 # Triage pass (fast relevance filter before extraction)
 triage:
-  provider: gemini
-  model: gemini-2.5-flash
+  provider: ollama
+  model: qwen2.5:7b
+  base_url: http://localhost:11434
   timeout: 30
   temperature: 0.0
   enabled: true                 # set false to disable triage pre-filter
@@ -39,8 +42,8 @@ triage:
 # Legacy filter config — kept for backward compat with existing tests
 filter:
   enabled: false                # use triage block above instead
-  provider: gemini
-  model: gemini-2.5-flash
+  provider: ollama
+  model: qwen2.5:7b
 
 # Fallback — disabled
 fallback:

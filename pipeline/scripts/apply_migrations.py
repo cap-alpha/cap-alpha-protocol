@@ -303,8 +303,13 @@ def apply_migrations(dry_run: bool = False, mark_applied: bool = False) -> None:
             total_applied += 1
             continue
 
-        # Apply the migration
-        sql = content.replace("{project_id}", project_id)
+        # Apply the migration — normalize all project_id template variants.
+        # Some SQL files use shell-style ${PROJECT_ID} / ${project_id} instead of
+        # Python-style {project_id}; handle all three to avoid BigQuery 400 errors.
+        sql = content
+        sql = sql.replace("${PROJECT_ID}", project_id)
+        sql = sql.replace("${project_id}", project_id)
+        sql = sql.replace("{project_id}", project_id)
         statements = _split_statements(sql)
         log.info(
             "  APPLY  %s  (%d statement(s), sha256=%s)",

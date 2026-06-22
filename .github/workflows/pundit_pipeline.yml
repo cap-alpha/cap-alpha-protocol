@@ -41,7 +41,10 @@ jobs:
           # nfl-data-py ships pandas<2.0/numpy<2.0 constraints; bypass with --no-deps.
           # The package works at runtime with current numpy/pandas.
           .venv/bin/pip install --no-deps "nfl-data-py>=0.3.3"
-          # --prefer-binary avoids source builds entirely (no pkg_resources issues)
+          # Pre-pin pandas/numpy to versions with py312 binary wheels.
+          # pandas-gbq requires pandas>=1.5.3 which pip resolves to 1.5.3 (source-only
+          # on py312). Pre-installing 2.x satisfies that constraint with a binary wheel.
+          .venv/bin/pip install "numpy>=1.26" "pandas>=2.0"
           .venv/bin/pip install --prefer-binary -r pipeline/requirements.txt
           echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 

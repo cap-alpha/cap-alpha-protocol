@@ -114,13 +114,20 @@ def call_claude(system: str, user: str) -> str:
     return response.content[0].text
 
 
-def post_github_comment(repo: str, pr_number: int, body: str, gh_token: str) -> None:
+def has_blockers(review_text: str) -> bool:
+    return "[BLOCKER]" in review_text
+
+
+def post_github_review(
+    repo: str, pr_number: int, body: str, event: str, gh_token: str
+) -> None:
+    """Post a formal PR review (APPROVE, REQUEST_CHANGES, or COMMENT)."""
     import json
     import urllib.error
     import urllib.request
 
-    url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
-    payload = json.dumps({"body": body}).encode()
+    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
+    payload = json.dumps({"body": body, "event": event}).encode()
     req = urllib.request.Request(
         url,
         data=payload,
@@ -138,13 +145,15 @@ def post_github_comment(repo: str, pr_number: int, body: str, gh_token: str) -> 
                 raise RuntimeError(f"GitHub API returned {resp.status}")
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f"GitHub API returned {exc.code}: {exc.reason}") from exc
-    print(f"Review comment posted to PR #{pr_number}.")
+    print(f"Review posted ({event}) to PR #{pr_number}.")
 
-def format_comment(review_text: str) -> str:
-    header = "## Claude Review [advisory]\n\n"
+
+def format_review_body(review_text: str, event: str) -> str:
+    verdict = "✅ No blockers found." if event == "APPROVE" else "🚫 Blockers found — see findings below."
+    header = f"## Claude Review [advisory]\n\n{verdict}\n\n"
     footer = (
         "\n\n---\n"
-        "_This review is advisory and does not block merges. "
+        "_This review is advisory. "
         "Model: `claude-opus-4-7`. "
         "To skip: add the `skip-claude-review` label._"
     )
@@ -194,10 +203,11 @@ def main() -> None:
         print(f"WARNING: Claude API call failed — skipping review. ({exc})", file=sys.stderr)
         sys.exit(0)
 
-    comment_body = format_comment(review_text)
+    event = "REQUEST_CHANGES" if has_blockers(review_text) else "APPROVE"
+    review_body = format_review_body(review_text, event)
 
     if args.dry_run or args.pr_number == 0:
-        print(comment_body)
+        print(f"[{event}]\n{review_body}")
         sys.exit(0)
 
     if not args.repo or not args.gh_token:
@@ -205,9 +215,9 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        post_github_comment(args.repo, args.pr_number, comment_body, args.gh_token)
+        post_github_review(args.repo, args.pr_number, review_body, event, args.gh_token)
     except Exception as exc:  # noqa: BLE001
-        print(f"WARNING: Failed to post review comment — {exc}", file=sys.stderr)
+        print(f"WARNING: Failed to post review — {exc}", file=sys.stderr)
         sys.exit(0)
 
 

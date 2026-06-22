@@ -41,9 +41,8 @@ jobs:
           # nfl-data-py ships pandas<2.0/numpy<2.0 constraints; bypass with --no-deps.
           # The package works at runtime with current numpy/pandas.
           .venv/bin/pip install --no-deps "nfl-data-py>=0.3.3"
-          # --no-build-isolation ensures source builds see the venv's setuptools
-          # (pip's isolated build envs lack pkg_resources on ubuntu-latest python3.12)
-          .venv/bin/pip install -r pipeline/requirements.txt --no-build-isolation
+          # --prefer-binary avoids source builds entirely (no pkg_resources issues)
+          .venv/bin/pip install --prefer-binary -r pipeline/requirements.txt
           echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
       - name: Authenticate to GCP (Workload Identity)

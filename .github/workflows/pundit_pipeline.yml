@@ -38,14 +38,15 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/pip install --upgrade pip setuptools wheel
-          # nfl-data-py ships pandas<2.0/numpy<2.0 constraints; bypass with --no-deps.
-          # The package works at runtime with current numpy/pandas.
-          .venv/bin/pip install --no-deps "nfl-data-py>=0.3.3"
-          # Pre-pin pandas/numpy to versions with py312 binary wheels.
-          # pandas-gbq requires pandas>=1.5.3 which pip resolves to 1.5.3 (source-only
-          # on py312). Pre-installing 2.x satisfies that constraint with a binary wheel.
+          # Pre-pin numpy/pandas before bulk install so the resolver picks binary wheels.
+          # pandas-gbq requires pandas>=1.5.3; without this, pip resolves to 1.5.3
+          # which has no py312 binary wheel (source build fails on pkg_resources).
           .venv/bin/pip install "numpy>=1.26" "pandas>=2.0"
-          .venv/bin/pip install --prefer-binary -r pipeline/requirements.txt
+          # Bulk install — nfl-data-py excluded here because its pandas<2.0 constraint
+          # would force the resolver back to a source-only pandas version.
+          grep -v "nfl-data-py" pipeline/requirements.txt | .venv/bin/pip install --prefer-binary -r /dev/stdin
+          # Install nfl-data-py last with --no-deps to skip its stale pandas<2.0 pin.
+          .venv/bin/pip install --no-deps "nfl-data-py>=0.3.3"
           echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
 
       - name: Authenticate to GCP (Workload Identity)

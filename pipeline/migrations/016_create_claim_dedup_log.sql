@@ -23,7 +23,8 @@ CREATE TABLE IF NOT EXISTS `${PROJECT_ID}.gold_layer.claim_dedup_log`
   -- When this dedup event was recorded
   ingested_at       TIMESTAMP NOT NULL OPTIONS(description="UTC timestamp when this dedup event was logged"),
   -- Phase 0 = 'exact'; future phases may add 'semantic'
-  match_type        STRING    NOT NULL DEFAULT 'exact' OPTIONS(description="Dedup match strategy: 'exact' (Phase 0) or 'semantic' (Phase 1+)")
+  -- BigQuery column-schema grammar requires DEFAULT before NOT NULL.
+  match_type        STRING    DEFAULT 'exact' NOT NULL OPTIONS(description="Dedup match strategy: 'exact' (Phase 0) or 'semantic' (Phase 1+)")
 )
 PARTITION BY DATE(ingested_at)
 CLUSTER BY pundit_id, match_type

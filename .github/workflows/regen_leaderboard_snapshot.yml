@@ -1,11 +1,13 @@
 name: Regen Leaderboard Snapshot
 
 # Daily regen of web/lib/data/leaderboard-snapshot.json so the homepage
-# never goes stale.  Runs on GitHub-hosted ubuntu (not the self-hosted
+# never goes stale. Runs on GitHub-hosted ubuntu (not the self-hosted
 # runner) to stay independent of the pipeline workflow's health.
 #
-# Commits straight to main when the snapshot changes.  Skips the commit
-# when there is no diff to keep history clean.
+# Opens a PR when the snapshot changes (branch protection forbids direct
+# pushes to main). The PR reuses a single branch — successive regens
+# update the same PR rather than piling up duplicates. Skips the PR
+# step entirely when there is no diff.
 
 on:
   schedule:
@@ -24,15 +26,13 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      pull-requests: write
       id-token: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          # Use a token that can push to main bypassing branch protection,
-          # or use the default GITHUB_TOKEN (will need branch protection
-          # exception for github-actions[bot]).
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Python
@@ -65,29 +65,51 @@ jobs:
         run: |
           python pipeline/scripts/regen_leaderboard_snapshot.py
 
-      - name: Commit if changed
+      - name: Detect snapshot diff
+        id: diff
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           if git diff --quiet web/lib/data/leaderboard-snapshot.json; then
-            echo "No snapshot changes — skipping commit."
-            exit 0
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No snapshot changes — skipping PR creation."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-          # Surface a brief summary in the commit body so PR-less commits
-          # still tell the story.
+
+      - name: Compute snapshot stats
+        if: steps.diff.outputs.changed == 'true'
+        id: stats
+        run: |
           STATS=$(python3 -c "
           import json
           d = json.load(open('web/lib/data/leaderboard-snapshot.json'))
           p = d.get('pundits', [])
           print(f\"pundits={len(p)} predictions={sum(x.get('total_predictions',0) for x in p)} resolved={sum(x.get('resolved_predictions',0) for x in p)} correct={sum(x.get('correct_predictions',0) for x in p)}\")
           ")
-          git add web/lib/data/leaderboard-snapshot.json
-          git commit -m "chore(snapshot): scheduled leaderboard snapshot regen
+          echo "summary=${STATS}" >> "$GITHUB_OUTPUT"
 
-          ${STATS}
+      - name: Create or update PR
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            chore(snapshot): scheduled leaderboard snapshot regen
 
-          [skip ci]"
-          git push origin HEAD:main
+            ${{ steps.stats.outputs.summary }}
+          title: "chore(snapshot): scheduled leaderboard snapshot regen"
+          body: |
+            Automated regen of `web/lib/data/leaderboard-snapshot.json`.
+
+            **Snapshot summary:** ${{ steps.stats.outputs.summary }}
+
+            This PR is updated in place on every scheduled run that produces
+            a diff. Safe to rebase + auto-merge once CI is green.
+          branch: chore/leaderboard-snapshot
+          delete-branch: true
+          add-paths: web/lib/data/leaderboard-snapshot.json
+          labels: |
+            automated
+            snapshot
 
       - name: Cleanup
         if: always()

@@ -39,4 +39,4 @@ readability-lxml
 tenacity
 sentry-sdk[fastapi]>=2.62.0
 Jinja2>=3.1.6
-fastmcp>=3.4.2,<4.0
+fastmcp>=3.4.4,<4.0

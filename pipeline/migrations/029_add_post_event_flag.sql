@@ -9,10 +9,20 @@
 -- match the known post-event URL / title patterns.  Safe to re-run (idempotent).
 
 -- ── 1. Add column ──────────────────────────────────────────────────────────────
+-- BigQuery rejects `ADD COLUMN ... DEFAULT` on an existing table. Per the BQ
+-- error guidance, split into three statements: add the column, set its DEFAULT
+-- for future inserts, then backfill existing rows so the column is effectively
+-- FALSE-by-default before the heuristic UPDATEs below flip qualifying rows to TRUE.
 ALTER TABLE `{project_id}.nfl_dead_money.raw_pundit_media`
   ADD COLUMN IF NOT EXISTS is_post_event BOOL
-    DEFAULT FALSE
     OPTIONS(description="TRUE when heuristic detects a post-event article (e.g. draft tracker, live grades). Rows with is_post_event=TRUE are excluded from LLM extraction.");
+
+ALTER TABLE `{project_id}.nfl_dead_money.raw_pundit_media`
+  ALTER COLUMN is_post_event SET DEFAULT FALSE;
+
+UPDATE `{project_id}.nfl_dead_money.raw_pundit_media`
+SET    is_post_event = FALSE
+WHERE  is_post_event IS NULL;
 
 -- ── 2. Backfill: URL-pattern heuristics ───────────────────────────────────────
 --

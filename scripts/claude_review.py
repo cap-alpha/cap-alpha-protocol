@@ -39,7 +39,11 @@ def parse_args() -> argparse.Namespace:
     src.add_argument("--diff-stdin", action="store_true", help="Read diff from stdin")
     p.add_argument("--pr-number", required=True, type=int)
     p.add_argument("--repo", default="", help="owner/repo — required when posting")
-    p.add_argument("--gh-token", default="", help="GitHub token for posting the review comment")
+    p.add_argument(
+        "--gh-token",
+        default=os.environ.get("GH_TOKEN", ""),
+        help="GitHub token for posting the review comment. Defaults to $GH_TOKEN env var; avoid passing via CLI arg (leaks into shell history / process list).",
+    )
     p.add_argument("--dry-run", action="store_true", help="Print review to stdout, do not post")
     p.add_argument("--labels", default="", help="Comma-separated list of PR labels (for skip check)")
     return p.parse_args()
@@ -114,13 +118,20 @@ def call_claude(system: str, user: str) -> str:
     return response.content[0].text
 
 
-def post_github_comment(repo: str, pr_number: int, body: str, gh_token: str) -> None:
+def has_blockers(review_text: str) -> bool:
+    return "[BLOCKER]" in review_text
+
+
+def post_github_review(
+    repo: str, pr_number: int, body: str, event: str, gh_token: str
+) -> None:
+    """Post a formal PR review (APPROVE, REQUEST_CHANGES, or COMMENT)."""
     import json
     import urllib.error
     import urllib.request
 
-    url = f"https://api.github.com/repos/{repo}/issues/{pr_number}/comments"
-    payload = json.dumps({"body": body}).encode()
+    url = f"https://api.github.com/repos/{repo}/pulls/{pr_number}/reviews"
+    payload = json.dumps({"body": body, "event": event}).encode()
     req = urllib.request.Request(
         url,
         data=payload,
@@ -133,18 +144,20 @@ def post_github_comment(repo: str, pr_number: int, body: str, gh_token: str) -> 
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             if resp.status not in (200, 201):
                 raise RuntimeError(f"GitHub API returned {resp.status}")
     except urllib.error.HTTPError as exc:
         raise RuntimeError(f"GitHub API returned {exc.code}: {exc.reason}") from exc
-    print(f"Review comment posted to PR #{pr_number}.")
+    print(f"Review posted ({event}) to PR #{pr_number}.")
 
-def format_comment(review_text: str) -> str:
-    header = "## Claude Review [advisory]\n\n"
+
+def format_review_body(review_text: str, event: str) -> str:
+    verdict = "✅ No blockers found." if event == "APPROVE" else "🚫 Blockers found — see findings below."
+    header = f"## Claude Review [advisory]\n\n{verdict}\n\n"
     footer = (
         "\n\n---\n"
-        "_This review is advisory and does not block merges. "
+        "_This review is advisory. "
         "Model: `claude-opus-4-7`. "
         "To skip: add the `skip-claude-review` label._"
     )
@@ -194,10 +207,11 @@ def main() -> None:
         print(f"WARNING: Claude API call failed — skipping review. ({exc})", file=sys.stderr)
         sys.exit(0)
 
-    comment_body = format_comment(review_text)
+    event = "REQUEST_CHANGES" if has_blockers(review_text) else "APPROVE"
+    review_body = format_review_body(review_text, event)
 
     if args.dry_run or args.pr_number == 0:
-        print(comment_body)
+        print(f"[{event}]\n{review_body}")
         sys.exit(0)
 
     if not args.repo or not args.gh_token:
@@ -205,10 +219,13 @@ def main() -> None:
         sys.exit(1)
 
     try:
-        post_github_comment(args.repo, args.pr_number, comment_body, args.gh_token)
+        post_github_review(args.repo, args.pr_number, review_body, event, args.gh_token)
     except Exception as exc:  # noqa: BLE001
-        print(f"WARNING: Failed to post review comment — {exc}", file=sys.stderr)
-        sys.exit(0)
+        # Fail loudly: a silent exit-0 here produces a green workflow run with no
+        # review actually posted, so blockers slip through. Exit non-zero and let
+        # workflow-level `continue-on-error` decide whether to gate the merge.
+        print(f"ERROR: Failed to post review — {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

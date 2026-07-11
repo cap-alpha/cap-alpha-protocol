@@ -39,7 +39,11 @@ def parse_args() -> argparse.Namespace:
     src.add_argument("--diff-stdin", action="store_true", help="Read diff from stdin")
     p.add_argument("--pr-number", required=True, type=int)
     p.add_argument("--repo", default="", help="owner/repo — required when posting")
-    p.add_argument("--gh-token", default="", help="GitHub token for posting the review comment")
+    p.add_argument(
+        "--gh-token",
+        default=os.environ.get("GH_TOKEN", ""),
+        help="GitHub token for posting the review comment. Defaults to $GH_TOKEN env var; avoid passing via CLI arg (leaks into shell history / process list).",
+    )
     p.add_argument("--dry-run", action="store_true", help="Print review to stdout, do not post")
     p.add_argument("--labels", default="", help="Comma-separated list of PR labels (for skip check)")
     return p.parse_args()
@@ -140,7 +144,7 @@ def post_github_review(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(req) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:
             if resp.status not in (200, 201):
                 raise RuntimeError(f"GitHub API returned {resp.status}")
     except urllib.error.HTTPError as exc:
@@ -217,8 +221,11 @@ def main() -> None:
     try:
         post_github_review(args.repo, args.pr_number, review_body, event, args.gh_token)
     except Exception as exc:  # noqa: BLE001
-        print(f"WARNING: Failed to post review — {exc}", file=sys.stderr)
-        sys.exit(0)
+        # Fail loudly: a silent exit-0 here produces a green workflow run with no
+        # review actually posted, so blockers slip through. Exit non-zero and let
+        # workflow-level `continue-on-error` decide whether to gate the merge.
+        print(f"ERROR: Failed to post review — {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

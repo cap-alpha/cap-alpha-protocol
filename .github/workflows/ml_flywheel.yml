@@ -1,9 +1,10 @@
 name: Automated ML Flywheel
 
 on:
-  schedule:
-    # Run every Tuesday at 3:00 AM EST (8:00 AM UTC) to capture complete NFL weekend data
-    - cron: '0 8 * * 2'
+  # PAUSED 2026-07-16 — project paused; re-enable via revert.
+  # schedule:
+  #   # Run every Tuesday at 3:00 AM EST (8:00 AM UTC) to capture complete NFL weekend data
+  #   - cron: '0 8 * * 2'
   workflow_dispatch:
     # Allow manual triggering from the GitHub UI for testing
 

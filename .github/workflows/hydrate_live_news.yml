@@ -1,9 +1,10 @@
 name: Live News Hydration
 
 on:
-  schedule:
-    # Run hourly to capture breaking news and telemetry alerts
-    - cron: '0 * * * *'
+  # PAUSED 2026-07-16 — project paused; re-enable via revert.
+  # schedule:
+  #   # Run hourly to capture breaking news and telemetry alerts
+  #   - cron: '0 * * * *'
   workflow_dispatch:
     # Allow manual triggering from the GitHub UI
 

@@ -1,11 +1,12 @@
 name: Pundit Prediction Pipeline
 
 on:
-  schedule:
-    # Run every 30 minutes during active hours (8am-midnight EDT = 12:00-04:00 UTC; shifts 1h in EST)
-    - cron: '3,33 12-23,0-4 * * *'
-    # Run every 2 hours during off-hours
-    - cron: '3 5-11 * * *'
+  # PAUSED 2026-07-16 — project paused; re-enable via revert.
+  # schedule:
+  #   # Run every 30 minutes during active hours (8am-midnight EDT = 12:00-04:00 UTC; shifts 1h in EST)
+  #   - cron: '3,33 12-23,0-4 * * *'
+  #   # Run every 2 hours during off-hours
+  #   - cron: '3 5-11 * * *'
   workflow_dispatch:
     inputs:
       limit:

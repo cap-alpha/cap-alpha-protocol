@@ -1,8 +1,9 @@
 name: Daily Data Sync (2025 Pipeline)
 
 on:
-  schedule:
-    - cron: '0 8 * * *' # Daily at 3 AM EST (8 AM UTC)
+  # PAUSED 2026-07-16 — project paused; re-enable via revert.
+  # schedule:
+  #   - cron: '0 8 * * *' # Daily at 3 AM EST (8 AM UTC)
   workflow_dispatch:
 
 jobs:

@@ -10,8 +10,9 @@ name: Extraction Health Alert
 # Job runtime budget: < 3 min; timeout at 5 to allow for GCP auth latency
 
 on:
-  schedule:
-    - cron: '17 * * * *'  # :17 past every hour — avoids top-of-hour GHA congestion
+  # PAUSED 2026-07-16 — project paused; re-enable via revert.
+  # schedule:
+  #   - cron: '17 * * * *'  # :17 past every hour — avoids top-of-hour GHA congestion
   workflow_dispatch:
 
 jobs:

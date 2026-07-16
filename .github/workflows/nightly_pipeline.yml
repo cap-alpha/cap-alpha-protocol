@@ -1,9 +1,10 @@
 name: Nightly Data Pipeline & BigQuery Sync
 
 on:
-  schedule:
-    # Run at 08:00 UTC (4:00 AM EDT) every day
-    - cron: '0 8 * * *'
+  # PAUSED 2026-07-16 — project paused; re-enable via revert.
+  # schedule:
+  #   # Run at 08:00 UTC (4:00 AM EDT) every day
+  #   - cron: '0 8 * * *'
   workflow_dispatch:
 
 jobs:

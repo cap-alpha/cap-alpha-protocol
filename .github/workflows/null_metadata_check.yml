@@ -5,8 +5,9 @@ name: Nightly NULL-Metadata Assertion
 # A non-zero count means write_raw_utterances() validation was bypassed.
 
 on:
-  schedule:
-    - cron: '30 9 * * *'  # 09:30 UTC — after nightly pipeline at 08:00
+  # PAUSED 2026-07-16 — project paused; re-enable via revert.
+  # schedule:
+  #   - cron: '30 9 * * *'  # 09:30 UTC — after nightly pipeline at 08:00
   workflow_dispatch:
 
 jobs:

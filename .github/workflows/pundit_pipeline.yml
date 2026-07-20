@@ -106,7 +106,7 @@ jobs:
           # Explicitly override the yaml-default (Ollama) to Gemini for CI runs.
           # llm_config.yaml stays Ollama-first so local dev remains offline-capable.
           LLM_EXTRACTION_PROVIDER: gemini
-          LLM_EXTRACTION_MODEL: gemini-2.5-flash
+          LLM_EXTRACTION_MODEL: gemini-3-flash-preview
           PYTHONPATH: ${{ github.workspace }}/pipeline
           # CI provenance — written to silver_v2_claims.extraction_run by run_extraction()
           GITHUB_SHA: ${{ github.sha }}

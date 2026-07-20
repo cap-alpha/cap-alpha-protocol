@@ -143,7 +143,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           LLM_EXTRACTION_PROVIDER: gemini
-          LLM_EXTRACTION_MODEL: gemini-2.5-flash
+          LLM_EXTRACTION_MODEL: gemini-3-flash-preview
         run: |
           export PYTHONPATH=$(pwd)/pipeline:$(pwd)/pipeline/src:$(pwd)/pipeline/libs
           python pipeline/scripts/run_extraction_smoke.py \

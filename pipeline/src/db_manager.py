@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 import os
@@ -10,6 +11,51 @@ from google.cloud import bigquery
 from google.oauth2 import service_account
 
 logger = logging.getLogger(__name__)
+
+
+def _json_load_safe_value(value: Any, is_json_col: bool) -> Any:
+    """Normalize a single DataFrame cell into a value load_table_from_json accepts.
+
+    - NaN/NaT/None -> None
+    - pandas Timestamp / datetime.date -> ISO-8601 string (what BQ's JSON
+      loader expects for TIMESTAMP/DATE columns)
+    - is_json_col=True and value is a JSON-encoded string -> parsed into a
+      native dict/list so the loader emits a real JSON value, not a quoted
+      string. Falls back to the raw string if it isn't valid JSON.
+    - everything else (str, list, dict, scalar) -> passed through unchanged
+    """
+    if value is None:
+        return None
+    if isinstance(value, float) and pd.isna(value):
+        return None
+    if value is pd.NaT:
+        return None
+    if isinstance(value, pd.Timestamp):
+        return None if pd.isna(value) else value.isoformat()
+    if isinstance(value, (datetime.datetime, datetime.date)):
+        return value.isoformat()
+    if is_json_col and isinstance(value, str):
+        try:
+            return json.loads(value)
+        except (TypeError, ValueError):
+            return value
+    return value
+
+
+def _dataframe_to_json_load_rows(df: pd.DataFrame, json_cols: set) -> list:
+    """Convert a DataFrame to row dicts suitable for client.load_table_from_json().
+
+    json_cols: names of columns whose destination BigQuery type is JSON —
+    their values are parsed from JSON-encoded strings into native
+    dict/list objects (see _json_load_safe_value).
+    """
+    return [
+        {
+            col: _json_load_safe_value(value, is_json_col=col in json_cols)
+            for col, value in row.items()
+        }
+        for row in df.to_dict("records")
+    ]
 
 
 class BQResultProxy:
@@ -183,13 +229,39 @@ class DBManager:
             raise
 
     def append_dataframe_to_table(self, df: pd.DataFrame, table_name: str):
-        """Appends a Pandas DataFrame directly to a BigQuery table."""
+        """Appends a Pandas DataFrame directly to a BigQuery table.
+
+        table_name may be:
+          - bare: "raw_pundit_media"                    -> {project}.{self.dataset_id}.raw_pundit_media
+          - dataset-qualified: "silver_v2_claims.claim" -> {project}.silver_v2_claims.claim
+          - fully qualified: "project.dataset.table"    -> used as-is
+
+        Bare names are qualified against this DBManager's default dataset_id
+        (unchanged legacy behavior). Names that already carry a dataset (or
+        project+dataset) qualifier are used as given — previously this method
+        always prepended self.dataset_id, which turned an already-qualified
+        name like "silver_v2_claims.claim" into the invalid 4-part id
+        "{project}.{self.dataset_id}.silver_v2_claims.claim" and made every
+        write to a non-default dataset fail with a BigQuery ValueError. See
+        DuckDBManager.append_dataframe_to_table for the equivalent (already
+        correct) local-backend logic this mirrors.
+        """
         if self.client is None:
             raise RuntimeError("Database connection not initialized.")
 
         try:
             logger.info(f"DBManager: Appending dataframe to '{table_name}'...")
-            table_ref = f"{self.project_id}.{self.dataset_id}.{table_name}"
+            parts = table_name.split(".")
+            if len(parts) >= 3:
+                # Already fully qualified as project.dataset.table — use as-is.
+                table_ref = table_name
+            elif len(parts) == 2:
+                # dataset.table — qualify with project only; do not also
+                # prepend self.dataset_id (that would produce a 4-part id).
+                table_ref = f"{self.project_id}.{table_name}"
+            else:
+                # bare table name — qualify with project + default dataset.
+                table_ref = f"{self.project_id}.{self.dataset_id}.{table_name}"
 
             # Sanitize column names for BigQuery compatibility
             df_cleaned = df.copy()
@@ -217,10 +289,37 @@ class DBManager:
                     # Mixed non-string scalars — coerce to string.
                     df_cleaned[col] = df_cleaned[col].astype(str)
 
+            # BigQuery JSON-typed destination columns (e.g.
+            # silver_v2_claims.claim.predicate_args) cannot be loaded via
+            # load_table_from_dataframe: that path serializes through
+            # Parquet, which has no native JSON logical type, so BigQuery
+            # rejects the load with "400 Unsupported field type: JSON" —
+            # this reproduces even with an explicit JSON SchemaField or a
+            # db_dtypes.JSONDtype-tagged column. load_table_from_json (NDJSON)
+            # does not go through Parquet and handles JSON columns natively,
+            # so route through it whenever the destination has JSON columns.
+            # Every other call site (no JSON columns) is unaffected.
+            try:
+                dest_schema = self.client.get_table(table_ref).schema
+                json_cols = {f.name for f in dest_schema if f.field_type == "JSON"}
+            except Exception as schema_exc:
+                logger.debug(
+                    f"Could not introspect schema for '{table_ref}' "
+                    f"(defaulting to no JSON columns): {schema_exc}"
+                )
+                json_cols = set()
+            json_cols &= set(df_cleaned.columns)
+
             job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
-            job = self.client.load_table_from_dataframe(
-                df_cleaned, table_ref, job_config=job_config
-            )
+            if json_cols:
+                records = _dataframe_to_json_load_rows(df_cleaned, json_cols)
+                job = self.client.load_table_from_json(
+                    records, table_ref, job_config=job_config
+                )
+            else:
+                job = self.client.load_table_from_dataframe(
+                    df_cleaned, table_ref, job_config=job_config
+                )
             job.result()  # Wait for upload to complete
             logger.info(
                 f"DBManager: Successfully appended {len(df_cleaned)} rows to '{table_name}'."

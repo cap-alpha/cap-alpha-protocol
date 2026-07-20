@@ -11,6 +11,8 @@ interface PredictionEntry {
     };
     meant: string;
     happened: string;
+    /** Whether the prediction resolved correct — drives the HAPPENED layer color (#1069). */
+    correct: boolean;
     axesCaption: string;
     fairnessFootnote: string;
 }
@@ -27,6 +29,7 @@ const ALL_PREDICTIONS: PredictionEntry[] = [
         },
         meant: "Carnell Tate to the Washington Commanders, pick #7 overall.",
         happened: "Carnell Tate selected #3 overall by the Tennessee Titans.",
+        correct: false,
         axesCaption: "Off by 4 picks · wrong team",
         fairnessFootnote: "Same mock had Fernando Mendoza going #1 to the Raiders. He did.",
     },
@@ -39,6 +42,7 @@ const ALL_PREDICTIONS: PredictionEntry[] = [
         },
         meant: "Kansas City Chiefs win Super Bowl LIX, their third consecutive championship.",
         happened: "Philadelphia Eagles 40, Kansas City Chiefs 22. Mahomes threw 2 interceptions. Jalen Hurts named MVP.",
+        correct: false,
         axesCaption: "Wrong winner · off by 18 points",
         fairnessFootnote: "The Chiefs did reach the Super Bowl — the claim about their dominance wasn't baseless.",
     },
@@ -51,6 +55,7 @@ const ALL_PREDICTIONS: PredictionEntry[] = [
         },
         meant: "Cam Ward, QB, Miami to the Tennessee Titans at pick #1 overall.",
         happened: "Cam Ward selected #1 overall by the Tennessee Titans. Correct.",
+        correct: true,
         axesCaption: "Right player · right team · right pick ✓",
         fairnessFootnote: "We score correct predictions too. Pundits who get it right get full credit.",
     },
@@ -94,7 +99,7 @@ export function TrackedPredictionCard() {
     return (
         <div>
             <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-500">
+                <p className="text-[10px] font-mono uppercase tracking-widest text-ink-2">
                     Tracked Prediction
                 </p>
                 {rotating && (
@@ -105,8 +110,8 @@ export function TrackedPredictionCard() {
                                 onClick={() => goTo(i)}
                                 className={`w-1.5 h-1.5 rounded-full transition-colors ${
                                     i === activeIdx
-                                        ? "bg-emerald-400"
-                                        : "bg-zinc-700 hover:bg-zinc-500"
+                                        ? "bg-navy"
+                                        : "bg-editorial-border hover:bg-ink-3"
                                 }`}
                                 aria-label={`View prediction ${i + 1}`}
                                 aria-pressed={i === activeIdx}
@@ -120,25 +125,31 @@ export function TrackedPredictionCard() {
                 On narrow viewports (<md) the columns stack vertically.
                 On md+ they sit side-by-side with vertical dividers. */}
             <div
-                className={`border border-zinc-800 rounded-lg overflow-hidden transition-opacity duration-[180ms] ${
+                className={`border border-editorial-border rounded-lg overflow-hidden transition-opacity duration-[180ms] ${
                     visible ? "opacity-100" : "opacity-0"
                 }`}
             >
-                <div className="grid grid-cols-1 md:grid-cols-3 divide-y divide-zinc-800 md:divide-y-0 md:divide-x md:divide-zinc-800">
+                {/* Layer label colors match the three-layer evidence model on the
+                    pundit-detail slice (EvidenceLayer / LAYER tokens in
+                    PunditProfileClient.tsx, #1067): SAID is neutral, MEANT is
+                    the informational cyan used for structured-interpretation
+                    text, HAPPENED takes the real correct/incorrect outcome
+                    color rather than a flat accent (#1069). */}
+                <div className="grid grid-cols-1 md:grid-cols-3 divide-y divide-editorial-border md:divide-y-0 md:divide-x md:divide-editorial-border">
                     {/* ── Said ── */}
                     <div className="px-5 py-4 flex flex-col">
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-ink-3 mb-2">
                             Said
                         </p>
-                        <blockquote className="text-sm text-zinc-200 leading-relaxed flex-1">
+                        <blockquote className="text-sm text-ink leading-relaxed flex-1">
                             &ldquo;{p.said.quote}&rdquo;
                         </blockquote>
-                        <p className="mt-2 text-xs text-zinc-500">{p.said.attribution}</p>
+                        <p className="mt-2 text-xs text-ink-2">{p.said.attribution}</p>
                         <a
                             href={p.said.sourceUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-block mt-1 text-xs text-zinc-500 hover:text-emerald-400 transition-colors underline underline-offset-2"
+                            className="inline-block mt-1 text-xs text-ink-2 hover:text-navy transition-colors underline underline-offset-2"
                         >
                             {p.said.sourceLinkText} ↗
                         </a>
@@ -146,20 +157,30 @@ export function TrackedPredictionCard() {
 
                     {/* ── Meant ── */}
                     <div className="px-5 py-4 flex flex-col">
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-[#0891B2] mb-2">
                             Meant
                         </p>
-                        <p className="text-sm text-zinc-200 leading-relaxed flex-1">{p.meant}</p>
+                        <p className="text-sm text-ink leading-relaxed flex-1">{p.meant}</p>
                     </div>
 
                     {/* ── Happened ── */}
                     <div className="px-5 py-4 flex flex-col">
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-emerald-400 mb-2">
+                        <p
+                            className={`text-[10px] font-mono uppercase tracking-widest mb-2 ${
+                                p.correct ? "text-correct" : "text-[#991B1B]"
+                            }`}
+                        >
                             Happened
                         </p>
-                        <p className="text-sm text-zinc-200 leading-relaxed flex-1">{p.happened}</p>
-                        <p className="mt-2 text-xs text-emerald-400/80 font-mono">{p.axesCaption}</p>
-                        <p className="mt-2 text-xs text-zinc-400 leading-snug italic">
+                        <p className="text-sm text-ink leading-relaxed flex-1">{p.happened}</p>
+                        <p
+                            className={`mt-2 text-xs font-mono ${
+                                p.correct ? "text-correct" : "text-[#991B1B]"
+                            }`}
+                        >
+                            {p.axesCaption}
+                        </p>
+                        <p className="mt-2 text-xs text-ink-2 leading-snug italic">
                             {p.fairnessFootnote}
                         </p>
                     </div>

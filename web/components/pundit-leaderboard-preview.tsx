@@ -31,30 +31,32 @@ const STAFF_BUCKET_IDS = new Set([
     "athletic_nfl_staff",
 ]);
 
+// Editorial palette (#1069): numbers in ink by default, navy only for top
+// decile, semantic red only under 45% — matches AccuracyBar on /ledger (#1068).
 function AccuracyDisplay({ rate }: { rate: number | null }) {
-    if (rate === null) return <span className="text-2xl font-black font-mono text-zinc-600 tabular-nums">—</span>;
+    if (rate === null) return <span className="text-2xl font-bold font-mono text-ink-3 tabular-nums">—</span>;
     const pct = Math.round(rate * 100);
-    const colorClass = pct >= 60 ? "text-emerald-400" : pct >= 45 ? "text-yellow-400" : "text-red-400";
+    const colorClass = pct >= 65 ? "text-navy" : pct < 45 ? "text-incorrect" : "text-ink";
     return (
         <AnimatedCounter
             value={pct}
             suffix="%"
             duration={900}
-            className={cn("text-2xl font-black font-mono tabular-nums", colorClass)}
+            className={cn("text-2xl font-bold font-mono tabular-nums", colorClass)}
         />
     );
 }
 
 function AccuracyBadge({ rate }: { rate: number | null }) {
-    if (rate === null) return <span className="text-lg font-black font-mono text-zinc-600 tabular-nums">—</span>;
+    if (rate === null) return <span className="text-lg font-bold font-mono text-ink-3 tabular-nums">—</span>;
     const pct = Math.round(rate * 100);
-    const colorClass = pct >= 60 ? "text-emerald-400" : pct >= 45 ? "text-yellow-400" : "text-red-400";
+    const colorClass = pct >= 65 ? "text-navy" : pct < 45 ? "text-incorrect" : "text-ink";
     return (
         <AnimatedCounter
             value={pct}
             suffix="%"
             duration={900}
-            className={cn("text-lg font-black font-mono tabular-nums", colorClass)}
+            className={cn("text-lg font-bold font-mono tabular-nums", colorClass)}
         />
     );
 }
@@ -74,11 +76,15 @@ function HotColdBadge({ pundit }: { pundit: PunditStat }) {
     if (rateToUse === null) return null;
     const pct = Math.round(rateToUse * 100);
 
+    // Editorial palette (#1069, ex-#1068 AC): no background/border pill —
+    // uppercase mono text only. HOT keeps a warm (gold) cue, COLD a muted
+    // ink-3 cue, so the two remain distinguishable without adding another
+    // saturated accent color to the page.
     if (pct >= 65) {
         return (
             <span
                 title={`${pundit.accuracy_rate_90d !== undefined ? "90-day" : "Career"} accuracy: ${pct}%`}
-                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/25 shrink-0"
+                className="inline-flex items-center gap-0.5 text-[10px] font-mono font-semibold uppercase tracking-wide text-gold shrink-0"
                 aria-label="Hot — above-average accuracy"
             >
                 <Flame className="w-2.5 h-2.5" />
@@ -90,7 +96,7 @@ function HotColdBadge({ pundit }: { pundit: PunditStat }) {
         return (
             <span
                 title={`${pundit.accuracy_rate_90d !== undefined ? "90-day" : "Career"} accuracy: ${pct}%`}
-                className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-mono font-semibold bg-blue-500/15 text-blue-400 border border-blue-500/25 shrink-0"
+                className="inline-flex items-center gap-0.5 text-[10px] font-mono font-semibold uppercase tracking-wide text-ink-3 shrink-0"
                 aria-label="Cold — below-average accuracy"
             >
                 <Snowflake className="w-2.5 h-2.5" />
@@ -107,29 +113,29 @@ function FeaturedPunditCard({ pundit }: { pundit: PunditStat }) {
     return (
         <Link
             href={`/ledger/${encodeURIComponent(pundit.pundit_id)}`}
-            className="block rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5 hover:bg-emerald-500/8 transition-colors"
+            className="block rounded-2xl border border-navy/20 bg-navy/5 p-5 hover:bg-navy/8 transition-colors"
         >
             <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                        <span className="font-mono text-xs font-black text-yellow-400">#1</span>
-                        <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-400/70">Top Pundit</span>
+                        <span className="font-mono text-xs font-bold text-gold">#1</span>
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-navy/70">Top Pundit</span>
                         <HotColdBadge pundit={pundit} />
                     </div>
-                    <p className="font-display font-black text-xl text-white truncate">{pundit.pundit_name}</p>
-                    <p className="text-xs font-mono text-zinc-500 mt-1">
+                    <p className="font-display font-bold text-xl text-ink truncate">{pundit.pundit_name}</p>
+                    <p className="text-xs font-mono text-ink-2 mt-1">
                         {pundit.resolved_predictions} picks · verified
                     </p>
                 </div>
                 <div className="shrink-0 text-right">
                     <AccuracyDisplay rate={pundit.accuracy_rate} />
-                    <p className="text-[10px] font-mono text-zinc-600 mt-0.5">accuracy</p>
+                    <p className="text-[10px] font-mono text-ink-3 mt-0.5">accuracy</p>
                 </div>
             </div>
             {pct !== null && (
-                <div className="mt-4 w-full h-1 rounded-full bg-zinc-800 overflow-hidden">
+                <div className="mt-4 w-full h-1 rounded-full bg-editorial-border overflow-hidden">
                     <div
-                        className="h-full rounded-full bg-emerald-500 transition-all duration-700"
+                        className="h-full rounded-full bg-navy transition-all duration-700"
                         style={{ width: `${pct}%` }}
                     />
                 </div>
@@ -305,17 +311,18 @@ export function PunditLeaderboardPreview({
      */
     const featuredPundit = pundits.find((p) => p.resolved_predictions >= 20) ?? pundits[0];
 
+    // Editorial palette (#1069): matches RankBadge on /ledger (#1068) — rank 1
+    // gets the kept editorial gold accent, everything else is neutral ink.
     const rankColor = (idx: number) =>
-        idx === 0 ? "text-yellow-400"
-        : idx === 1 ? "text-zinc-300"
-        : idx === 2 ? "text-orange-400"
-        : "text-zinc-600";
+        idx === 0 ? "text-gold"
+        : idx <= 2 ? "text-ink"
+        : "text-ink-3";
 
     return (
         <div className="space-y-4">
             {/* Sport filter pills */}
             <div className="flex items-center gap-2">
-                <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-1 hidden sm:inline">
+                <span className="text-[10px] font-mono uppercase tracking-widest text-ink-3 mr-1 hidden sm:inline">
                     Sport:
                 </span>
                 {SPORTS.map((s) => (
@@ -325,8 +332,8 @@ export function PunditLeaderboardPreview({
                         className={cn(
                             "px-3 py-1 min-h-[44px] inline-flex items-center justify-center rounded text-xs font-mono font-semibold uppercase tracking-wide transition-colors border",
                             activeSport === s
-                                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400"
-                                : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                                ? "bg-navy/10 border-navy/40 text-navy"
+                                : "bg-editorial-card border-editorial-border text-ink-2 hover:text-ink"
                         )}
                         aria-pressed={activeSport === s}
                     >
@@ -337,7 +344,7 @@ export function PunditLeaderboardPreview({
 
             {fetchState === "loading" ? (
                 <div className="flex items-center justify-center h-40">
-                    <div className="flex items-center gap-2 text-zinc-400">
+                    <div className="flex items-center gap-2 text-ink-2">
                         <Activity className="w-4 h-4 animate-pulse" />
                         <span className="text-sm font-mono">Loading ledger…</span>
                     </div>
@@ -345,8 +352,8 @@ export function PunditLeaderboardPreview({
             ) : fetchState === "error" ? (
                 <div className="flex items-center justify-center h-40">
                     <div className="flex flex-col items-center gap-3 text-center px-4">
-                        <WifiOff className="w-5 h-5 text-zinc-600" />
-                        <p className="text-sm font-mono text-zinc-500">
+                        <WifiOff className="w-5 h-5 text-ink-3" />
+                        <p className="text-sm font-mono text-ink-2">
                             Data temporarily unavailable.
                         </p>
                         <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs font-mono">
@@ -367,16 +374,16 @@ export function PunditLeaderboardPreview({
                                             setFetchState("error");
                                         });
                                 }}
-                                className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
+                                className="text-navy hover:text-accent-editorial-light underline underline-offset-2 transition-colors"
                             >
                                 Try again
                             </button>
-                            <span className="text-zinc-700" aria-hidden="true">
+                            <span className="text-ink-3" aria-hidden="true">
                                 ·
                             </span>
                             <Link
                                 href="/status"
-                                className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2 transition-colors"
+                                className="text-navy hover:text-accent-editorial-light underline underline-offset-2 transition-colors"
                             >
                                 System status
                             </Link>
@@ -384,13 +391,13 @@ export function PunditLeaderboardPreview({
                     </div>
                 </div>
             ) : pundits.length === 0 ? (
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 py-12 text-center text-sm">
-                    <p className="text-zinc-400">No scored pundits for this sport yet.</p>
-                    <p className="mt-2 text-xs text-zinc-600">
+                <div className="rounded-xl border border-editorial-border bg-editorial-card py-12 text-center text-sm">
+                    <p className="text-ink-2">No scored pundits for this sport yet.</p>
+                    <p className="mt-2 text-xs text-ink-3">
                         Check{" "}
                         <Link
                             href="/status"
-                            className="text-emerald-500 hover:text-emerald-400 underline underline-offset-2"
+                            className="text-navy hover:text-accent-editorial-light underline underline-offset-2"
                         >
                             /status
                         </Link>{" "}
@@ -408,15 +415,15 @@ export function PunditLeaderboardPreview({
                                 <Link
                                     key={p.pundit_id}
                                     href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
-                                    className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-3 hover:border-zinc-700 transition-colors"
+                                    className="flex items-center gap-3 rounded-xl border border-editorial-border bg-editorial-card px-4 py-3 hover:border-navy/30 transition-colors"
                                 >
-                                    <span className={cn("font-mono text-sm font-black w-5 shrink-0 tabular-nums", rankColor(i + 1))}>
+                                    <span className={cn("font-mono text-sm font-bold w-5 shrink-0 tabular-nums", rankColor(i + 1))}>
                                         {i + 2}
                                     </span>
-                                    <span className="font-semibold text-white flex-1 truncate text-sm">{p.pundit_name}</span>
+                                    <span className="font-semibold text-ink flex-1 truncate text-sm">{p.pundit_name}</span>
                                     <AccuracyBadge rate={p.accuracy_rate} />
                                     <HotColdBadge pundit={p} />
-                                    <span className="text-xs font-mono text-zinc-600 shrink-0">{p.resolved_predictions} picks</span>
+                                    <span className="text-xs font-mono text-ink-3 shrink-0">{p.resolved_predictions} picks</span>
                                 </Link>
                             ))}
                     </div>
@@ -426,11 +433,11 @@ export function PunditLeaderboardPreview({
                         {pundits.map((p, idx) => (
                             <HoverableRow
                                 key={p.pundit_id}
-                                className="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 px-5 py-4"
+                                className="flex items-center gap-4 rounded-xl border border-editorial-border bg-editorial-card px-5 py-4"
                             >
                                 {/* Rank */}
                                 <span className={cn(
-                                    "font-mono text-base font-black w-6 shrink-0 tabular-nums",
+                                    "font-mono text-base font-bold w-6 shrink-0 tabular-nums",
                                     rankColor(idx)
                                 )}>
                                     {idx + 1}
@@ -439,7 +446,7 @@ export function PunditLeaderboardPreview({
                                 {/* Name — linked */}
                                 <Link
                                     href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
-                                    className="font-semibold text-white flex-1 truncate hover:text-emerald-400 transition-colors"
+                                    className="font-semibold text-ink flex-1 truncate hover:text-navy transition-colors"
                                 >
                                     {p.pundit_name}
                                 </Link>
@@ -451,7 +458,7 @@ export function PunditLeaderboardPreview({
                                 <AccuracyBadge rate={p.accuracy_rate} />
 
                                 {/* Pick count */}
-                                <span className="text-sm font-mono text-zinc-500 shrink-0 w-24 text-right">
+                                <span className="text-sm font-mono text-ink-2 shrink-0 w-24 text-right">
                                     {p.resolved_predictions} picks
                                 </span>
                             </HoverableRow>
@@ -464,7 +471,7 @@ export function PunditLeaderboardPreview({
             <div className="pt-1 text-center">
                 <Link
                     href="/ledger"
-                    className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                    className="inline-flex items-center gap-1.5 min-h-[44px] text-sm font-semibold text-navy hover:text-accent-editorial-light transition-colors"
                 >
                     View full ledger →
                 </Link>
@@ -472,7 +479,7 @@ export function PunditLeaderboardPreview({
 
             {/* Methodology disclaimer — context for what "accuracy" means here. #993 */}
             {pundits.length > 0 && (
-                <p className="pt-2 text-center text-[11px] leading-relaxed text-zinc-600 max-w-2xl mx-auto">
+                <p className="pt-2 text-center text-[11px] leading-relaxed text-ink-3 max-w-2xl mx-auto">
                     Accuracy = predictions resolved CORRECT ÷ total resolved (VOID excluded).
                     Some entries aggregate multiple writers under a publication byline; individual writers may differ.
                     Click any name to see the underlying claims and how each was resolved.

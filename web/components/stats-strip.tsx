@@ -43,16 +43,16 @@ export function StatsStrip(props: StatsStripProps) {
                                 value={stat.value}
                                 suffix={stat.suffix}
                                 duration={1200}
-                                className="font-mono font-black text-2xl sm:text-xl tabular-nums text-emerald-400 leading-none"
+                                className="font-mono font-bold text-2xl sm:text-xl tabular-nums text-navy leading-none"
                             />
-                            <span className="text-[10px] font-mono font-semibold uppercase tracking-[0.18em] text-zinc-500 sm:text-zinc-400">
+                            <span className="text-[10px] font-mono font-semibold uppercase tracking-[0.18em] text-ink-2">
                                 {stat.label}
                             </span>
                         </div>
                         {/* Pipe separator — desktop only, except after last item */}
                         {i < stats.length - 1 && (
                             <span
-                                className="hidden sm:inline text-zinc-700 font-light text-lg select-none"
+                                className="hidden sm:inline text-ink-3 font-light text-lg select-none"
                                 aria-hidden="true"
                             >
                                 ·

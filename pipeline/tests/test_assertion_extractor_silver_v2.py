@@ -92,6 +92,14 @@ class _DBStub:
     def __init__(self, query_rows=None):
         self.client = _ClientStub(query_rows=query_rows)
 
+    def append_dataframe_to_table(self, df, table_name):
+        """Mirrors DBManager.append_dataframe_to_table — the primary claim-
+        table write in write_silver_v2_claims routes through this (instead of
+        db.client.load_table_from_dataframe directly) since #1115. Delegate
+        to the same captured-calls list as the direct client stub so existing
+        assertions on db.client.captured keep working."""
+        return self.client.load_table_from_dataframe(df, table_name, job_config=None)
+
 
 # ---------------------------------------------------------------------------
 # Tests for write_claim_entity_links

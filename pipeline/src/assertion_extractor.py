@@ -1465,9 +1465,6 @@ def write_silver_v2_claims(
     table_ref = f"{project_id}.{CLAIM_TABLE}"
 
     try:
-        job_config = __import__(
-            "google.cloud.bigquery", fromlist=["LoadJobConfig"]
-        ).LoadJobConfig(write_disposition="WRITE_APPEND")
         df_clean = df.copy()
         for col in df_clean.columns:
             if col in {"subject_entity_ids"}:
@@ -1475,10 +1472,12 @@ def write_silver_v2_claims(
                 continue
             if df_clean[col].dtype == object:
                 df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
-        job = db.client.load_table_from_dataframe(
-            df_clean, table_ref, job_config=job_config
-        )
-        job.result()
+        # Route through DBManager.append_dataframe_to_table (not
+        # db.client.load_table_from_dataframe directly) so this write gets
+        # #1111's JSON-column handling: predicate_args is a JSON-typed
+        # destination column, and load_table_from_dataframe rejects JSON
+        # columns with "400 Unsupported field type: JSON" (see #1115).
+        db.append_dataframe_to_table(df_clean, table_ref)
         logger.info(f"Wrote {len(rows)} claim rows to {table_ref}")
     except Exception as exc:
         logger.error(

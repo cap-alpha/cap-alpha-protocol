@@ -15,6 +15,8 @@ and stub out self.client so they run fast and unconditionally in CI —
 unlike test_db_manager.py, which requires GCP_PROJECT_ID and hits real BQ.
 """
 
+import logging
+
 import pandas as pd
 
 from src.db_manager import DBManager
@@ -160,3 +162,53 @@ def test_json_column_null_value_stays_none():
     df = pd.DataFrame({"predicate_args": [None]})
     db.append_dataframe_to_table(df, "silver_v2_claims.claim")
     assert db.client.captured_records == [{"predicate_args": None}]
+
+
+# ---------------------------------------------------------------------------
+# Regression coverage for issue #1115 — JSON-write robustness error branches
+# ---------------------------------------------------------------------------
+
+
+def test_schema_introspection_failure_logs_warning(caplog):
+    """When get_table() raises during JSON-column schema introspection, the
+    fallback path must log at WARNING (previously DEBUG). At DEBUG this
+    failure mode — "we could not tell whether this table has JSON columns,
+    so we silently assumed it doesn't and may hit a 400 on the load" — was
+    invisible in production logs, which is exactly the silent-failure
+    pattern #1111/#1115 exist to kill."""
+    db = _make_db()  # schema=None -> _FakeClient.get_table() raises LookupError
+    with caplog.at_level(logging.WARNING):
+        db.append_dataframe_to_table(pd.DataFrame({"a": [1]}), "silver_v2_claims.claim")
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any(
+        "Could not introspect schema" in r.getMessage() for r in warning_records
+    ), f"expected a WARNING log for schema introspection failure, got: {caplog.text}"
+
+
+def test_json_load_safe_value_invalid_json_logs_warning(caplog):
+    """When a JSON-typed column's string value fails to parse as JSON,
+    _json_load_safe_value must log a WARNING before silently falling back to
+    the raw string — otherwise a malformed predicate_args value degrades to
+    a quoted-string column with no trace in the logs."""
+    from src.db_manager import _json_load_safe_value
+
+    with caplog.at_level(logging.WARNING):
+        result = _json_load_safe_value("not valid json {{{", is_json_col=True)
+
+    assert result == "not valid json {{{"
+    warning_records = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert any("Could not parse value" in r.getMessage() for r in warning_records), (
+        f"expected a WARNING log for the JSON parse fallback, got: {caplog.text}"
+    )
+
+
+def test_json_load_safe_value_valid_json_no_warning(caplog):
+    """The success path (valid JSON string) must stay silent — no warning
+    noise when nothing went wrong."""
+    from src.db_manager import _json_load_safe_value
+
+    with caplog.at_level(logging.WARNING):
+        result = _json_load_safe_value('{"a": 1}', is_json_col=True)
+
+    assert result == {"a": 1}
+    assert not any(r.levelno == logging.WARNING for r in caplog.records)

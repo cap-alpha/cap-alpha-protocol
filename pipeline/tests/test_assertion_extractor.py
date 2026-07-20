@@ -2888,7 +2888,9 @@ class TestWriteSilverV2ClaimsUnit:
     """
 
     def _make_db_stub(self, captured_rows):
-        """Return a minimal object that intercepts load_table_from_dataframe."""
+        """Return a minimal object that intercepts load_table_from_dataframe
+        (used by the Phase-3 satellite writes) and append_dataframe_to_table
+        (used by the primary claim-table write since #1115)."""
         import types
 
         class _JobStub:
@@ -2902,6 +2904,13 @@ class TestWriteSilverV2ClaimsUnit:
 
         class _DBStub:
             client = _ClientStub()
+
+            def append_dataframe_to_table(self, df, table_name):
+                """Mirrors DBManager.append_dataframe_to_table — the JSON-aware
+                write path write_silver_v2_claims's primary claim write now
+                routes through instead of calling db.client.load_table_from_dataframe
+                directly (#1115)."""
+                captured_rows.append(df.copy())
 
         return _DBStub()
 
@@ -3079,6 +3088,56 @@ class TestWriteSilverV2ClaimsUnit:
         assert actual_end.year == expected_end.year
         assert actual_end.month == expected_end.month
         assert actual_end.day == expected_end.day
+
+    def test_claim_write_routes_through_dbmanager_append(self):
+        """Regression test for #1115: the primary claim-table write must go
+        through DBManager.append_dataframe_to_table (which gets #1111's
+        JSON-column handling for predicate_args), not
+        db.client.load_table_from_dataframe directly. If the write regresses
+        back to calling the client method directly, the stub below raises.
+        """
+        import datetime as dt
+
+        from src.assertion_extractor import write_silver_v2_claims
+
+        u = self._make_utterance()
+        append_calls = []
+
+        class _ClientStubNoDirectLoad:
+            def load_table_from_dataframe(self, *args, **kwargs):
+                raise AssertionError(
+                    "write_silver_v2_claims must route the claim-table write "
+                    "through db.append_dataframe_to_table, not "
+                    "db.client.load_table_from_dataframe directly (#1115)"
+                )
+
+        class _DBStubRouted:
+            client = _ClientStubNoDirectLoad()
+
+            def append_dataframe_to_table(self, df, table_name):
+                append_calls.append((table_name, df.copy()))
+
+        db = _DBStubRouted()
+        count = write_silver_v2_claims(
+            utterances=[u],
+            utterance_id_map={u["text"][:4000]: "uid-routed"},
+            source_doc_id="deadbeef",
+            speaker_entity_id="warren_sharp",
+            uttered_at=dt.datetime(2025, 4, 1, tzinfo=dt.timezone.utc),
+            domain="nfl",
+            db=db,
+            threshold=0.6,
+        )
+
+        assert count == 1
+        assert len(append_calls) == 1
+        table_name, df = append_calls[0]
+        assert table_name.endswith("silver_v2_claims.claim")
+        assert df.iloc[0]["predicate"] == "will_win_at_least"
+        # predicate_args must still be the JSON-encoded string at this layer —
+        # DBManager.append_dataframe_to_table is responsible for parsing it
+        # into a native value via schema introspection, not this call site.
+        assert isinstance(df.iloc[0]["predicate_args"], str)
 
 
 # ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ export function ResolutionChip({ window, className }: ResolutionChipProps) {
             return (
                 <span
                     className={cn(
-                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-400",
+                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-pending",
                         className
                     )}
                 >
@@ -41,14 +41,14 @@ export function ResolutionChip({ window, className }: ResolutionChipProps) {
             return (
                 <span
                     className={cn(
-                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-amber-400",
+                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-pending",
                         className
                     )}
                 >
                     <Flag className="w-3 h-3 shrink-0" />
                     By {window.eventName}
                     {dateStr && (
-                        <span className="text-zinc-500"> · {dateStr}</span>
+                        <span className="text-ink-2"> · {dateStr}</span>
                     )}
                 </span>
             );
@@ -58,11 +58,11 @@ export function ResolutionChip({ window, className }: ResolutionChipProps) {
             return (
                 <span
                     className={cn(
-                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-zinc-400",
+                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-ink-2",
                         className
                     )}
                 >
-                    <span className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
+                    <span className="bg-editorial-border border border-editorial-border rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide">
                         Season {window.year}
                     </span>
                 </span>
@@ -72,7 +72,7 @@ export function ResolutionChip({ window, className }: ResolutionChipProps) {
             return (
                 <span
                     className={cn(
-                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-zinc-600",
+                        "inline-flex items-center gap-1.5 text-[11px] font-mono text-ink-3",
                         className
                     )}
                 >

@@ -54,19 +54,22 @@ interface InPlayCardProps {
 // Local helpers
 // ---------------------------------------------------------------------------
 
+// Editorial palette (#1068): numbers in ink by default, navy only for top
+// decile, semantic red only under 45% — matches AccuracyBar in
+// app/ledger/page.tsx.
 function AccuracyBadge({ rate }: { rate: number | null | undefined }) {
     if (rate === null || rate === undefined) {
         return (
-            <span className="text-[10px] font-mono text-zinc-600 tabular-nums">—%</span>
+            <span className="text-[10px] font-mono text-ink-3 tabular-nums">—%</span>
         );
     }
     const pct = Math.round(rate * 100);
     const colorClass =
-        pct >= 60
-            ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
-            : pct >= 45
-            ? "text-yellow-400 border-yellow-500/30 bg-yellow-500/10"
-            : "text-red-400 border-red-500/30 bg-red-500/10";
+        pct >= 65
+            ? "text-white border-navy bg-navy"
+            : pct < 45
+            ? "text-incorrect border-incorrect/30 bg-[rgba(185,28,28,0.08)]"
+            : "text-ink border-editorial-border bg-editorial-card";
     return (
         <span
             className={cn(
@@ -89,7 +92,7 @@ function CategoryPill({ category }: { category: string }) {
         contract: "Contract",
     };
     return (
-        <span className="text-[10px] font-mono uppercase tracking-wide text-zinc-500 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5">
+        <span className="text-[10px] font-mono uppercase tracking-wide text-ink-2 bg-editorial-card border border-editorial-border rounded px-1.5 py-0.5">
             {label[category] ?? category}
         </span>
     );
@@ -97,7 +100,7 @@ function CategoryPill({ category }: { category: string }) {
 
 function SportPill({ sport }: { sport: string }) {
     return (
-        <span className="text-[10px] font-mono uppercase tracking-wide text-zinc-600 bg-zinc-900 border border-zinc-800 rounded px-1.5 py-0.5">
+        <span className="text-[10px] font-mono uppercase tracking-wide text-ink-3 bg-editorial-card border border-editorial-border rounded px-1.5 py-0.5">
             {sport}
         </span>
     );
@@ -138,10 +141,10 @@ function InitialsAvatar({ name }: { name: string }) {
             : parts[0]?.slice(0, 2) ?? "?";
     return (
         <div
-            className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0"
+            className="w-8 h-8 rounded-full bg-editorial-border border border-editorial-border flex items-center justify-center shrink-0"
             aria-hidden
         >
-            <span className="text-[10px] font-black font-mono text-zinc-400 uppercase">
+            <span className="text-[10px] font-bold font-mono text-ink-2 uppercase">
                 {initials.toUpperCase()}
             </span>
         </div>
@@ -175,7 +178,7 @@ function CategoryAccuracy({
         pct >= 60 ? { color: "var(--pos)" } : pct >= 45 ? { color: "var(--warn)" } : { color: "var(--neg)" };
 
     return (
-        <span className="text-[10px] font-mono text-zinc-500">
+        <span className="text-[10px] font-mono text-ink-2">
             {categoryResolvedCount ? `${categoryResolvedCount} on ` : ""}
             {label}{" "}
             <span className="font-semibold" style={colorStyle}>
@@ -234,10 +237,10 @@ export function InPlayCard({
     return (
         <div
             className={cn(
-                "relative flex flex-col gap-3 rounded-xl border bg-zinc-950 p-4 transition-colors hover:border-amber-500/30",
+                "relative flex flex-col gap-3 rounded-xl border bg-editorial-card p-4 transition-colors hover:border-pending/40",
                 isJustResolved
-                    ? "border-zinc-700"
-                    : "border-amber-500/20 bg-amber-500/5",
+                    ? "border-editorial-border"
+                    : "border-pending/25 bg-[rgba(146,64,14,0.03)]",
                 className
             )}
             data-testid="in-play-card"
@@ -258,7 +261,7 @@ export function InPlayCard({
                     <div className="flex items-center justify-between gap-2">
                         <Link
                             href={`/ledger/${prediction.pundit_id}`}
-                            className="text-sm font-semibold text-white hover:text-amber-400 transition-colors truncate"
+                            className="text-sm font-semibold text-ink hover:text-pending transition-colors truncate"
                         >
                             {prediction.pundit_name}
                         </Link>
@@ -272,7 +275,7 @@ export function InPlayCard({
             </div>
 
             {/* --- Claim text (hero) --- */}
-            <p className="text-sm text-zinc-200 leading-relaxed line-clamp-3">
+            <p className="text-sm text-ink leading-relaxed line-clamp-3">
                 {claimText}
             </p>
 
@@ -314,7 +317,7 @@ export function InPlayCard({
                     href={prediction.source_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-600 hover:text-zinc-400 transition-colors truncate"
+                    className="inline-flex items-center gap-1 text-[10px] font-mono text-ink-3 hover:text-ink-2 transition-colors truncate"
                 >
                     <ExternalLink className="w-2.5 h-2.5 shrink-0" />
                     <span className="truncate">
@@ -324,7 +327,7 @@ export function InPlayCard({
                 </a>
             )}
             {!prediction.source_url && relTime && (
-                <span className="text-[10px] font-mono text-zinc-700">
+                <span className="text-[10px] font-mono text-ink-3">
                     said {relTime}
                 </span>
             )}
@@ -339,7 +342,7 @@ export function InPlayCard({
             )}
 
             {/* --- Footer: share + follow + details --- */}
-            <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-900">
+            <div className="flex items-center justify-between gap-2 pt-1 border-t border-editorial-border">
                 <div className="flex items-center gap-2">
                     <PredictionShareButton
                         predictionId={prediction.prediction_hash_short}
@@ -348,7 +351,7 @@ export function InPlayCard({
                     {!isFollowingPundit && onFollowPundit && (
                         <button
                             onClick={() => onFollowPundit(prediction.pundit_id, prediction.pundit_name)}
-                            className="inline-flex items-center gap-1 text-[10px] font-mono text-amber-500/70 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 rounded px-1.5 py-0.5 transition-colors"
+                            className="inline-flex items-center gap-1 text-[10px] font-mono text-pending/80 hover:text-pending border border-pending/25 hover:border-pending/50 rounded px-1.5 py-0.5 transition-colors"
                             aria-label={`Follow ${prediction.pundit_name} — get notified when predictions resolve`}
                             title={`Get an email when ${prediction.pundit_name}'s predictions resolve. Free.`}
                         >
@@ -360,7 +363,7 @@ export function InPlayCard({
                 {onOpenDrawer && (
                     <button
                         onClick={() => onOpenDrawer(prediction)}
-                        className="inline-flex items-center gap-1 text-[10px] font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="inline-flex items-center gap-1 text-[10px] font-mono text-ink-2 hover:text-ink transition-colors"
                     >
                         Details
                         <ArrowRight className="w-2.5 h-2.5" />

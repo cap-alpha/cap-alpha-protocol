@@ -43,8 +43,8 @@ export function PredictionShareButton({
                 className={cn(
                     "inline-flex items-center gap-1 text-[10px] font-mono transition-colors border rounded px-2 py-0.5",
                     copied
-                        ? "text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
-                        : "text-zinc-500 border-zinc-800 hover:text-emerald-400 hover:border-emerald-500/40"
+                        ? "text-navy border-navy/40 bg-navy/10"
+                        : "text-ink-2 border-editorial-border hover:text-navy hover:border-navy/40"
                 )}
             >
                 {copied ? (
@@ -67,7 +67,7 @@ export function PredictionShareButton({
                 rel="noopener noreferrer"
                 aria-label="Open share card"
                 title="Open share card image"
-                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-zinc-600 hover:text-zinc-400 transition-colors border border-transparent hover:border-zinc-700 rounded px-1 py-0.5"
+                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-ink-3 hover:text-ink-2 transition-colors border border-transparent hover:border-editorial-border rounded px-1 py-0.5"
             >
                 Card <ExternalLink className="w-2.5 h-2.5" />
             </a>

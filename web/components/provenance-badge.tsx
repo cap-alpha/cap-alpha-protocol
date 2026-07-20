@@ -38,10 +38,15 @@ interface ProvenanceBadgeProps {
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Matches ClaimProvenance's qualityBadge() on the pundit-detail slice
+// (web/app/ledger/[pundit_id]/PunditProfileClient.tsx, #1067) — extraction
+// quality is a data-confidence scale, not an accuracy/outcome value, so it
+// keeps its own 3-tier correct/pending/incorrect coloring rather than the
+// navy-chip treatment used for accuracy.
 function qualityLabel(score: number): { label: string; color: string } {
-    if (score >= 0.7) return { label: "HIGH", color: "text-emerald-400" };
-    if (score >= 0.4) return { label: "MED", color: "text-yellow-400" };
-    return { label: "LOW", color: "text-red-400" };
+    if (score >= 0.7) return { label: "HIGH", color: "text-correct" };
+    if (score >= 0.4) return { label: "MED", color: "text-pending" };
+    return { label: "LOW", color: "text-incorrect" };
 }
 
 function formatModel(provider: string | null | undefined, model: string | null | undefined): string | null {
@@ -134,10 +139,10 @@ export function ProvenanceBadge({ data, compact = false, className }: Provenance
             <button
                 onClick={() => setOpen((v) => !v)}
                 className={cn(
-                    "inline-flex items-center gap-1 text-[10px] font-mono text-zinc-600",
-                    "hover:text-zinc-400 transition-colors",
-                    "border border-zinc-800 hover:border-zinc-700 rounded px-1.5 py-0.5",
-                    open && "text-zinc-400 border-zinc-700"
+                    "inline-flex items-center gap-1 text-[10px] font-mono text-ink-3",
+                    "hover:text-ink-2 transition-colors",
+                    "border border-editorial-border rounded px-1.5 py-0.5",
+                    open && "text-ink-2 border-editorial-border"
                 )}
                 aria-expanded={open}
                 aria-label={open ? "Hide provenance" : "Show provenance"}
@@ -149,23 +154,23 @@ export function ProvenanceBadge({ data, compact = false, className }: Provenance
 
             {/* Expanded panel */}
             {open && (
-                <div className="mt-2 rounded-lg border border-zinc-800 bg-zinc-950/60 p-3 space-y-3 text-xs">
+                <div className="mt-2 rounded-lg border border-editorial-border bg-editorial-card p-3 space-y-3 text-xs">
                     {/* Raw quote */}
                     {raw_assertion_text && (
                         <div>
-                            <div className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-600 mb-1">
+                            <div className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-ink-3 mb-1">
                                 <Quote className="w-2.5 h-2.5" />
                                 Raw Quote
                             </div>
-                            <p className="text-zinc-400 italic leading-snug border-l-2 border-zinc-800 pl-2">
+                            <p className="text-ink-2 italic leading-snug border-l-2 border-editorial-border pl-2">
                                 &ldquo;{raw_assertion_text}&rdquo;
                             </p>
                             {rawDiffersFromClaim && extracted_claim && (
                                 <div className="mt-2">
-                                    <div className="text-[9px] font-mono uppercase tracking-widest text-zinc-600 mb-1">
+                                    <div className="text-[9px] font-mono uppercase tracking-widest text-ink-3 mb-1">
                                         Extracted Claim
                                     </div>
-                                    <p className="text-zinc-500 leading-snug border-l-2 border-zinc-800/60 pl-2">
+                                    <p className="text-ink-2 leading-snug border-l-2 border-editorial-border pl-2">
                                         {extracted_claim}
                                     </p>
                                 </div>
@@ -176,16 +181,16 @@ export function ProvenanceBadge({ data, compact = false, className }: Provenance
                     {/* Extraction model + quality */}
                     {(modelLabel || qualityInfo) && (
                         <div>
-                            <div className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-600 mb-1">
+                            <div className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-ink-3 mb-1">
                                 <Cpu className="w-2.5 h-2.5" />
                                 Extraction
                             </div>
-                            <div className="flex flex-wrap items-center gap-2 text-zinc-500 font-mono">
+                            <div className="flex flex-wrap items-center gap-2 text-ink-2 font-mono">
                                 {modelLabel && (
                                     <span>{modelLabel}</span>
                                 )}
                                 {prompt_version && (
-                                    <span className="text-zinc-700">· Prompt {prompt_version}</span>
+                                    <span className="text-ink-3">· Prompt {prompt_version}</span>
                                 )}
                                 {qualityInfo && (
                                     <span className="inline-flex items-center gap-1">
@@ -203,16 +208,16 @@ export function ProvenanceBadge({ data, compact = false, className }: Provenance
                     {/* Resolution source */}
                     {(sourceLabel || outcome_notes) && (
                         <div>
-                            <div className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-zinc-600 mb-1">
+                            <div className="flex items-center gap-1 text-[9px] font-mono uppercase tracking-widest text-ink-3 mb-1">
                                 <CheckSquare className="w-2.5 h-2.5" />
                                 Resolution Source
                             </div>
-                            <div className="text-zinc-500 font-mono space-y-0.5">
+                            <div className="text-ink-2 font-mono space-y-0.5">
                                 {sourceLabel && (
                                     <span>Resolved via {sourceLabel}</span>
                                 )}
                                 {outcome_notes && (
-                                    <p className="text-zinc-600 italic leading-snug mt-1">
+                                    <p className="text-ink-3 italic leading-snug mt-1">
                                         {outcome_notes}
                                     </p>
                                 )}

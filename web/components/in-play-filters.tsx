@@ -86,7 +86,7 @@ function PillRow<T extends string>({
 }) {
     return (
         <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 mr-0.5 shrink-0">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-ink-3 mr-0.5 shrink-0">
                 {label}:
             </span>
             {options.map((opt) => (
@@ -96,8 +96,8 @@ function PillRow<T extends string>({
                     className={cn(
                         "px-2.5 py-1 rounded text-[10px] font-mono font-semibold uppercase tracking-wide transition-colors border",
                         value === opt.value
-                            ? "bg-amber-500/15 border-amber-500/40 text-amber-400"
-                            : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                            ? "bg-pending/10 border-pending/40 text-pending"
+                            : "bg-editorial-card border-editorial-border text-ink-2 hover:text-ink"
                     )}
                 >
                     {opt.label}
@@ -134,12 +134,12 @@ export function InPlayFilters({
         <div className={cn("flex flex-col gap-3", className)}>
             {/* FTC note + count */}
             <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-[10px] font-mono text-zinc-600 max-w-lg">
+                <p className="text-[10px] font-mono text-ink-3 max-w-lg">
                     Bet-related links shown only for game-outcome predictions on legal US
                     sportsbooks.
                 </p>
                 {totalCount !== undefined && (
-                    <span className="text-[10px] font-mono text-zinc-500 shrink-0">
+                    <span className="text-[10px] font-mono text-ink-2 shrink-0">
                         {totalCount} open pick{totalCount !== 1 ? "s" : ""}
                     </span>
                 )}
@@ -172,7 +172,7 @@ export function InPlayFilters({
             {/* Pundit text filter + sort dropdown — row */}
             <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 shrink-0">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-ink-3 shrink-0">
                         Pundit:
                     </span>
                     <input
@@ -180,12 +180,12 @@ export function InPlayFilters({
                         value={filters.punditQuery}
                         onChange={(e) => update({ punditQuery: e.target.value })}
                         placeholder="Search…"
-                        className="bg-zinc-900 border border-zinc-800 rounded px-2.5 py-1 text-[11px] font-mono text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/20 transition-colors w-32"
+                        className="bg-editorial-card border border-editorial-border rounded px-2.5 py-1 text-[11px] font-mono text-ink placeholder-ink-3 focus:outline-none focus:border-pending/50 focus:ring-1 focus:ring-pending/20 transition-colors w-32"
                     />
                 </div>
 
                 <div className="flex items-center gap-1.5">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 shrink-0">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-ink-3 shrink-0">
                         Sort:
                     </span>
                     <select
@@ -193,7 +193,7 @@ export function InPlayFilters({
                         onChange={(e) =>
                             update({ sort: e.target.value as InPlaySortKey })
                         }
-                        className="bg-zinc-900 border border-zinc-800 rounded px-2 py-1 text-[11px] font-mono text-zinc-300 focus:outline-none focus:border-amber-500/50 transition-colors cursor-pointer"
+                        className="bg-editorial-card border border-editorial-border rounded px-2 py-1 text-[11px] font-mono text-ink focus:outline-none focus:border-pending/50 transition-colors cursor-pointer"
                     >
                         {SORT_OPTIONS.map((opt) => (
                             <option key={opt.value} value={opt.value}>

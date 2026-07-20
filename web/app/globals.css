@@ -4,18 +4,85 @@
 
 @layer base {
   :root {
-    /* V1 Data Editorial design tokens */
-    --navy: #1A2744;
-    --navy-light: #253660;
+    /* ------------------------------------------------------------------
+     * Editorial palette — canonical token set
+     * docs/design/2026-06-design-brief.md · refs #1032, #1067, #1071
+     *
+     * Single source of truth for the Pundit Ledger light-mode editorial
+     * direction (Financial Times / The Athletic aesthetic). Consumed
+     * directly by /ledger/[pundit_id] (#1067, merged) and rolled out to
+     * /ledger (#1068) and / (#1069).
+     *
+     * Two names deviate from the brief's literal proposal to avoid
+     * clobbering pre-existing shadcn/ui semantic tokens of the same name
+     * that are actively consumed by shared ui/ primitives and by the NFL
+     * dashboard product (fantasy/, trade-machine, team/, scenarios/):
+     *   - brief's `--border`  -> `--border-editorial` here (shadcn --border
+     *     is an HSL triple consumed via hsl(var(--border)); this token is
+     *     a raw hex consumed directly — same name would collide).
+     *   - brief's `--accent`  -> `--accent-editorial` here (shadcn --accent
+     *     is a distinct hover/accent-surface HSL token used by button,
+     *     select, dialog, etc. across both products).
+     * ------------------------------------------------------------------ */
+    --canvas: #FAF8F5;
+    --surface: #FFFFFF;
+    --ink: #1A1A1A;
+    --ink-2: #5C5C5C;
+    --ink-3: #9A9A9A;
+    --border-editorial: #E5E1DA;
+    --accent-editorial: #1A2744;
+    --accent-editorial-light: #253660;
     --gold: #B8860B;
     --gold-light: #D4A017;
-    --bg: #F7F4EF;
-    --bg-card: #FFFFFF;
-    --border-editorial: #DDD8D0;
-    --pos: #1A7A4A;
-    --neg: #B91C1C;
-    --warn: #92400E;
+    --correct: #1A7A4A;
+    --incorrect: #B91C1C;
+    --pending: #92400E;
 
+    /* Legacy V1 Data Editorial names — deprecated aliases kept only so
+     * existing consumers (components/navbar.tsx, components/in-play-card.tsx,
+     * tailwind.config.ts `navy`/`gold`/`pos`/`neg`/`warn` utilities) keep
+     * resolving to the same values without a coordinated multi-file edit
+     * in this token-only PR. Removing these aliases and repointing
+     * consumers to the canonical names above directly is #1070 (global
+     * sweep). Do not add new consumers of the legacy names. */
+    --navy: var(--accent-editorial);
+    --navy-light: var(--accent-editorial-light);
+    --bg: var(--canvas);
+    --bg-card: var(--surface);
+    --pos: var(--correct);
+    --neg: var(--incorrect);
+    --warn: var(--pending);
+
+    --radius: 0.5rem;
+
+    /* L3 — 3-layer depth system (dark). Backs the site-wide `body` default
+     * below via `bg-canvas`/`text-foreground`. Independent of the
+     * editorial rollout — pages that haven't opted into the editorial
+     * palette (the NFL dashboard product, and Pundit Ledger pages not yet
+     * migrated) still render on this dark canvas. */
+    --color-canvas: 240 10% 3.9%;      /* #09090b */
+    --color-surface: 240 6% 7%;        /* #111113 */
+    --color-elevated: 240 5% 11%;      /* #1c1c1f */
+  }
+
+  /* shadcn/ui semantic tokens — dark mode.
+   *
+   * Scoped under `.dark` (already applied globally via `className="dark"`
+   * on <html> in app/layout.tsx) rather than defined at `:root`, so this
+   * PR is a zero-visual-diff foundation: nothing renders differently
+   * anywhere until a page explicitly opts into the editorial palette (as
+   * #1067 already does, and #1068/#1069 will).
+   *
+   * These tokens back `bg-background`, `text-foreground`, `bg-primary`,
+   * `border-border`, and every shadcn ui/ primitive (button, badge,
+   * dialog, select, tabs, input, alert) — consumed by 20+ files including
+   * the NFL dashboard product (app/dashboard/bettor, app/team/[id],
+   * app/scenarios, app/fantasy). Repointing these to the editorial light
+   * palette would silently flip that unrelated product surface to light
+   * mode with zero visual QA — that full-surface repoint (plus dropping
+   * the `.dark` class once every consumer is migrated) is #1070, out of
+   * scope here. */
+  .dark {
     --background: 240 10% 3.9%;
     --foreground: 0 0% 98%;
 
@@ -45,27 +112,6 @@
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
     --ring: 142.1 76.2% 36.3%;
-
-    --radius: 0.5rem;
-
-    /* L2 — Semantic outcome colors */
-    --color-correct: 142.1 76.2% 36.3%;       /* green-600 */
-    --color-correct-bg: 142.1 76.2% 36.3% / 0.12;
-    --color-incorrect: 0 84.2% 60.2%;          /* red-500 */
-    --color-incorrect-bg: 0 84.2% 60.2% / 0.12;
-    --color-pending: 37.7 92.1% 50.2%;         /* amber-500 */
-    --color-pending-bg: 37.7 92.1% 50.2% / 0.12;
-    --color-info: 217.2 91.2% 59.8%;           /* blue-400 */
-    --color-info-bg: 217.2 91.2% 59.8% / 0.12;
-    --color-brand: 142.1 76.2% 36.3%;          /* keep emerald as brand */
-
-    /* L3 — 3-layer depth system */
-    --color-canvas: 240 10% 3.9%;      /* #09090b — page background */
-    --color-surface: 240 6% 7%;        /* #111113 — card backgrounds */
-    --color-elevated: 240 5% 11%;      /* #1c1c1f — modal/popover backgrounds */
-    --shadow-glow-brand: 0 0 0 1px hsl(142.1 76.2% 36.3% / 0.3), 0 4px 24px hsl(142.1 76.2% 36.3% / 0.12);
-    --shadow-glow-correct: 0 0 0 1px hsl(142.1 76.2% 36.3% / 0.3), 0 4px 24px hsl(142.1 76.2% 36.3% / 0.08);
-    --shadow-glow-incorrect: 0 0 0 1px hsl(0 84.2% 60.2% / 0.3), 0 4px 24px hsl(0 84.2% 60.2% / 0.08);
   }
 }
 
@@ -107,15 +153,15 @@
 }
 
 .score-pos {
-  color: var(--pos);
+  color: var(--correct);
 }
 
 .score-neg {
-  color: var(--neg);
+  color: var(--incorrect);
 }
 
 .score-warn {
-  color: var(--warn);
+  color: var(--pending);
 }
 
 .claim-quote {

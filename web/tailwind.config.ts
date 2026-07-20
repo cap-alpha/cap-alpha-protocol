@@ -75,20 +75,21 @@ const config = {
                     DEFAULT: "hsl(var(--card))",
                     foreground: "hsl(var(--card-foreground))",
                 },
-                // L2 — Semantic outcome colors
-                correct: 'hsl(var(--color-correct) / <alpha-value>)',
-                'correct-bg': 'hsl(var(--color-correct-bg))',
-                incorrect: 'hsl(var(--color-incorrect) / <alpha-value>)',
-                'incorrect-bg': 'hsl(var(--color-incorrect-bg))',
-                pending: 'hsl(var(--color-pending) / <alpha-value>)',
-                'pending-bg': 'hsl(var(--color-pending-bg))',
-                info: 'hsl(var(--color-info) / <alpha-value>)',
-                'info-bg': 'hsl(var(--color-info-bg))',
-                // L3 — Depth system
+                // L3 — Depth system (dark; backs the site-wide body default)
                 canvas: 'hsl(var(--color-canvas))',
                 surface: 'hsl(var(--color-surface))',
                 elevated: 'hsl(var(--color-elevated))',
-                // V1 Data Editorial palette
+                // Editorial palette — canonical tokens (docs/design/2026-06-design-brief.md)
+                ink: 'var(--ink)',
+                'ink-2': 'var(--ink-2)',
+                'ink-3': 'var(--ink-3)',
+                'accent-editorial': 'var(--accent-editorial)',
+                'accent-editorial-light': 'var(--accent-editorial-light)',
+                correct: 'var(--correct)',
+                incorrect: 'var(--incorrect)',
+                pending: 'var(--pending)',
+                // Legacy V1 Data Editorial aliases — see globals.css comment. Do
+                // not add new consumers; removal tracked under #1070.
                 navy: 'var(--navy)',
                 'navy-light': 'var(--navy-light)',
                 gold: 'var(--gold)',
@@ -105,11 +106,9 @@ const config = {
                 md: "calc(var(--radius) - 2px)",
                 sm: "calc(var(--radius) - 4px)",
             },
-            boxShadow: {
-                'glow-brand': 'var(--shadow-glow-brand)',
-                'glow-correct': 'var(--shadow-glow-correct)',
-                'glow-incorrect': 'var(--shadow-glow-incorrect)',
-            },
+            // boxShadow.glow-* removed — zero consumers found (2026-07-20 audit),
+            // and glow effects are explicitly against the editorial direction
+            // (docs/design/2026-06-design-brief.md: "no glow, no glassmorphism").
             keyframes: {
                 "accordion-down": {
                     from: { height: "0" },

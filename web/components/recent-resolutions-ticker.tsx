@@ -23,16 +23,21 @@ function formatMonth(isoDate: string): string {
     return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
+// This is a literal prediction outcome, so it keeps the semantic
+// correct/incorrect colors (#1069) — not navy, which is reserved for
+// non-outcome "primary/active" accents. Also fixes a pre-existing bug
+// where "Wrong" rendered in the pending/amber color instead of incorrect
+// red.
 function VerdictPill({ correct }: { correct: boolean }) {
     if (correct) {
         return (
-            <span className="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+            <span className="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[rgba(26,122,74,0.1)] text-correct border border-correct/30">
                 Correct
             </span>
         );
     }
     return (
-        <span className="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/25">
+        <span className="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider bg-[rgba(185,28,28,0.08)] text-incorrect border border-incorrect/30">
             Wrong
         </span>
     );
@@ -48,10 +53,10 @@ export function RecentResolutionsTicker({
         <div className="w-full px-4 sm:px-6 py-6">
             <div className="max-w-2xl mx-auto space-y-3">
                 {/* Section label */}
-                <p className="text-[10px] font-mono font-medium uppercase tracking-widest text-zinc-500">
+                <p className="text-[10px] font-mono font-medium uppercase tracking-widest text-ink-2">
                     Recently resolved
                     {fallback && (
-                        <span className="ml-2 text-zinc-600">(snapshot)</span>
+                        <span className="ml-2 text-ink-3">(snapshot)</span>
                     )}
                 </p>
 
@@ -60,24 +65,24 @@ export function RecentResolutionsTicker({
                     {visible.map((r, i) => (
                         <div
                             key={`${r.pundit_id}-${i}`}
-                            className="flex-1 sm:flex-none sm:min-w-[220px] sm:max-w-[280px] rounded-md border border-zinc-800 bg-zinc-950/60 px-3 py-2.5 space-y-1.5"
+                            className="flex-1 sm:flex-none sm:min-w-[220px] sm:max-w-[280px] rounded-md border border-editorial-border bg-editorial-card px-3 py-2.5 space-y-1.5"
                         >
                             {/* Pundit name + verdict row */}
                             <div className="flex items-center justify-between gap-2">
-                                <span className="font-semibold text-white text-xs truncate">
+                                <span className="font-semibold text-ink text-xs truncate">
                                     {r.pundit_name}
                                 </span>
                                 <VerdictPill correct={r.binary_correct} />
                             </div>
 
                             {/* Claim text */}
-                            <p className="text-zinc-400 text-xs leading-snug line-clamp-1">
+                            <p className="text-ink-2 text-xs leading-snug line-clamp-1">
                                 {r.extracted_claim}
                             </p>
 
                             {/* Timestamp */}
                             {r.resolved_at && (
-                                <p className="text-zinc-600 text-[10px] font-mono">
+                                <p className="text-ink-3 text-[10px] font-mono">
                                     {formatMonth(r.resolved_at)}
                                 </p>
                             )}
@@ -89,7 +94,7 @@ export function RecentResolutionsTicker({
                 <div className="pt-1">
                     <Link
                         href="/ledger"
-                        className="text-xs text-zinc-500 hover:text-emerald-400 transition-colors font-mono"
+                        className="text-xs text-ink-2 hover:text-navy transition-colors font-mono"
                     >
                         View full ledger →
                     </Link>

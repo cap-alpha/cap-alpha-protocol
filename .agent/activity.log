@@ -4,5 +4,5 @@
 # Resources: issue:<n>  pr:<n>  file:<path>  branch:<name>
 # Rotation: entries older than 7 days are pruned weekly via .agent/claim.sh
 #
-2026-04-26T19:40:00Z | claude-sonnet-1777232399 | CLAIM | issue:youtube-transcripts
-2026-04-26T19:40:39Z | claude-sonnet-1777232439 | CLAIM | file:pipeline/config/media_sources.yaml
+2026-07-20T21:02:18Z | claude-sonnet-a4ae55153dbb1f4eb | CLAIM | issue:1079
+2026-07-20T21:02:18Z | claude-sonnet-a4ae55153dbb1f4eb | CLAIM | pr:1079-fix

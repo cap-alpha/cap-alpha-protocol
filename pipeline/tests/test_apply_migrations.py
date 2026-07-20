@@ -474,3 +474,77 @@ class TestBackfillWarning:
                 apply_migrations(dry_run=False, mark_applied=False)
 
         assert not any("BACKFILL UNDECLARED" in r.message for r in caplog.records)
+
+
+class TestBillingDisabledErrorHint:
+    """
+    A GCP billing-unlink (e.g. cost-pause ops action) makes every BigQuery
+    DDL call fail with 403 Forbidden / billingNotEnabled. This must surface
+    as an actionable hint, not just an opaque re-raised traceback — and the
+    original exception must still propagate so the step still fails loudly.
+    """
+
+    def test_billing_disabled_error_logs_hint_and_reraises(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_init.sql").write_text("CREATE TABLE foo (id INT64)")
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        billing_error = Exception(
+            "403 Billing has not been enabled for this project. Enable "
+            "billing at https://console.cloud.google.com/billing. Table "
+            "expiration time must be less than 60 days while in sandbox "
+            "mode.; reason: billingNotEnabled, message: Billing has not "
+            "been enabled for this project."
+        )
+
+        mock_client = MagicMock()
+        failing_job = MagicMock()
+        failing_job.result.side_effect = billing_error
+        mock_client.query.return_value = failing_job
+        mock_client.create_dataset = MagicMock()
+
+        with patch("apply_migrations.bigquery") as mock_bq_module:
+            mock_bq_module.Client.return_value = mock_client
+            mock_bq_module.Dataset = MagicMock()
+            with caplog.at_level(logging.ERROR, logger="apply_migrations"):
+                with pytest.raises(Exception) as exc_info:
+                    apply_migrations(dry_run=False, mark_applied=False)
+
+        assert exc_info.value is billing_error
+        assert any(
+            "BILLING DISABLED" in r.message and "issue #1107" in r.message
+            for r in caplog.records
+        ), (
+            f"Expected a billing hint in logs, got: {[r.message for r in caplog.records]}"
+        )
+
+    def test_unrelated_error_reraises_without_billing_hint(
+        self, tmp_path, monkeypatch, caplog
+    ):
+        monkeypatch.setattr("apply_migrations.MIGRATIONS_DIR", tmp_path)
+        (tmp_path / "001_init.sql").write_text("CREATE TABLE foo (id INT64)")
+        os.environ["GCP_PROJECT_ID"] = "test-project"
+
+        import logging
+
+        other_error = Exception("500 Internal error encountered")
+
+        mock_client = MagicMock()
+        failing_job = MagicMock()
+        failing_job.result.side_effect = other_error
+        mock_client.query.return_value = failing_job
+        mock_client.create_dataset = MagicMock()
+
+        with patch("apply_migrations.bigquery") as mock_bq_module:
+            mock_bq_module.Client.return_value = mock_client
+            mock_bq_module.Dataset = MagicMock()
+            with caplog.at_level(logging.ERROR, logger="apply_migrations"):
+                with pytest.raises(Exception) as exc_info:
+                    apply_migrations(dry_run=False, mark_applied=False)
+
+        assert exc_info.value is other_error
+        assert not any("BILLING DISABLED" in r.message for r in caplog.records)

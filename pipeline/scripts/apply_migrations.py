@@ -99,9 +99,7 @@ def _creates_table(content: str) -> bool:
     Return True if *content* contains a CREATE TABLE or CREATE OR REPLACE TABLE
     statement (case-insensitive).
     """
-    return bool(
-        re.search(r"CREATE\s+(OR\s+REPLACE\s+)?TABLE", content, re.IGNORECASE)
-    )
+    return bool(re.search(r"CREATE\s+(OR\s+REPLACE\s+)?TABLE", content, re.IGNORECASE))
 
 
 def _split_statements(sql: str) -> list[str]:
@@ -188,8 +186,43 @@ def _ensure_tracking_table(client, project_id: str) -> None:
     ddl = _TRACKING_TABLE_DDL.format(project_id=project_id)
     log.debug("Ensuring tracking table exists…")
     job = client.query(ddl)
-    job.result()
+    try:
+        job.result()
+    except Exception as exc:
+        _reraise_with_billing_hint(exc, project_id)
     log.debug("Tracking table ready.")
+
+
+def _reraise_with_billing_hint(exc: Exception, project_id: str) -> None:
+    """
+    Re-raise *exc* as-is, but first log an actionable hint if it looks like
+    the classic "GCP billing unlinked" failure mode.
+
+    This project has been paused/resumed for cost reasons before (see
+    issue #1107) via ``gcloud billing projects unlink``. When that happens,
+    every BigQuery DDL call fails with a 403 Forbidden /
+    ``billingNotEnabled`` error and BigQuery falls back to free-tier
+    "sandbox mode" (which also rejects unbounded table expirations). That
+    error surfaces here — at the very first query the runner makes — and
+    without this hint it reads as an opaque migration-runner bug instead of
+    an infra/billing state problem.
+    """
+    err_str = str(exc)
+    if "billingNotEnabled" in err_str or "Billing has not been enabled" in err_str:
+        log.error(
+            "  BILLING DISABLED for project '%s' — BigQuery is refusing DDL "
+            "because no billing account is linked (this project has been "
+            "paused/resumed for cost reasons before, see issue #1107). "
+            "This is NOT a migration-file bug. Fix: "
+            "`gcloud billing projects describe %s` to confirm, then "
+            "`gcloud billing projects link %s --billing-account=<ACCOUNT_ID>` "
+            "or re-link via https://console.cloud.google.com/billing — then "
+            "re-run this step.",
+            project_id,
+            project_id,
+            project_id,
+        )
+    raise exc
 
 
 def _load_applied(client, project_id: str) -> dict[str, str]:
@@ -365,9 +398,7 @@ def apply_migrations(dry_run: bool = False, mark_applied: bool = False) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Idempotent BigQuery migration runner"
-    )
+    parser = argparse.ArgumentParser(description="Idempotent BigQuery migration runner")
     parser.add_argument(
         "--dry-run",
         action="store_true",

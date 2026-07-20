@@ -32,7 +32,7 @@ export function Navbar() {
                     ? "border-b-[3px] border-b-gold-light bg-navy/95 backdrop-blur-md"
                     : "border-b-[3px] border-b-transparent bg-navy/80"
             }`}
-            style={{ borderBottomColor: isScrolled || !isRoot ? 'var(--gold-light)' : 'transparent', backgroundColor: 'var(--navy)' }}
+            style={{ borderBottomColor: isScrolled || !isRoot ? 'hsl(var(--gold-light))' : 'transparent', backgroundColor: 'hsl(var(--navy))' }}
         >
             <div className="container mx-auto px-4 h-16 flex items-center justify-between">
                 <div className="flex items-center gap-6">

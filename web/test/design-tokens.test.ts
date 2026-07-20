@@ -22,22 +22,30 @@ function readFile(rel: string): string {
 // CSS variable presence in globals.css
 // ---------------------------------------------------------------------------
 
-describe("globals.css — L2 semantic color tokens", () => {
+// Updated 2026-07-20 (#1071, #1113): the L2 "semantic outcome colors" block
+// this originally asserted (--color-correct(-bg)/--color-incorrect(-bg)/
+// --color-pending(-bg)/--color-info(-bg)/--color-brand) was removed —
+// zero consumers anywhere in app/components, and it duplicated the
+// editorial --pos/--neg/--warn tokens that were already doing the same
+// job under a different name. Asserting the canonical editorial token set
+// that replaced it instead. See globals.css and docs/design/2026-06-design-brief.md.
+describe("globals.css — editorial palette tokens (canonical, #1071)", () => {
     const css = readFile("app/globals.css");
 
-    const l2Vars = [
-        "--color-correct",
-        "--color-correct-bg",
-        "--color-incorrect",
-        "--color-incorrect-bg",
-        "--color-pending",
-        "--color-pending-bg",
-        "--color-info",
-        "--color-info-bg",
-        "--color-brand",
+    const editorialVars = [
+        "--canvas",
+        "--surface",
+        "--ink",
+        "--ink-2",
+        "--ink-3",
+        "--border-editorial",
+        "--accent-editorial",
+        "--correct",
+        "--incorrect",
+        "--pending",
     ];
 
-    for (const v of l2Vars) {
+    for (const v of editorialVars) {
         it(`declares ${v}`, () => {
             expect(css).toContain(v);
         });
@@ -51,9 +59,6 @@ describe("globals.css — L3 depth tokens", () => {
         "--color-canvas",
         "--color-surface",
         "--color-elevated",
-        "--shadow-glow-brand",
-        "--shadow-glow-correct",
-        "--shadow-glow-incorrect",
     ];
 
     for (const v of l3Vars) {
@@ -61,6 +66,16 @@ describe("globals.css — L3 depth tokens", () => {
             expect(css).toContain(v);
         });
     }
+
+    // boxShadow.glow-* (and the --shadow-glow-* vars this file used to
+    // assert) were removed in #1071 — zero consumers, and glow effects are
+    // explicitly against the editorial direction ("no glow, no
+    // glassmorphism", docs/design/2026-06-design-brief.md).
+    it("does not declare removed glow shadow tokens", () => {
+        expect(css).not.toContain("--shadow-glow-brand");
+        expect(css).not.toContain("--shadow-glow-correct");
+        expect(css).not.toContain("--shadow-glow-incorrect");
+    });
 
     it("body uses bg-canvas instead of bg-background or bg-black", () => {
         expect(css).toContain("bg-canvas");
@@ -122,22 +137,34 @@ describe("tailwind.config — L1 fontFamily", () => {
 // Tailwind config — L2 semantic colors (text-based checks)
 // ---------------------------------------------------------------------------
 
-describe("tailwind.config — L2 semantic colors", () => {
+// Updated 2026-07-20 (#1071, #1113): color.correct/incorrect/pending now
+// reference the canonical --correct/--incorrect/--pending tokens directly
+// (no "-bg" variants, no "info" concept — those were dead L2 tokens with
+// zero consumers, removed alongside the CSS vars). Also asserts the
+// hsl(var(...) / <alpha-value>) wrapping specifically, since a bare
+// var(--x) reference compiles but silently drops every Tailwind opacity
+// modifier (e.g. `ring-correct/30`) — a real bug caught by adversarial
+// review after #1113 originally shipped without it.
+describe("tailwind.config — editorial semantic colors (canonical, #1071)", () => {
     const cfg = readFile("tailwind.config.ts");
 
-    // Hyphenated keys are quoted; bare keys are not
     it("has color.correct", () => { expect(cfg).toContain("correct:"); });
-    it("has color.correct-bg", () => { expect(cfg).toContain("'correct-bg'"); });
     it("has color.incorrect", () => { expect(cfg).toContain("incorrect:"); });
-    it("has color.incorrect-bg", () => { expect(cfg).toContain("'incorrect-bg'"); });
     it("has color.pending", () => { expect(cfg).toContain("pending:"); });
-    it("has color.pending-bg", () => { expect(cfg).toContain("'pending-bg'"); });
-    it("has color.info", () => { expect(cfg).toContain("info:"); });
-    it("has color.info-bg", () => { expect(cfg).toContain("'info-bg'"); });
-    it("references --color-correct CSS variable", () => { expect(cfg).toContain("--color-correct"); });
-    it("references --color-incorrect CSS variable", () => { expect(cfg).toContain("--color-incorrect"); });
-    it("references --color-pending CSS variable", () => { expect(cfg).toContain("--color-pending"); });
-    it("references --color-info CSS variable", () => { expect(cfg).toContain("--color-info"); });
+    it("references --correct CSS variable", () => { expect(cfg).toContain("var(--correct)"); });
+    it("references --incorrect CSS variable", () => { expect(cfg).toContain("var(--incorrect)"); });
+    it("references --pending CSS variable", () => { expect(cfg).toContain("var(--pending)"); });
+
+    const alphaValueColors = [
+        "ink", "ink-2", "ink-3", "accent-editorial", "correct", "incorrect",
+        "pending", "navy", "gold", "editorial-bg", "editorial-card", "editorial-border",
+    ];
+    for (const key of alphaValueColors) {
+        it(`color.${key} supports opacity modifiers (hsl(...) / <alpha-value> wrapping)`, () => {
+            const re = new RegExp(`'?${key}'?:\\s*'hsl\\(var\\([^)]+\\)\\s*/\\s*<alpha-value>\\)'`);
+            expect(cfg).toMatch(re);
+        });
+    }
 });
 
 // ---------------------------------------------------------------------------
@@ -152,12 +179,18 @@ describe("tailwind.config — L3 depth colors", () => {
     it("has color.elevated", () => { expect(cfg).toContain("elevated:"); });
 });
 
-describe("tailwind.config — L3 box shadows", () => {
+// boxShadow.glow-* removed in #1071 — zero consumers, and glow effects are
+// explicitly against the editorial direction. Asserting absence instead of
+// deleting this describe block outright, so a future re-add doesn't slip
+// back in silently.
+describe("tailwind.config — L3 box shadows (removed, #1071)", () => {
     const cfg = readFile("tailwind.config.ts");
 
-    it("has shadow glow-brand", () => { expect(cfg).toContain("'glow-brand'"); });
-    it("has shadow glow-correct", () => { expect(cfg).toContain("'glow-correct'"); });
-    it("has shadow glow-incorrect", () => { expect(cfg).toContain("'glow-incorrect'"); });
+    it("does not have shadow glow-brand/glow-correct/glow-incorrect", () => {
+        expect(cfg).not.toContain("'glow-brand'");
+        expect(cfg).not.toContain("'glow-correct'");
+        expect(cfg).not.toContain("'glow-incorrect'");
+    });
 });
 
 // ---------------------------------------------------------------------------

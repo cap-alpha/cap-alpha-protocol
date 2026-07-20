@@ -46,3 +46,7 @@ jobs:
           echo "  must return > 0 and every required check must be SUCCESS or SKIPPED."
           echo ""
           echo "Sanity check passed."
+
+      - name: gh-lars pr-merge regression test (#1079)
+        run: |
+          bash scripts/tests/test_gh_lars_pr_merge.sh

@@ -80,26 +80,36 @@ const config = {
                 surface: 'hsl(var(--color-surface))',
                 elevated: 'hsl(var(--color-elevated))',
                 // Editorial palette — canonical tokens (docs/design/2026-06-design-brief.md)
-                ink: 'var(--ink)',
-                'ink-2': 'var(--ink-2)',
-                'ink-3': 'var(--ink-3)',
-                'accent-editorial': 'var(--accent-editorial)',
-                'accent-editorial-light': 'var(--accent-editorial-light)',
-                correct: 'var(--correct)',
-                incorrect: 'var(--incorrect)',
-                pending: 'var(--pending)',
+                //
+                // Wrapped in hsl(var(...) / <alpha-value>) — same convention as the
+                // shadcn tokens above — NOT bare var(...). The underlying custom
+                // properties are stored as HSL channel triples in globals.css
+                // specifically so this works: bare `var(--x)` colors compile plain
+                // utilities (`bg-navy`) fine but silently emit ZERO CSS for any
+                // opacity-modifier variant (`bg-navy/10`), verified against
+                // tailwindcss@3.4.19 (this repo's pinned version). Fixed here
+                // 2026-07-20 after adversarial review caught the bug across 38+
+                // downstream call sites in #1114/#1117.
+                ink: 'hsl(var(--ink) / <alpha-value>)',
+                'ink-2': 'hsl(var(--ink-2) / <alpha-value>)',
+                'ink-3': 'hsl(var(--ink-3) / <alpha-value>)',
+                'accent-editorial': 'hsl(var(--accent-editorial) / <alpha-value>)',
+                'accent-editorial-light': 'hsl(var(--accent-editorial-light) / <alpha-value>)',
+                correct: 'hsl(var(--correct) / <alpha-value>)',
+                incorrect: 'hsl(var(--incorrect) / <alpha-value>)',
+                pending: 'hsl(var(--pending) / <alpha-value>)',
                 // Legacy V1 Data Editorial aliases — see globals.css comment. Do
                 // not add new consumers; removal tracked under #1070.
-                navy: 'var(--navy)',
-                'navy-light': 'var(--navy-light)',
-                gold: 'var(--gold)',
-                'gold-light': 'var(--gold-light)',
-                'editorial-bg': 'var(--bg)',
-                'editorial-card': 'var(--bg-card)',
-                'editorial-border': 'var(--border-editorial)',
-                pos: 'var(--pos)',
-                neg: 'var(--neg)',
-                warn: 'var(--warn)',
+                navy: 'hsl(var(--navy) / <alpha-value>)',
+                'navy-light': 'hsl(var(--navy-light) / <alpha-value>)',
+                gold: 'hsl(var(--gold) / <alpha-value>)',
+                'gold-light': 'hsl(var(--gold-light) / <alpha-value>)',
+                'editorial-bg': 'hsl(var(--bg) / <alpha-value>)',
+                'editorial-card': 'hsl(var(--bg-card) / <alpha-value>)',
+                'editorial-border': 'hsl(var(--border-editorial) / <alpha-value>)',
+                pos: 'hsl(var(--pos) / <alpha-value>)',
+                neg: 'hsl(var(--neg) / <alpha-value>)',
+                warn: 'hsl(var(--warn) / <alpha-value>)',
             },
             borderRadius: {
                 lg: "var(--radius)",

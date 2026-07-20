@@ -19,24 +19,38 @@
      * dashboard product (fantasy/, trade-machine, team/, scenarios/):
      *   - brief's `--border`  -> `--border-editorial` here (shadcn --border
      *     is an HSL triple consumed via hsl(var(--border)); this token is
-     *     a raw hex consumed directly — same name would collide).
+     *     the same HSL-triple format now, consumed via hsl(var(...)) too —
+     *     same name would still collide).
      *   - brief's `--accent`  -> `--accent-editorial` here (shadcn --accent
      *     is a distinct hover/accent-surface HSL token used by button,
      *     select, dialog, etc. across both products).
+     *
+     * Stored as bare HSL channel triples (H S% L%), matching the shadcn
+     * tokens below — NOT raw hex. This is required for Tailwind's opacity
+     * modifier syntax (`bg-navy/10`, `ring-correct/30`) to work at all:
+     * `hsl(var(--x) / <alpha-value>)` only resolves opacity correctly when
+     * `--x` is an HSL triple. A bare-hex `var(--x)` color entry compiles
+     * plain utilities fine but silently emits ZERO CSS for any `/NN`
+     * opacity variant (verified empirically against tailwindcss@3.4.19,
+     * the version pinned in package-lock.json — no color-mix() fallback
+     * for this case). See tailwind.config.ts for the consuming side.
+     * Any code that needs the color as a standalone CSS value (inline
+     * `style` props, plain CSS rules below) MUST wrap it in `hsl(...)` —
+     * `var(--ink)` alone is not a valid color value anymore.
      * ------------------------------------------------------------------ */
-    --canvas: #FAF8F5;
-    --surface: #FFFFFF;
-    --ink: #1A1A1A;
-    --ink-2: #5C5C5C;
-    --ink-3: #9A9A9A;
-    --border-editorial: #E5E1DA;
-    --accent-editorial: #1A2744;
-    --accent-editorial-light: #253660;
-    --gold: #B8860B;
-    --gold-light: #D4A017;
-    --correct: #1A7A4A;
-    --incorrect: #B91C1C;
-    --pending: #92400E;
+    --canvas: 36 33.3% 97.1%;              /* #FAF8F5 */
+    --surface: 0 0% 100%;                  /* #FFFFFF */
+    --ink: 0 0% 10.2%;                     /* #1A1A1A */
+    --ink-2: 0 0% 36.1%;                   /* #5C5C5C */
+    --ink-3: 0 0% 60.4%;                   /* #9A9A9A */
+    --border-editorial: 38.2 17.5% 87.6%;  /* #E5E1DA */
+    --accent-editorial: 221.4 44.7% 18.4%; /* #1A2744 */
+    --accent-editorial-light: 222.7 44.4% 26.1%; /* #253660 */
+    --gold: 42.7 88.7% 38.2%;              /* #B8860B */
+    --gold-light: 43.5 80.4% 46.1%;        /* #D4A017 */
+    --correct: 150 64.9% 29%;              /* #1A7A4A */
+    --incorrect: 0 73.7% 41.8%;            /* #B91C1C */
+    --pending: 22.7 82.5% 31.4%;           /* #92400E */
 
     /* Legacy V1 Data Editorial names — deprecated aliases kept only so
      * existing consumers (components/navbar.tsx, components/in-play-card.tsx,
@@ -153,15 +167,15 @@
 }
 
 .score-pos {
-  color: var(--correct);
+  color: hsl(var(--correct));
 }
 
 .score-neg {
-  color: var(--incorrect);
+  color: hsl(var(--incorrect));
 }
 
 .score-warn {
-  color: var(--pending);
+  color: hsl(var(--pending));
 }
 
 .claim-quote {
@@ -177,5 +191,5 @@
 }
 
 .logo-mark .logo-alpha {
-  color: var(--gold-light);
+  color: hsl(var(--gold-light));
 }

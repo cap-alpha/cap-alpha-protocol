@@ -42,10 +42,10 @@ function PunditAvatar({ name, avatarUrl }: { name: string; avatarUrl?: string })
 
     return (
         <div
-            className="w-8 h-8 rounded-full bg-navy/10 border border-navy/30 flex items-center justify-center shrink-0"
+            className="w-8 h-8 rounded-full bg-emerald-900/60 border border-emerald-700/40 flex items-center justify-center shrink-0"
             aria-hidden="true"
         >
-            <span className="text-[10px] font-mono font-bold text-navy">{initials}</span>
+            <span className="text-[10px] font-mono font-bold text-emerald-400">{initials}</span>
         </div>
     );
 }
@@ -172,9 +172,9 @@ export function PunditSearchBar({
         <div ref={containerRef} className={cn("relative", className)}>
             {/* Input */}
             <div className="relative flex items-center">
-                <Search className="absolute left-3 h-4 w-4 text-ink-2 pointer-events-none" />
+                <Search className="absolute left-3 h-4 w-4 text-zinc-500 pointer-events-none" />
                 {loading && (
-                    <Loader2 className="absolute right-3 h-4 w-4 text-ink-2 animate-spin pointer-events-none" />
+                    <Loader2 className="absolute right-3 h-4 w-4 text-zinc-500 animate-spin pointer-events-none" />
                 )}
                 <input
                     ref={inputRef}
@@ -194,8 +194,8 @@ export function PunditSearchBar({
                     }}
                     onKeyDown={handleKeyDown}
                     className={cn(
-                        "w-full rounded-lg border border-editorial-border bg-editorial-card pl-9 pr-9 py-2 text-sm text-ink",
-                        "placeholder:text-ink-2 focus:outline-none focus:ring-2 focus:ring-navy/30 focus:border-navy/50",
+                        "w-full rounded-lg border border-zinc-800 bg-zinc-950 pl-9 pr-9 py-2 text-sm text-white",
+                        "placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50",
                         "transition-colors"
                     )}
                 />
@@ -208,7 +208,7 @@ export function PunditSearchBar({
                     id={listboxId}
                     role="listbox"
                     aria-label="Pundit search results"
-                    className="absolute z-50 mt-1 w-full rounded-lg border border-editorial-border bg-editorial-card shadow-xl overflow-hidden"
+                    className="absolute z-50 mt-1 w-full rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl overflow-hidden"
                 >
                     {results.map((pundit, idx) => {
                         const accuracyPct = Math.round(pundit.accuracy * 100);
@@ -222,8 +222,8 @@ export function PunditSearchBar({
                                 className={cn(
                                     "flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors",
                                     isActive
-                                        ? "bg-editorial-border border-l-2 border-navy"
-                                        : "hover:bg-editorial-card border-l-2 border-transparent"
+                                        ? "bg-zinc-800 border-l-2 border-emerald-500"
+                                        : "hover:bg-zinc-900 border-l-2 border-transparent"
                                 )}
                                 onMouseDown={(e) => {
                                     // prevent blur-before-click
@@ -237,12 +237,12 @@ export function PunditSearchBar({
                                     <div
                                         className={cn(
                                             "text-sm font-semibold truncate transition-colors",
-                                            isActive ? "text-navy" : "text-ink"
+                                            isActive ? "text-emerald-400" : "text-white"
                                         )}
                                     >
                                         {pundit.name}
                                     </div>
-                                    <div className="text-[10px] font-mono text-ink-2 mt-0.5">
+                                    <div className="text-[10px] font-mono text-zinc-500 mt-0.5">
                                         {pundit.domain}
                                     </div>
                                 </div>
@@ -250,16 +250,16 @@ export function PunditSearchBar({
                                     <div
                                         className={cn(
                                             "text-sm font-mono font-semibold tabular-nums",
-                                            accuracyPct >= 65
-                                                ? "text-navy"
-                                                : accuracyPct < 45
-                                                ? "text-incorrect"
-                                                : "text-ink"
+                                            accuracyPct >= 60
+                                                ? "text-emerald-400"
+                                                : accuracyPct >= 45
+                                                ? "text-yellow-400"
+                                                : "text-red-400"
                                         )}
                                     >
                                         {pundit.predictionCount > 0 ? `${accuracyPct}%` : "—"}
                                     </div>
-                                    <div className="text-[10px] font-mono text-ink-3">
+                                    <div className="text-[10px] font-mono text-zinc-600">
                                         {pundit.predictionCount} picks
                                     </div>
                                 </div>
@@ -270,7 +270,7 @@ export function PunditSearchBar({
                         <li
                             role="option"
                             aria-selected={false}
-                            className="px-4 py-4 text-sm text-ink-2 text-center"
+                            className="px-4 py-4 text-sm text-zinc-500 text-center"
                         >
                             No pundits found for &ldquo;{query}&rdquo;
                         </li>

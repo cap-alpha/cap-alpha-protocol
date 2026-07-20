@@ -174,8 +174,14 @@ function CategoryAccuracy({
     if (rate === undefined || rate === null) return null;
 
     const pct = Math.round(rate * 100);
+    // --pos/--warn/--neg are now stored as HSL triples (#1113 fix), so raw
+    // `var(--x)` is not a valid standalone color value anymore — must wrap.
     const colorStyle =
-        pct >= 60 ? { color: "var(--pos)" } : pct >= 45 ? { color: "var(--warn)" } : { color: "var(--neg)" };
+        pct >= 60
+            ? { color: "hsl(var(--pos))" }
+            : pct >= 45
+            ? { color: "hsl(var(--warn))" }
+            : { color: "hsl(var(--neg))" };
 
     return (
         <span className="text-[10px] font-mono text-ink-2">

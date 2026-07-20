@@ -37,7 +37,15 @@ def _json_load_safe_value(value: Any, is_json_col: bool) -> Any:
     if is_json_col and isinstance(value, str):
         try:
             return json.loads(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            preview = value if len(value) <= 200 else f"{value[:200]}..."
+            logger.warning(
+                "Could not parse value for JSON-typed column as JSON "
+                "(%s); loading as a raw string instead of a native JSON "
+                "value: %r",
+                exc,
+                preview,
+            )
             return value
     return value
 
@@ -303,9 +311,12 @@ class DBManager:
                 dest_schema = self.client.get_table(table_ref).schema
                 json_cols = {f.name for f in dest_schema if f.field_type == "JSON"}
             except Exception as schema_exc:
-                logger.debug(
+                logger.warning(
                     f"Could not introspect schema for '{table_ref}' "
-                    f"(defaulting to no JSON columns): {schema_exc}"
+                    f"(defaulting to no JSON columns — any JSON-typed "
+                    f"destination columns will be loaded via "
+                    f"load_table_from_dataframe and may fail with "
+                    f"'400 Unsupported field type: JSON'): {schema_exc}"
                 )
                 json_cols = set()
             json_cols &= set(df_cleaned.columns)

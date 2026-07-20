@@ -31,7 +31,7 @@ if not MOTHERDUCK_TOKEN or not GEMINI_API_KEY:
 
 # Initialize clients
 client = genai.Client(api_key=GEMINI_API_KEY)
-model_name = "gemini-2.5-flash"
+model_name = "gemini-3-flash-preview"
 
 def get_event_id(url: str, player_name: str) -> str:
     s = f"{url}-{player_name}"

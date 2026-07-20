@@ -12,7 +12,7 @@ api_key = os.environ.get("GEMINI_API_KEY")
 if not api_key:
     raise ValueError("GEMINI_API_KEY environment variable not set or empty in GitHub Secrets.")
 client = genai.Client(api_key=api_key)
-model_name = os.environ.get("GEMINI_MODEL_NAME", "gemini-2.5-flash")
+model_name = os.environ.get("GEMINI_MODEL_NAME", "gemini-3-flash-preview")
 
 def get_db_connection():
     md_token = os.environ.get("MOTHERDUCK_TOKEN")

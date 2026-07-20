@@ -22,7 +22,7 @@ extraction:
   provider: ollama              # gemini | claude | openai | ollama; overridden by LLM_EXTRACTION_PROVIDER env var
   model: qwen2.5:32b            # provider-specific model ID; overridden by LLM_EXTRACTION_MODEL env var
   base_url: http://localhost:11434
-  timeout: 120
+  timeout: 240                  # qwen2.5:32b real-world latency on M4 Pro is ~170-180s/article; 120s was timing out healthy calls
   temperature: 0.1
   rate_limit_seconds: 0.0       # no rate limiting for local inference; overridden by LLM_EXTRACTION_RATE_LIMIT env var
   # gemini models: gemini-2.5-flash (fast+cheap), gemini-2.5-pro (highest quality)

@@ -145,21 +145,25 @@ jobs:
 
           WORKFLOW_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           TITLE="incident: extraction health check failed $(date -u '+%Y-%m-%dT%H:%MZ')"
-          BODY="## Extraction health check failed
-
-The hourly extraction health check detected an issue. See the [workflow run]($WORKFLOW_URL) for details.
-
-**Conditions checked:**
-- Zero \`extraction_run\` rows in last 4h → pipeline may have stopped
-- Error rate > 20% (errors / articles_processed)
-- \`metadata_completeness_pct\` < 100 on any run in last 4h
-
-**Runbook:**
-1. Check \`silver_v2_claims.extraction_run\` for recent rows in BigQuery
-2. Check the \`pundit_pipeline\` workflow for failures
-3. Resolve root cause and close this issue once healthy
-
-@king-hrothgar"
+          # NOTE: body built via printf, not a multi-line string — unindented
+          # continuation lines inside this literal block break the workflow
+          # YAML (zero-job "failure" run on every push; schedule dead too).
+          BODY="$(printf '%s\n' \
+            '## Extraction health check failed' \
+            '' \
+            "The hourly extraction health check detected an issue. See the [workflow run](${WORKFLOW_URL}) for details." \
+            '' \
+            '**Conditions checked:**' \
+            '- Zero `extraction_run` rows in last 4h → pipeline may have stopped' \
+            '- Error rate > 20% (errors / articles_processed)' \
+            '- `metadata_completeness_pct` < 100 on any run in last 4h' \
+            '' \
+            '**Runbook:**' \
+            '1. Check `silver_v2_claims.extraction_run` for recent rows in BigQuery' \
+            '2. Check the `pundit_pipeline` workflow for failures' \
+            '3. Resolve root cause and close this issue once healthy' \
+            '' \
+            '@king-hrothgar')"
 
           gh issue create \
             --title "$TITLE" \

@@ -55,13 +55,13 @@ export function AffiliateCTA({
     }
 
     return (
-        <div className={`rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-4 py-4 ${className}`}>
+        <div className={`rounded-xl border border-navy/20 bg-navy/5 px-4 py-4 ${className}`}>
             <a
                 href={url}
                 target="_blank"
                 rel="noopener noreferrer sponsored"
                 onClick={handleClick}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-navy hover:text-accent-editorial-light transition-colors"
             >
                 {ctaText}
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
@@ -105,14 +105,14 @@ export function AffiliateInlineLink({
                 target="_blank"
                 rel="noopener noreferrer sponsored"
                 onClick={() => trackAffClick(platform, placement, variant, extra)}
-                className="text-emerald-400 underline hover:text-emerald-300 transition-colors"
+                className="text-navy underline hover:text-accent-editorial-light transition-colors"
             >
                 {text}
             </a>
             {" · "}
             <Link
                 href="/legal/disclosure"
-                className="text-zinc-600 hover:text-zinc-400 transition-colors text-[11px]"
+                className="text-ink-3 hover:text-ink-2 transition-colors text-[11px]"
             >
                 Affiliate disclosure
             </Link>
@@ -159,23 +159,23 @@ export function AffiliateCta({ platform, context, className = "" }: AffiliateCta
 
     return (
         <div
-            className={`rounded-xl border border-emerald-900/40 bg-emerald-950/20 px-4 py-4 ${className}`}
+            className={`rounded-xl border border-navy/20 bg-navy/5 px-4 py-4 ${className}`}
         >
             <a
                 href={entry.href}
                 target="_blank"
                 rel="noopener noreferrer sponsored"
                 onClick={() => trackCtaClick(platform, context)}
-                className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+                className="inline-flex items-center gap-2 text-sm font-semibold text-navy hover:text-accent-editorial-light transition-colors"
             >
                 {ctaText}
                 <ExternalLink className="w-3.5 h-3.5 shrink-0" />
             </a>
-            <p className="mt-1.5 text-[11px] text-zinc-500">
+            <p className="mt-1.5 text-[11px] text-ink-2">
                 Ad — Gambling affiliate link.{" "}
                 <Link
                     href="/legal/disclosure"
-                    className="underline hover:text-zinc-400 transition-colors"
+                    className="underline hover:text-ink-2 transition-colors"
                 >
                     Disclosure
                 </Link>

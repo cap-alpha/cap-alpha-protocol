@@ -75,10 +75,10 @@ function InitialsAvatar({
     return (
         <div
             className={cn(
-                "w-12 h-12 rounded-full flex items-center justify-center text-sm font-black shrink-0",
+                "w-12 h-12 rounded-full flex items-center justify-center text-sm font-bold shrink-0",
                 variant === "hof"
-                    ? "bg-emerald-900/60 text-emerald-300 ring-2 ring-emerald-500/30"
-                    : "bg-red-900/60 text-red-300 ring-2 ring-red-500/30"
+                    ? "bg-navy/10 text-navy ring-2 ring-navy/25"
+                    : "bg-[rgba(185,28,28,0.08)] text-incorrect ring-2 ring-incorrect/25"
             )}
             aria-hidden="true"
         >
@@ -88,7 +88,9 @@ function InitialsAvatar({
 }
 
 // ---------------------------------------------------------------------------
-// Outcome stamp
+// Outcome stamp — literal prediction outcome, keeps the correct/incorrect
+// semantic colors (not navy — this is a real CORRECT/INCORRECT result, not
+// a "top decile" ranking badge).
 // ---------------------------------------------------------------------------
 
 function OutcomeStamp({
@@ -98,14 +100,14 @@ function OutcomeStamp({
 }) {
     if (outcome === "correct") {
         return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-400 ring-1 ring-emerald-500/30">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(26,122,74,0.1)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-correct ring-1 ring-correct/30">
                 <CheckCircle2 className="w-2.5 h-2.5" />
                 Correct
             </span>
         );
     }
     return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-red-900/40 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-red-400 ring-1 ring-red-500/30">
+        <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-incorrect ring-1 ring-incorrect/30">
             <XCircle className="w-2.5 h-2.5" />
             Incorrect
         </span>
@@ -128,16 +130,16 @@ export function PunditCard({
 }: PunditCardProps) {
     const lowSample = resolvedCount < 10;
     const accentBorder =
-        variant === "hof" ? "border-emerald-500/20" : "border-red-500/20";
+        variant === "hof" ? "border-navy/20" : "border-incorrect/20";
     const accentText =
-        variant === "hof" ? "text-emerald-400" : "text-red-400";
+        variant === "hof" ? "text-navy" : "text-incorrect";
     const accentBg =
-        variant === "hof" ? "bg-emerald-500/5" : "bg-red-500/5";
+        variant === "hof" ? "bg-navy/5" : "bg-[rgba(185,28,28,0.04)]";
 
     return (
         <div
             className={cn(
-                "rounded-xl border bg-zinc-900/50 p-4 flex flex-col gap-3 transition-colors hover:bg-zinc-900/80",
+                "rounded-xl border bg-editorial-card p-4 flex flex-col gap-3 transition-colors hover:bg-editorial-border/60",
                 accentBorder,
                 accentBg
             )}
@@ -148,10 +150,10 @@ export function PunditCard({
             <div className="flex items-start gap-3">
                 <InitialsAvatar name={name} variant={variant} />
                 <div className="flex-1 min-w-0">
-                    <div className="text-base font-bold text-white truncate leading-tight">
+                    <div className="text-base font-bold text-ink truncate leading-tight">
                         {name}
                     </div>
-                    <div className={cn("text-3xl font-black tabular-nums leading-none mt-1", accentText)}>
+                    <div className={cn("text-3xl font-bold tabular-nums leading-none mt-1", accentText)}>
                         <AnimatedCounter target={accuracy} />
                         <span className="text-xl">%</span>
                     </div>
@@ -160,33 +162,33 @@ export function PunditCard({
 
             {/* Correct / resolved count + sample size label */}
             <div className="flex items-center justify-between gap-2">
-                <div className="text-xs font-mono text-zinc-400">
-                    <span className="text-emerald-400 font-semibold">{correctCount}</span>
-                    <span className="text-zinc-600"> correct / </span>
-                    <span className="font-semibold text-zinc-300">{resolvedCount}</span>
-                    <span className="text-zinc-600"> resolved</span>
+                <div className="text-xs font-mono text-ink-2">
+                    <span className="text-navy font-semibold">{correctCount}</span>
+                    <span className="text-ink-3"> correct / </span>
+                    <span className="font-semibold text-ink">{resolvedCount}</span>
+                    <span className="text-ink-3"> resolved</span>
                 </div>
                 {lowSample && (
-                    <span className="text-[10px] font-mono text-amber-500/80 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5 shrink-0">
+                    <span className="text-[10px] font-mono text-pending bg-[rgba(146,64,14,0.08)] border border-pending/20 rounded px-1.5 py-0.5 shrink-0">
                         small sample
                     </span>
                 )}
             </div>
             {totalCount > resolvedCount && (
-                <div className="text-[10px] font-mono text-zinc-600">
+                <div className="text-[10px] font-mono text-ink-3">
                     {totalCount - resolvedCount} more picks awaiting resolution
                 </div>
             )}
 
             {/* Featured prediction */}
             {featuredPrediction && (
-                <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2 space-y-1.5">
-                    <p className="text-xs italic text-zinc-300 leading-snug line-clamp-2">
+                <div className="rounded-lg border border-editorial-border bg-editorial-card px-3 py-2 space-y-1.5">
+                    <p className="text-xs italic text-ink leading-snug line-clamp-2">
                         &ldquo;{featuredPrediction.text}&rdquo;
                     </p>
                     <div className="flex items-center justify-between gap-2">
                         <OutcomeStamp outcome={featuredPrediction.outcome} />
-                        <span className="text-[10px] font-mono text-zinc-600">
+                        <span className="text-[10px] font-mono text-ink-3">
                             {featuredPrediction.resolvedAt}
                         </span>
                     </div>
@@ -196,7 +198,7 @@ export function PunditCard({
             {/* View full record link */}
             <Link
                 href={`/ledger/${encodeURIComponent(punditId)}`}
-                className="inline-flex items-center gap-1 text-xs font-mono text-zinc-500 hover:text-emerald-400 transition-colors mt-auto pt-1"
+                className="inline-flex items-center gap-1 text-xs font-mono text-ink-2 hover:text-navy transition-colors mt-auto pt-1"
             >
                 View full record <ArrowRight className="w-3 h-3" />
             </Link>

@@ -105,6 +105,12 @@ def mock_db():
     mock_job = MagicMock()
     mock_job.result.return_value = None
     db.client.load_table_from_dataframe.return_value = mock_job
+    # write_raw_utterances routes through db.append_dataframe_to_table (#1124),
+    # not db.client.load_table_from_dataframe directly — delegate so existing
+    # assertions on db.client.load_table_from_dataframe.call_args still work.
+    db.append_dataframe_to_table.side_effect = lambda df, table_name: (
+        db.client.load_table_from_dataframe(df, table_name, job_config=None)
+    )
     return db
 
 

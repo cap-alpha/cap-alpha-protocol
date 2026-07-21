@@ -1237,9 +1237,6 @@ def write_raw_utterances(
         # Directly use client with full project.dataset.table reference
         project_id = os.environ.get("GCP_PROJECT_ID", "")
         table_ref = f"{project_id}.{full_table}"
-        job_config = __import__(
-            "google.cloud.bigquery", fromlist=["LoadJobConfig"]
-        ).LoadJobConfig(write_disposition="WRITE_APPEND")
         df_clean = df.copy()
         # Preserve NaN/None as actual NULL — astype(str) would silently write
         # the string "None" for missing values, corrupting nullable columns in BQ.
@@ -1255,10 +1252,13 @@ def write_raw_utterances(
                 # Use .where() to keep non-null values as-is and leave NaN/None
                 # as Python None (which pyarrow serialises as BQ NULL).
                 df_clean[col] = df_clean[col].where(df_clean[col].notna(), None)
-        job = db.client.load_table_from_dataframe(
-            df_clean, table_ref, job_config=job_config
-        )
-        job.result()
+        # Route through DBManager.append_dataframe_to_table (not
+        # db.client.load_table_from_dataframe directly) so this write gets
+        # #1111's JSON-column handling: target_entity is a JSON-typed
+        # destination column (migration 022), and load_table_from_dataframe
+        # rejects JSON columns with "400 Unsupported field type: JSON"
+        # (see #1115/#1124 — the identical bug write_silver_v2_claims had).
+        db.append_dataframe_to_table(df_clean, table_ref)
         logger.info(f"Wrote {len(rows)} raw_utterance rows to {table_ref}")
     except Exception as exc:
         logger.error(

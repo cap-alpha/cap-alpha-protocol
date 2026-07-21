@@ -1667,11 +1667,21 @@ def _capture_load_args(mock_db):
 
 
 def _make_mock_db_for_bq_write():
-    """Build a mock DBManager whose BQ load path succeeds."""
+    """Build a mock DBManager whose BQ load path succeeds.
+
+    append_dataframe_to_table delegates to client.load_table_from_dataframe so
+    existing assertions via _capture_load_args keep working now that
+    write_raw_utterances routes through DBManager.append_dataframe_to_table
+    instead of calling db.client.load_table_from_dataframe directly (#1124,
+    mirroring #1115's fix for write_silver_v2_claims).
+    """
     db = MagicMock()
     mock_job = MagicMock()
     mock_job.result.return_value = None
     db.client.load_table_from_dataframe.return_value = mock_job
+    db.append_dataframe_to_table.side_effect = lambda df, table_name: (
+        db.client.load_table_from_dataframe(df, table_name, job_config=None)
+    )
     return db
 
 
@@ -2814,6 +2824,69 @@ class TestWriteRawUtterancesReturnsTuple:
         count, id_map = result
         assert count == 0
         assert id_map == {}
+
+
+class TestWriteRawUtterancesRoutesThroughDBManager:
+    """Regression test for #1124: write_raw_utterances must route the
+    raw_utterance write through db.append_dataframe_to_table (which gets
+    #1111's JSON-column handling for target_entity, a JSON-typed destination
+    column per migration 022), not db.client.load_table_from_dataframe
+    directly. If the write regresses back to calling the client method
+    directly, the stub below raises — mirrors #1115's regression test for
+    write_silver_v2_claims (test_claim_write_routes_through_dbmanager_append).
+    """
+
+    def test_raw_utterance_write_routes_through_dbmanager_append(self):
+        import os
+
+        from src.assertion_extractor import write_raw_utterances
+
+        os.environ.setdefault("GCP_PROJECT_ID", "test-project")
+
+        append_calls = []
+
+        class _ClientStubNoDirectLoad:
+            def load_table_from_dataframe(self, *args, **kwargs):
+                raise AssertionError(
+                    "write_raw_utterances must route the raw_utterance write "
+                    "through db.append_dataframe_to_table, not "
+                    "db.client.load_table_from_dataframe directly (#1124)"
+                )
+
+        class _DBStubRouted:
+            client = _ClientStubNoDirectLoad()
+
+            def append_dataframe_to_table(self, df, table_name):
+                append_calls.append((table_name, df.copy()))
+
+        db = _DBStubRouted()
+        utterance = {
+            "text": "Mahomes will win MVP",
+            "speech_act_type": "assertion",
+            "testability_score": 0.9,
+            "extraction_confidence": 0.9,
+            "target_entity": {"type": "player", "name": "Patrick Mahomes"},
+        }
+
+        count, id_map = write_raw_utterances(
+            utterances=[utterance],
+            source_doc_id="doc_routed",
+            speaker_entity_id="entity_routed",
+            uttered_at=datetime(2025, 9, 1, tzinfo=timezone.utc),
+            domain="nfl",
+            db=db,
+        )
+
+        assert count == 1
+        assert len(id_map) == 1
+        assert len(append_calls) == 1
+        table_name, df = append_calls[0]
+        assert table_name.endswith("silver_v2_claims.raw_utterance")
+        assert df.iloc[0]["text"] == "Mahomes will win MVP"
+        # target_entity must still be the JSON-encoded string at this layer —
+        # DBManager.append_dataframe_to_table is responsible for parsing it
+        # into a native value via schema introspection, not this call site.
+        assert isinstance(df.iloc[0]["target_entity"], str)
 
 
 class TestInferResolutionMethodId:

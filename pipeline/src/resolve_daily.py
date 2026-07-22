@@ -1808,12 +1808,17 @@ def resolve_all(
         # Expire predictions past their resolution horizon (runs on every full pass)
         expired = expire_stale_predictions(db, dry_run=dry_run)
 
-        # Combined summary
+        # Combined summary.
+        # Use .get(k, 0) rather than s[k]: resolver summaries are heterogeneous —
+        # run_llm_judge_pass() reports checked/resolved/skipped/errors but never
+        # "voided" (it resolves or skips, it never voids), and its exception
+        # fallback omits "voided" too. A bare s["voided"] therefore raises
+        # KeyError on every full pass, crashing the whole resolve step.
         total = {
-            "checked": sum(s["checked"] for s in summaries.values()),
-            "resolved": sum(s["resolved"] for s in summaries.values()),
-            "voided": sum(s["voided"] for s in summaries.values()),
-            "skipped": sum(s["skipped"] for s in summaries.values()),
+            "checked": sum(s.get("checked", 0) for s in summaries.values()),
+            "resolved": sum(s.get("resolved", 0) for s in summaries.values()),
+            "voided": sum(s.get("voided", 0) for s in summaries.values()),
+            "skipped": sum(s.get("skipped", 0) for s in summaries.values()),
         }
 
         logger.info(

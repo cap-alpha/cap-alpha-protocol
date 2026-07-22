@@ -21,6 +21,7 @@ from src.resolve_daily import (
     _silver_v2_resolution_method_id,
     _void_prediction_with_dual_write,
     expire_stale_predictions,
+    resolve_all,
     resolve_draft_picks,
     resolve_game_outcomes,
     resolve_player_performance,
@@ -1615,3 +1616,83 @@ class TestVoidPredictionWithDualWrite:
                 mock_dw.assert_called_once()
                 call_kwargs = mock_dw.call_args[1]
                 assert call_kwargs["outcome"] == "unresolvable"
+
+
+# ---------------------------------------------------------------------------
+# resolve_all — combined-summary aggregation robustness (regression)
+#
+# resolve_all() sums checked/resolved/voided/skipped across a set of
+# heterogeneous per-resolver summaries. run_llm_judge_pass() reports
+# checked/resolved/skipped/errors but never "voided" (it resolves or skips,
+# it never voids), and its exception fallback omits "voided" too. A bare
+# s["voided"] therefore raised KeyError on every full pass, crashing the whole
+# "Resolve predictions" pipeline step (observed red in pundit_pipeline.yml,
+# 2026-07-21). These tests pin the .get(k, 0) fix.
+# ---------------------------------------------------------------------------
+
+
+class TestResolveAllSummaryAggregation:
+    _PATCH_TARGETS = {
+        "resolve_draft_picks": {"checked": 2, "resolved": 1, "voided": 1, "skipped": 0},
+        "resolve_game_outcomes": {
+            "checked": 3,
+            "resolved": 2,
+            "voided": 0,
+            "skipped": 1,
+        },
+        "resolve_player_performance": {
+            "checked": 1,
+            "resolved": 0,
+            "voided": 0,
+            "skipped": 1,
+        },
+        "resolve_award_predictions": {
+            "checked": 0,
+            "resolved": 0,
+            "voided": 0,
+            "skipped": 0,
+        },
+        "resolve_fa_signings": {"checked": 1, "resolved": 1, "voided": 0, "skipped": 0},
+    }
+
+    def _run(self, judge_summary):
+        db = MagicMock()
+        db.fetch_df.return_value = pd.DataFrame()
+        stack = []
+        try:
+            for name, summary in self._PATCH_TARGETS.items():
+                p = patch(f"src.resolve_daily.{name}", return_value=summary)
+                p.start()
+                stack.append(p)
+            # llm_judge is imported lazily inside resolve_all
+            pj = patch(
+                "src.resolvers.llm_judge.run_llm_judge_pass",
+                return_value=judge_summary,
+            )
+            pj.start()
+            stack.append(pj)
+            pe = patch("src.resolve_daily.expire_stale_predictions", return_value=0)
+            pe.start()
+            stack.append(pe)
+            return resolve_all(dry_run=True, db=db)
+        finally:
+            for p in reversed(stack):
+                p.stop()
+
+    def test_full_pass_does_not_crash_when_judge_summary_omits_voided(self):
+        # run_llm_judge_pass success shape: no "voided" key.
+        judge = {"checked": 5, "resolved": 2, "skipped": 3, "errors": 0}
+        total = self._run(judge)
+        # rule resolvers void exactly 1 (draft); judge contributes 0.
+        assert total["voided"] == 1
+        # checked/resolved/skipped sum across all summaries incl. judge.
+        assert total["checked"] == 2 + 3 + 1 + 0 + 1 + 5
+        assert total["resolved"] == 1 + 2 + 0 + 0 + 1 + 2
+        assert total["skipped"] == 0 + 1 + 1 + 0 + 0 + 3
+
+    def test_full_pass_does_not_crash_when_judge_summary_is_error_fallback(self):
+        # Exception-fallback shape built in resolve_all: also omits "voided".
+        judge = {"checked": 0, "resolved": 0, "skipped": 0, "errors": 1}
+        total = self._run(judge)
+        assert total["voided"] == 1
+        assert total["checked"] == 2 + 3 + 1 + 0 + 1

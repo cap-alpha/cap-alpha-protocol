@@ -2732,7 +2732,9 @@ Article (first 1500 chars):
 Answer:"""
 
 
-_SPORTS_DOMAINS: frozenset[str] = frozenset({"nfl", "nba", "mlb", "nhl", "sports"})
+_SPORTS_DOMAINS: frozenset[str] = frozenset(
+    {"nfl", "nba", "mlb", "nhl", "mls", "fifa", "sports"}
+)
 
 
 def _sport_to_domain(sport: str) -> str:
@@ -2795,6 +2797,7 @@ def should_triage_skip_article(
     text: str,
     triage_provider=None,
     source: str = "",
+    sport: str = "NFL",
 ) -> bool:
     """Return True if the article should be skipped (triage says no predictions).
 
@@ -2802,13 +2805,27 @@ def should_triage_skip_article(
     extraction model. If the triage call fails for any reason, defaults to
     False (keep the article — fail-open so we never silently drop content).
 
+    TRIAGE_PROMPT hardcodes an NFL-specific relevance question ("...NFL player,
+    trade, draft pick, contract, or game outcome"), so it incorrectly answers
+    NO for legitimate predictions about other sports. Non-NFL sports domains
+    (NBA, MLB, MLS, FIFA, ...) bypass the triage call entirely and are always
+    kept — same domain signal and _SPORTS_DOMAINS config source as the
+    should_filter_article() bypass (see issue #683). Finance/politics are
+    intentionally NOT bypassed here — they remain parked (#1129 Phase 3a).
+
     Args:
         text: Article text (only first 500 chars are sent to the triage model).
         triage_provider: LLM provider configured for the 'triage' role. If None,
             triage is skipped and the article is always kept.
         source: Source identifier for logging.
+        sport: Sport/domain string for this article (e.g. "NFL", "NBA", "MLB").
+            Defaults to "NFL" to preserve existing behavior for callers that
+            don't pass it.
     """
     if triage_provider is None:
+        return False
+    _domain = _sport_to_domain(sport)
+    if _domain in _SPORTS_DOMAINS and _domain != "nfl":
         return False
     try:
         first_500 = text[:500].strip()
@@ -3103,9 +3120,13 @@ def run_extraction(
                 processed_hashes.append(content_hash)
                 continue
 
+            # Per-article sport/domain — shared by the pre-filter and triage
+            # gates below so both bypass their sports-specific checks the
+            # same way for non-NFL domains.
+            article_sport = str(row.get("sport", sport))
+
             # Pre-filter: skip articles with no predictions
             if filter_provider is not None:
-                article_sport = str(row.get("sport", sport))
                 if should_filter_article(
                     _raw_text,
                     filter_provider=filter_provider,
@@ -3125,6 +3146,7 @@ def run_extraction(
                     _raw_text,
                     triage_provider=triage_provider,
                     source=source_id,
+                    sport=article_sport,
                 ):
                     summary["triage_filtered_out"] += 1
                     processed_hashes.append(content_hash)

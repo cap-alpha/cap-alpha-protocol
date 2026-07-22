@@ -31,6 +31,7 @@ from src.assertion_extractor import (
     reset_processed_hashes,
     run_extraction,
     should_filter_article,
+    should_triage_skip_article,
     write_raw_utterances,
 )
 
@@ -787,6 +788,150 @@ class TestShouldFilterArticle:
         )
         assert result is False
         provider.classify.assert_not_called()
+
+
+class TestShouldTriageSkipArticle:
+    """Tests for should_triage_skip_article's sport bypass (issue #1129 Phase 3a).
+
+    TRIAGE_PROMPT hardcodes an NFL-specific relevance question, so it always
+    answers NO for legitimate non-NFL sports predictions, silently dropping
+    NBA/MLB/MLS/FIFA content. The fix mirrors should_filter_article()'s
+    _SPORTS_DOMAINS bypass (issue #683) but keys on "is this NFL specifically"
+    rather than "is this a sports domain at all".
+    """
+
+    def test_returns_false_when_no_provider(self):
+        """Without a triage provider, nothing should be skipped."""
+        assert should_triage_skip_article("any text") is False
+
+    def test_nfl_skips_article_when_provider_says_no(self):
+        """NFL behavior is unchanged: 'NO' from the triage model still skips."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "General analysis with no concrete prediction",
+            triage_provider=provider,
+            sport="NFL",
+        )
+        assert result is True
+        provider.classify.assert_called_once()
+
+    def test_nfl_keeps_article_when_provider_says_yes(self):
+        """NFL behavior is unchanged: 'YES' from the triage model keeps it."""
+        provider = MagicMock()
+        provider.classify.return_value = "YES"
+        result = should_triage_skip_article(
+            "Mahomes will be traded before the deadline",
+            triage_provider=provider,
+            sport="NFL",
+        )
+        assert result is False
+        provider.classify.assert_called_once()
+
+    def test_nfl_default_sport_still_uses_triage(self):
+        """Omitting sport defaults to NFL — preserves pre-fix caller behavior."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "Some article", triage_provider=provider, source="test"
+        )
+        assert result is True
+        provider.classify.assert_called_once()
+
+    def test_nba_bypasses_triage_without_llm_call(self):
+        """NBA claims must never hit the NFL-only triage prompt (issue #1129).
+
+        The triage prompt asks specifically about NFL predictions — an NBA
+        article would always get 'NO', silently dropping it before extraction.
+        """
+        provider = MagicMock()
+        provider.classify.return_value = "NO"  # model would say NO if called
+        result = should_triage_skip_article(
+            "LeBron James will be traded to the Warriors before the deadline",
+            triage_provider=provider,
+            sport="NBA",
+        )
+        assert result is False, "NBA articles must pass through (not be triage-skipped)"
+        provider.classify.assert_not_called()
+
+    def test_mlb_bypasses_triage_without_llm_call(self):
+        """MLB claims must also bypass the NFL-only triage prompt."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "The Dodgers will sign a top free-agent pitcher this offseason",
+            triage_provider=provider,
+            sport="MLB",
+        )
+        assert result is False
+        provider.classify.assert_not_called()
+
+    def test_mls_bypasses_triage_without_llm_call(self):
+        """MLS claims must also bypass the NFL-only triage prompt."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "Messi will re-sign with Inter Miami next season",
+            triage_provider=provider,
+            sport="MLS",
+        )
+        assert result is False
+        provider.classify.assert_not_called()
+
+    def test_fifa_bypasses_triage_without_llm_call(self):
+        """FIFA claims must also bypass the NFL-only triage prompt."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "Brazil will win the next World Cup",
+            triage_provider=provider,
+            sport="FIFA",
+        )
+        assert result is False
+        provider.classify.assert_not_called()
+
+    def test_case_insensitive_sport_bypass(self):
+        """Sport matching should be case-insensitive, like _sport_to_domain."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "text", triage_provider=provider, sport="nba"
+        )
+        assert result is False
+        provider.classify.assert_not_called()
+
+    def test_finance_does_not_bypass_triage(self):
+        """Finance is intentionally parked (#1129 Phase 3a) — still triage-gated."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "The Fed will cut rates next quarter",
+            triage_provider=provider,
+            sport="finance",
+        )
+        assert result is True
+        provider.classify.assert_called_once()
+
+    def test_politics_does_not_bypass_triage(self):
+        """Politics is intentionally parked (#1129 Phase 3a) — still triage-gated."""
+        provider = MagicMock()
+        provider.classify.return_value = "NO"
+        result = should_triage_skip_article(
+            "Senator X will win the election",
+            triage_provider=provider,
+            sport="politics",
+        )
+        assert result is True
+        provider.classify.assert_called_once()
+
+    def test_passes_article_on_provider_error(self):
+        """On error, don't skip — fail-open, unaffected by the sport bypass."""
+        provider = MagicMock()
+        provider.classify.side_effect = Exception("Ollama connection refused")
+        result = should_triage_skip_article(
+            "some text", triage_provider=provider, sport="NFL"
+        )
+        assert result is False
 
 
 class TestSportToDomain:

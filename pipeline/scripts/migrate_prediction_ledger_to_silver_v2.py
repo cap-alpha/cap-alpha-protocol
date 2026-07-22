@@ -1,21 +1,41 @@
 """
-migrate_prediction_ledger_to_silver_v2.py — Phase 2 backfill.
+migrate_prediction_ledger_to_silver_v2.py — Phase 0 bridge migration (issue #1129 §5).
 
-Migrates gold_layer.prediction_ledger (2,933 rows) → silver_v2_claims.claim
-+ claim_entity_link + claim_state_history + entities.
+Migrates gold_layer.prediction_ledger (2,669 legacy rows) → silver_v2_claims.claim
++ claim_entity_link + claim_state_history + entities. ALL legacy rows are migrated
+as-is — this script intentionally does NO dedup (the ~2.3x duplicate inflation from
+non-content-stable prediction_hash is a separate, explicit follow-up per #1129 §5).
 
 Design decisions (from issue #920 comments):
   - claim_id: fresh UUID (legacy prediction_hash stored in legacy_prediction_hash)
   - Unresolvable entities: placeholder entity (entity_kind='unresolved') + row in
     entity_resolution_queue
   - Effective dates: effective_source='asserted_at' using ingestion_timestamp as proxy
-  - Idempotency: skip claims where legacy_prediction_hash already exists in claim table
   - Resumable: batches of 100 rows; progress logged
+
+Idempotency (hardened — issue #1129 Phase 0 slice):
+  - A row is only considered "fully migrated" when its claim row AND a matching
+    claim_state_history row AND at least one claim_entity_link row all exist.
+    Checking legacy_prediction_hash presence alone is NOT sufficient: if a prior
+    run was interrupted between the claim INSERT and the history/link INSERTs,
+    the claim looks "present" but is missing its history/link rows. The old
+    all-or-nothing skip based on legacy_prediction_hash membership would
+    permanently skip that row on every subsequent run, silently leaving it
+    incomplete forever. Partially-migrated rows are now detected and *repaired*
+    (backfilled) on the next run — see _load_migration_state / _classify_row.
+  - Every write statement additionally guards itself with its own
+    WHERE NOT EXISTS / MERGE ... WHEN NOT MATCHED check, so re-running this
+    script (including re-running it because it was already fully migrated) is
+    always safe and never double-inserts.
+  - --dry-run now exercises the *same* subject-entity resolution code path as a
+    live run (alias lookup, placeholder fallback) instead of a divergent stub,
+    so its preview accurately reflects what a live run would decide.
 
 Usage:
     python pipeline/scripts/migrate_prediction_ledger_to_silver_v2.py
     python pipeline/scripts/migrate_prediction_ledger_to_silver_v2.py --dry-run
     python pipeline/scripts/migrate_prediction_ledger_to_silver_v2.py --batch-size 50
+    python pipeline/scripts/migrate_prediction_ledger_to_silver_v2.py --verify-only
 """
 
 from __future__ import annotations
@@ -122,20 +142,93 @@ def _ensure_tables_exist(client: "bigquery.Client", project_id: str) -> None:
     log.info("All required Phase 1 tables verified.")
 
 
-def _load_existing_legacy_hashes(
+def _load_migration_state(
     client: "bigquery.Client", project_id: str
-) -> set[str]:
-    """Return the set of legacy_prediction_hash values already in silver_v2_claims.claim."""
+) -> dict[str, dict[str, Any]]:
+    """Return legacy_prediction_hash -> completeness info for already-bridged claims.
+
+    A row is only "fully migrated" once the claim row AND a claim_state_history
+    row AND at least one claim_entity_link row all exist. Rows where the claim
+    exists but history/links are missing indicate an interrupted prior run and
+    are flagged for repair rather than silently skipped forever (see module
+    docstring). Also detects legacy_prediction_hash values mapped to more than
+    one claim row, which would violate the idempotency invariant.
+    """
     query = f"""
-        SELECT legacy_prediction_hash
-        FROM `{project_id}.silver_v2_claims.claim`
-        WHERE legacy_prediction_hash IS NOT NULL
+        SELECT
+            c.legacy_prediction_hash AS legacy_prediction_hash,
+            c.claim_id AS claim_id,
+            EXISTS (
+                SELECT 1 FROM `{project_id}.silver_v2_claims.claim_state_history` h
+                WHERE h.claim_id = c.claim_id
+            ) AS has_history,
+            EXISTS (
+                SELECT 1 FROM `{project_id}.silver_v2_claims.claim_entity_link` l
+                WHERE l.claim_id = c.claim_id
+            ) AS has_links
+        FROM `{project_id}.silver_v2_claims.claim` c
+        WHERE c.legacy_prediction_hash IS NOT NULL
     """
     job = client.query(query)
     rows = list(job.result())
-    existing = {r["legacy_prediction_hash"] for r in rows if r["legacy_prediction_hash"]}
-    log.info("Found %d claims already migrated.", len(existing))
-    return existing
+
+    state: dict[str, dict[str, Any]] = {}
+    duplicate_hashes: list[str] = []
+    for r in rows:
+        row = dict(r)
+        legacy_hash = row.get("legacy_prediction_hash")
+        if not legacy_hash:
+            continue
+        if legacy_hash in state:
+            duplicate_hashes.append(legacy_hash)
+        state[legacy_hash] = {
+            "claim_id": row.get("claim_id"),
+            "has_history": bool(row.get("has_history")),
+            "has_links": bool(row.get("has_links")),
+        }
+
+    if duplicate_hashes:
+        log.warning(
+            "IDEMPOTENCY INVARIANT VIOLATED: %d legacy_prediction_hash value(s) map "
+            "to more than one claim row in silver_v2_claims.claim (showing up to 10): %s",
+            len(duplicate_hashes),
+            duplicate_hashes[:10],
+        )
+
+    complete = sum(1 for s in state.values() if s["has_history"] and s["has_links"])
+    partial = len(state) - complete
+    log.info(
+        "Found %d claims already bridged (%d complete, %d partial/needs-repair).",
+        len(state),
+        complete,
+        partial,
+    )
+    return state
+
+
+def _classify_row(prediction_hash: str, migration_state: dict[str, dict]) -> str:
+    """Decide what to do with a source row given the current bridged state.
+
+    Pure function (no I/O) so the skip/repair/insert decision is independently
+    unit-testable without mocking BigQuery.
+
+    Returns one of:
+      "malformed" — no usable prediction_hash; cannot key off it, cannot migrate.
+      "skip"      — already fully bridged (claim + history + >=1 link all present).
+      "repair"    — claim row exists but history and/or links are missing (an
+                    interrupted prior run). Safe to reprocess: _migrate_row's own
+                    WHERE NOT EXISTS / MERGE guards make the claim re-insert a
+                    no-op and only backfill the missing history/link rows.
+      "new"       — never migrated; full insert required.
+    """
+    if not prediction_hash:
+        return "malformed"
+    state = migration_state.get(prediction_hash)
+    if state is None:
+        return "new"
+    if state["has_history"] and state["has_links"]:
+        return "skip"
+    return "repair"
 
 
 def _fetch_ledger_batch(
@@ -227,9 +320,7 @@ def _get_or_create_speaker_entity(
         job_config=bigquery.QueryJobConfig(
             query_parameters=[
                 bigquery.ScalarQueryParameter("entity_id", "STRING", entity_id),
-                bigquery.ScalarQueryParameter(
-                    "external_ids", "STRING", external_ids
-                ),
+                bigquery.ScalarQueryParameter("external_ids", "STRING", external_ids),
             ]
         ),
     ).result()
@@ -313,7 +404,9 @@ def _resolve_subject_entity(
             upsert_placeholder,
             job_config=bigquery.QueryJobConfig(
                 query_parameters=[
-                    bigquery.ScalarQueryParameter("entity_id", "STRING", placeholder_id),
+                    bigquery.ScalarQueryParameter(
+                        "entity_id", "STRING", placeholder_id
+                    ),
                     bigquery.ScalarQueryParameter("domain", "STRING", domain),
                     bigquery.ScalarQueryParameter("notes", "STRING", raw_string),
                 ]
@@ -350,7 +443,9 @@ def _insert_entity_resolution_queue_batch(
     if not rows:
         return
     if dry_run:
-        log.info("[DRY-RUN] Would insert %d rows into entity_resolution_queue", len(rows))
+        log.info(
+            "[DRY-RUN] Would insert %d rows into entity_resolution_queue", len(rows)
+        )
         return
 
     # Build VALUES list — idempotent via MERGE on placeholder_entity_id
@@ -496,17 +591,30 @@ def _migrate_row(
     ):
         claim_state = legacy_status.upper()
 
+    # ---------------------------------------------------------------------------
+    # Resolve subject entities. This runs identically in dry-run and live mode —
+    # _resolve_subject_entity / _build_subject_entity_list already internally
+    # skip their own writes when dry_run=True (see `if not dry_run:` guards
+    # inside them) but still perform the real alias-match / placeholder-fallback
+    # SELECT lookups. Running the same resolution path in both modes is what
+    # makes --dry-run a faithful preview of what a live run would decide,
+    # instead of the entity_id being a NEW random placeholder guess every time.
+    # ---------------------------------------------------------------------------
+    subject_entities = _build_subject_entity_list(
+        client, project_id, row, domain, dry_run, resolution_queue_rows
+    )
+
     if dry_run:
         log.info(
-            "[DRY-RUN] Would insert claim: claim_id=%s legacy_hash=%s speaker=%s domain=%s state=%s",
+            "[DRY-RUN] Would insert claim: claim_id=%s legacy_hash=%s speaker=%s "
+            "domain=%s state=%s subject_entities=%s",
             claim_id,
             legacy_prediction_hash,
             speaker_entity_id,
             domain,
             claim_state,
+            subject_entities,
         )
-        # Still resolve subject entities for reporting
-        _collect_subject_entities_dry_run(row, domain, resolution_queue_rows)
         return True
 
     # ---------------------------------------------------------------------------
@@ -636,11 +744,8 @@ def _migrate_row(
     ).result()
 
     # ---------------------------------------------------------------------------
-    # Resolve subject entities + write claim_entity_link rows
+    # Write claim_entity_link rows (subject_entities already resolved above)
     # ---------------------------------------------------------------------------
-    subject_entities = _build_subject_entity_list(
-        client, project_id, row, domain, dry_run, resolution_queue_rows
-    )
     for ordinal, (entity_id_subject, entity_role) in enumerate(subject_entities):
         link_id = _new_uuid()
         insert_link_sql = f"""
@@ -674,9 +779,7 @@ def _migrate_row(
                     bigquery.ScalarQueryParameter(
                         "entity_id", "STRING", entity_id_subject
                     ),
-                    bigquery.ScalarQueryParameter(
-                        "entity_role", "STRING", entity_role
-                    ),
+                    bigquery.ScalarQueryParameter("entity_role", "STRING", entity_role),
                     bigquery.ScalarQueryParameter("ordinal", "INT64", ordinal),
                     bigquery.ScalarQueryParameter(
                         "legacy_prediction_hash", "STRING", legacy_prediction_hash
@@ -686,22 +789,6 @@ def _migrate_row(
         ).result()
 
     return True
-
-
-def _collect_subject_entities_dry_run(
-    row: dict[str, Any],
-    domain: str,
-    resolution_queue_rows: list[dict],
-) -> None:
-    """In dry-run mode, report what subject entities would be created."""
-    player_name = row.get("target_player_name") or row.get("target_player_id")
-    team_name = row.get("target_team")
-    if player_name:
-        placeholder = _unresolved_entity_id(str(player_name))
-        log.debug("[DRY-RUN] Subject entity (player): %s → %s", player_name, placeholder)
-    if team_name:
-        placeholder = _unresolved_entity_id(str(team_name))
-        log.debug("[DRY-RUN] Subject entity (team): %s → %s", team_name, placeholder)
 
 
 def _build_subject_entity_list(
@@ -793,7 +880,9 @@ def _build_subject_entity_list(
 def _write_log(
     total_processed: int,
     total_inserted: int,
+    total_repaired: int,
     total_skipped: int,
+    total_malformed: int,
     dry_run: bool,
 ) -> None:
     """Write a migration summary log to pipeline/migrations/logs/."""
@@ -805,11 +894,277 @@ def _write_log(
         f"migrate_prediction_ledger_to_silver_v2 — {mode}\n"
         f"  Run at:          {ts}\n"
         f"  Total processed: {total_processed}\n"
-        f"  Inserted:        {total_inserted}\n"
+        f"  Inserted (new):  {total_inserted}\n"
+        f"  Repaired:        {total_repaired}\n"
         f"  Skipped:         {total_skipped}\n"
+        f"  Malformed:       {total_malformed}\n"
     )
     log_file.write_text(summary)
     log.info("Migration log written to %s", log_file)
+
+
+# ---------------------------------------------------------------------------
+# Verification report — read-only, safe to run anytime (--verify-only)
+# ---------------------------------------------------------------------------
+
+
+def _generate_verification_report(
+    client: "bigquery.Client", project_id: str
+) -> dict[str, int]:
+    """Read-only bridge-status report. Safe before, during, or after a run.
+
+    Reports (all copy-pasteable as DuckDB equivalents in the PR description):
+      source_row_count                    — COUNT(*) of gold_layer.prediction_ledger
+      source_null_or_blank_hash_count     — source rows with no usable prediction_hash
+                                             (can never be bridged; not an error, just
+                                             unmigratable data)
+      source_duplicate_hash_count         — source rows beyond the first for a repeated
+                                             prediction_hash (issue #1129 analysis found
+                                             this is 0/2669 today; kept as a live safety
+                                             net rather than an assumption)
+      bridged_complete_count              — fully migrated (claim + history + >=1 link)
+      bridged_partial_count               — claim exists but is missing history and/or
+                                             links (an interrupted prior run; the next
+                                             run will repair these, not skip them)
+      pending_migration_count             — usable-hash source rows untouched so far
+      target_duplicate_legacy_hash_count  — legacy_prediction_hash mapped to more than
+                                             one claim row in the target (idempotency
+                                             invariant violation if nonzero — should
+                                             always be 0)
+    """
+    source_stats_query = f"""
+        SELECT
+            COUNT(*) AS total_rows,
+            COUNTIF(prediction_hash IS NULL OR prediction_hash = '') AS null_hash_rows,
+            COUNT(*) - COUNT(DISTINCT prediction_hash) AS duplicate_hash_rows
+        FROM `{project_id}.gold_layer.prediction_ledger`
+    """
+    source_row = dict(next(iter(client.query(source_stats_query).result())))
+
+    migration_state = _load_migration_state(client, project_id)
+    bridged_complete = sum(
+        1 for s in migration_state.values() if s["has_history"] and s["has_links"]
+    )
+    bridged_partial = len(migration_state) - bridged_complete
+
+    source_total = int(source_row.get("total_rows") or 0)
+    source_null_hash = int(source_row.get("null_hash_rows") or 0)
+    source_duplicate_hash = int(source_row.get("duplicate_hash_rows") or 0)
+
+    pending = max(
+        0, source_total - source_null_hash - bridged_complete - bridged_partial
+    )
+
+    duplicate_legacy_hash_query = f"""
+        SELECT COUNT(*) AS n FROM (
+            SELECT legacy_prediction_hash
+            FROM `{project_id}.silver_v2_claims.claim`
+            WHERE legacy_prediction_hash IS NOT NULL
+            GROUP BY legacy_prediction_hash
+            HAVING COUNT(*) > 1
+        )
+    """
+    target_dup_row = dict(
+        next(iter(client.query(duplicate_legacy_hash_query).result()))
+    )
+    target_duplicate_legacy_hash = int(target_dup_row.get("n") or 0)
+
+    report = {
+        "source_row_count": source_total,
+        "source_null_or_blank_hash_count": source_null_hash,
+        "source_duplicate_hash_count": source_duplicate_hash,
+        "bridged_complete_count": bridged_complete,
+        "bridged_partial_count": bridged_partial,
+        "pending_migration_count": pending,
+        "target_duplicate_legacy_hash_count": target_duplicate_legacy_hash,
+    }
+
+    log.info("=" * 68)
+    log.info(
+        "Bridge verification: %s.gold_layer.prediction_ledger -> silver_v2_claims",
+        project_id,
+    )
+    log.info("=" * 68)
+    for key, value in report.items():
+        log.info("  %-38s %d", key, value)
+    if target_duplicate_legacy_hash:
+        log.warning(
+            "%d legacy_prediction_hash value(s) map to more than one claim row "
+            "— idempotency invariant violated.",
+            target_duplicate_legacy_hash,
+        )
+    log.info("=" * 68)
+
+    return report
+
+
+# ---------------------------------------------------------------------------
+# Migration driver — extracted from main() so it's directly callable from
+# tests (no argv/sys.exit) with a mocked client.
+# ---------------------------------------------------------------------------
+
+
+def run_migration(
+    client: "bigquery.Client",
+    project_id: str,
+    dry_run: bool,
+    batch_size: int,
+) -> dict[str, int]:
+    """Run one full pass over gold_layer.prediction_ledger.
+
+    Idempotency contract: calling this twice in a row with no source changes
+    must make the second call a no-op (inserted=0, repaired=0, skipped=all).
+    See _classify_row for the skip/repair/new decision and the module
+    docstring for why a plain "does legacy_prediction_hash exist" check is
+    not sufficient on its own.
+    """
+    _ensure_tables_exist(client, project_id)
+
+    migration_state = _load_migration_state(client, project_id)
+
+    total_processed = 0
+    total_inserted = 0
+    total_repaired = 0
+    total_skipped = 0
+    total_malformed = 0
+    resolution_queue_rows: list[dict] = []
+    speaker_entity_cache: dict[str, str] = {}
+
+    offset = 0
+    batch_num = 0
+
+    while True:
+        batch = _fetch_ledger_batch(client, project_id, offset, batch_size)
+        if not batch:
+            break
+
+        batch_num += 1
+        batch_inserted = 0
+        batch_repaired = 0
+        batch_skipped = 0
+        batch_malformed = 0
+
+        for row in batch:
+            total_processed += 1
+            prediction_hash = row.get("prediction_hash") or ""
+            action = _classify_row(prediction_hash, migration_state)
+
+            if action == "malformed":
+                log.warning("Row has no usable prediction_hash, skipping.")
+                total_malformed += 1
+                batch_malformed += 1
+                continue
+
+            if action == "skip":
+                total_skipped += 1
+                batch_skipped += 1
+                continue
+
+            try:
+                inserted = _migrate_row(
+                    client,
+                    project_id,
+                    row,
+                    dry_run,
+                    resolution_queue_rows,
+                    speaker_entity_cache,
+                )
+            except Exception as exc:
+                log.error(
+                    "Failed to migrate row prediction_hash=%s: %s",
+                    prediction_hash,
+                    exc,
+                )
+                raise
+
+            if not inserted:
+                # _migrate_row's own data-quality guard fired (e.g. blank hash
+                # discovered mid-row despite passing the outer check).
+                total_malformed += 1
+                batch_malformed += 1
+                continue
+
+            if action == "repair":
+                total_repaired += 1
+                batch_repaired += 1
+            else:
+                total_inserted += 1
+                batch_inserted += 1
+
+            # Update in-memory state immediately (not just on the next run) so
+            # a duplicate prediction_hash later in the SAME source batch/run
+            # is correctly classified "skip" instead of double-counted as a
+            # second insert — belt-and-suspenders alongside the WHERE NOT
+            # EXISTS / MERGE guards each write statement already has.
+            migration_state[prediction_hash] = {
+                "claim_id": None,
+                "has_history": True,
+                "has_links": True,
+            }
+
+        log.info(
+            "Batch %d: offset=%d inserted=%d repaired=%d skipped=%d malformed=%d "
+            "(totals: inserted=%d repaired=%d skipped=%d malformed=%d)",
+            batch_num,
+            offset,
+            batch_inserted,
+            batch_repaired,
+            batch_skipped,
+            batch_malformed,
+            total_inserted,
+            total_repaired,
+            total_skipped,
+            total_malformed,
+        )
+
+        # Flush entity_resolution_queue batch
+        _insert_entity_resolution_queue_batch(
+            client, project_id, resolution_queue_rows, dry_run
+        )
+        resolution_queue_rows.clear()
+
+        offset += batch_size
+
+        if len(batch) < batch_size:
+            break  # last partial batch
+
+    accounted = total_inserted + total_repaired + total_skipped + total_malformed
+    if accounted != total_processed:
+        log.warning(
+            "Row-count invariant violated: processed=%d but "
+            "inserted+repaired+skipped+malformed=%d — investigate before "
+            "trusting this run's numbers.",
+            total_processed,
+            accounted,
+        )
+
+    _write_log(
+        total_processed,
+        total_inserted,
+        total_repaired,
+        total_skipped,
+        total_malformed,
+        dry_run,
+    )
+
+    mode = "DRY-RUN complete" if dry_run else "Migration complete"
+    log.info(
+        "%s: processed=%d inserted=%d repaired=%d skipped=%d malformed=%d",
+        mode,
+        total_processed,
+        total_inserted,
+        total_repaired,
+        total_skipped,
+        total_malformed,
+    )
+
+    return {
+        "total_processed": total_processed,
+        "total_inserted": total_inserted,
+        "total_repaired": total_repaired,
+        "total_skipped": total_skipped,
+        "total_malformed": total_malformed,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -819,7 +1174,7 @@ def _write_log(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Migrate gold_layer.prediction_ledger → silver_v2_claims (Phase 2)"
+        description="Migrate gold_layer.prediction_ledger → silver_v2_claims (Phase 0 bridge, issue #1129)"
     )
     parser.add_argument(
         "--dry-run",
@@ -831,6 +1186,14 @@ def main() -> None:
         type=int,
         default=BATCH_SIZE_DEFAULT,
         help=f"Rows per batch (default: {BATCH_SIZE_DEFAULT})",
+    )
+    parser.add_argument(
+        "--verify-only",
+        action="store_true",
+        help=(
+            "Print the verification report (source/bridged/partial/pending counts, "
+            "NULL and duplicate key checks) and exit without migrating anything."
+        ),
     )
     args = parser.parse_args()
 
@@ -844,92 +1207,12 @@ def main() -> None:
 
     client = bigquery.Client(project=project_id)
 
-    # Verify Phase 1 tables exist
-    _ensure_tables_exist(client, project_id)
+    if args.verify_only:
+        _ensure_tables_exist(client, project_id)
+        _generate_verification_report(client, project_id)
+        return
 
-    # Load already-migrated hashes for idempotency
-    existing_hashes = _load_existing_legacy_hashes(client, project_id)
-
-    total_processed = 0
-    total_inserted = 0
-    total_skipped = 0
-    resolution_queue_rows: list[dict] = []
-    speaker_entity_cache: dict[str, str] = {}
-
-    offset = 0
-    batch_num = 0
-
-    while True:
-        batch = _fetch_ledger_batch(client, project_id, offset, args.batch_size)
-        if not batch:
-            break
-
-        batch_num += 1
-        batch_inserted = 0
-        batch_skipped = 0
-
-        for row in batch:
-            total_processed += 1
-            prediction_hash = row.get("prediction_hash") or ""
-
-            if prediction_hash in existing_hashes:
-                total_skipped += 1
-                batch_skipped += 1
-                continue
-
-            try:
-                inserted = _migrate_row(
-                    client,
-                    project_id,
-                    row,
-                    args.dry_run,
-                    resolution_queue_rows,
-                    speaker_entity_cache,
-                )
-                if inserted:
-                    total_inserted += 1
-                    batch_inserted += 1
-                    if not args.dry_run:
-                        existing_hashes.add(prediction_hash)
-            except Exception as exc:
-                log.error(
-                    "Failed to migrate row prediction_hash=%s: %s",
-                    prediction_hash,
-                    exc,
-                )
-                raise
-
-        log.info(
-            "Batch %d: offset=%d inserted=%d skipped=%d (total inserted=%d skipped=%d)",
-            batch_num,
-            offset,
-            batch_inserted,
-            batch_skipped,
-            total_inserted,
-            total_skipped,
-        )
-
-        # Flush entity_resolution_queue batch
-        _insert_entity_resolution_queue_batch(
-            client, project_id, resolution_queue_rows, args.dry_run
-        )
-        resolution_queue_rows.clear()
-
-        offset += args.batch_size
-
-        if len(batch) < args.batch_size:
-            break  # last partial batch
-
-    _write_log(total_processed, total_inserted, total_skipped, args.dry_run)
-
-    mode = "DRY-RUN complete" if args.dry_run else "Migration complete"
-    log.info(
-        "%s: processed=%d inserted=%d skipped=%d",
-        mode,
-        total_processed,
-        total_inserted,
-        total_skipped,
-    )
+    run_migration(client, project_id, args.dry_run, args.batch_size)
 
 
 if __name__ == "__main__":

@@ -277,37 +277,45 @@ class TestGetOrCreateSpeakerEntity:
 
 
 # ---------------------------------------------------------------------------
-# Test: _load_existing_legacy_hashes
+# Test: _load_migration_state
 # ---------------------------------------------------------------------------
 
 
-class TestLoadExistingLegacyHashes:
-    def test_returns_set_of_hashes(self, monkeypatch):
+class TestLoadMigrationState:
+    def test_returns_completeness_dict(self, monkeypatch):
         import migrate_prediction_ledger_to_silver_v2 as m
 
         hash1 = "a" * 64
         hash2 = "b" * 64
 
-        r1 = MagicMock()
-        r1.__getitem__ = lambda self, k: {
-            "legacy_prediction_hash": hash1 if k == "legacy_prediction_hash" else None
-        }[k]
-        r2 = MagicMock()
-        r2.__getitem__ = lambda self, k: {
-            "legacy_prediction_hash": hash2 if k == "legacy_prediction_hash" else None
-        }[k]
-
         job = MagicMock()
-        job.result.return_value = iter([r1, r2])
+        job.result.return_value = iter(
+            [
+                {
+                    "legacy_prediction_hash": hash1,
+                    "claim_id": "claim-1",
+                    "has_history": True,
+                    "has_links": True,
+                },
+                {
+                    "legacy_prediction_hash": hash2,
+                    "claim_id": "claim-2",
+                    "has_history": False,
+                    "has_links": True,
+                },
+            ]
+        )
         client = MagicMock()
         client.query.return_value = job
 
-        result = m._load_existing_legacy_hashes(client, "test-project")
-        assert hash1 in result
-        assert hash2 in result
-        assert len(result) == 2
+        result = m._load_migration_state(client, "test-project")
+        assert set(result.keys()) == {hash1, hash2}
+        # hash1 fully bridged; hash2 missing history -> interrupted run -> repair
+        assert result[hash1]["has_history"] and result[hash1]["has_links"]
+        assert result[hash2]["has_history"] is False
+        assert result[hash2]["has_links"] is True
 
-    def test_returns_empty_set_when_no_data(self, monkeypatch):
+    def test_returns_empty_dict_when_no_data(self, monkeypatch):
         import migrate_prediction_ledger_to_silver_v2 as m
 
         job = MagicMock()
@@ -315,8 +323,8 @@ class TestLoadExistingLegacyHashes:
         client = MagicMock()
         client.query.return_value = job
 
-        result = m._load_existing_legacy_hashes(client, "test-project")
-        assert result == set()
+        result = m._load_migration_state(client, "test-project")
+        assert result == {}
 
 
 # ---------------------------------------------------------------------------
@@ -619,20 +627,20 @@ class TestWriteLog:
         import migrate_prediction_ledger_to_silver_v2 as m
 
         monkeypatch.setattr(m, "LOG_DIR", tmp_path)
-        m._write_log(100, 90, 10, dry_run=False)
+        m._write_log(100, 90, 0, 10, 0, dry_run=False)
 
         log_files = list(tmp_path.glob("migrate_ledger_live_*.txt"))
         assert len(log_files) == 1
         content = log_files[0].read_text()
         assert "Total processed: 100" in content
-        assert "Inserted:        90" in content
+        assert "Inserted (new):  90" in content
         assert "Skipped:         10" in content
 
     def test_dry_run_log_has_dry_run_suffix(self, tmp_path, monkeypatch):
         import migrate_prediction_ledger_to_silver_v2 as m
 
         monkeypatch.setattr(m, "LOG_DIR", tmp_path)
-        m._write_log(50, 45, 5, dry_run=True)
+        m._write_log(50, 45, 0, 5, 0, dry_run=True)
 
         log_files = list(tmp_path.glob("migrate_ledger_dry-run_*.txt"))
         assert len(log_files) == 1

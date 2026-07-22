@@ -510,6 +510,40 @@ class TestIdempotency:
         # for the counted version via target_duplicate_legacy_hash_count).
         assert "dup-hash" in state
 
+    def test_queue_flush_is_per_row_not_per_batch(self):
+        """Regression test for a bug found in adversarial review of this PR:
+        entity_resolution_queue used to be flushed once per BATCH (after the
+        whole `for row in batch` loop), not per row. That reopens the exact
+        class of bug this PR fixes for claim/history/link: if the process
+        crashes after N rows in a batch have fully committed their
+        claim+history+link (making them "skip"-classified forever, since
+        queue completeness isn't part of _classify_row), but before the
+        batch-level queue flush runs, those N rows' queue entries are lost
+        with no repair path — permanently. Flushing after each row instead
+        closes that window to zero."""
+        ledger = [_ledger_row(1), _ledger_row(2), _ledger_row(3)]
+
+        class CrashBeforeThirdClaim(FakeBigQueryClient):
+            def _insert_claim(self, p):
+                if len(self.claim) >= 2:
+                    raise RuntimeError("simulated crash before row 3's claim insert")
+                return super()._insert_claim(p)
+
+        client = CrashBeforeThirdClaim(ledger)
+        with pytest.raises(RuntimeError):
+            run_migration(client, PROJECT_ID, dry_run=False, batch_size=100)
+
+        # Rows 1 and 2 fully committed before the simulated crash.
+        assert len(client.claim) == 2
+        assert len(client.claim_state_history) == 2
+        assert len(client.claim_entity_link) >= 2
+
+        # Their entity_resolution_queue entries (player + team placeholders
+        # per row, per _ledger_row's fixture defaults) must already be
+        # persisted — proving the flush happened per-row, not deferred to an
+        # end-of-batch step that the crash prevented from ever running.
+        assert len(client.entity_resolution_queue) >= 2
+
 
 class TestDryRun:
     def test_dry_run_performs_zero_writes_but_exercises_resolution(self):

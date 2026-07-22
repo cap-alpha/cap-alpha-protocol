@@ -1091,6 +1091,21 @@ def run_migration(
                 total_inserted += 1
                 batch_inserted += 1
 
+            # Flush this row's entity_resolution_queue entries immediately,
+            # not at the end of the batch. A batch-level flush re-opens the
+            # exact class of bug this PR fixes for claim/history/link: if the
+            # script crashes after committing N rows' claim+history+link but
+            # before the batch-level queue flush, those N rows are fully
+            # "complete" per _classify_row (history+links present) and will
+            # be classified "skip" forever — silently losing their queue
+            # entries with no repair path, since queue completeness isn't
+            # part of the skip/repair check. Flushing per row shrinks that
+            # window from "up to batch_size rows" to zero.
+            _insert_entity_resolution_queue_batch(
+                client, project_id, resolution_queue_rows, dry_run
+            )
+            resolution_queue_rows.clear()
+
             # Update in-memory state immediately (not just on the next run) so
             # a duplicate prediction_hash later in the SAME source batch/run
             # is correctly classified "skip" instead of double-counted as a
@@ -1116,12 +1131,6 @@ def run_migration(
             total_skipped,
             total_malformed,
         )
-
-        # Flush entity_resolution_queue batch
-        _insert_entity_resolution_queue_batch(
-            client, project_id, resolution_queue_rows, dry_run
-        )
-        resolution_queue_rows.clear()
 
         offset += batch_size
 

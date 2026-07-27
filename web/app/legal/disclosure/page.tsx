@@ -2,6 +2,7 @@ import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, DollarSign, BarChart2 } from "lucide-react";
+import { PageHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "Affiliate Disclosure | Cap Alpha",
@@ -22,7 +23,7 @@ export default function DisclosurePage() {
 
                 <div className="flex items-center gap-3 mb-4">
                     <DollarSign className="w-7 h-7 text-emerald-500" />
-                    <h1 className="font-display text-3xl font-extrabold tracking-tight">Affiliate Disclosure</h1>
+                    <PageHeading>Affiliate Disclosure</PageHeading>
                 </div>
                 <p className="text-zinc-500 text-sm mb-10">Last Updated: May 7, 2026</p>
 

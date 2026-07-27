@@ -2,6 +2,7 @@ import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
+import { PageHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "Terms of Service | Cap Alpha",
@@ -24,7 +25,7 @@ export default function TermsOfService() {
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-2">
                     <ShieldAlert className="w-7 h-7 text-emerald-400 shrink-0" />
-                    <h1 className="text-3xl font-extrabold tracking-tight">Terms of Service</h1>
+                    <PageHeading>Terms of Service</PageHeading>
                 </div>
                 <p className="text-sm text-zinc-500 mb-12">Last Updated: April 27, 2026</p>
 

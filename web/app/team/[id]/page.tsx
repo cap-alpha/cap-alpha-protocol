@@ -8,6 +8,7 @@ import { IntelligenceFeed } from '@/components/intelligence-feed';
 import { TEAM_LOGOS, TEAM_NAMES } from '@/lib/team-logos';
 import { PositionalSpendingChart } from '@/components/positional-spending-chart';
 import { TeamPersonalizationBanner } from '@/components/team-personalization-banner';
+import { PageContainer } from '@/components/ui/page-container';
 
 export const revalidate = 3600; // Cache for 1 hour (ISR)
 
@@ -63,7 +64,7 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
 
     return (
         <main className="min-h-[100dvh] bg-background text-foreground p-8">
-            <div className="max-w-7xl mx-auto space-y-8">
+            <PageContainer size="7xl" className="space-y-8">
                 {/* Header Section */}
                 <div className="flex items-center gap-6 border-b border-border pb-6">
                     <Link href="/dashboard" className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400">
@@ -155,7 +156,7 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
                         <IntelligenceFeed playerName={`${teamName} Franchise`} riskScore={riskPercentage / 100} feedEvents={feedEvents} />
                     </div>
                 </div>
-            </div>
+            </PageContainer>
         </main>
     );
 }

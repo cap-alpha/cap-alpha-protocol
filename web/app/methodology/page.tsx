@@ -29,6 +29,7 @@ import {
     GitBranch,
     Github,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 export const metadata: Metadata = {
     title: "Methodology | Pundit Ledger",
@@ -113,9 +114,9 @@ function SectionHeader({
     return (
         <div className="text-center space-y-3 mb-12">
             {label && (
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
+                <Badge variant="eyebrow" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
                     {label}
-                </span>
+                </Badge>
             )}
             <h2 className="font-display text-3xl sm:text-4xl font-black tracking-tight text-white">
                 {title}
@@ -224,10 +225,10 @@ export default function MethodologyPage() {
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/8 rounded-full blur-[120px]" />
                 </div>
                 <div className="relative z-10 max-w-3xl mx-auto space-y-6">
-                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
+                    <Badge variant="eyebrow" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
                         <Eye className="w-3.5 h-3.5" />
                         Methodology
-                    </span>
+                    </Badge>
                     <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
                         How We Score{" "}
                         <span className="text-emerald-400">Pundits</span>

@@ -2,6 +2,7 @@ import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
 import { ShieldCheck, ArrowLeft } from "lucide-react";
+import { PageHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "Privacy Policy | Cap Alpha",
@@ -24,7 +25,7 @@ export default function PrivacyPolicy() {
                 {/* Header */}
                 <div className="flex items-center gap-3 mb-2">
                     <ShieldCheck className="w-7 h-7 text-emerald-400 shrink-0" />
-                    <h1 className="text-3xl font-extrabold tracking-tight">Privacy Policy</h1>
+                    <PageHeading>Privacy Policy</PageHeading>
                 </div>
                 <p className="text-sm text-zinc-500 mb-12">Last updated: April 27, 2026</p>
 

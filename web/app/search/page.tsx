@@ -6,6 +6,17 @@ import { SearchResults } from "@/components/search/SearchResults";
 // ---------------------------------------------------------------------------
 // V1 Data Editorial design tokens — scoped to this page so they don't bleed
 // into the global dark theme. Exposed as CSS custom properties on the wrapper.
+//
+// The 8 values below that are BYTE-IDENTICAL to a canonical token in
+// app/globals.css (navy/navy-lt/gold/gold-lt/pos/neg/warn/card) now alias
+// that token via hsl(var(...)) instead of repeating the hex literal, so
+// this page tracks any future palette change instead of silently
+// re-diverging (see web/DESIGN_AUDIT.md §1.3). The remaining values
+// (bg/raised/text/md/lt/border/blt) are close to, but not exact matches
+// for, existing tokens — left as literal hex here rather than forced onto
+// a near-token, since collapsing e.g. --search-md/--search-lt onto
+// --ink-2/--ink-3 would visibly lighten this page's secondary text and
+// wasn't verified against a screenshot. Tracked as a deferred follow-up.
 // ---------------------------------------------------------------------------
 
 // Extend CSSProperties so TypeScript accepts CSS custom properties (--foo: bar)
@@ -29,20 +40,20 @@ interface SearchPageStyle extends CSSProperties {
 
 const pageStyle: SearchPageStyle = {
     "--search-bg": "#F7F4EF",
-    "--search-card": "#FFF",
+    "--search-card": "hsl(var(--surface))", // exact match: #FFF == #FFFFFF
     "--search-raised": "#F0EDE8",
-    "--search-navy": "#1A2744",
-    "--search-navy-lt": "#253660",
-    "--search-gold": "#B8860B",
-    "--search-gold-lt": "#D4A017",
+    "--search-navy": "hsl(var(--accent-editorial))", // exact match: #1A2744
+    "--search-navy-lt": "hsl(var(--accent-editorial-light))", // exact match: #253660
+    "--search-gold": "hsl(var(--gold))", // exact match: #B8860B
+    "--search-gold-lt": "hsl(var(--gold-light))", // exact match: #D4A017
     "--search-text": "#1C1C1C",
     "--search-md": "#444",
     "--search-lt": "#6B6B6B",
     "--search-border": "#DDD8D0",
     "--search-blt": "#EAE6E0",
-    "--search-pos": "#1A7A4A",
-    "--search-neg": "#B91C1C",
-    "--search-warn": "#92400E",
+    "--search-pos": "hsl(var(--correct))", // exact match: #1A7A4A
+    "--search-neg": "hsl(var(--incorrect))", // exact match: #B91C1C
+    "--search-warn": "hsl(var(--pending))", // exact match: #92400E
     background: "var(--search-bg)",
     color: "var(--search-text)",
     fontFamily: "'Source Sans 3', system-ui, sans-serif",

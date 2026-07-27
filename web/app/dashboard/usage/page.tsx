@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { Activity } from "lucide-react";
+import { PageContainer } from "@/components/ui/page-container";
 import { UsageDashboard } from "@/components/usage-dashboard";
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +22,7 @@ export default async function UsagePage() {
         <div className="min-h-screen bg-black text-white">
             {/* Header */}
             <div className="border-b border-zinc-900 bg-zinc-950/50">
-                <div className="max-w-4xl mx-auto px-4 py-8">
+                <PageContainer size="4xl" className="px-4 py-8">
                     <div className="flex items-center gap-2 mb-2">
                         <Activity className="w-4 h-4 text-emerald-400" />
                         <span className="text-xs font-mono uppercase tracking-widest text-emerald-400">
@@ -35,13 +36,13 @@ export default async function UsagePage() {
                         Monitor your API consumption, rate limits, and upgrade
                         when you need more.
                     </p>
-                </div>
+                </PageContainer>
             </div>
 
             {/* Content */}
-            <div className="max-w-4xl mx-auto px-4 py-8">
+            <PageContainer size="4xl" className="px-4 py-8">
                 <UsageDashboard />
-            </div>
+            </PageContainer>
         </div>
     );
 }

@@ -35,6 +35,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryParameter
 
 from api.api_key_auth import verify_api_key
+from api.serialization import df_to_records
 from src.db_manager import DBManager, get_db_manager
 
 logger = logging.getLogger(__name__)
@@ -290,7 +291,7 @@ def entity_claims(
 
         return {
             "entity_id": entity_id,
-            "claims": df.where(df.notna(), None).to_dict(orient="records"),
+            "claims": df_to_records(df),
             "limit": limit,
             "offset": offset,
             "total": total,

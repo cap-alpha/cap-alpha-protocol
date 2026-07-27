@@ -5,12 +5,8 @@ import {
     logBlockedRequest,
     LEDGER_MAX_LIMIT,
 } from "@/lib/anti-scraping";
-import { getAuthHeader } from "@/lib/ledger-server";
+import { getAuthHeader, API_URL } from "@/lib/ledger-server";
 
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 /**
  * GET /api/ledger/in-play

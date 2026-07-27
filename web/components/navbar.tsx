@@ -47,9 +47,9 @@ export function Navbar() {
                         {/* Primary: Ledger (in-play + leaderboard) */}
                         <Link
                             href="/ledger"
-                            className={`transition-colors hover:text-yellow-300 ${
+                            className={`transition-colors hover:text-gold-light ${
                                 pathname?.startsWith("/ledger")
-                                    ? "text-yellow-300"
+                                    ? "text-gold-light"
                                     : "text-white/80"
                             }`}
                         >
@@ -58,7 +58,7 @@ export function Navbar() {
                         {/* Secondary: In Play — surfaces live predictions directly */}
                         <Link
                             href="/ledger?view=in-play"
-                            className={`transition-colors hover:text-yellow-300 ${
+                            className={`transition-colors hover:text-gold-light ${
                                 pathname?.startsWith("/ledger") && pathname === "/ledger"
                                     ? "text-white/60"
                                     : "text-white/60"
@@ -70,9 +70,9 @@ export function Navbar() {
                         {/* Trust: Methodology */}
                         <Link
                             href="/methodology"
-                            className={`transition-colors hover:text-yellow-300 ${
+                            className={`transition-colors hover:text-gold-light ${
                                 pathname?.startsWith("/methodology")
-                                    ? "text-yellow-300"
+                                    ? "text-gold-light"
                                     : "text-white/80"
                             }`}
                         >
@@ -82,10 +82,10 @@ export function Navbar() {
                         {isSignedIn && (
                             <Link
                                 href="/account"
-                                className={`transition-colors hover:text-yellow-300 ${
+                                className={`transition-colors hover:text-gold-light ${
                                     pathname?.includes("/account") ||
                                     pathname?.startsWith("/dashboard/usage")
-                                        ? "text-yellow-300"
+                                        ? "text-gold-light"
                                         : "text-white/80"
                                 }`}
                             >
@@ -111,20 +111,20 @@ export function Navbar() {
                                 afterSignOutUrl="/"
                                 appearance={{
                                     elements: {
-                                        avatarBox: "w-9 h-9 border border-emerald-500/50",
+                                        avatarBox: "w-9 h-9 border border-gold-light/50",
                                     },
                                 }}
                             />
                         ) : (
                             <div className="flex items-center gap-2">
                                 <SignUpButton mode="modal">
-                                    <span className="cursor-pointer text-sm font-medium text-black transition-colors bg-emerald-500 px-3 sm:px-4 py-2 min-h-[44px] inline-flex items-center rounded-md hover:bg-emerald-400">
+                                    <span className="cursor-pointer text-sm font-medium text-ink transition-colors bg-gold px-3 sm:px-4 py-2 min-h-[44px] inline-flex items-center rounded-md hover:bg-gold-light">
                                         <span className="hidden sm:inline">Sign Up Free</span>
                                         <span className="sm:hidden">Sign Up</span>
                                     </span>
                                 </SignUpButton>
                                 <SignInButton mode="modal">
-                                    <span className="cursor-pointer text-sm font-medium text-slate-300 hover:text-white transition-colors bg-white/5 px-3 sm:px-4 py-2 min-h-[44px] inline-flex items-center rounded-md border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/10">
+                                    <span className="cursor-pointer text-sm font-medium text-white/80 hover:text-white transition-colors bg-white/5 px-3 sm:px-4 py-2 min-h-[44px] inline-flex items-center rounded-md border border-white/10 hover:border-gold-light/50 hover:bg-gold-light/10">
                                         Sign In
                                     </span>
                                 </SignInButton>

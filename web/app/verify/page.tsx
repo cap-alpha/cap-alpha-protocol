@@ -18,6 +18,7 @@ import {
     Code2,
     Terminal,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { ChainStatusWidget, PredictionLookup } from "./VerifyClient";
 
 export const metadata: Metadata = {
@@ -66,10 +67,10 @@ export default function VerifyPage() {
                     <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/8 rounded-full blur-[120px]" />
                 </div>
                 <div className="relative z-10 max-w-3xl mx-auto space-y-6">
-                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
+                    <Badge variant="eyebrow" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
                         <Lock className="w-3.5 h-3.5" />
                         Cryptographic Integrity
-                    </span>
+                    </Badge>
                     <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
                         Verify the{" "}
                         <span className="text-emerald-400">Ledger</span>
@@ -106,10 +107,10 @@ export default function VerifyPage() {
             <section className="w-full px-6 py-16 border-t border-zinc-900">
                 <div className="max-w-3xl mx-auto space-y-8">
                     <div className="space-y-3">
-                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-mono font-medium uppercase tracking-widest">
+                        <Badge variant="eyebrow" className="border-zinc-700 bg-zinc-900 text-zinc-400">
                             <Hash className="w-3.5 h-3.5" />
                             How it works
-                        </span>
+                        </Badge>
                         <h2 className="text-2xl sm:text-3xl font-black text-white">
                             SHA-256 Hash Chaining
                         </h2>
@@ -178,10 +179,10 @@ export default function VerifyPage() {
             <section className="w-full px-6 py-16 border-t border-zinc-900">
                 <div className="max-w-3xl mx-auto space-y-6">
                     <div className="space-y-2">
-                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-mono font-medium uppercase tracking-widest">
+                        <Badge variant="eyebrow" className="border-zinc-700 bg-zinc-900 text-zinc-400">
                             <ShieldCheck className="w-3.5 h-3.5" />
                             Live status
-                        </span>
+                        </Badge>
                         <h2 className="text-2xl sm:text-3xl font-black text-white">
                             Chain Status
                         </h2>
@@ -206,10 +207,10 @@ export default function VerifyPage() {
             <section className="w-full px-6 py-16 border-t border-zinc-900">
                 <div className="max-w-3xl mx-auto space-y-6">
                     <div className="space-y-2">
-                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-mono font-medium uppercase tracking-widest">
+                        <Badge variant="eyebrow" className="border-zinc-700 bg-zinc-900 text-zinc-400">
                             <Code2 className="w-3.5 h-3.5" />
                             Lookup
-                        </span>
+                        </Badge>
                         <h2 className="text-2xl sm:text-3xl font-black text-white">
                             Verify a Single Prediction
                         </h2>
@@ -233,10 +234,10 @@ export default function VerifyPage() {
             >
                 <div className="max-w-3xl mx-auto space-y-8">
                     <div className="space-y-2">
-                        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-zinc-700 bg-zinc-900 text-zinc-400 text-xs font-mono font-medium uppercase tracking-widest">
+                        <Badge variant="eyebrow" className="border-zinc-700 bg-zinc-900 text-zinc-400">
                             <Terminal className="w-3.5 h-3.5" />
                             DIY verification
-                        </span>
+                        </Badge>
                         <h2 className="text-2xl sm:text-3xl font-black text-white">
                             How to Verify Independently
                         </h2>

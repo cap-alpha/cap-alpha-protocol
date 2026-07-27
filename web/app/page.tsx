@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Badge } from "@/components/ui/badge";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
 import { TrackedPredictionCard } from "@/components/tracked-prediction-card";
@@ -60,9 +61,9 @@ export default async function LandingPage() {
             <section className="relative flex flex-col items-center justify-center text-center px-4 sm:px-6 pt-16 sm:pt-20 pb-10 overflow-hidden">
                 <div className="relative z-10 w-full max-w-2xl mx-auto space-y-4">
                     {/* Static badge — no live/pulse chrome */}
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-navy/30 bg-navy/10 text-navy text-xs font-mono font-medium uppercase tracking-widest">
+                    <Badge variant="eyebrow" className="border-navy/30 bg-navy/10 text-navy">
                         Prediction Receipts
-                    </div>
+                    </Badge>
 
                     {/* Hero headline — 2 lines max. Playfair Display at weight 700,
                         not 900 (#1069 AC) — this is the one hero headline on the

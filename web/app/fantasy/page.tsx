@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
+import { PageContainer } from "@/components/ui/page-container";
 import { Lock } from "lucide-react";
 
 export default async function FantasyPage() {
@@ -11,7 +12,7 @@ export default async function FantasyPage() {
 
     return (
         <main className="min-h-[100dvh] bg-background text-foreground p-8">
-            <div className="max-w-7xl mx-auto space-y-8">
+            <PageContainer size="7xl" className="space-y-8">
                 <div className="flex items-center gap-4 border-b border-border pb-6">
                     <Link href="/dashboard" className="p-2 hover:bg-slate-800 rounded-full transition-colors text-slate-400">
                         <ArrowLeft className="h-6 w-6" />
@@ -43,7 +44,7 @@ export default async function FantasyPage() {
                         </SignInButton>
                     </div>
                 </SignedOut>
-            </div>
+            </PageContainer>
         </main>
     );
 }

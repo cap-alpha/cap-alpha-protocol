@@ -2,6 +2,7 @@ import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Phone, Heart, AlertTriangle, ExternalLink } from "lucide-react";
+import { PageHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "Responsible Gambling | Cap Alpha",
@@ -67,7 +68,7 @@ export default function ResponsibleGamblingPage() {
 
                 <div className="flex items-center gap-3 mb-2">
                     <Heart className="w-7 h-7 text-amber-400 shrink-0" />
-                    <h1 className="text-3xl font-extrabold tracking-tight">Responsible Gambling</h1>
+                    <PageHeading>Responsible Gambling</PageHeading>
                 </div>
                 <p className="text-sm text-zinc-500 mb-10">Last Updated: April 29, 2026</p>
 

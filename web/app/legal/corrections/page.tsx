@@ -2,6 +2,7 @@ import React from "react";
 import { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, RotateCcw } from "lucide-react";
+import { PageHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "Correction & Retraction Policy | Cap Alpha",
@@ -23,9 +24,9 @@ export default function CorrectionsPolicy() {
 
                 <div className="flex items-center gap-3 mb-2">
                     <RotateCcw className="w-7 h-7 text-emerald-400 shrink-0" />
-                    <h1 className="text-3xl font-extrabold tracking-tight">
+                    <PageHeading>
                         Correction & Retraction Policy
-                    </h1>
+                    </PageHeading>
                 </div>
                 <p className="text-sm text-zinc-500 mb-12">Last Updated: May 4, 2026</p>
 

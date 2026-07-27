@@ -10,6 +10,7 @@
 import { Metadata } from "next";
 import { headers } from "next/headers";
 import { CheckCircle2, XCircle, AlertTriangle, Activity } from "lucide-react";
+import { PageContainer } from "@/components/ui/page-container";
 
 const PRODUCTION_APP_URL = "https://cap-alpha.co";
 
@@ -183,7 +184,7 @@ export default async function StatusPage() {
           : "Partial degradation";
 
     return (
-        <div className="max-w-2xl mx-auto px-4 py-12 space-y-8">
+        <PageContainer size="2xl" className="px-4 py-12 space-y-8">
             {/* Header */}
             <div className="space-y-2">
                 <div className="flex items-center gap-2 text-zinc-400 text-sm uppercase tracking-widest font-medium">
@@ -262,6 +263,6 @@ export default async function StatusPage() {
                     </a>
                 </p>
             </div>
-        </div>
+        </PageContainer>
     );
 }

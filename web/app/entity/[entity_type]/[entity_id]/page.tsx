@@ -842,7 +842,7 @@ export default function EntityDetailPage() {
                                     <div className="font-mono text-[10px] text-zinc-500 leading-4 whitespace-pre-line">
                                         {evt.date_str}
                                     </div>
-                                    <div className="text-[12px] text-zinc-400 leading-4">
+                                    <div className="text-xs text-zinc-400 leading-4">
                                         <span className="font-bold text-zinc-200">{evt.pundit_name}</span>{" "}
                                         {evt.summary.replace(/ — (correct|incorrect|pending)$/, "")}
                                         {" — "}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "Acceptable Use Policy | Cap Alpha",
@@ -11,7 +12,7 @@ export default function AcceptableUsePolicy() {
         <div className="bg-black text-white min-h-[100dvh]">
             <article className="max-w-3xl mx-auto px-6 py-20 space-y-10">
                 <header className="space-y-3 border-b border-zinc-800 pb-8">
-                    <h1 className="text-4xl font-black tracking-tight">Acceptable Use Policy</h1>
+                    <PageHeading>Acceptable Use Policy</PageHeading>
                     <p className="text-sm text-zinc-500">Effective: May 6, 2026</p>
                 </header>
 

@@ -15,6 +15,14 @@ const badgeVariants = cva(
                 destructive:
                     "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
                 outline: "text-foreground",
+                // "Eyebrow" pill — shape/spacing/typography shared by the
+                // small uppercase label chips used above hero/section
+                // headlines. Colors are intentionally NOT baked in here:
+                // callers pass their own border/bg/text color via
+                // `className` (see web/DESIGN_AUDIT.md §4.1) since the
+                // color choice is still page-specific.
+                eyebrow:
+                    "gap-2 rounded-full border-transparent px-3 py-1 text-xs font-mono font-medium uppercase tracking-widest",
             },
         },
         defaultVariants: {

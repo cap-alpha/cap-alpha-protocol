@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { CheckCircle2, XCircle, AlertTriangle, Activity, BarChart3, Database, Shield, TrendingUp } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import type { QualityResponse, WaitlistGate } from "@/app/api/quality/route";
 import type { QualityExtendedResponse } from "@/app/api/quality/extended/route";
 import {
@@ -521,10 +522,10 @@ export default async function QualityPage() {
             {/* Header */}
             <section className="border-b border-zinc-900 px-6 py-12">
                 <div className="max-w-5xl mx-auto space-y-4">
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
+                    <Badge variant="eyebrow" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         Public Dashboard
-                    </div>
+                    </Badge>
                     <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
                         Extraction Quality
                     </h1>

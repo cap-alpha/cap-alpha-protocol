@@ -32,6 +32,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.bigquery import DatasetReference, QueryJobConfig, ScalarQueryParameter
 
 from api.api_key_auth import verify_api_key
+from api.serialization import df_to_records
 from src.calibration import CALIBRATION_TABLE
 from src.cryptographic_ledger import verify_chain_integrity
 from src.db_manager import DBManager, get_db_manager
@@ -254,7 +255,7 @@ def leaderboard(
 
         top = df.head(limit)
         return {
-            "leaderboard": top.where(top.notna(), None).to_dict(orient="records"),
+            "leaderboard": df_to_records(top),
             "total": len(df),
             "min_quality_filter": min_quality,
         }
@@ -309,7 +310,7 @@ def list_pundits(
             logger.warning("Calibration join failed in list_pundits: %s", cal_err)
 
         return {
-            "pundits": df.where(df.notna(), None).to_dict(orient="records"),
+            "pundits": df_to_records(df),
             "total": len(df),
             "min_quality_filter": min_quality,
         }
@@ -508,7 +509,7 @@ def pundit_predictions(
 
         return {
             "pundit_id": pundit_id,
-            "predictions": df.where(df.notna(), None).to_dict(orient="records"),
+            "predictions": df_to_records(df),
             "page": page,
             "page_size": page_size,
             "total": total,
@@ -571,7 +572,7 @@ def recent_predictions(
         params = [ScalarQueryParameter("lim", "INT64", limit)]
         df = _parameterized_query(db, query, params)
         return {
-            "predictions": df.where(df.notna(), None).to_dict(orient="records"),
+            "predictions": df_to_records(df),
             "count": len(df),
         }
     except Exception as e:
@@ -690,7 +691,7 @@ def similar_predictions(
         """
         df = _parameterized_query(db, query, params)
         return {
-            "similar": df.where(df.notna(), None).to_dict(orient="records"),
+            "similar": df_to_records(df),
             "count": len(df),
             "utterance_id": utterance_id,
         }
@@ -804,7 +805,7 @@ def search_predictions(
         total = int(count_df.iloc[0]["total"]) if not count_df.empty else 0
 
         return {
-            "predictions": df.where(df.notna(), None).to_dict(orient="records"),
+            "predictions": df_to_records(df),
             "page": page,
             "limit": limit,
             "total": total,
@@ -869,7 +870,7 @@ def draft_summary(
             "total": len(df),
             "resolved": resolved,
             "pending": pending,
-            "predictions": df.where(df.notna(), None).to_dict(orient="records"),
+            "predictions": df_to_records(df),
         }
     except Exception as e:
         logger.error(f"Draft summary error for {year}: {e}")
@@ -952,9 +953,7 @@ def draft_results(
             "total": len(pred_df),
             "by_status": grouped,
             "pundit_accuracy": (
-                pundit_df.where(pundit_df.notna(), None).to_dict(orient="records")
-                if not pundit_df.empty
-                else []
+                df_to_records(pundit_df) if not pundit_df.empty else []
             ),
         }
     except Exception as e:

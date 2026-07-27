@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { API_URL } from "@/lib/ledger-server";
 import {
     injectHoneypotFields,
     enforcePaginationLimit,
@@ -6,10 +7,6 @@ import {
     LEDGER_MAX_LIMIT,
 } from "@/lib/anti-scraping";
 
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);

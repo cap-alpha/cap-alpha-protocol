@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { API_URL } from "@/lib/ledger-server";
 import { Redis } from "@upstash/redis";
 import { Ratelimit } from "@upstash/ratelimit";
 
@@ -67,10 +68,6 @@ async function setCached(redis: Redis, key: string, value: PunditSearchResult[])
 // Backend
 // ---------------------------------------------------------------------------
 
-const API_URL =
-    process.env.API_URL ||
-    process.env.NEXT_PUBLIC_API_URL ||
-    "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 async function searchFromBackend(q: string): Promise<PunditSearchResult[]> {
     const url = new URL(`${API_URL}/v1/pundits/`);

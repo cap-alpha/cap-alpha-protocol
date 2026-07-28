@@ -24,15 +24,26 @@ import pytest
 
 from src.resolvers.llm_judge_silver import (
     CONFIDENCE_THRESHOLD,
+    GROUNDED_LLM_JUDGE_METHOD_ADAPTER_PATH,
+    GROUNDED_LLM_JUDGE_METHOD_DATA_SOURCE,
+    GROUNDED_LLM_JUDGE_METHOD_DOMAIN,
+    GROUNDED_LLM_JUDGE_METHOD_ID,
+    GROUNDED_LLM_JUDGE_METHOD_NAME,
     LLM_JUDGE_METHOD_ADAPTER_PATH,
     LLM_JUDGE_METHOD_DATA_SOURCE,
     LLM_JUDGE_METHOD_DOMAIN,
     LLM_JUDGE_METHOD_ID,
     LLM_JUDGE_METHOD_NAME,
+    GroundedLLMJudgeResolutionMethod,
+    GroundedSearchResult,
     LLMJudgeResolutionMethod,
+    _build_grounded_prompt,
+    _default_grounded_search,
+    _extract_citations,
     _extract_keywords,
     _parse_llm_response,
     _serialise_snippet,
+    ensure_grounded_llm_judge_resolution_method,
     ensure_llm_judge_resolution_method,
     retrieve_evidence_snippets,
 )
@@ -598,3 +609,403 @@ class TestLLMJudgeResolutionMethodResolve:
         provider = _mock_provider("{}")
         method = LLMJudgeResolutionMethod(db=db, provider=provider)
         assert method._get_provider() is provider
+
+
+# ---------------------------------------------------------------------------
+# _extract_citations (v1.1 grounding fallback)
+# ---------------------------------------------------------------------------
+
+
+class _FakeWeb:
+    def __init__(self, uri=None, title=None):
+        self.uri = uri
+        self.title = title
+
+
+class _FakeChunk:
+    def __init__(self, web=None):
+        self.web = web
+
+
+class _FakeGroundingMetadata:
+    def __init__(self, grounding_chunks=None):
+        self.grounding_chunks = grounding_chunks
+
+
+class _FakeCandidate:
+    def __init__(self, grounding_metadata=None):
+        self.grounding_metadata = grounding_metadata
+
+
+class _FakeResponse:
+    def __init__(self, candidates=None):
+        self.candidates = candidates or []
+
+
+class TestExtractCitations:
+    def test_extracts_uri_and_title(self):
+        response = _FakeResponse(
+            candidates=[
+                _FakeCandidate(
+                    grounding_metadata=_FakeGroundingMetadata(
+                        grounding_chunks=[
+                            _FakeChunk(
+                                web=_FakeWeb(
+                                    uri="https://example.com/a", title="Example A"
+                                )
+                            )
+                        ]
+                    )
+                )
+            ]
+        )
+        assert _extract_citations(response) == [
+            {"uri": "https://example.com/a", "title": "Example A"}
+        ]
+
+    def test_no_candidates_returns_empty(self):
+        assert _extract_citations(_FakeResponse(candidates=[])) == []
+
+    def test_no_grounding_metadata_returns_empty(self):
+        response = _FakeResponse(candidates=[_FakeCandidate(grounding_metadata=None)])
+        assert _extract_citations(response) == []
+
+    def test_chunk_without_web_skipped(self):
+        response = _FakeResponse(
+            candidates=[
+                _FakeCandidate(
+                    grounding_metadata=_FakeGroundingMetadata(
+                        grounding_chunks=[_FakeChunk(web=None)]
+                    )
+                )
+            ]
+        )
+        assert _extract_citations(response) == []
+
+    def test_missing_attrs_never_raises(self):
+        assert _extract_citations(object()) == []
+        assert _extract_citations(None) == []
+        assert _extract_citations("not a response") == []
+
+    def test_exception_during_extraction_returns_empty(self):
+        class BadResponse:
+            @property
+            def candidates(self):
+                raise RuntimeError("boom")
+
+        assert _extract_citations(BadResponse()) == []
+
+
+# ---------------------------------------------------------------------------
+# _build_grounded_prompt
+# ---------------------------------------------------------------------------
+
+
+class TestBuildGroundedPrompt:
+    def test_includes_claim_fields(self):
+        prompt = _build_grounded_prompt(BASE_CLAIM)
+        assert "Adam Schefter" in prompt
+        assert "Patrick Mahomes will win NFL MVP" in prompt
+        assert "Patrick Mahomes" in prompt
+        assert "an unknown date" in prompt
+
+    def test_includes_asserted_at_when_present(self):
+        prompt = _build_grounded_prompt(BASE_CLAIM, asserted_at=NOW)
+        assert NOW.isoformat() in prompt
+
+    def test_defaults_for_missing_speaker_and_subjects(self):
+        prompt = _build_grounded_prompt({"claim_text": "x will happen"})
+        assert "an unknown speaker" in prompt
+        assert "unspecified" in prompt
+
+
+# ---------------------------------------------------------------------------
+# _default_grounded_search (google-genai Client mocked -- no real network)
+# ---------------------------------------------------------------------------
+
+
+class TestDefaultGroundedSearch:
+    def test_raises_without_api_key(self, monkeypatch):
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+        with pytest.raises(EnvironmentError):
+            _default_grounded_search("prompt text")
+
+    def test_calls_genai_with_google_search_tool(self, monkeypatch):
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+        captured = {}
+
+        class FakeModels:
+            def generate_content(self, model, contents, config):
+                captured["model"] = model
+                captured["contents"] = contents
+                captured["config"] = config
+                return _FakeResponse(candidates=[])
+
+        class FakeGenaiResponse:
+            text = '{"verdict": "TRUE", "confidence": 0.9, "reasoning": "ok"}'
+            candidates = []
+
+        class FakeModelsReturningText(FakeModels):
+            def generate_content(self, model, contents, config):
+                super().generate_content(model, contents, config)
+                return FakeGenaiResponse()
+
+        class FakeClient:
+            def __init__(self, api_key):
+                captured["api_key"] = api_key
+                self.models = FakeModelsReturningText()
+
+        import google.genai as genai_module
+
+        monkeypatch.setattr(genai_module, "Client", FakeClient)
+
+        result = _default_grounded_search("prompt text", model="gemini-2.5-flash")
+
+        assert captured["api_key"] == "fake-key"
+        assert captured["model"] == "gemini-2.5-flash"
+        assert captured["contents"] == "prompt text"
+        # config must carry the Google Search grounding tool.
+        assert captured["config"].tools[0].google_search is not None
+        assert isinstance(result, GroundedSearchResult)
+        assert result.text == FakeGenaiResponse.text
+        assert result.citations == []
+
+
+# ---------------------------------------------------------------------------
+# ensure_grounded_llm_judge_resolution_method
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureGroundedLLMJudgeResolutionMethod:
+    def test_inserts_and_is_idempotent(self, db):
+        assert ensure_grounded_llm_judge_resolution_method(db) is True
+        assert ensure_grounded_llm_judge_resolution_method(db) is False
+        rows = db._conn.execute(
+            f"SELECT * FROM silver_v2_claims.resolution_method "
+            f"WHERE resolution_method_id = '{GROUNDED_LLM_JUDGE_METHOD_ID}'"
+        ).df()
+        assert len(rows) == 1
+        assert rows.iloc[0]["domain"] == GROUNDED_LLM_JUDGE_METHOD_DOMAIN
+        assert rows.iloc[0]["name"] == GROUNDED_LLM_JUDGE_METHOD_NAME
+        assert rows.iloc[0]["adapter_path"] == GROUNDED_LLM_JUDGE_METHOD_ADAPTER_PATH
+        assert rows.iloc[0]["data_source"] == GROUNDED_LLM_JUDGE_METHOD_DATA_SOURCE
+
+
+# ---------------------------------------------------------------------------
+# GroundedLLMJudgeResolutionMethod.resolve()
+# ---------------------------------------------------------------------------
+
+
+def _grounded_result(text, citations=None) -> GroundedSearchResult:
+    return GroundedSearchResult(text=text, citations=citations or [])
+
+
+class TestGroundedLLMJudgeResolutionMethodResolve:
+    def test_defers_when_claim_text_missing(self):
+        db = MagicMock()
+        search_fn = MagicMock()
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db,
+            local_method=LLMJudgeResolutionMethod(
+                db=db, provider=_mock_provider("irrelevant")
+            ),
+            grounded_search_fn=search_fn,
+        )
+        claim = dict(BASE_CLAIM, claim_text="")
+        assert method.resolve(claim) is None
+        search_fn.assert_not_called()
+
+    def test_uses_local_result_when_local_evidence_found(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        _seed_utterance(
+            db,
+            "utt-1",
+            "Patrick Mahomes was officially named NFL MVP on Sunday.",
+            uttered_at=NOW - timedelta(days=1),
+        )
+        local_provider = _mock_provider(
+            json.dumps(
+                {
+                    "verdict": "TRUE",
+                    "confidence": 0.92,
+                    "reasoning": "local evidence confirms it",
+                }
+            )
+        )
+        local_method = LLMJudgeResolutionMethod(db=db, provider=local_provider)
+        search_fn = MagicMock()
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        result = method.resolve(BASE_CLAIM)
+        assert result is not None
+        outcome, confidence, evidence, notes = result
+        assert outcome == "true"
+        assert evidence["resolution_path"] == "local_evidence"
+        # Grounded search must never be reached when local evidence resolves.
+        search_fn.assert_not_called()
+
+    def test_falls_back_to_grounded_when_no_local_evidence(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        # No raw_utterance rows seeded -> local method has nothing to match.
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(
+            return_value=_grounded_result(
+                json.dumps(
+                    {
+                        "verdict": "TRUE",
+                        "confidence": 0.85,
+                        "reasoning": "ESPN confirmed the pick",
+                    }
+                ),
+                citations=[{"uri": "https://espn.com/story", "title": "ESPN story"}],
+            )
+        )
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        result = method.resolve(BASE_CLAIM)
+        assert result is not None
+        outcome, confidence, evidence, notes = result
+        assert outcome == "true"
+        assert confidence == 0.85
+        assert evidence["resolution_path"] == "web_search_grounded"
+        assert evidence["citations"] == [
+            {"uri": "https://espn.com/story", "title": "ESPN story"}
+        ]
+        assert "ESPN" in notes
+        json.dumps(evidence)  # must be JSON-serialisable end to end
+        search_fn.assert_called_once()
+
+    def test_defers_on_uncertain_grounded_verdict(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(
+            return_value=_grounded_result(
+                json.dumps(
+                    {
+                        "verdict": "UNCERTAIN",
+                        "confidence": 0.5,
+                        "reasoning": "conflicting reports",
+                    }
+                ),
+                citations=[{"uri": "https://example.com", "title": "x"}],
+            )
+        )
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        assert method.resolve(BASE_CLAIM) is None
+
+    def test_defers_on_empty_grounded_response(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(return_value=_grounded_result(None))
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        assert method.resolve(BASE_CLAIM) is None
+
+    def test_defers_on_malformed_grounded_response(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(return_value=_grounded_result("not json at all, sorry"))
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        assert method.resolve(BASE_CLAIM) is None
+
+    def test_defers_below_confidence_threshold(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(
+            return_value=_grounded_result(
+                json.dumps(
+                    {"verdict": "TRUE", "confidence": 0.2, "reasoning": "weak signal"}
+                ),
+                citations=[{"uri": "https://example.com", "title": "x"}],
+            )
+        )
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        assert method.resolve(BASE_CLAIM) is None
+
+    def test_defers_when_no_citations_even_if_confident(self, db):
+        """A grounded verdict with zero citations is the model answering from
+        parametric memory, not the search it just did -- must defer even at
+        high stated confidence."""
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(
+            return_value=_grounded_result(
+                json.dumps(
+                    {
+                        "verdict": "TRUE",
+                        "confidence": 0.95,
+                        "reasoning": "I recall this happened",
+                    }
+                ),
+                citations=[],
+            )
+        )
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        assert method.resolve(BASE_CLAIM) is None
+
+    def test_void_verdict_maps_to_vacuous_outcome(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(
+            return_value=_grounded_result(
+                json.dumps(
+                    {"verdict": "VOID", "confidence": 0.8, "reasoning": "retired"}
+                ),
+                citations=[
+                    {"uri": "https://example.com", "title": "retirement announcement"}
+                ],
+            )
+        )
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        outcome, confidence, evidence, notes = method.resolve(BASE_CLAIM)
+        assert outcome == "vacuous"
+
+    def test_defers_on_search_exception_no_crash(self, db):
+        _seed_claim(db, "claim-1", asserted_at=NOW - timedelta(days=10))
+        local_method = LLMJudgeResolutionMethod(
+            db=db, provider=_mock_provider("irrelevant")
+        )
+        search_fn = MagicMock(side_effect=Exception("network error"))
+        method = GroundedLLMJudgeResolutionMethod(
+            db=db, local_method=local_method, grounded_search_fn=search_fn
+        )
+        result = method.resolve(BASE_CLAIM)
+        assert result is None
+
+    def test_method_id_defaults_to_registered_constant(self, db):
+        method = GroundedLLMJudgeResolutionMethod(db=db)
+        assert method.method_id == GROUNDED_LLM_JUDGE_METHOD_ID
+
+    def test_lazy_local_method_not_constructed_when_explicit_given(self, db):
+        """Passing local_method= explicitly must never touch
+        get_provider()/env credentials -- keeps these tests network-free."""
+        local_method = LLMJudgeResolutionMethod(db=db, provider=_mock_provider("{}"))
+        method = GroundedLLMJudgeResolutionMethod(db=db, local_method=local_method)
+        assert method._get_local_method() is local_method

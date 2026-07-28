@@ -45,6 +45,26 @@ v1 design decisions (locked, per the Slice 2 task brief):
     stance from #1129 and the existing gold-layer `resolvers/llm_judge.py`'s
     confidence-gated design.
 
+  - **v1.1 addition — Google Search grounding fallback** (#1129 read-path
+    audit finding: `silver_v2_claims.resolution` stayed at 0 rows even after
+    Slice 2 shipped). Root cause: `raw_utterance` is ingested
+    punditry/predictions text, not outcome reporting — an entity/keyword
+    ILIKE scan for "did the predicted outcome happen" essentially never
+    matches, so `retrieve_evidence_snippets()` legitimately returns `[]` for
+    nearly every real due claim and the v1 judge defers 100% of the time.
+    But the outcomes themselves (draft picks, signings, game results) are
+    public record. `GroundedLLMJudgeResolutionMethod` composes
+    `LLMJudgeResolutionMethod` (tries local evidence first — free, no
+    network) and falls back to a Google-Search-grounded Gemini call (the
+    `google-genai` SDK's `tools=[types.Tool(google_search=...)]`, called
+    directly — see `_default_grounded_search`) only when local evidence is
+    absent/insufficient. Same conservative contract as v1: UNCERTAIN, a
+    malformed/empty response, or confidence below threshold all defer.
+    Additionally, a grounded verdict with zero search citations also defers
+    — a confident-sounding verdict backed by no retrieved web evidence is
+    the model answering from parametric memory, which grounding exists to
+    replace, not merely supplement.
+
 Explicitly OUT OF SCOPE for this module (per the Slice 2 task brief):
   - Embeddings / vector store evidence funnel (#1133).
   - Wiring into resolve_daily.py or any scheduled workflow — see the
@@ -59,8 +79,8 @@ import logging
 import os
 import re
 from dataclasses import dataclass, field
-from datetime import timezone
-from typing import Any, Optional
+from datetime import datetime, timezone
+from typing import Any, Callable, Optional
 
 import pandas as pd
 from google.cloud import bigquery
@@ -495,8 +515,362 @@ class LLMJudgeResolutionMethod:
 
 
 # ---------------------------------------------------------------------------
+# Grounded (Google Search) resolution_method registration — v1.1 addition
+# ---------------------------------------------------------------------------
+
+GROUNDED_LLM_JUDGE_METHOD_ID = "llm_judge_gemini_grounded"
+GROUNDED_LLM_JUDGE_METHOD_DOMAIN = "general"
+GROUNDED_LLM_JUDGE_METHOD_NAME = (
+    "LLM Judge (Gemini Google Search grounding, local-evidence fallback) — v1.1"
+)
+GROUNDED_LLM_JUDGE_METHOD_ADAPTER_PATH = (
+    "pipeline.src.resolvers.llm_judge_silver:GroundedLLMJudgeResolutionMethod"
+)
+GROUNDED_LLM_JUDGE_METHOD_DATA_SOURCE = "llm.gemini.grounded"
+
+
+def ensure_grounded_llm_judge_resolution_method(db: Any) -> bool:
+    """Idempotently register the llm_judge_gemini_grounded resolution_method
+    row. Thin wrapper over Slice-1's ensure_resolution_method, mirroring
+    ensure_llm_judge_resolution_method above."""
+    return ensure_resolution_method(
+        db,
+        resolution_method_id=GROUNDED_LLM_JUDGE_METHOD_ID,
+        domain=GROUNDED_LLM_JUDGE_METHOD_DOMAIN,
+        name=GROUNDED_LLM_JUDGE_METHOD_NAME,
+        adapter_path=GROUNDED_LLM_JUDGE_METHOD_ADAPTER_PATH,
+        data_source=GROUNDED_LLM_JUDGE_METHOD_DATA_SOURCE,
+    )
+
+
+# Overridable for local/manual runs (e.g. a grounding-capable preview model).
+# Deliberately NOT read from llm_config.yaml — see module docstring.
+#
+# "gemini-flash-latest", not "gemini-2.5-flash": verified against a real
+# GEMINI_API_KEY during PR development that "gemini-2.5-flash" 404s ("This
+# model ... is no longer available to new users") for at least some API
+# keys/projects, while "gemini-flash-latest" is accepted (confirmed via
+# client.models.list() and a real generate_content call that got as far as
+# a 429 quota response rather than a 404 model-not-found — i.e. the request
+# was valid, only throttled). "-latest" aliases move over time by design;
+# override via RESOLUTION_GROUNDED_MODEL if Google retires this one too.
+DEFAULT_GROUNDED_MODEL = os.environ.get(
+    "RESOLUTION_GROUNDED_MODEL", "gemini-flash-latest"
+)
+
+# Independently overridable from CONFIDENCE_THRESHOLD (web search grounding
+# is a different evidence source with different noise characteristics), but
+# defaults to the same value so operators get one fewer knob to think about
+# until real-run data suggests otherwise.
+GROUNDED_CONFIDENCE_THRESHOLD = float(
+    os.environ.get(
+        "LLM_JUDGE_SILVER_GROUNDED_CONFIDENCE_THRESHOLD", str(CONFIDENCE_THRESHOLD)
+    )
+)
+
+
+# ---------------------------------------------------------------------------
+# Grounded web-search fallback (#1129 read-path audit).
+#
+# Calls `google-genai` directly rather than through `src.llm_provider`.
+# `llm_provider.py` / `llm_config.yaml` are protected extraction paths (see
+# CLAUDE.md "Extraction-touching PR rules": editing them requires a real
+# LLM smoke test + CODEOWNERS review). Grounded resolution is a
+# resolution-only concern with a different call shape (a `tools=` config,
+# no JSON-schema response enforcement, citation-shaped output) that does not
+# belong in the shared extraction abstraction — so this module talks to
+# google-genai directly, mirroring `llm_provider.GeminiProvider`'s own
+# `from google import genai` / `GEMINI_API_KEY` construction pattern so
+# credential handling stays consistent across the codebase without editing
+# the protected file.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class GroundedSearchResult:
+    """Return shape of a grounded (Google Search) Gemini call: the model's
+    raw text response plus best-effort extracted citations."""
+
+    text: Optional[str]
+    citations: list[dict] = field(default_factory=list)
+
+
+# A grounded-search callable's signature: prompt in, GroundedSearchResult
+# out. Constructor-injectable on GroundedLLMJudgeResolutionMethod so tests
+# never construct a real google-genai client.
+GroundedSearchFn = Callable[[str], GroundedSearchResult]
+
+
+def _extract_citations(response: Any) -> list[dict]:
+    """
+    Best-effort extraction of {"uri", "title"} citations from a google-genai
+    grounded generate_content response's
+    candidates[].grounding_metadata.grounding_chunks[].web.
+
+    Returns [] (never raises) if the response has no grounding metadata —
+    e.g. the model answered without needing to search, an SDK response-shape
+    change, or a test double. Absence of citations is meaningful to the
+    caller (GroundedLLMJudgeResolutionMethod.resolve() treats zero citations
+    as "unverifiable" and defers even on an otherwise-confident verdict), so
+    this must return a reliable [], never raise disguised as one.
+    """
+    citations: list[dict] = []
+    try:
+        for candidate in getattr(response, "candidates", None) or []:
+            metadata = getattr(candidate, "grounding_metadata", None)
+            if metadata is None:
+                continue
+            for chunk in getattr(metadata, "grounding_chunks", None) or []:
+                web = getattr(chunk, "web", None)
+                if web is None:
+                    continue
+                uri = getattr(web, "uri", None)
+                title = getattr(web, "title", None)
+                if uri or title:
+                    citations.append({"uri": uri, "title": title})
+    except Exception:
+        logger.debug(
+            "_extract_citations: failed to parse grounding metadata from "
+            "response — treating as no citations",
+            exc_info=True,
+        )
+        return []
+    return citations
+
+
+def _default_grounded_search(
+    prompt: str, model: str = DEFAULT_GROUNDED_MODEL
+) -> GroundedSearchResult:
+    """
+    Real Gemini call with the Google Search grounding tool enabled.
+
+    Raises EnvironmentError if GEMINI_API_KEY is unset, and propagates any
+    google-genai exception — GroundedLLMJudgeResolutionMethod.resolve()
+    catches both and defers rather than crashing a resolution pass. Never
+    called at class-construction time (see
+    GroundedLLMJudgeResolutionMethod._get_search_fn) so instantiating the
+    method never requires credentials.
+    """
+    from google import genai
+    from google.genai import types
+
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        raise EnvironmentError(
+            "GEMINI_API_KEY not set — required for grounded (Google Search) "
+            "resolution. Set it with: export GEMINI_API_KEY=<your-key>"
+        )
+    client = genai.Client(api_key=api_key)
+    response = client.models.generate_content(
+        model=model,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())]
+        ),
+    )
+    return GroundedSearchResult(
+        text=getattr(response, "text", None),
+        citations=_extract_citations(response),
+    )
+
+
+GROUNDED_JUDGE_PROMPT_TEMPLATE = """You are an evidence-based prediction adjudicator with access to live web search. Search the web to determine whether a claim's predicted outcome has actually occurred. These are public-record sports events — draft picks, contract signings, trades, game results, awards — so authoritative reporting should exist if the outcome has happened.
+
+Claim (asserted by {speaker} on {asserted_at}): "{claim_text}"
+Subject(s): {subjects}
+
+Search for the most recent, authoritative reporting on this claim's subject and predicted outcome. Then decide:
+- Return "TRUE" only if you find clear, credible search results showing the predicted outcome occurred.
+- Return "FALSE" only if you find clear, credible search results showing a contradicting outcome occurred (the predicted outcome demonstrably did NOT happen).
+- Return "VOID" if search results show the claim is now moot/unresolvable for reasons unrelated to whether the prediction was right (e.g. the subject retired, the event was cancelled).
+- Return "UNCERTAIN" if search results are insufficient, ambiguous, contradictory, or you cannot find authoritative coverage either way. Be conservative — prefer UNCERTAIN over guessing from general knowledge.
+
+Respond with a JSON object only, no other text:
+{{
+  "verdict": "TRUE" | "FALSE" | "VOID" | "UNCERTAIN",
+  "confidence": <float 0.0-1.0>,
+  "reasoning": "<one or two sentences citing what your search found>"
+}}"""
+
+
+def _build_grounded_prompt(claim: dict, asserted_at: Optional[datetime] = None) -> str:
+    speaker = claim.get("speaker_name") or "an unknown speaker"
+    subjects = claim.get("subject_entity_names") or "unspecified"
+    claim_text = (claim.get("claim_text") or "").replace('"', '\\"')
+    asserted_at_str = (
+        asserted_at.isoformat() if asserted_at is not None else "an unknown date"
+    )
+    return GROUNDED_JUDGE_PROMPT_TEMPLATE.format(
+        speaker=speaker,
+        subjects=subjects,
+        claim_text=claim_text,
+        asserted_at=asserted_at_str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# ResolutionMethod implementation — grounded fallback
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class GroundedLLMJudgeResolutionMethod:
+    """
+    v1.1 (#1129 read-path audit) ResolutionMethod: tries Slice-2's local
+    raw_utterance evidence first (via a composed LLMJudgeResolutionMethod,
+    free — no network if evidence is simply absent), then falls back to a
+    Google-Search-grounded Gemini call when local evidence is absent or
+    insufficient (i.e. the local judge deferred).
+
+    This grounded fallback is expected to be the path that actually resolves
+    claims in practice: local raw_utterance evidence is entity/keyword-
+    matched punditry, not outcome reporting, so it is empty for nearly every
+    public-record claim (draft picks, signings, game results). Composing
+    rather than duplicating LLMJudgeResolutionMethod means a claim with
+    genuine local evidence still resolves for free without touching the web
+    search API/quota.
+
+    Conforms to ResolutionMethod: resolve(claim) -> (outcome, confidence,
+    evidence, notes) | None. Conservative by the same contract as v1:
+    UNCERTAIN, a malformed/empty grounded response, or a verdict below
+    `confidence_threshold` all defer. Additionally, a grounded verdict with
+    zero search citations also defers — see module docstring.
+
+    `local_method` and `grounded_search_fn` are constructor-injectable so
+    tests exercise resolve() without ever touching google-genai / network.
+    """
+
+    db: Any
+    method_id: str = GROUNDED_LLM_JUDGE_METHOD_ID
+    local_method: Optional[LLMJudgeResolutionMethod] = None
+    grounded_model: str = DEFAULT_GROUNDED_MODEL
+    confidence_threshold: float = GROUNDED_CONFIDENCE_THRESHOLD
+    grounded_search_fn: Optional[GroundedSearchFn] = None
+    _resolved_local: Optional[LLMJudgeResolutionMethod] = field(
+        default=None, init=False, repr=False, compare=False
+    )
+
+    def _get_local_method(self) -> LLMJudgeResolutionMethod:
+        # Lazily constructed for the same reason LLMJudgeResolutionMethod
+        # lazily constructs its provider: instantiating this class must
+        # never touch GEMINI_API_KEY / network before resolve() needs it.
+        if self.local_method is not None:
+            return self.local_method
+        if self._resolved_local is None:
+            self._resolved_local = LLMJudgeResolutionMethod(db=self.db)
+        return self._resolved_local
+
+    def _get_search_fn(self) -> GroundedSearchFn:
+        if self.grounded_search_fn is not None:
+            return self.grounded_search_fn
+        model = self.grounded_model
+        return lambda prompt: _default_grounded_search(prompt, model=model)
+
+    def resolve(self, claim: dict) -> Optional[tuple[str, float, dict, Optional[str]]]:
+        claim_id = claim.get("claim_id")
+        claim_text = (claim.get("claim_text") or "").strip()
+        if not claim_text:
+            logger.debug(
+                "GroundedLLMJudgeResolutionMethod: claim_id=%s has no "
+                "claim_text — deferring",
+                claim_id,
+            )
+            return None
+
+        local_result = self._get_local_method().resolve(claim)
+        if local_result is not None:
+            outcome, confidence, evidence, notes = local_result
+            evidence = dict(evidence, resolution_path="local_evidence")
+            logger.info(
+                "GroundedLLMJudgeResolutionMethod: claim_id=%s resolved from "
+                "local raw_utterance evidence — grounded search skipped",
+                claim_id,
+            )
+            return outcome, confidence, evidence, notes
+
+        logger.info(
+            "GroundedLLMJudgeResolutionMethod: claim_id=%s — no local "
+            "evidence, falling back to Google Search grounding",
+            claim_id,
+        )
+
+        asserted_at = _fetch_claim_asserted_at(self.db, claim_id)
+        prompt = _build_grounded_prompt(claim, asserted_at)
+
+        try:
+            result = self._get_search_fn()(prompt)
+        except Exception as exc:
+            logger.warning(
+                "GroundedLLMJudgeResolutionMethod: grounded search failed "
+                "for claim_id=%s: %s",
+                claim_id,
+                exc,
+            )
+            return None
+
+        parsed = _parse_llm_response(result.text)
+        if parsed is None:
+            logger.warning(
+                "GroundedLLMJudgeResolutionMethod: malformed/empty grounded "
+                "response for claim_id=%s: %r",
+                claim_id,
+                (result.text or "")[:200],
+            )
+            return None
+
+        verdict = parsed["verdict"]
+        confidence = parsed["confidence"]
+        reasoning = parsed["reasoning"]
+
+        outcome = _VERDICT_TO_OUTCOME.get(verdict)
+        if outcome is None:
+            logger.info(
+                "GroundedLLMJudgeResolutionMethod: claim_id=%s verdict=%s — deferring",
+                claim_id,
+                verdict,
+            )
+            return None
+
+        if confidence < self.confidence_threshold:
+            logger.info(
+                "GroundedLLMJudgeResolutionMethod: claim_id=%s verdict=%s "
+                "confidence=%.2f < threshold=%.2f — deferring",
+                claim_id,
+                verdict,
+                confidence,
+                self.confidence_threshold,
+            )
+            return None
+
+        if not result.citations:
+            logger.info(
+                "GroundedLLMJudgeResolutionMethod: claim_id=%s verdict=%s "
+                "has no grounding citations — deferring (unverifiable, not "
+                "just unconfident)",
+                claim_id,
+                verdict,
+            )
+            return None
+
+        evidence = {
+            "method": self.method_id,
+            "resolution_path": "web_search_grounded",
+            "provider_model": self.grounded_model,
+            "llm_verdict": verdict,
+            "llm_reasoning": reasoning,
+            "citations": result.citations,
+        }
+        notes = (
+            f"llm_judge_silver (grounded) verdict={verdict} conf={confidence:.2f}; "
+            f"{reasoning}"
+        )[:500]
+        return outcome, confidence, evidence, notes
+
+
+# ---------------------------------------------------------------------------
 # Manual entry point — NOT wired into resolve_daily.py or any workflow.
 # Usage: python -m src.resolvers.llm_judge_silver --limit 5
+#        python -m src.resolvers.llm_judge_silver --grounded --limit 3
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
@@ -510,7 +884,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description=(
             "Run one manual silver_v2 LLM-judge resolution pass. Not wired "
-            "into any scheduled workflow (Issue #1129 Slice 2)."
+            "into any scheduled workflow (Issue #1129 Slice 2 / v1.1)."
         )
     )
     parser.add_argument(
@@ -518,14 +892,30 @@ if __name__ == "__main__":
         type=int,
         default=5,
         help="Max due claims to check this run (default: 5 — keep small, "
-        "Gemini free tier has a daily quota).",
+        "Gemini free tier has a daily quota; --grounded search calls may "
+        "consume/bill quota differently than a plain classify() call, so "
+        "keep this especially small for a first grounded run).",
+    )
+    parser.add_argument(
+        "--grounded",
+        action="store_true",
+        help="Use GroundedLLMJudgeResolutionMethod (local raw_utterance "
+        "evidence first, Google-Search-grounded Gemini fallback) instead of "
+        "the local-evidence-only LLMJudgeResolutionMethod. Requires "
+        "GEMINI_API_KEY. This is the #1129 read-path-audit fix: local "
+        "evidence alone resolves ~0 claims because raw_utterance holds "
+        "punditry, not outcome reporting.",
     )
     args = parser.parse_args()
 
     db = DBManager()
     try:
-        ensure_llm_judge_resolution_method(db)
-        method = LLMJudgeResolutionMethod(db=db)
+        if args.grounded:
+            ensure_grounded_llm_judge_resolution_method(db)
+            method = GroundedLLMJudgeResolutionMethod(db=db)
+        else:
+            ensure_llm_judge_resolution_method(db)
+            method = LLMJudgeResolutionMethod(db=db)
         summary = run_resolution_pass(db, method, limit=args.limit)
         print(json.dumps(summary, indent=2))
     finally:

@@ -20,7 +20,7 @@ jobs:
     - uses: actions/checkout@v6
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.python-version }}
         cache: 'pip'
@@ -120,7 +120,7 @@ jobs:
 
       - name: Set up Python
         if: steps.paths.outputs.touched == 'true'
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: "3.10"
           cache: 'pip'

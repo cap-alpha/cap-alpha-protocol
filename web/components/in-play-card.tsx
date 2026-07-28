@@ -134,7 +134,10 @@ function slugifyPlayer(name: string): string {
 
 /** Initials avatar — matches pundit-card.tsx style */
 function InitialsAvatar({ name }: { name: string }) {
-    const parts = name.trim().split(/\s+/);
+    // Defensive: a transient backend blip can produce rows with a missing or
+    // null pundit_name — guard so this never throws during render.
+    const safeName = (name || "").trim();
+    const parts = safeName ? safeName.split(/\s+/) : [];
     const initials =
         parts.length >= 2
             ? `${parts[0][0]}${parts[parts.length - 1][0]}`

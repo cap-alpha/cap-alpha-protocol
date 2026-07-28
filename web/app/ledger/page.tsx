@@ -857,6 +857,11 @@ export default function LedgerPage() {
     // In Play state
     const [inPlayPredictions, setInPlayPredictions] = useState<InPlayPrediction[]>([]);
     const [inPlayLoading, setInPlayLoading] = useState(false);
+    // null = last fetch succeeded; non-null = last fetch failed. Kept distinct
+    // from an empty-but-successful response so the tab can render "no open
+    // picks" vs "temporarily unavailable — retry" correctly instead of both
+    // collapsing into the same blank state.
+    const [inPlayError, setInPlayError] = useState<string | null>(null);
     const [inPlayFilters, setInPlayFilters] = useState<InPlayFilterState>(DEFAULT_IN_PLAY_FILTERS);
 
     // Inner tabs for "all" view
@@ -917,11 +922,26 @@ export default function LedgerPage() {
         if (inPlayFilters.punditQuery) params.set("pundit_name", inPlayFilters.punditQuery);
         return fetch(`/api/ledger/in-play?${params.toString()}`)
             .then((r) => r.json())
-            .then((data: { predictions?: InPlayPrediction[] }) => {
-                setInPlayPredictions(data.predictions || []);
+            .then((data: { predictions?: unknown }) => {
+                // The proxy (app/api/ledger/in-play/route.ts) always resolves
+                // with { predictions: [] } even on backend failure, but guard
+                // against a malformed/non-array payload anyway — an unguarded
+                // .filter()/.sort() on a non-array would throw during render.
+                if (!Array.isArray(data.predictions)) {
+                    throw new Error("Malformed in-play response");
+                }
+                setInPlayPredictions(data.predictions as InPlayPrediction[]);
+                setInPlayError(null);
             })
             .catch((err) => {
                 console.error("[Ledger] Failed to fetch in-play:", err);
+                // Surface a friendly inline state instead of leaving the tab
+                // stale/blank (previously: console-only, no UI signal at
+                // all). Never re-throw — this must stay inside the tab and
+                // never reach the route-level error boundary.
+                setInPlayError(
+                    err instanceof Error ? err.message : "Failed to load open picks"
+                );
             })
             .finally(() => {
                 if (!isBackground) setInPlayLoading(false);
@@ -1213,6 +1233,8 @@ export default function LedgerPage() {
                         filters={inPlayFilters}
                         onFiltersChange={setInPlayFilters}
                         loading={inPlayLoading}
+                        error={inPlayError}
+                        onRetry={() => void fetchInPlay(false)}
                         onOpenDrawer={(p) => openDrawer(p as unknown as RecentPrediction, [])}
                     />
                 ) : (
@@ -1244,21 +1266,29 @@ function InPlayTab({
     filters,
     onFiltersChange,
     loading,
+    error,
+    onRetry,
     onOpenDrawer,
 }: {
     predictions: InPlayPrediction[];
     filters: InPlayFilterState;
     onFiltersChange: (f: InPlayFilterState) => void;
     loading: boolean;
+    error: string | null;
+    onRetry: () => void;
     onOpenDrawer: (p: InPlayPrediction) => void;
 }) {
-    // Apply client-side filters
+    // Apply client-side filters. Guard sport/pundit_name with `|| ""` — a
+    // transient backend blip can produce rows with a missing/null field, and
+    // an unguarded .toUpperCase()/.toLowerCase() would throw during render
+    // and take down the whole page (see the matching guard on
+    // deriveResolutionWindow in lib/resolution-window.ts).
     const filtered = predictions.filter((p) => {
         if (filters.category && p.claim_category !== filters.category) return false;
-        if (filters.sport && p.sport.toUpperCase() !== filters.sport.toUpperCase()) return false;
+        if (filters.sport && (p.sport || "").toUpperCase() !== filters.sport.toUpperCase()) return false;
         if (
             filters.punditQuery.trim() &&
-            !p.pundit_name.toLowerCase().includes(filters.punditQuery.toLowerCase())
+            !(p.pundit_name || "").toLowerCase().includes(filters.punditQuery.toLowerCase())
         )
             return false;
         // Resolution window bucket filter
@@ -1319,10 +1349,41 @@ function InPlayTab({
                 totalCount={predictions.length}
             />
 
+            {/* Stale-data banner: a background poll failed but we still have
+                a previously-loaded list to show — degrade gracefully by
+                keeping the cards on screen instead of blanking them. */}
+            {error && predictions.length > 0 && (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-pending/30 bg-pending/5 px-3 py-2 text-xs font-mono text-ink-2">
+                    <span>Couldn&apos;t refresh open claims — showing the last loaded picks.</span>
+                    <button
+                        onClick={onRetry}
+                        className="shrink-0 font-semibold uppercase tracking-wide text-pending hover:underline"
+                    >
+                        Retry
+                    </button>
+                </div>
+            )}
+
             {loading ? (
                 <div className="flex items-center justify-center h-48 text-ink-3">
                     <Activity className="w-4 h-4 animate-pulse mr-2" />
                     <span className="font-mono text-sm">Loading open picks…</span>
+                </div>
+            ) : error && predictions.length === 0 ? (
+                // Fetch failed and nothing was previously loaded — distinct
+                // from the "successful, zero results" empty state below.
+                // This stays inline within the tab; it never propagates to
+                // the route-level error boundary (app/error.tsx).
+                <div className="rounded-xl border border-editorial-border bg-editorial-card py-16 text-center">
+                    <p className="text-ink-2 text-sm font-mono mb-4">
+                        Open claims temporarily unavailable — retry
+                    </p>
+                    <button
+                        onClick={onRetry}
+                        className="inline-flex items-center gap-1.5 text-xs font-mono font-semibold uppercase tracking-wide text-pending border border-pending/40 hover:bg-pending/10 rounded px-3 py-1.5 transition-colors"
+                    >
+                        Retry
+                    </button>
                 </div>
             ) : sorted.length === 0 ? (
                 <div className="rounded-xl border border-editorial-border bg-editorial-card py-16 text-center">

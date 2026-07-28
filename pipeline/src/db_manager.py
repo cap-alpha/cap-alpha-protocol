@@ -214,6 +214,7 @@ class DBManager:
         query: str,
         params: Optional[Dict[str, Any]] = None,
         query_parameters: Optional[list] = None,
+        job_config: Optional[bigquery.QueryJobConfig] = None,
     ) -> pd.DataFrame:
         """Executes a query and returns a Pandas DataFrame.
 
@@ -223,14 +224,28 @@ class DBManager:
             query_parameters: List of bigquery.ScalarQueryParameter / ArrayQueryParameter
                               for safe @param substitution. Use this for any external or
                               data-derived values to prevent SQL injection.
+            job_config: Optional pre-built bigquery.QueryJobConfig (e.g. one a
+                        caller already constructed via
+                        ``QueryJobConfig(query_parameters=[...])``). Its
+                        query_parameters are merged onto the default_dataset
+                        job_config built internally rather than replacing it,
+                        so default_dataset scoping is never lost. If both
+                        query_parameters and job_config.query_parameters are
+                        given, the explicit query_parameters argument wins.
+                        Fixes #1127: this kwarg previously did not exist, so
+                        any caller passing job_config= raised TypeError, which
+                        made the dedup fail-open handler treat every claim as
+                        a non-duplicate.
         """
         try:
             processed_query, bind_params = self._handle_dataframe_params(query, params)
             dataset_ref = bigquery.DatasetReference(self.project_id, self.dataset_id)
-            job_config = bigquery.QueryJobConfig(default_dataset=dataset_ref)
+            merged_job_config = bigquery.QueryJobConfig(default_dataset=dataset_ref)
+            if job_config is not None and job_config.query_parameters:
+                merged_job_config.query_parameters = job_config.query_parameters
             if query_parameters:
-                job_config.query_parameters = query_parameters
-            job = self.client.query(processed_query, job_config=job_config)
+                merged_job_config.query_parameters = query_parameters
+            job = self.client.query(processed_query, job_config=merged_job_config)
             return job.to_dataframe()
         except Exception as e:
             logger.error(f"Failed to fetch DataFrame: {e}")
@@ -1110,8 +1125,16 @@ class LocalDBManager:
             logger.error("[LOCAL] execute failed: %s\nQuery: %s", e, query[:200])
             raise
 
-    def fetch_df(self, query: str, params=None, query_parameters=None) -> pd.DataFrame:
+    def fetch_df(
+        self, query: str, params=None, query_parameters=None, job_config=None
+    ) -> pd.DataFrame:
+        """See DBManager.fetch_df. ``job_config`` (#1127) is accepted here too
+        so USE_LOCAL_DB=1 doesn't hit the same TypeError as the BigQuery
+        backend — its query_parameters are used when the caller didn't also
+        pass the ``query_parameters`` kwarg directly."""
         try:
+            if query_parameters is None and job_config is not None:
+                query_parameters = getattr(job_config, "query_parameters", None)
             translated = self._translate_query(query, query_parameters)
             return self._duck.execute(translated).df()
         except Exception as e:

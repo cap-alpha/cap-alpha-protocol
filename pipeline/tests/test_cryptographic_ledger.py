@@ -56,6 +56,11 @@ def _make_mock_db(chain_head: str = HASH_SEED):
     - ``db.client.query().result()`` is a no-op (DDL / MERGE calls).
     - MERGE job reports 1 row affected (i.e. we win the race) by default.
     - ``db.client.load_table_from_dataframe`` returns a no-op job.
+    - ``db.append_dataframe_to_table`` delegates to
+      ``db.client.load_table_from_dataframe`` (#1132 routes _append_to_ledger
+      through append_dataframe_to_table instead of calling the client
+      method directly) so existing assertions against
+      ``db.client.load_table_from_dataframe.call_args`` keep working.
     """
     db = MagicMock()
 
@@ -75,10 +80,14 @@ def _make_mock_db(chain_head: str = HASH_SEED):
         # sentinel row exists
         db.fetch_df.return_value = pd.DataFrame({"chain_hash": [chain_head]})
 
-    # _append_to_ledger calls db.client.load_table_from_dataframe
+    # _append_to_ledger calls db.append_dataframe_to_table (#1132), which
+    # delegates to db.client.load_table_from_dataframe.
     append_job = MagicMock()
     append_job.result.return_value = None
     db.client.load_table_from_dataframe.return_value = append_job
+    db.append_dataframe_to_table.side_effect = lambda df, table_name: (
+        db.client.load_table_from_dataframe(df, table_name, job_config=None)
+    )
 
     return db
 
@@ -248,6 +257,113 @@ class TestIngestBatch:
         hashes = ingest_batch([], db=mock_db)
         assert hashes == []
         mock_db.client.load_table_from_dataframe.assert_not_called()
+
+
+class _LedgerClientStubDirectLoadRejectsJSON:
+    """Reproduces the production #1132 bug: load_table_from_dataframe is the
+    Parquet-backed path, and BigQuery rejects any destination table with a
+    JSON-typed column (gold_layer.prediction_ledger.target_entity, migration
+    022) with "400 Unsupported field type: JSON"."""
+
+    def query(self, sql, **kwargs):
+        job = MagicMock()
+        job.result.return_value = None
+        job.num_dml_affected_rows = 1
+        return job
+
+    def load_table_from_dataframe(self, *args, **kwargs):
+        raise Exception(
+            "400 Unsupported field type: JSON; reason: invalid, message: "
+            "Unsupported field type: JSON"
+        )
+
+
+class _LedgerDBStubOldPath:
+    """Simulates the pre-#1132-fix code: _append_to_ledger called
+    db.client.load_table_from_dataframe directly, so append_dataframe_to_table
+    was never reached. Calling it here raises to prove the point."""
+
+    def __init__(self):
+        self.client = _LedgerClientStubDirectLoadRejectsJSON()
+
+    def fetch_df(self, query, **kwargs):
+        return pd.DataFrame()  # empty sentinel -> HASH_SEED
+
+    def append_dataframe_to_table(self, df, table_name):
+        raise AssertionError(
+            "old (pre-#1132) code path never called append_dataframe_to_table"
+        )
+
+
+class _LedgerDBStubRoutedFixed:
+    """Simulates the post-#1132-fix code: db.append_dataframe_to_table is the
+    only write path _append_to_ledger uses. A real DBManager routes JSON-
+    bearing tables through load_table_from_json internally (covered by
+    test_db_manager_table_ref.py); here we just capture that the ledger write
+    goes through this method rather than the client directly."""
+
+    def __init__(self):
+        self.appended = []
+        self.client = MagicMock()
+        merge_job = MagicMock()
+        merge_job.result.return_value = None
+        merge_job.num_dml_affected_rows = 1
+        self.client.query.return_value = merge_job
+
+    def fetch_df(self, query, **kwargs):
+        return pd.DataFrame()
+
+    def append_dataframe_to_table(self, df, table_name):
+        self.appended.append((table_name, df.copy()))
+
+    def close(self):
+        pass
+
+
+class TestAppendToLedgerRoutesThroughDBManager:
+    """Regression coverage for #1132.
+
+    Same bug family as #1119/#1124/#1126: _append_to_ledger called
+    db.client.load_table_from_dataframe directly, bypassing
+    DBManager.append_dataframe_to_table's JSON-column handling. target_entity
+    is a JSON-typed destination column on gold_layer.prediction_ledger
+    (migration 022), so every real ingest 400'd with "Unsupported field type:
+    JSON". Fix mirrors #1119/#1124/#1126 exactly: route through
+    db.append_dataframe_to_table(df, table_ref) instead.
+    """
+
+    def test_direct_client_load_reproduces_production_400(self):
+        """Sanity check: the old-path stub's client rejects the write with
+        the exact error string seen in production logs."""
+        db = _LedgerDBStubOldPath()
+        df = pd.DataFrame([{"target_entity": '{"type": "player"}'}])
+        with pytest.raises(Exception, match="Unsupported field type: JSON"):
+            db.client.load_table_from_dataframe(df, "x")
+
+    def test_ingest_batch_routes_through_append_dataframe_to_table(
+        self, sample_prediction
+    ):
+        """ingest_batch -> _append_to_ledger must call
+        db.append_dataframe_to_table, not db.client.load_table_from_dataframe
+        directly — proven by using a stub where only the former succeeds."""
+        db = _LedgerDBStubRoutedFixed()
+        hashes = ingest_batch([sample_prediction], db=db)
+
+        assert len(hashes) == 1
+        assert len(db.appended) == 1
+        table_ref, df = db.appended[0]
+        assert table_ref.endswith("gold_layer.prediction_ledger")
+        assert df.iloc[0]["pundit_id"] == sample_prediction.pundit_id
+
+    def test_regression_guard_direct_client_call_raises(self, sample_prediction):
+        """If _append_to_ledger regresses to calling
+        db.client.load_table_from_dataframe directly again, ingest_batch
+        raises AssertionError instead of silently succeeding — proving the
+        fix is still wired up (mirrors the #1124 regression-test pattern for
+        write_raw_utterances)."""
+        db = _LedgerDBStubOldPath()
+        with pytest.raises(AssertionError, match="append_dataframe_to_table"):
+            ingest_batch([sample_prediction], db=db)
 
 
 class TestVerifyChainIntegrity:
@@ -470,6 +586,12 @@ class TestConcurrentIngestRaceCondition:
             db.client.query = mock_query
             db.fetch_df = mock_fetch_df
             db.client.load_table_from_dataframe = mock_load
+            # _append_to_ledger calls db.append_dataframe_to_table (#1132);
+            # delegate to the same mock_load so appended_rows still captures
+            # every write.
+            db.append_dataframe_to_table = lambda df, table_ref: mock_load(
+                df, table_ref
+            )
             return db
 
         # Thread A ingests pred_0, Thread B ingests pred_1 concurrently.

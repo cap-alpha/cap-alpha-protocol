@@ -72,6 +72,13 @@ class TestIngestPredictionSport:
         mock_job = MagicMock()
         mock_job.result.return_value = None
         db.client.load_table_from_dataframe.return_value = mock_job
+        # _append_to_ledger calls db.append_dataframe_to_table (#1132), which
+        # delegates to db.client.load_table_from_dataframe — keep existing
+        # assertions against db.client.load_table_from_dataframe.call_args
+        # working.
+        db.append_dataframe_to_table.side_effect = lambda df, table_name: (
+            db.client.load_table_from_dataframe(df, table_name, job_config=None)
+        )
         # _try_advance_chain_head calls db.client.query(...); the returned job's
         # num_dml_affected_rows must be an int so `affected > 0` does not raise
         # TypeError on Python 3.10 (MagicMock is not comparable with int).

@@ -231,6 +231,55 @@ class TestCheckClaimIsDuplicate:
         mock_db.fetch_df.assert_not_called()
 
 
+class _RealSignatureFetchDfStub:
+    """Stub whose fetch_df signature mirrors DBManager.fetch_df's real
+    parameter list exactly (query, params=, query_parameters=, job_config=),
+    rather than a bare MagicMock (which silently accepts any kwarg —
+    precisely why #1127 shipped: the existing `mock_db` fixture's
+    `MagicMock().fetch_df(query, job_config=...)` never raised, so no test
+    caught the signature drift between this call site and the real
+    DBManager.fetch_df, which lacked a job_config parameter).
+    """
+
+    def __init__(self, return_df):
+        self._return_df = return_df
+        self.last_call_kwargs = None
+
+    def fetch_df(self, query, params=None, query_parameters=None, job_config=None):
+        self.last_call_kwargs = {
+            "params": params,
+            "query_parameters": query_parameters,
+            "job_config": job_config,
+        }
+        return self._return_df
+
+
+class TestCheckClaimIsDuplicateRealFetchDfSignature:
+    """Regression coverage for #1127.
+
+    check_claim_is_duplicate calls db.fetch_df(query, job_config=job_config).
+    Before the fix, DBManager.fetch_df had no job_config parameter, so this
+    raised TypeError in production — swallowed by the fail-open handler,
+    which made dedup a permanent no-op. A bare MagicMock db never exercises
+    this because it accepts arbitrary kwargs; _RealSignatureFetchDfStub
+    enforces the actual signature so this test fails the same way
+    production did if the bug regresses.
+    """
+
+    def test_detects_duplicate_via_job_config_kwarg(self):
+        stub = _RealSignatureFetchDfStub(
+            pd.DataFrame([{"prediction_hash": "canonical_hash_hex"}])
+        )
+        result = check_claim_is_duplicate("abc123", stub)
+        assert result == "canonical_hash_hex"
+        assert stub.last_call_kwargs["job_config"] is not None
+
+    def test_returns_none_when_no_match_via_job_config_kwarg(self):
+        stub = _RealSignatureFetchDfStub(pd.DataFrame())
+        result = check_claim_is_duplicate("abc123", stub)
+        assert result is None
+
+
 # ---------------------------------------------------------------------------
 # log_duplicate_claim
 # ---------------------------------------------------------------------------

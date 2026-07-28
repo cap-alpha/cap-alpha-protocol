@@ -26,7 +26,6 @@ from datetime import datetime, timezone
 from typing import Optional
 
 import pandas as pd
-from google.cloud import bigquery
 
 from src.db_manager import DBManager
 
@@ -207,14 +206,23 @@ def _try_advance_chain_head(db: DBManager, expected_hash: str, new_hash: str) ->
 def _append_to_ledger(df: pd.DataFrame, db: DBManager) -> None:
     """
     Writes rows to gold_layer.prediction_ledger using WRITE_APPEND.
-    Uses the BQ client directly because the table lives in a different dataset
-    (gold_layer) than the default nfl_dead_money dataset in DBManager.
+
+    Fixes #1132: this used to call db.client.load_table_from_dataframe(...)
+    directly. target_entity is a JSON-typed destination column (migration
+    022), and load_table_from_dataframe rejects JSON columns with "400
+    Unsupported field type: JSON" (a Parquet limitation) — the identical bug
+    already fixed for write_silver_v2_claims/write_raw_utterances (#1119,
+    #1124/#1126) by routing through DBManager.append_dataframe_to_table,
+    which introspects the destination schema and uses load_table_from_json
+    for JSON-bearing tables instead. append_dataframe_to_table already
+    handles a fully-qualified project.dataset.table ref like this one (the
+    original reason for calling the BQ client directly here — this table
+    lives in gold_layer, not the default nfl_dead_money dataset — no longer
+    requires bypassing it).
     """
     project_id = os.environ.get("GCP_PROJECT_ID")
     table_ref = f"{project_id}.{LEDGER_TABLE}"
-    job_config = bigquery.LoadJobConfig(write_disposition="WRITE_APPEND")
-    job = db.client.load_table_from_dataframe(df, table_ref, job_config=job_config)
-    job.result()
+    db.append_dataframe_to_table(df, table_ref)
 
 
 # ---------------------------------------------------------------------------

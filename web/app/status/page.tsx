@@ -149,12 +149,12 @@ async function runChecks(): Promise<ServiceCheck[]> {
 
 function StatusIcon({ status }: { status: ServiceStatus }) {
     if (status === "operational")
-        return <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />;
+        return <CheckCircle2 className="h-5 w-5 text-correct shrink-0" />;
     if (status === "degraded")
-        return <AlertTriangle className="h-5 w-5 text-amber-400 shrink-0" />;
+        return <AlertTriangle className="h-5 w-5 text-pending shrink-0" />;
     if (status === "outage")
-        return <XCircle className="h-5 w-5 text-rose-400 shrink-0" />;
-    return <Activity className="h-5 w-5 text-zinc-400 shrink-0" />;
+        return <XCircle className="h-5 w-5 text-incorrect shrink-0" />;
+    return <Activity className="h-5 w-5 text-ink-2 shrink-0" />;
 }
 
 function statusLabel(status: ServiceStatus) {
@@ -165,10 +165,10 @@ function statusLabel(status: ServiceStatus) {
 }
 
 function statusColor(status: ServiceStatus) {
-    if (status === "operational") return "text-emerald-400";
-    if (status === "degraded") return "text-amber-400";
-    if (status === "outage") return "text-rose-400";
-    return "text-zinc-400";
+    if (status === "operational") return "text-correct";
+    if (status === "degraded") return "text-pending";
+    if (status === "outage") return "text-incorrect";
+    return "text-ink-2";
 }
 
 export default async function StatusPage() {
@@ -185,85 +185,87 @@ export default async function StatusPage() {
           : "Partial degradation";
 
     return (
-        <PageContainer size="2xl" className="px-4 py-12 space-y-8">
-            {/* Header */}
-            <div className="space-y-2">
-                <div className="flex items-center gap-2 text-zinc-400 text-sm uppercase tracking-widest font-medium">
-                    <Activity className="h-4 w-4" />
-                    System Status
+        <main className="bg-editorial-bg text-ink min-h-[100dvh]">
+            <PageContainer size="2xl" className="px-4 py-12 space-y-8">
+                {/* Header */}
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-ink-2 text-sm uppercase tracking-widest font-medium">
+                        <Activity className="h-4 w-4" />
+                        System Status
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <StatusIcon status={overallStatus} />
+                        <SectionHeading size="lg" className="uppercase text-ink">
+                            {overallLabel}
+                        </SectionHeading>
+                    </div>
+                    <p className="text-ink-2 text-xs">
+                        Last checked: {new Date(checkedAt).toLocaleString("en-US", { timeZoneName: "short" })}
+                    </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <StatusIcon status={overallStatus} />
-                    <SectionHeading size="lg" className="uppercase text-white">
-                        {overallLabel}
-                    </SectionHeading>
-                </div>
-                <p className="text-zinc-400 text-xs">
-                    Last checked: {new Date(checkedAt).toLocaleString("en-US", { timeZoneName: "short" })}
-                </p>
-            </div>
 
-            {/* Component table */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900 divide-y divide-zinc-800 overflow-hidden">
-                {checks.map((check) => (
-                    <div
-                        key={check.name}
-                        className="flex items-center justify-between px-5 py-4 gap-4"
-                    >
-                        <div className="flex items-center gap-3 min-w-0">
-                            <StatusIcon status={check.status} />
-                            <div className="min-w-0">
-                                <p className="font-bold text-white text-sm">{check.name}</p>
-                                <p className="text-zinc-400 text-xs truncate">{check.description}</p>
-                                {check.detail && (
-                                    <p className="text-rose-400 text-xs truncate">{check.detail}</p>
+                {/* Component table */}
+                <div className="rounded-xl border border-editorial-border bg-editorial-card divide-y divide-editorial-border overflow-hidden">
+                    {checks.map((check) => (
+                        <div
+                            key={check.name}
+                            className="flex items-center justify-between px-5 py-4 gap-4"
+                        >
+                            <div className="flex items-center gap-3 min-w-0">
+                                <StatusIcon status={check.status} />
+                                <div className="min-w-0">
+                                    <p className="font-bold text-ink text-sm">{check.name}</p>
+                                    <p className="text-ink-2 text-xs truncate">{check.description}</p>
+                                    {check.detail && (
+                                        <p className="text-incorrect text-xs truncate">{check.detail}</p>
+                                    )}
+                                </div>
+                            </div>
+                            <div className="text-right shrink-0 space-y-0.5">
+                                <p className={`text-sm font-bold ${statusColor(check.status)}`}>
+                                    {statusLabel(check.status)}
+                                </p>
+                                {check.latencyMs != null && check.latencyMs > 0 && (
+                                    <p className="text-ink-2 text-xs">{check.latencyMs}ms</p>
                                 )}
                             </div>
                         </div>
-                        <div className="text-right shrink-0 space-y-0.5">
-                            <p className={`text-sm font-bold ${statusColor(check.status)}`}>
-                                {statusLabel(check.status)}
-                            </p>
-                            {check.latencyMs != null && check.latencyMs > 0 && (
-                                <p className="text-zinc-400 text-xs">{check.latencyMs}ms</p>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
 
-            {/* External links */}
-            <div className="text-zinc-400 text-xs space-y-1">
-                <p>
-                    Third-party provider status:{" "}
-                    <a
-                        href="https://status.clerk.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-zinc-400 hover:text-white underline transition-colors"
-                    >
-                        Clerk
-                    </a>{" "}
-                    ·{" "}
-                    <a
-                        href="https://status.stripe.com"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-zinc-400 hover:text-white underline transition-colors"
-                    >
-                        Stripe
-                    </a>
-                </p>
-                <p>
-                    Report an issue:{" "}
-                    <a
-                        href="mailto:support@cap-alpha.co"
-                        className="text-zinc-400 hover:text-white underline transition-colors"
-                    >
-                        support@cap-alpha.co
-                    </a>
-                </p>
-            </div>
-        </PageContainer>
+                {/* External links */}
+                <div className="text-ink-2 text-xs space-y-1">
+                    <p>
+                        Third-party provider status:{" "}
+                        <a
+                            href="https://status.clerk.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-ink-2 hover:text-ink underline transition-colors"
+                        >
+                            Clerk
+                        </a>{" "}
+                        ·{" "}
+                        <a
+                            href="https://status.stripe.com"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-ink-2 hover:text-ink underline transition-colors"
+                        >
+                            Stripe
+                        </a>
+                    </p>
+                    <p>
+                        Report an issue:{" "}
+                        <a
+                            href="mailto:support@cap-alpha.co"
+                            className="text-ink-2 hover:text-ink underline transition-colors"
+                        >
+                            support@cap-alpha.co
+                        </a>
+                    </p>
+                </div>
+            </PageContainer>
+        </main>
     );
 }

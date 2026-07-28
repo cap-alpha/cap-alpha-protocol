@@ -17,7 +17,7 @@ const BASE_URL = "https://pundit-ledger-api-wvhvx2muna-uc.a.run.app";
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
     return (
-        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-mono font-medium uppercase tracking-widest">
+        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-accent-editorial/30 bg-accent-editorial/10 text-accent-editorial text-xs font-mono font-medium uppercase tracking-widest">
             {children}
         </span>
     );
@@ -25,12 +25,12 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function CodeBlock({ children, language = "bash" }: { children: string; language?: string }) {
     return (
-        <div className="relative rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 bg-zinc-900/60">
-                <Code2 className="w-3.5 h-3.5 text-zinc-500" />
-                <span className="text-xs font-mono text-zinc-500">{language}</span>
+        <div className="relative rounded-xl border border-editorial-border bg-editorial-bg overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-editorial-border bg-editorial-card">
+                <Code2 className="w-3.5 h-3.5 text-ink-3" />
+                <span className="text-xs font-mono text-ink-3">{language}</span>
             </div>
-            <pre className="overflow-x-auto p-4 text-sm text-zinc-300 leading-relaxed">
+            <pre className="overflow-x-auto p-4 text-sm text-ink-2 leading-relaxed">
                 <code>{children}</code>
             </pre>
         </div>
@@ -43,31 +43,31 @@ function ParamTable({
     params: { name: string; type: string; required: boolean; description: string; example?: string }[];
 }) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
+        <div className="overflow-x-auto rounded-xl border border-editorial-border">
             <table className="w-full text-sm">
                 <thead>
-                    <tr className="border-b border-zinc-800 bg-zinc-900/60">
-                        <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Name</th>
-                        <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Type</th>
-                        <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Required</th>
-                        <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Description</th>
-                        <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Example</th>
+                    <tr className="border-b border-editorial-border bg-editorial-card">
+                        <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Name</th>
+                        <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Type</th>
+                        <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Required</th>
+                        <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Description</th>
+                        <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Example</th>
                     </tr>
                 </thead>
                 <tbody>
                     {params.map((p, i) => (
-                        <tr key={p.name} className={i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/30"}>
-                            <td className="px-4 py-3 font-mono text-emerald-400">{p.name}</td>
-                            <td className="px-4 py-3 font-mono text-zinc-400">{p.type}</td>
+                        <tr key={p.name} className={i % 2 === 0 ? "bg-editorial-bg" : "bg-editorial-card"}>
+                            <td className="px-4 py-3 font-mono text-accent-editorial">{p.name}</td>
+                            <td className="px-4 py-3 font-mono text-ink-2">{p.type}</td>
                             <td className="px-4 py-3">
                                 {p.required ? (
-                                    <span className="text-emerald-400 font-mono text-xs">yes</span>
+                                    <span className="text-correct font-mono text-xs">yes</span>
                                 ) : (
-                                    <span className="text-zinc-600 font-mono text-xs">no</span>
+                                    <span className="text-ink-3 font-mono text-xs">no</span>
                                 )}
                             </td>
-                            <td className="px-4 py-3 text-zinc-400">{p.description}</td>
-                            <td className="px-4 py-3 font-mono text-zinc-500 text-xs">{p.example ?? "—"}</td>
+                            <td className="px-4 py-3 text-ink-2">{p.description}</td>
+                            <td className="px-4 py-3 font-mono text-ink-3 text-xs">{p.example ?? "—"}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -78,19 +78,20 @@ function ParamTable({
 
 function ErrorTable({ codes }: { codes: { code: number; meaning: string }[] }) {
     return (
-        <div className="overflow-x-auto rounded-xl border border-zinc-800">
+        <div className="overflow-x-auto rounded-xl border border-editorial-border">
             <table className="w-full text-sm">
                 <thead>
-                    <tr className="border-b border-zinc-800 bg-zinc-900/60">
-                        <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">HTTP status</th>
-                        <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Meaning</th>
+                    <tr className="border-b border-editorial-border bg-editorial-card">
+                        <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">HTTP status</th>
+                        <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Meaning</th>
                     </tr>
                 </thead>
                 <tbody>
                     {codes.map((c, i) => (
-                        <tr key={c.code} className={i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/30"}>
-                            <td className="px-4 py-3 font-mono text-orange-400">{c.code}</td>
-                            <td className="px-4 py-3 text-zinc-400">{c.meaning}</td>
+                        <tr key={c.code} className={i % 2 === 0 ? "bg-editorial-bg" : "bg-editorial-card"}>
+                            {/* FLAG: orange-400 (HTTP error status codes) collapses to incorrect per spec exception */}
+                            <td className="px-4 py-3 font-mono text-incorrect">{c.code}</td>
+                            <td className="px-4 py-3 text-ink-2">{c.meaning}</td>
                         </tr>
                     ))}
                 </tbody>
@@ -111,13 +112,13 @@ function EndpointCard({
     children: React.ReactNode;
 }) {
     return (
-        <div id={path.replace(/\//g, "-").replace(/[{}]/g, "").replace(/^-/, "")} className="rounded-2xl border border-zinc-800 bg-zinc-900/30 overflow-hidden">
-            <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-zinc-800 bg-zinc-900/60">
-                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${method === "GET" ? "bg-emerald-500/20 text-emerald-400" : "bg-blue-500/20 text-blue-400"}`}>
+        <div id={path.replace(/\//g, "-").replace(/[{}]/g, "").replace(/^-/, "")} className="rounded-2xl border border-editorial-border bg-editorial-card overflow-hidden">
+            <div className="flex flex-wrap items-center gap-3 px-6 py-4 border-b border-editorial-border bg-editorial-card">
+                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${method === "GET" ? "bg-correct/20 text-correct" : "bg-accent-editorial/20 text-accent-editorial"}`}>
                     {method}
                 </span>
-                <code className="text-zinc-200 font-mono text-sm">{path}</code>
-                <span className="text-zinc-500 text-sm">{description}</span>
+                <code className="text-ink font-mono text-sm">{path}</code>
+                <span className="text-ink-3 text-sm">{description}</span>
             </div>
             <div className="p-6 space-y-6">{children}</div>
         </div>
@@ -130,12 +131,9 @@ function EndpointCard({
 
 export default function ApiDocsPage() {
     return (
-        <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
+        <div className="bg-editorial-bg text-ink min-h-[100dvh] flex flex-col font-sans">
             {/* Hero */}
             <section className="relative flex flex-col items-center justify-center text-center px-6 pt-24 pb-16 overflow-hidden">
-                <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/8 rounded-full blur-[120px]" />
-                </div>
                 <div className="relative z-10 max-w-3xl mx-auto space-y-6">
                     <SectionLabel>
                         <Terminal className="w-3.5 h-3.5" />
@@ -143,14 +141,14 @@ export default function ApiDocsPage() {
                     </SectionLabel>
                     <DisplayHeading size="md" className="font-display sm:text-display-lg">
                         Pundit Ledger{" "}
-                        <span className="text-emerald-400">API Reference</span>
+                        <span className="text-accent-editorial">API Reference</span>
                     </DisplayHeading>
-                    <p className="text-xl text-zinc-400 max-w-xl mx-auto leading-relaxed">
+                    <p className="text-xl text-ink-2 max-w-xl mx-auto leading-relaxed">
                         Integrate pundit accuracy scores, prediction history, and draft
                         results into your app, betting tool, or agent.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                        <code className="px-4 py-2 rounded-lg bg-zinc-900 border border-zinc-800 text-emerald-400 font-mono text-sm">
+                        <code className="px-4 py-2 rounded-lg bg-editorial-card border border-editorial-border text-accent-editorial font-mono text-sm">
                             {BASE_URL}
                         </code>
                     </div>
@@ -158,9 +156,9 @@ export default function ApiDocsPage() {
             </section>
 
             {/* Navigation */}
-            <nav className="sticky top-0 z-20 w-full border-y border-zinc-800 bg-black/80 backdrop-blur-sm">
+            <nav className="sticky top-0 z-20 w-full border-y border-editorial-border bg-editorial-bg/80 backdrop-blur-sm">
                 <div className="max-w-5xl mx-auto px-6 py-3 flex items-center gap-6 overflow-x-auto text-sm">
-                    <span className="text-zinc-600 text-xs font-mono uppercase tracking-widest shrink-0">Jump to:</span>
+                    <span className="text-ink-3 text-xs font-mono uppercase tracking-widest shrink-0">Jump to:</span>
                     {[
                         ["Quick start", "#quick-start"],
                         ["Auth", "#auth"],
@@ -174,7 +172,7 @@ export default function ApiDocsPage() {
                         <a
                             key={href}
                             href={href}
-                            className="shrink-0 text-zinc-400 hover:text-emerald-400 transition-colors"
+                            className="shrink-0 text-ink-2 hover:text-accent-editorial transition-colors"
                         >
                             {label}
                         </a>
@@ -188,7 +186,7 @@ export default function ApiDocsPage() {
                 <section id="quick-start" className="space-y-8">
                     <div className="space-y-3">
                         <SectionLabel><Zap className="w-3.5 h-3.5" /> Quick start</SectionLabel>
-                        <h2 className="text-3xl font-black text-white">Get up and running in 2 minutes</h2>
+                        <h2 className="text-3xl font-black text-ink">Get up and running in 2 minutes</h2>
                     </div>
 
                     <div className="grid sm:grid-cols-3 gap-4">
@@ -212,15 +210,15 @@ export default function ApiDocsPage() {
                                 desc: "Browse the endpoint reference below or use the interactive schema at /docs on the base URL.",
                             },
                         ].map(({ step, icon: Icon, title, desc }) => (
-                            <div key={step} className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-3">
+                            <div key={step} className="rounded-xl border border-editorial-border bg-editorial-card p-5 space-y-3">
                                 <div className="flex items-center gap-3">
-                                    <span className="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-xs font-bold text-emerald-400">
+                                    <span className="w-6 h-6 rounded-full bg-accent-editorial/20 border border-accent-editorial/30 flex items-center justify-center text-xs font-bold text-accent-editorial">
                                         {step}
                                     </span>
-                                    <Icon className="w-4 h-4 text-emerald-400" />
+                                    <Icon className="w-4 h-4 text-accent-editorial" />
                                 </div>
-                                <h3 className="font-semibold text-white">{title}</h3>
-                                <p className="text-sm text-zinc-400 leading-relaxed">{desc}</p>
+                                <h3 className="font-semibold text-ink">{title}</h3>
+                                <p className="text-sm text-ink-2 leading-relaxed">{desc}</p>
                             </div>
                         ))}
                     </div>
@@ -233,24 +231,24 @@ export default function ApiDocsPage() {
                 <section id="auth" className="space-y-6">
                     <div className="space-y-3">
                         <SectionLabel><Shield className="w-3.5 h-3.5" /> Authentication</SectionLabel>
-                        <h2 className="text-3xl font-black text-white">API key authentication</h2>
-                        <p className="text-zinc-400 leading-relaxed max-w-2xl">
-                            API-key enforcement is <strong className="text-white">active</strong> on all data endpoints.
-                            Every request to <code className="font-mono text-sm text-zinc-300">/v1/*</code> endpoints requires a valid <code className="font-mono text-sm text-zinc-300">x-api-key</code> header.
+                        <h2 className="text-3xl font-black text-ink">API key authentication</h2>
+                        <p className="text-ink-2 leading-relaxed max-w-2xl">
+                            API-key enforcement is <strong className="text-ink">active</strong> on all data endpoints.
+                            Every request to <code className="font-mono text-sm text-ink-2">/v1/*</code> endpoints requires a valid <code className="font-mono text-sm text-ink-2">x-api-key</code> header.
                             Keys are provisioned via your Cap Alpha dashboard and are validated against your account in real-time.
                         </p>
                     </div>
                     <CodeBlock language="bash">{`# Pass your key in this header (required for all /v1/* endpoints)
 x-api-key: capk_live_your_key`}</CodeBlock>
-                    <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-4 flex items-start gap-3">
-                        <AlertCircle className="w-4 h-4 text-orange-400 mt-0.5 shrink-0" />
-                        <p className="text-sm text-zinc-400">
+                    <div className="rounded-xl border border-pending/20 bg-pending/5 p-4 flex items-start gap-3">
+                        <AlertCircle className="w-4 h-4 text-pending mt-0.5 shrink-0" />
+                        <p className="text-sm text-ink-2">
                             Never expose your API key in client-side code or public repositories.
                             If a key is compromised, rotate it from your dashboard immediately.
                         </p>
                     </div>
                     <div>
-                        <p className="text-sm text-zinc-500 mb-3">Error response when key is missing or invalid:</p>
+                        <p className="text-sm text-ink-3 mb-3">Error response when key is missing or invalid:</p>
                         <CodeBlock language="json">{`HTTP 401
 { "detail": "Invalid or missing API key" }`}</CodeBlock>
                     </div>
@@ -260,19 +258,19 @@ x-api-key: capk_live_your_key`}</CodeBlock>
                 <section id="rate-limits" className="space-y-6">
                     <div className="space-y-3">
                         <SectionLabel>Rate limits</SectionLabel>
-                        <h2 className="text-3xl font-black text-white">Tiers &amp; rate limits</h2>
-                        <p className="text-zinc-400 leading-relaxed max-w-2xl">
+                        <h2 className="text-3xl font-black text-ink">Tiers &amp; rate limits</h2>
+                        <p className="text-ink-2 leading-relaxed max-w-2xl">
                             API access scales with your subscription tier. The number of active keys and
                             request throughput both increase as you upgrade.
                         </p>
                     </div>
-                    <div className="overflow-x-auto rounded-xl border border-zinc-800">
+                    <div className="overflow-x-auto rounded-xl border border-editorial-border">
                         <table className="w-full text-sm">
                             <thead>
-                                <tr className="border-b border-zinc-800 bg-zinc-900/60">
-                                    <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Tier</th>
-                                    <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Max active keys</th>
-                                    <th className="text-left px-4 py-3 text-zinc-400 font-mono font-medium">Notes</th>
+                                <tr className="border-b border-editorial-border bg-editorial-card">
+                                    <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Tier</th>
+                                    <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Max active keys</th>
+                                    <th className="text-left px-4 py-3 text-ink-2 font-mono font-medium">Notes</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -282,18 +280,18 @@ x-api-key: capk_live_your_key`}</CodeBlock>
                                     ["api_starter", "10", "Suitable for small integrations"],
                                     ["enterprise", "25", "High-volume, priority support"],
                                 ].map(([tier, keys, notes], i) => (
-                                    <tr key={tier} className={i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/30"}>
-                                        <td className="px-4 py-3 font-mono text-emerald-400">{tier}</td>
-                                        <td className="px-4 py-3 font-mono text-zinc-300">{keys}</td>
-                                        <td className="px-4 py-3 text-zinc-400">{notes}</td>
+                                    <tr key={tier} className={i % 2 === 0 ? "bg-editorial-bg" : "bg-editorial-card"}>
+                                        <td className="px-4 py-3 font-mono text-accent-editorial">{tier}</td>
+                                        <td className="px-4 py-3 font-mono text-ink-2">{keys}</td>
+                                        <td className="px-4 py-3 text-ink-2">{notes}</td>
                                     </tr>
                                 ))}
                             </tbody>
                         </table>
                     </div>
-                    <p className="text-sm text-zinc-500">
-                        Rate-limited requests receive <code className="font-mono text-zinc-400">HTTP 429</code>.
-                        Contact <a href="mailto:support@cap-alpha.co" className="text-emerald-400 hover:text-emerald-300">support@cap-alpha.co</a> to upgrade.
+                    <p className="text-sm text-ink-3">
+                        Rate-limited requests receive <code className="font-mono text-ink-2">HTTP 429</code>.
+                        Contact <a href="mailto:support@cap-alpha.co" className="text-accent-editorial hover:text-accent-editorial-light">support@cap-alpha.co</a> to upgrade.
                     </p>
                 </section>
 
@@ -301,7 +299,7 @@ x-api-key: capk_live_your_key`}</CodeBlock>
                 <section className="space-y-8">
                     <div className="space-y-3">
                         <SectionLabel><Code2 className="w-3.5 h-3.5" /> Endpoints</SectionLabel>
-                        <h2 className="text-3xl font-black text-white">Endpoint reference</h2>
+                        <h2 className="text-3xl font-black text-ink">Endpoint reference</h2>
                     </div>
 
                     <div className="space-y-8">
@@ -318,7 +316,7 @@ x-api-key: capk_live_your_key`}</CodeBlock>
 
                         {/* /v1/leaderboard */}
                         <EndpointCard method="GET" path="/v1/leaderboard" description="Pundits ranked by weighted accuracy score">
-                            <p className="text-sm text-zinc-400">
+                            <p className="text-sm text-ink-2">
                                 Returns pundits ranked by weighted accuracy (accuracy × timeliness). Results are cached for 5 minutes.
                             </p>
                             <ParamTable params={[
@@ -606,9 +604,9 @@ x-api-key: capk_live_your_key`}</CodeBlock>
 
                         {/* /v1/integrity/verify */}
                         <EndpointCard method="GET" path="/v1/integrity/verify" description="Hash chain integrity check — verify the ledger has not been tampered with">
-                            <p className="text-sm text-zinc-400">
+                            <p className="text-sm text-ink-2">
                                 Each prediction is SHA-256 hashed at ingest, including the previous record&apos;s hash.
-                                This endpoint walks the full chain and returns <code className="font-mono text-zinc-300">verified: true</code> if all hashes match.
+                                This endpoint walks the full chain and returns <code className="font-mono text-ink-2">verified: true</code> if all hashes match.
                                 Any modification to a historical record would break all subsequent hashes.
                             </p>
                             <CodeBlock language="bash">{`curl https://pundit-ledger-api-wvhvx2muna-uc.a.run.app/v1/integrity/verify \\
@@ -631,8 +629,8 @@ x-api-key: capk_live_your_key`}</CodeBlock>
                 <section className="space-y-6">
                     <div className="space-y-3">
                         <SectionLabel>Errors</SectionLabel>
-                        <h2 className="text-3xl font-black text-white">Common error shapes</h2>
-                        <p className="text-zinc-400 leading-relaxed max-w-2xl">
+                        <h2 className="text-3xl font-black text-ink">Common error shapes</h2>
+                        <p className="text-ink-2 leading-relaxed max-w-2xl">
                             All errors follow FastAPI&apos;s standard response format.
                         </p>
                     </div>
@@ -652,22 +650,22 @@ x-api-key: capk_live_your_key`}</CodeBlock>
                 </section>
 
                 {/* CTA */}
-                <section className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-8 text-center space-y-4">
-                    <h2 className="text-2xl font-bold text-white">Need access?</h2>
-                    <p className="text-zinc-400 max-w-md mx-auto">
+                <section className="rounded-2xl border border-accent-editorial/20 bg-accent-editorial/5 p-8 text-center space-y-4">
+                    <h2 className="text-2xl font-bold text-ink">Need access?</h2>
+                    <p className="text-ink-2 max-w-md mx-auto">
                         API keys are provisioned through your Cap Alpha account. Sign up
                         or sign in to get started.
                     </p>
                     <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
                         <Link
                             href="/sign-up"
-                            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-emerald-500 text-black text-sm font-semibold hover:bg-emerald-400 transition-colors"
+                            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-accent-editorial text-white text-sm font-semibold hover:bg-accent-editorial-light transition-colors"
                         >
                             Get an API key <ArrowRight className="w-4 h-4" />
                         </Link>
                         <a
                             href="mailto:support@cap-alpha.co"
-                            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-zinc-700 text-sm font-medium text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors"
+                            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg border border-editorial-border text-sm font-medium text-ink-2 hover:border-ink-3 hover:text-ink transition-colors"
                         >
                             Contact support
                         </a>
@@ -677,17 +675,17 @@ x-api-key: capk_live_your_key`}</CodeBlock>
             </div>
 
             {/* Footer */}
-            <footer className="border-t border-zinc-900 px-6 py-8 mt-auto">
-                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-zinc-600">
-                    <span className="font-black text-sm text-emerald-500 tracking-tight uppercase">
+            <footer className="border-t border-editorial-border px-6 py-8 mt-auto">
+                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-ink-3">
+                    <span className="font-black text-sm text-accent-editorial tracking-tight uppercase">
                         Pundit Ledger
                     </span>
                     <div className="flex items-center gap-6">
-                        <Link href="/ledger" className="hover:text-zinc-400 transition-colors">Leaderboard</Link>
-                        <Link href="/methodology" className="hover:text-zinc-400 transition-colors">Methodology</Link>
-                        <Link href="/docs" className="text-zinc-400">API Docs</Link>
-                        <Link href="/legal/terms" className="hover:text-zinc-400 transition-colors">Terms</Link>
-                        <Link href="/legal/privacy" className="hover:text-zinc-400 transition-colors">Privacy</Link>
+                        <Link href="/ledger" className="hover:text-ink-2 transition-colors">Leaderboard</Link>
+                        <Link href="/methodology" className="hover:text-ink-2 transition-colors">Methodology</Link>
+                        <Link href="/docs" className="text-ink-2">API Docs</Link>
+                        <Link href="/legal/terms" className="hover:text-ink-2 transition-colors">Terms</Link>
+                        <Link href="/legal/privacy" className="hover:text-ink-2 transition-colors">Privacy</Link>
                     </div>
                     <span>&copy; {new Date().getFullYear()} Pundit Ledger. All predictions verified.</span>
                 </div>

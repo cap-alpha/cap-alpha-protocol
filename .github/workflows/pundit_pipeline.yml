@@ -137,6 +137,13 @@ jobs:
       - name: Resolve predictions
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # #1131: the LLM-judge fallback (run inside resolve_daily) was falling
+          # through to the llm_config.yaml default (Ollama @ localhost), which does
+          # not exist on the GitHub runner — every judge call was connection-refused.
+          # Mirror the Extract step's Gemini override so the judge reaches a real model.
+          LLM_EXTRACTION_PROVIDER: gemini
+          LLM_EXTRACTION_MODEL: gemini-3-flash-preview
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline

@@ -26,7 +26,13 @@ from src.resolution_engine import ResolutionResult, record_resolution
 logger = logging.getLogger(__name__)
 
 # Predictions with these void reasons are eligible for LLM judge retry.
+# NOTE (#1131): #686 (ff5e7ab9, 2026-05-05) collapsed every void call site in
+# resolve_daily.py onto VoidReason.UNPARSEABLE_CLAIM ("unparseable_claim"). That
+# value was absent here, so the judge's candidate pool silently froze to the
+# pre-2026-05-05 backlog. The legacy strings are kept so that historical backlog
+# stays eligible.
 UNPARSEABLE_NOTES = (
+    "unparseable_claim",  # current VoidReason.UNPARSEABLE_CLAIM value (#686)
     "unparseable_draft_claim",
     "unparseable_game_claim",
     "unparseable_stat_claim",

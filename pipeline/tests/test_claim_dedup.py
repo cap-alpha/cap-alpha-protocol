@@ -336,7 +336,17 @@ class TestLogDuplicateClaim:
 
 
 class TestRunExtractionDedupGate:
-    """Integration tests verifying the dedup gate inside run_extraction."""
+    """Integration tests verifying the dedup gate inside run_extraction.
+
+    All run_extraction() calls pass disable_triage=True: without it,
+    run_extraction spins up a real triage LLM provider (get_provider("triage",
+    ...), enabled by default) that hits localhost:11434 over the network.
+    Whether that host is reachable, times out, or returns a real
+    triage-filter verdict is entirely a function of the local machine's
+    Ollama state — extraction_extractor.py already exposes disable_triage
+    for exactly this reason (dry runs / tests), it just wasn't being passed
+    here, making these tests silently network-flaky.
+    """
 
     @patch("src.assertion_extractor.check_claim_is_duplicate")
     @patch("src.assertion_extractor.ingest_batch")
@@ -353,7 +363,9 @@ class TestRunExtractionDedupGate:
         mock_ingest.return_value = ["pred_hash_1"]
         mock_check_dup.return_value = None  # no duplicate found
 
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
 
         assert summary["predictions_ingested"] == 1
         assert summary["duplicates_suppressed"] == 0
@@ -384,7 +396,9 @@ class TestRunExtractionDedupGate:
         # Simulate that the claim already exists in the ledger
         mock_check_dup.return_value = "existing_canonical_hash_abc123"
 
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
 
         # Duplicate must be suppressed from the ledger
         assert summary["duplicates_suppressed"] == 1
@@ -424,7 +438,9 @@ class TestRunExtractionDedupGate:
         mock_ingest.return_value = ["pred_hash_x"]
         mock_check_dup.return_value = None  # neither is in the ledger
 
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
 
         # Both should be ingested, none suppressed
         assert summary["duplicates_suppressed"] == 0
@@ -453,7 +469,9 @@ class TestRunExtractionDedupGate:
         mock_ingest.return_value = ["pred_hash_1"]
         mock_check_dup.return_value = None  # fail-open
 
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
 
         assert summary["predictions_ingested"] == 1
         assert summary["duplicates_suppressed"] == 0
@@ -491,7 +509,9 @@ class TestRunExtractionDedupGate:
 
         mock_check_dup.side_effect = side_effect
 
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
 
         assert summary["duplicates_suppressed"] == 1
         assert summary["predictions_ingested"] == 1
@@ -515,7 +535,9 @@ class TestRunExtractionDedupGate:
         )
         mock_check_dup.return_value = None
 
-        summary = run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
 
         assert "duplicates_suppressed" in summary
         assert summary["duplicates_suppressed"] == 0
@@ -542,7 +564,9 @@ class TestRunExtractionDedupGate:
         mock_ingest.return_value = ["pred_hash_1"]
         mock_check_dup.return_value = None
 
-        run_extraction(limit=10, db=mock_db, provider=mock_provider)
+        run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
 
         passed = mock_ingest.call_args[0][0][0]
         expected_key = compute_claim_norm_key(

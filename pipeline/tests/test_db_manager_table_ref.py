@@ -18,6 +18,7 @@ unlike test_db_manager.py, which requires GCP_PROJECT_ID and hits real BQ.
 import logging
 
 import pandas as pd
+from google.cloud import bigquery
 
 from src.db_manager import DBManager
 
@@ -212,3 +213,78 @@ def test_json_load_safe_value_valid_json_no_warning(caplog):
 
     assert result == {"a": 1}
     assert not any(r.levelno == logging.WARNING for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# Regression coverage for issue #1127 — fetch_df() job_config kwarg
+# ---------------------------------------------------------------------------
+
+
+class _FakeQueryJob:
+    def __init__(self, df: pd.DataFrame):
+        self._df = df
+
+    def to_dataframe(self) -> pd.DataFrame:
+        return self._df
+
+
+class _FakeQueryClient:
+    """Captures the job_config passed to client.query() so tests can assert
+    fetch_df merged the caller-supplied job_config's query_parameters onto
+    the default_dataset-scoped config it builds internally."""
+
+    def __init__(self, df: pd.DataFrame):
+        self._df = df
+        self.captured_job_config = None
+
+    def query(self, query, job_config=None):
+        self.captured_job_config = job_config
+        return _FakeQueryJob(self._df)
+
+
+def test_fetch_df_accepts_job_config_kwarg():
+    """Regression test for #1127: the dedup call site
+    (check_claim_is_duplicate) calls db.fetch_df(query, job_config=job_config)
+    where job_config is a pre-built bigquery.QueryJobConfig. Before the fix,
+    fetch_df()'s signature had no job_config parameter, so this raised
+    "TypeError: fetch_df() got an unexpected keyword argument 'job_config'" —
+    swallowed by the dedup fail-open handler, which made dedup a permanent
+    no-op. fetch_df must accept job_config= without raising and must use its
+    query_parameters."""
+    df = pd.DataFrame({"prediction_hash": ["canonical_hash_hex"]})
+    db = _make_db()
+    db.client = _FakeQueryClient(df)
+
+    caller_job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("norm_key", "STRING", "abc123")]
+    )
+    result = db.fetch_df(
+        "SELECT prediction_hash FROM t WHERE claim_norm_key = @norm_key",
+        job_config=caller_job_config,
+    )
+
+    assert result.equals(df)
+    assert db.client.captured_job_config.query_parameters == (
+        caller_job_config.query_parameters
+    )
+    # default_dataset scoping must still be applied — fetch_df must not just
+    # pass the caller's job_config straight through and drop it.
+    assert db.client.captured_job_config.default_dataset is not None
+
+
+def test_fetch_df_query_parameters_kwarg_wins_over_job_config():
+    """When both query_parameters and job_config are given, the explicit
+    query_parameters argument takes precedence (matches every other fetch_df
+    caller's expectation that query_parameters is authoritative)."""
+    df = pd.DataFrame({"x": [1]})
+    db = _make_db()
+    db.client = _FakeQueryClient(df)
+
+    stale_job_config = bigquery.QueryJobConfig(
+        query_parameters=[bigquery.ScalarQueryParameter("a", "STRING", "stale")]
+    )
+    fresh_params = [bigquery.ScalarQueryParameter("a", "STRING", "fresh")]
+
+    db.fetch_df("SELECT 1", query_parameters=fresh_params, job_config=stale_job_config)
+
+    assert db.client.captured_job_config.query_parameters == fresh_params

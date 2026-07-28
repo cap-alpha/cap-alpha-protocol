@@ -122,7 +122,13 @@ function extractExplicitDate(
 export function deriveResolutionWindow(
     prediction: PredictionResolutionInput
 ): ResolutionWindow {
-    const { claim_category, sport, season_year, raw_assertion_text } = prediction;
+    const { claim_category, season_year, raw_assertion_text } = prediction;
+    // Defensive: a transient backend blip can produce rows with a missing or
+    // null `sport` field. Coerce to "" so the .toUpperCase() calls below (and
+    // in getTradeDeadline/getDraftDeadline) never throw during render — an
+    // unguarded throw here bubbles to the full-page error boundary instead of
+    // degrading gracefully within the In-Play tab.
+    const sport = prediction.sport || "";
 
     // --- Override: explicit date in text (conservative regex) ---
     const explicit = extractExplicitDate(raw_assertion_text);

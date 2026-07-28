@@ -4,5 +4,4 @@
 # Resources: issue:<n>  pr:<n>  file:<path>  branch:<name>
 # Rotation: entries older than 7 days are pruned weekly via .agent/claim.sh
 #
-2026-07-20T21:02:18Z | claude-sonnet-a4ae55153dbb1f4eb | CLAIM | issue:1079
-2026-07-20T21:02:18Z | claude-sonnet-a4ae55153dbb1f4eb | CLAIM | pr:1079-fix
+2026-07-28T01:31:34Z | claude-sonnet-inplay-fallback | CLAIM | file:web/app/ledger/page.tsx

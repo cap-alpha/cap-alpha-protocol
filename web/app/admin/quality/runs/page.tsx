@@ -3,6 +3,7 @@ import { auth } from "@clerk/nextjs/server";
 import { Metadata } from "next";
 import { AlertTriangle, Database, ExternalLink } from "lucide-react";
 import { BigQuery } from "@google-cloud/bigquery";
+import { SectionHeading } from "@/components/ui/heading";
 
 export const dynamic = 'force-dynamic';
 
@@ -110,9 +111,9 @@ export default async function AdminQualityRunsPage() {
                         <span>/</span>
                         <span className="text-zinc-300">Extraction Runs</span>
                     </div>
-                    <h1 className="text-2xl font-black tracking-tight">
+                    <SectionHeading size="lg">
                         Extraction Run Log
-                    </h1>
+                    </SectionHeading>
                     <p className="text-sm text-zinc-400">
                         Per-run metrics from{" "}
                         <code className="font-mono text-xs bg-zinc-900 px-1.5 py-0.5 rounded">

@@ -11,6 +11,7 @@ import { Metadata } from "next";
 import { headers } from "next/headers";
 import { CheckCircle2, XCircle, AlertTriangle, Activity } from "lucide-react";
 import { PageContainer } from "@/components/ui/page-container";
+import { SectionHeading } from "@/components/ui/heading";
 
 const PRODUCTION_APP_URL = "https://cap-alpha.co";
 
@@ -193,9 +194,9 @@ export default async function StatusPage() {
                 </div>
                 <div className="flex items-center gap-3">
                     <StatusIcon status={overallStatus} />
-                    <h1 className="text-2xl font-black uppercase tracking-tight text-white">
+                    <SectionHeading size="lg" className="uppercase text-white">
                         {overallLabel}
-                    </h1>
+                    </SectionHeading>
                 </div>
                 <p className="text-zinc-400 text-xs">
                     Last checked: {new Date(checkedAt).toLocaleString("en-US", { timeZoneName: "short" })}

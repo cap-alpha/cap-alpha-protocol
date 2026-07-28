@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@clerk/nextjs/server";
 import { Activity } from "lucide-react";
 import { PageContainer } from "@/components/ui/page-container";
+import { SectionHeading } from "@/components/ui/heading";
 import { UsageDashboard } from "@/components/usage-dashboard";
 
 export const dynamic = 'force-dynamic';
@@ -29,9 +30,9 @@ export default async function UsagePage() {
                             Account
                         </span>
                     </div>
-                    <h1 className="text-3xl font-black tracking-tight text-white">
+                    <SectionHeading size="xl" className="text-white">
                         Usage Dashboard
-                    </h1>
+                    </SectionHeading>
                     <p className="mt-1 text-sm text-zinc-400 max-w-lg">
                         Monitor your API consumption, rate limits, and upgrade
                         when you need more.

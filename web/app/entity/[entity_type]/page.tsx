@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SectionHeading } from "@/components/ui/heading";
 
 // ---------------------------------------------------------------------------
 // Entity type list page — placeholder for /entity/[entity_type]
@@ -54,9 +55,9 @@ export default async function EntityTypeListPage({
                 <div className="text-[10px] font-bold uppercase tracking-[2px] text-amber-400 mb-4">
                     {label} Directory
                 </div>
-                <h1 className="text-4xl font-black text-white mb-4 tracking-tight">
+                <SectionHeading size="xl" className="text-white mb-4">
                     {label} Entities
-                </h1>
+                </SectionHeading>
                 <p className="text-zinc-400 text-base max-w-xl mx-auto mb-8">
                     A full searchable directory of {label.toLowerCase()} entities is coming soon.
                     Each entity page shows per-pundit accuracy for claims about that specific{" "}

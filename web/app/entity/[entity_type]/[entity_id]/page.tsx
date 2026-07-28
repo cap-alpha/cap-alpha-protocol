@@ -12,6 +12,7 @@ import {
     ExternalLink,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SectionHeading } from "@/components/ui/heading";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -553,9 +554,9 @@ export default function EntityDetailPage() {
                                 {entityTypeLabel}
                                 {entity.entity_subtype ? ` · ${entity.entity_subtype}` : ""}
                             </div>
-                            <h1 className="text-4xl font-black text-white leading-none mb-2 tracking-tight">
+                            <SectionHeading size="xl" className="text-white mb-2">
                                 {entity.entity_name}
-                            </h1>
+                            </SectionHeading>
                             {entity.context && (
                                 <div className="text-sm text-zinc-400 mb-3">{entity.context}</div>
                             )}

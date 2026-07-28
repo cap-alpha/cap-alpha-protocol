@@ -19,6 +19,7 @@ import {
     Terminal,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { DisplayHeading } from "@/components/ui/heading";
 import { ChainStatusWidget, PredictionLookup } from "./VerifyClient";
 
 export const metadata: Metadata = {
@@ -71,10 +72,10 @@ export default function VerifyPage() {
                         <Lock className="w-3.5 h-3.5" />
                         Cryptographic Integrity
                     </Badge>
-                    <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+                    <DisplayHeading size="md" className="font-display sm:text-display-lg">
                         Verify the{" "}
                         <span className="text-emerald-400">Ledger</span>
-                    </h1>
+                    </DisplayHeading>
                     <p className="text-xl text-zinc-400 max-w-xl mx-auto leading-relaxed">
                         Every prediction in the Pundit Ledger is sealed with a
                         SHA-256 hash chain. Anyone can verify that the record has

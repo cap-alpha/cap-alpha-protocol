@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { UpgradeButton } from "@/components/upgrade-button";
 import { ManageBillingButton } from "@/components/manage-billing-button";
+import { SectionHeading } from "@/components/ui/heading";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,7 @@ export default async function BillingPage() {
         <main className="min-h-[100dvh] bg-zinc-950 text-white px-6 py-12">
             <div className="max-w-lg mx-auto space-y-8">
                 <div>
-                    <h1 className="text-2xl font-bold">Billing</h1>
+                    <SectionHeading size="lg">Billing</SectionHeading>
                     <p className="text-zinc-400 text-sm mt-1">
                         Manage your subscription and payment method.
                     </p>

@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { Shield, Key, Terminal, ArrowRight, CheckCircle2, AlertCircle, Code2, Zap } from "lucide-react";
 import Link from "next/link";
+import { DisplayHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "API Reference | Pundit Ledger",
@@ -140,10 +141,10 @@ export default function ApiDocsPage() {
                         <Terminal className="w-3.5 h-3.5" />
                         REST API
                     </SectionLabel>
-                    <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+                    <DisplayHeading size="md" className="font-display sm:text-display-lg">
                         Pundit Ledger{" "}
                         <span className="text-emerald-400">API Reference</span>
-                    </h1>
+                    </DisplayHeading>
                     <p className="text-xl text-zinc-400 max-w-xl mx-auto leading-relaxed">
                         Integrate pundit accuracy scores, prediction history, and draft
                         results into your app, betting tool, or agent.

@@ -7,6 +7,7 @@ import { GlobalSearch } from "@/components/global-search";
 import PersonaSwitcher from "@/components/persona-switcher";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { SectionHeading } from "@/components/ui/heading";
 import Link from "next/link";
 import { slugify } from "@/lib/utils";
 
@@ -45,9 +46,9 @@ export default async function BettorDashboard() {
                         <Activity className="w-8 h-8 text-rose-500" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+                        <SectionHeading size="xl" className="text-foreground">
                             Alpha <span className="text-rose-500">Terminal</span>
-                        </h1>
+                        </SectionHeading>
                         <p className="text-muted-foreground mt-1 text-sm">
                             Volatility & Information Lag Arbitrage
                         </p>

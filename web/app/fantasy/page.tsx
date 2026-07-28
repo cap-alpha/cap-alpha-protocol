@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import { Button } from "@/components/ui/button";
 import { PageContainer } from "@/components/ui/page-container";
+import { SectionHeading } from "@/components/ui/heading";
 import { Lock } from "lucide-react";
 
 export default async function FantasyPage() {
@@ -18,9 +19,9 @@ export default async function FantasyPage() {
                         <ArrowLeft className="h-6 w-6" />
                     </Link>
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tight uppercase text-emerald-500">
+                        <SectionHeading size="xl" className="uppercase text-emerald-500">
                             FANTASY ALPHA
-                        </h1>
+                        </SectionHeading>
                         <p className="text-muted-foreground uppercase tracking-widest text-sm mt-1">Cross-Platform Roster Synchronization</p>
                     </div>
                 </div>

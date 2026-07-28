@@ -1,6 +1,7 @@
 import { getTeamRoster, getTeamCapSummary, getTeams, getRosterData, getIntelligenceFeed } from '@/app/actions';
 import { RosterGrid } from '@/components/roster-grid';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { SectionHeading } from '@/components/ui/heading';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, ShieldAlert, TrendingUp, MapPin } from 'lucide-react';
@@ -77,9 +78,9 @@ export default async function TeamPage({ params }: { params: { id: string } }) {
                         </div>
                     )}
                     <div>
-                        <h1 className="text-4xl font-bold tracking-tight uppercase text-emerald-500">
+                        <SectionHeading size="xl" className="uppercase text-emerald-500">
                             {TEAM_NAMES[teamName] || teamName}
-                        </h1>
+                        </SectionHeading>
                         <p className="text-muted-foreground uppercase tracking-widest text-sm mt-1">Franchise Intelligence Overview</p>
                     </div>
                 </div>

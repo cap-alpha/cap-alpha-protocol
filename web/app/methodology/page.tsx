@@ -30,6 +30,7 @@ import {
     Github,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { DisplayHeading } from "@/components/ui/heading";
 
 export const metadata: Metadata = {
     title: "Methodology | Pundit Ledger",
@@ -229,10 +230,10 @@ export default function MethodologyPage() {
                         <Eye className="w-3.5 h-3.5" />
                         Methodology
                     </Badge>
-                    <h1 className="font-display text-4xl sm:text-5xl font-black tracking-tight leading-[1.1]">
+                    <DisplayHeading size="md" className="font-display sm:text-display-lg">
                         How We Score{" "}
                         <span className="text-emerald-400">Pundits</span>
-                    </h1>
+                    </DisplayHeading>
                     <p className="text-xl text-zinc-400 max-w-xl mx-auto leading-relaxed">
                         We don&apos;t just track whether pundits are right.
                         We track <em>how</em> and <em>why</em> they&apos;re wrong.

@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { CheckCircle2, XCircle, AlertTriangle, Activity, BarChart3, Database, Shield, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { SectionHeading } from "@/components/ui/heading";
 import type { QualityResponse, WaitlistGate } from "@/app/api/quality/route";
 import type { QualityExtendedResponse } from "@/app/api/quality/extended/route";
 import {
@@ -526,9 +527,9 @@ export default async function QualityPage() {
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         Public Dashboard
                     </Badge>
-                    <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+                    <SectionHeading size="xl">
                         Extraction Quality
-                    </h1>
+                    </SectionHeading>
                     <p className="text-zinc-400 max-w-2xl leading-relaxed">
                         How good is our data? This page tracks whether the
                         extraction pipeline produces claims that are specific,

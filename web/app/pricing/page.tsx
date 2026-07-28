@@ -1,4 +1,5 @@
 import { PageContainer } from "@/components/ui/page-container";
+import { DisplayHeading } from "@/components/ui/heading";
 import { PricingClient } from "./pricing-client";
 
 export const metadata = {
@@ -11,7 +12,7 @@ export default function PricingPage() {
         <main className="bg-black text-white min-h-[100dvh] px-6 py-20">
             <PageContainer size="5xl" className="space-y-12">
                 <div className="text-center space-y-3">
-                    <h1 className="text-4xl font-black tracking-tight">Pricing</h1>
+                    <DisplayHeading size="md">Pricing</DisplayHeading>
                     <p className="text-zinc-400 max-w-xl mx-auto">
                         Choose how deeply you want to hold pundits accountable. All plans include the
                         cryptographically verified ledger.

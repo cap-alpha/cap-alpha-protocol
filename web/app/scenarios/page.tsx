@@ -5,6 +5,7 @@ import { eq, desc } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { UserButton, SignedIn } from '@clerk/nextjs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { SectionHeading } from '@/components/ui/heading';
 import { Scissors, Calendar, DollarSign } from 'lucide-react';
 
 export default async function ScenariosPage() {
@@ -23,7 +24,7 @@ export default async function ScenariosPage() {
             {/* Header: The War Room */}
             <header className="mb-8 flex items-center justify-between border-b border-border pb-4 px-8 pt-8">
                 <div>
-                    <h1 className="text-4xl font-bold tracking-tight text-foreground">CAP ALPHA PROTOCOL // <span className="text-emerald-500">EXECUTIVE SUITE</span></h1>
+                    <SectionHeading size="xl" className="text-foreground">CAP ALPHA PROTOCOL // <span className="text-emerald-500">EXECUTIVE SUITE</span></SectionHeading>
                 </div>
                 <div className="flex gap-4 items-center">
                     <SignedIn>
@@ -33,7 +34,7 @@ export default async function ScenariosPage() {
             </header>
             <div className="container mx-auto px-4 py-4 max-w-6xl">
                 <div className="mb-10">
-                    <h1 className="text-4xl font-black text-white tracking-tight mb-4">My Dashboard</h1>
+                    <SectionHeading size="xl" className="text-white mb-4">My Dashboard</SectionHeading>
                     <p className="text-slate-400 text-lg">Review your saved roster manipulations and Cut Calculator scenarios.</p>
                 </div>
 

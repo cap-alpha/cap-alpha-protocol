@@ -142,25 +142,25 @@ async function getExtendedQuality(): Promise<QualityExtendedResponse | null> {
 function GateCard({ gate }: { gate: WaitlistGate }) {
     const Icon = gate.pass ? CheckCircle2 : XCircle;
     const color = gate.pass
-        ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10"
-        : "text-red-400 border-red-500/30 bg-red-500/10";
-    const iconColor = gate.pass ? "text-emerald-400" : "text-red-400";
+        ? "text-correct border-correct/30 bg-correct/10"
+        : "text-incorrect border-incorrect/30 bg-incorrect/10";
+    const iconColor = gate.pass ? "text-correct" : "text-incorrect";
 
     return (
         <div className={`rounded-xl border p-4 ${color.split(" ").slice(1).join(" ")} space-y-2`}>
             <div className="flex items-start gap-3">
                 <Icon className={`w-5 h-5 mt-0.5 shrink-0 ${iconColor}`} />
                 <div className="space-y-1 min-w-0">
-                    <p className="text-sm font-semibold text-zinc-100 leading-snug">
+                    <p className="text-sm font-semibold text-ink leading-snug">
                         {gate.label}
                     </p>
-                    <p className="text-xs text-zinc-400 leading-relaxed">
+                    <p className="text-xs text-ink-2 leading-relaxed">
                         {gate.description}
                     </p>
                     {gate.current_value !== null && (
-                        <p className="text-xs font-mono text-zinc-500">
+                        <p className="text-xs font-mono text-ink-3">
                             Current:{" "}
-                            <span className={gate.pass ? "text-emerald-400" : "text-amber-400"}>
+                            <span className={gate.pass ? "text-correct" : "text-pending"}>
                                 {gate.id === "zero_output"
                                     ? String(gate.current_value)
                                     : `${(gate.current_value * 100).toFixed(1)}%`}
@@ -189,22 +189,22 @@ function StatTile({
     ok?: boolean;
 }) {
     return (
-        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 space-y-1">
-            <p className="text-xs text-zinc-500 uppercase tracking-widest font-mono">
+        <div className="rounded-xl border border-editorial-border bg-editorial-card p-4 space-y-1">
+            <p className="text-xs text-ink-3 uppercase tracking-widest font-mono">
                 {label}
             </p>
             <p
                 className={`text-2xl font-black tabular-nums ${
                     ok === undefined
-                        ? "text-white"
+                        ? "text-ink"
                         : ok
-                        ? "text-emerald-400"
-                        : "text-amber-400"
+                        ? "text-correct"
+                        : "text-pending"
                 }`}
             >
                 {value}
             </p>
-            {sub && <p className="text-xs text-zinc-600">{sub}</p>}
+            {sub && <p className="text-xs text-ink-3">{sub}</p>}
         </div>
     );
 }
@@ -220,13 +220,13 @@ function SectionHeader({
 }) {
     return (
         <div className="flex items-center gap-3 mb-5">
-            <div className="w-8 h-8 rounded-lg bg-zinc-800 flex items-center justify-center">
-                <Icon className="w-4 h-4 text-zinc-400" />
+            <div className="w-8 h-8 rounded-lg bg-editorial-card border border-editorial-border flex items-center justify-center">
+                <Icon className="w-4 h-4 text-ink-2" />
             </div>
             <div>
-                <h2 className="text-base font-bold text-white">{title}</h2>
+                <h2 className="text-base font-bold text-ink">{title}</h2>
                 {subtitle && (
-                    <p className="text-xs text-zinc-500">{subtitle}</p>
+                    <p className="text-xs text-ink-3">{subtitle}</p>
                 )}
             </div>
         </div>
@@ -235,9 +235,9 @@ function SectionHeader({
 
 function TrendBadge({ trend }: { trend: string }) {
     const map: Record<string, { label: string; cls: string }> = {
-        improving: { label: "Improving", cls: "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" },
-        declining: { label: "Declining", cls: "text-red-400 bg-red-500/10 border-red-500/30" },
-        stable: { label: "Stable", cls: "text-zinc-400 bg-zinc-800 border-zinc-700" },
+        improving: { label: "Improving", cls: "text-correct bg-correct/10 border-correct/30" },
+        declining: { label: "Declining", cls: "text-incorrect bg-incorrect/10 border-incorrect/30" },
+        stable: { label: "Stable", cls: "text-ink-2 bg-editorial-card border-editorial-border" },
     };
     const { label, cls } = map[trend] ?? map.stable;
     return (
@@ -284,11 +284,11 @@ function ExtractionHealthPanel({ data }: { data: ExtractionHealthResponse }) {
             </div>
 
             {/* Table */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+            <div className="rounded-xl border border-editorial-border bg-editorial-card overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
                         <thead>
-                            <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                            <tr className="border-b border-editorial-border bg-editorial-card text-ink-3 font-mono uppercase tracking-wider">
                                 <th className="px-4 py-3">Date</th>
                                 <th className="px-4 py-3 text-right">Utterances</th>
                                 <th className="px-4 py-3 text-right">Claims</th>
@@ -296,14 +296,14 @@ function ExtractionHealthPanel({ data }: { data: ExtractionHealthResponse }) {
                                 <th className="px-4 py-3">Zero Output</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-900">
+                        <tbody className="divide-y divide-editorial-border">
                             {days.map((day) => (
-                                <tr key={day.run_date} className="text-zinc-300 hover:bg-zinc-900/40">
-                                    <td className="px-4 py-2.5 font-mono text-zinc-400">
+                                <tr key={day.run_date} className="text-ink-2 hover:bg-editorial-card">
+                                    <td className="px-4 py-2.5 font-mono text-ink-2">
                                         {day.run_date}
                                     </td>
                                     <td className="px-4 py-2.5 text-right tabular-nums font-mono">
-                                        <span className={day.utterances_written === 0 ? "text-red-400 font-bold" : ""}>
+                                        <span className={day.utterances_written === 0 ? "text-incorrect font-bold" : ""}>
                                             {day.utterances_written.toLocaleString()}
                                         </span>
                                     </td>
@@ -313,21 +313,21 @@ function ExtractionHealthPanel({ data }: { data: ExtractionHealthResponse }) {
                                     <td className="px-4 py-2.5 text-right tabular-nums font-mono">
                                         <span className={
                                             day.mean_testability_score >= 0.65
-                                                ? "text-emerald-400"
+                                                ? "text-correct"
                                                 : day.mean_testability_score >= 0.5
-                                                ? "text-amber-400"
-                                                : "text-red-400"
+                                                ? "text-pending"
+                                                : "text-incorrect"
                                         }>
                                             {(day.mean_testability_score * 100).toFixed(1)}%
                                         </span>
                                     </td>
                                     <td className="px-4 py-2.5">
                                         {day.zero_output ? (
-                                            <span className="inline-flex items-center gap-1 text-red-400 font-mono">
+                                            <span className="inline-flex items-center gap-1 text-incorrect font-mono">
                                                 <XCircle className="w-3 h-3" /> Yes
                                             </span>
                                         ) : (
-                                            <span className="text-zinc-600 font-mono">—</span>
+                                            <span className="text-ink-3 font-mono">—</span>
                                         )}
                                     </td>
                                 </tr>
@@ -335,7 +335,7 @@ function ExtractionHealthPanel({ data }: { data: ExtractionHealthResponse }) {
                         </tbody>
                     </table>
                 </div>
-                <div className="px-4 py-3 border-t border-zinc-800 text-xs text-zinc-600">
+                <div className="px-4 py-3 border-t border-editorial-border text-xs text-ink-3">
                     Showing last {days.length} of {data.last_30_days.length} run days.
                     Trend: <TrendBadge trend={data.testability_trend} />
                 </div>
@@ -374,39 +374,39 @@ function ResolutionRatePanel({ data }: { data: ResolutionStatsResponse }) {
             </div>
 
             {/* Per-category table */}
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+            <div className="rounded-xl border border-editorial-border bg-editorial-card overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
                         <thead>
-                            <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                            <tr className="border-b border-editorial-border bg-editorial-card text-ink-3 font-mono uppercase tracking-wider">
                                 <th className="px-4 py-3">Category</th>
                                 <th className="px-4 py-3 text-right">Count</th>
                                 <th className="px-4 py-3 text-right">Resolution %</th>
                                 <th className="px-4 py-3 text-right">Void %</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-900">
+                        <tbody className="divide-y divide-editorial-border">
                             {data.by_category.map((cat) => (
-                                <tr key={cat.category} className="text-zinc-300 hover:bg-zinc-900/40">
-                                    <td className="px-4 py-2.5 font-mono text-zinc-200 capitalize">
+                                <tr key={cat.category} className="text-ink-2 hover:bg-editorial-card">
+                                    <td className="px-4 py-2.5 font-mono text-ink capitalize">
                                         {cat.category.replace(/_/g, " ")}
                                     </td>
-                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono text-zinc-400">
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono text-ink-2">
                                         {cat.count.toLocaleString()}
                                     </td>
                                     <td className="px-4 py-2.5 text-right tabular-nums font-mono">
                                         <span className={
                                             cat.resolution_rate_pct >= 70
-                                                ? "text-emerald-400"
+                                                ? "text-correct"
                                                 : cat.resolution_rate_pct >= 40
-                                                ? "text-amber-400"
-                                                : "text-zinc-400"
+                                                ? "text-pending"
+                                                : "text-ink-2"
                                         }>
                                             {cat.resolution_rate_pct}%
                                         </span>
                                     </td>
                                     <td className="px-4 py-2.5 text-right tabular-nums font-mono">
-                                        <span className={cat.void_rate_pct > 15 ? "text-amber-400" : "text-zinc-500"}>
+                                        <span className={cat.void_rate_pct > 15 ? "text-pending" : "text-ink-3"}>
                                             {cat.void_rate_pct}%
                                         </span>
                                     </td>
@@ -435,10 +435,10 @@ function BrierTrendPanel({ data }: { data: ResolutionStatsResponse }) {
                     title="Brier Score Trend (last 12 weeks)"
                     subtitle="Mean Brier score per week — lower is better"
                 />
-                <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-10 text-center space-y-3">
-                    <Database className="w-8 h-8 text-zinc-600 mx-auto" />
-                    <p className="text-zinc-400 font-medium">No Brier data yet</p>
-                    <p className="text-sm text-zinc-600">
+                <div className="rounded-xl border border-editorial-border bg-editorial-card p-10 text-center space-y-3">
+                    <Database className="w-8 h-8 text-ink-3 mx-auto" />
+                    <p className="text-ink-2 font-medium">No Brier data yet</p>
+                    <p className="text-sm text-ink-3">
                         Appears once predictions are resolved with confidence scores.
                     </p>
                 </div>
@@ -453,34 +453,34 @@ function BrierTrendPanel({ data }: { data: ResolutionStatsResponse }) {
                 title="Brier Score Trend (last 12 weeks)"
                 subtitle="Mean Brier score per week — lower is better (0 = perfect)"
             />
-            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+            <div className="rounded-xl border border-editorial-border bg-editorial-card overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full text-xs text-left">
                         <thead>
-                            <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                            <tr className="border-b border-editorial-border bg-editorial-card text-ink-3 font-mono uppercase tracking-wider">
                                 <th className="px-4 py-3">Week of</th>
                                 <th className="px-4 py-3 text-right">Mean Brier</th>
                                 <th className="px-4 py-3 text-right">n</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-zinc-900">
+                        <tbody className="divide-y divide-editorial-border">
                             {weeks.map((w) => (
-                                <tr key={w.week} className="text-zinc-300 hover:bg-zinc-900/40">
-                                    <td className="px-4 py-2.5 font-mono text-zinc-400">
+                                <tr key={w.week} className="text-ink-2 hover:bg-editorial-card">
+                                    <td className="px-4 py-2.5 font-mono text-ink-2">
                                         {w.week}
                                     </td>
                                     <td className="px-4 py-2.5 text-right tabular-nums font-mono">
                                         <span className={
                                             w.mean_brier_score <= 0.1
-                                                ? "text-emerald-400 font-semibold"
+                                                ? "text-correct font-semibold"
                                                 : w.mean_brier_score <= 0.2
-                                                ? "text-amber-400"
-                                                : "text-red-400"
+                                                ? "text-pending"
+                                                : "text-incorrect"
                                         }>
                                             {w.mean_brier_score.toFixed(4)}
                                         </span>
                                     </td>
-                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono text-zinc-500">
+                                    <td className="px-4 py-2.5 text-right tabular-nums font-mono text-ink-3">
                                         {w.n.toLocaleString()}
                                     </td>
                                 </tr>
@@ -488,7 +488,7 @@ function BrierTrendPanel({ data }: { data: ResolutionStatsResponse }) {
                         </tbody>
                     </table>
                 </div>
-                <div className="px-4 py-3 border-t border-zinc-800 text-xs text-zinc-600">
+                <div className="px-4 py-3 border-t border-editorial-border text-xs text-ink-3">
                     Brier score: 0 = perfect, 0.25 = random, 1 = perfectly wrong. Cached 5 min.
                 </div>
             </div>
@@ -519,25 +519,25 @@ export default async function QualityPage() {
         data.waitlistGates.every((g) => g.pass);
 
     return (
-        <div className="bg-black text-white min-h-[100dvh]">
+        <div className="bg-editorial-bg text-ink min-h-[100dvh]">
             {/* Header */}
-            <section className="border-b border-zinc-900 px-6 py-12">
+            <section className="border-b border-editorial-border px-6 py-12">
                 <div className="max-w-5xl mx-auto space-y-4">
-                    <Badge variant="eyebrow" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <Badge variant="eyebrow" className="border-accent-editorial/30 bg-accent-editorial/10 text-accent-editorial">
+                        <span className="w-1.5 h-1.5 rounded-full bg-accent-editorial animate-pulse" />
                         Public Dashboard
                     </Badge>
                     <SectionHeading size="xl">
                         Extraction Quality
                     </SectionHeading>
-                    <p className="text-zinc-400 max-w-2xl leading-relaxed">
+                    <p className="text-ink-2 max-w-2xl leading-relaxed">
                         How good is our data? This page tracks whether the
                         extraction pipeline produces claims that are specific,
                         testable, and attributable — and shows the three
                         criteria that gate waitlist removal.
                     </p>
                     {data.generatedAt && (
-                        <p className="text-xs text-zinc-600 font-mono">
+                        <p className="text-xs text-ink-3 font-mono">
                             Updated{" "}
                             {new Date(data.generatedAt).toLocaleString(
                                 "en-US",
@@ -563,17 +563,17 @@ export default async function QualityPage() {
                         subtitle="All three must be green before the waitlist is removed"
                     />
                     {allGatesPass ? (
-                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 mb-5 flex items-center gap-3">
-                            <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-                            <p className="text-sm font-semibold text-emerald-300">
+                        <div className="rounded-xl border border-correct/30 bg-correct/10 p-4 mb-5 flex items-center gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-correct shrink-0" />
+                            <p className="text-sm font-semibold text-correct">
                                 All gates passing — waitlist removal is
                                 authorized.
                             </p>
                         </div>
                     ) : (
-                        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 mb-5 flex items-center gap-3">
-                            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
-                            <p className="text-sm text-amber-300">
+                        <div className="rounded-xl border border-pending/30 bg-pending/10 p-4 mb-5 flex items-center gap-3">
+                            <AlertTriangle className="w-5 h-5 text-pending shrink-0" />
+                            <p className="text-sm text-pending">
                                 <span className="font-semibold">
                                     {data.waitlistGates.filter(
                                         (g) => !g.pass
@@ -633,12 +633,12 @@ export default async function QualityPage() {
                 </section>
 
                 {!data.hasData && (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-10 text-center space-y-3">
-                        <Database className="w-8 h-8 text-zinc-600 mx-auto" />
-                        <p className="text-zinc-400 font-medium">
+                    <div className="rounded-xl border border-editorial-border bg-editorial-card p-10 text-center space-y-3">
+                        <Database className="w-8 h-8 text-ink-3 mx-auto" />
+                        <p className="text-ink-2 font-medium">
                             No extraction data yet
                         </p>
-                        <p className="text-sm text-zinc-600">
+                        <p className="text-sm text-ink-3">
                             Data will appear here once the pipeline has run.
                             Check back soon.
                         </p>
@@ -697,7 +697,7 @@ export default async function QualityPage() {
                 )}
 
                 {/* Footer note */}
-                <p className="text-xs text-zinc-700 border-t border-zinc-900 pt-6">
+                <p className="text-xs text-ink-3 border-t border-editorial-border pt-6">
                     Metrics computed from{" "}
                     <code className="font-mono">
                         silver_v2_claims.raw_utterance
@@ -709,7 +709,7 @@ export default async function QualityPage() {
                     . Page cached for 5 minutes. Admin drill-down at{" "}
                     <a
                         href="/admin/quality/runs"
-                        className="text-zinc-500 hover:text-zinc-400 underline"
+                        className="text-ink-3 hover:text-ink-2 underline"
                     >
                         /admin/quality/runs
                     </a>

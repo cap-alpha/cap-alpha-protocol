@@ -115,15 +115,15 @@ function SectionHeader({
     return (
         <div className="text-center space-y-3 mb-12">
             {label && (
-                <Badge variant="eyebrow" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                <Badge variant="eyebrow" className="border-accent-editorial/30 bg-accent-editorial/10 text-accent-editorial">
                     {label}
                 </Badge>
             )}
-            <h2 className="font-display text-3xl sm:text-4xl font-black tracking-tight text-white">
+            <h2 className="font-display text-3xl sm:text-4xl font-black tracking-tight text-ink">
                 {title}
             </h2>
             {subtitle && (
-                <p className="text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
+                <p className="text-lg text-ink-2 max-w-2xl mx-auto leading-relaxed">
                     {subtitle}
                 </p>
             )}
@@ -141,10 +141,10 @@ function AxisCard({
     levels: { name: string; desc: string; color: string }[];
 }) {
     return (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 sm:p-8 space-y-5">
+        <div className="rounded-2xl border border-editorial-border bg-editorial-card p-6 sm:p-8 space-y-5">
             <div>
-                <h3 className="text-xl font-bold text-white mb-1">{title}</h3>
-                <p className="text-sm text-zinc-400">{description}</p>
+                <h3 className="text-xl font-bold text-ink mb-1">{title}</h3>
+                <p className="text-sm text-ink-2">{description}</p>
             </div>
             <div className="space-y-3">
                 {levels.map((level) => (
@@ -156,11 +156,11 @@ function AxisCard({
                             className={`mt-1 w-2 h-2 rounded-full shrink-0 ${level.color}`}
                         />
                         <div>
-                            <span className="font-semibold text-zinc-200">
+                            <span className="font-semibold text-ink">
                                 {level.name}
                             </span>
-                            <span className="text-zinc-500"> — </span>
-                            <span className="text-zinc-400">{level.desc}</span>
+                            <span className="text-ink-3"> — </span>
+                            <span className="text-ink-2">{level.desc}</span>
                         </div>
                     </div>
                 ))}
@@ -185,24 +185,24 @@ function DimensionCard({
     tier: "free" | "pro";
 }) {
     return (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3 relative">
+        <div className="rounded-2xl border border-editorial-border bg-editorial-card p-6 space-y-3 relative">
             {tier === "pro" && (
-                <div className="absolute top-4 right-4 text-[10px] font-mono uppercase tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-full">
+                <div className="absolute top-4 right-4 text-[10px] font-mono uppercase tracking-widest text-accent-editorial bg-accent-editorial/10 border border-accent-editorial/20 px-2 py-0.5 rounded-full">
                     Pro
                 </div>
             )}
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                <Icon className="w-5 h-5 text-emerald-400" />
+            <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center">
+                <Icon className="w-5 h-5 text-accent-editorial" />
             </div>
-            <h3 className="text-lg font-bold text-white">{name}</h3>
-            <p className="text-sm font-medium text-emerald-400 italic">
+            <h3 className="text-lg font-bold text-ink">{name}</h3>
+            <p className="text-sm font-medium text-accent-editorial italic">
                 &ldquo;{question}&rdquo;
             </p>
-            <p className="text-sm text-zinc-400 leading-relaxed">
+            <p className="text-sm text-ink-2 leading-relaxed">
                 {description}
             </p>
-            <p className="text-xs text-zinc-500">
-                <span className="font-semibold text-zinc-400">Detects:</span>{" "}
+            <p className="text-xs text-ink-3">
+                <span className="font-semibold text-ink-2">Detects:</span>{" "}
                 {detects}
             </p>
         </div>
@@ -213,7 +213,7 @@ function DimensionCard({
 
 export default function MethodologyPage() {
     return (
-        <div className="bg-black text-white min-h-[100dvh] flex flex-col font-sans">
+        <div className="bg-editorial-bg text-ink min-h-[100dvh] flex flex-col font-sans">
             {/* FAQ structured data — surfaces taxonomy + scoring rules to search engines (#830) */}
             <script
                 type="application/ld+json"
@@ -222,19 +222,16 @@ export default function MethodologyPage() {
             />
             {/* Hero */}
             <section className="relative flex flex-col items-center justify-center text-center px-6 pt-24 pb-20 overflow-hidden">
-                <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-emerald-500/8 rounded-full blur-[120px]" />
-                </div>
                 <div className="relative z-10 max-w-3xl mx-auto space-y-6">
-                    <Badge variant="eyebrow" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-400">
+                    <Badge variant="eyebrow" className="border-accent-editorial/30 bg-accent-editorial/10 text-accent-editorial">
                         <Eye className="w-3.5 h-3.5" />
                         Methodology
                     </Badge>
                     <DisplayHeading size="md" className="font-display sm:text-display-lg">
                         How We Score{" "}
-                        <span className="text-emerald-400">Pundits</span>
+                        <span className="text-accent-editorial">Pundits</span>
                     </DisplayHeading>
-                    <p className="text-xl text-zinc-400 max-w-xl mx-auto leading-relaxed">
+                    <p className="text-xl text-ink-2 max-w-xl mx-auto leading-relaxed">
                         We don&apos;t just track whether pundits are right.
                         We track <em>how</em> and <em>why</em> they&apos;re wrong.
                     </p>
@@ -242,12 +239,12 @@ export default function MethodologyPage() {
             </section>
 
             {/* The Problem */}
-            <section className="w-full px-6 py-16 border-t border-zinc-900">
+            <section className="w-full px-6 py-16 border-t border-editorial-border">
                 <div className="max-w-3xl mx-auto space-y-6">
-                    <h2 className="text-2xl font-bold text-white">
+                    <h2 className="text-2xl font-bold text-ink">
                         The Accountability Gap
                     </h2>
-                    <div className="space-y-4 text-zinc-400 leading-relaxed">
+                    <div className="space-y-4 text-ink-2 leading-relaxed">
                         <p>
                             Sports media runs on predictions. Every week, pundits make
                             dozens of public calls — spread picks, player props, bold
@@ -261,7 +258,7 @@ export default function MethodologyPage() {
                             pundits who sound confident but have no track record to back
                             it up.
                         </p>
-                        <p className="text-zinc-300 font-medium">
+                        <p className="text-ink-2 font-medium">
                             The Pundit Prediction Ledger closes that gap. But to do it
                             right, we need to understand not just{" "}
                             <em>whether</em> pundits are wrong, but the different{" "}
@@ -273,7 +270,7 @@ export default function MethodologyPage() {
             </section>
 
             {/* Axes of Truthiness */}
-            <section className="w-full px-6 py-20 border-t border-zinc-900">
+            <section className="w-full px-6 py-20 border-t border-editorial-border">
                 <div className="max-w-5xl mx-auto">
                     <SectionHeader
                         label="Framework"
@@ -290,27 +287,28 @@ export default function MethodologyPage() {
                                 {
                                     name: "Honest error",
                                     desc: "Genuinely believed it, had a reasonable basis, was wrong. \"I thought the O-line would hold up — I didn't expect 3 injuries.\"",
-                                    color: "bg-emerald-400",
+                                    color: "bg-correct",
                                 },
                                 {
                                     name: "Lazy wrongness",
                                     desc: "Didn't do the homework, just vibed. \"I like the over here\" — no analysis, no reasoning.",
-                                    color: "bg-yellow-400",
+                                    color: "bg-gold-light",
                                 },
                                 {
                                     name: "Bullshitting",
                                     desc: "Doesn't know or care if it's true — says what sounds good. Indifferent to truth, not opposed to it.",
-                                    color: "bg-orange-400",
+                                    color: "bg-pending",
                                 },
                                 {
                                     name: "Motivated reasoning",
                                     desc: "Has a bias — network narrative, fandom, paid relationship — that distorts the analysis without the audience knowing.",
-                                    color: "bg-red-400",
+                                    color: "bg-incorrect",
                                 },
                                 {
                                     name: "Deliberate deception",
                                     desc: "Knows it's wrong, says it anyway for engagement or money. \"Lock of the century\" on a pick they don't believe in.",
-                                    color: "bg-red-600",
+                                    /* FLAG: bg-red-600 (worst) collapses to bg-incorrect — same as bg-red-400 above; no darker-red token exists */
+                                    color: "bg-incorrect",
                                 },
                             ]}
                         />
@@ -323,27 +321,27 @@ export default function MethodologyPage() {
                                 {
                                     name: "Data-grounded",
                                     desc: "Cites specific stats, film study, injury reports. The prediction has a traceable analytical basis.",
-                                    color: "bg-emerald-400",
+                                    color: "bg-correct",
                                 },
                                 {
                                     name: "Experience-based",
                                     desc: "\"I've covered this team for 20 years, I know their tendencies.\" Valid but unverifiable.",
-                                    color: "bg-emerald-300",
+                                    color: "bg-correct/70",
                                 },
                                 {
                                     name: "Gut intuition",
                                     desc: "\"I just feel it.\" Might be pattern recognition — or might be nothing.",
-                                    color: "bg-yellow-400",
+                                    color: "bg-gold-light",
                                 },
                                 {
                                     name: "Narrative-driven",
                                     desc: "\"This is a revenge game.\" The prediction serves a storyline, not an analysis.",
-                                    color: "bg-orange-400",
+                                    color: "bg-pending",
                                 },
                                 {
                                     name: "Contrarian for clicks",
                                     desc: "Hot take with no basis other than being provocative. The prediction is content, not conviction.",
-                                    color: "bg-red-400",
+                                    color: "bg-incorrect",
                                 },
                             ]}
                         />
@@ -356,22 +354,22 @@ export default function MethodologyPage() {
                                 {
                                     name: "Well-calibrated",
                                     desc: "Says \"70% confident\" and is right about 70% of the time. Their confidence is informative.",
-                                    color: "bg-emerald-400",
+                                    color: "bg-correct",
                                 },
                                 {
                                     name: "Overconfident",
                                     desc: "Everything's a lock, but the hit rate is 52%. Their confidence is noise.",
-                                    color: "bg-orange-400",
+                                    color: "bg-pending",
                                 },
                                 {
                                     name: "Strategic hedger",
                                     desc: "Never commits firmly enough to be proven wrong. \"I could see the Chiefs winning\" is unfalsifiable by design.",
-                                    color: "bg-yellow-400",
+                                    color: "bg-gold-light",
                                 },
                                 {
                                     name: "Erratic",
                                     desc: "All-in one week, wishy-washy the next. No consistent signal for anyone to act on.",
-                                    color: "bg-red-400",
+                                    color: "bg-incorrect",
                                 },
                             ]}
                         />
@@ -384,27 +382,28 @@ export default function MethodologyPage() {
                                 {
                                     name: "Owns it",
                                     desc: "\"I was wrong, here's what I missed.\" Rare and valuable — shows the analysis is genuine.",
-                                    color: "bg-emerald-400",
+                                    color: "bg-correct",
                                 },
                                 {
                                     name: "Silent burial",
                                     desc: "Never mentions it again. Moves on to the next take and hopes you forgot.",
-                                    color: "bg-yellow-400",
+                                    color: "bg-gold-light",
                                 },
                                 {
                                     name: "Revisionism",
                                     desc: "\"What I actually said was...\" Reframes the prediction after the fact to look less wrong.",
-                                    color: "bg-orange-400",
+                                    color: "bg-pending",
                                 },
                                 {
                                     name: "Doubling down",
                                     desc: "\"I'm still right, the outcome was fluky.\" Refuses to update even when the evidence is clear.",
-                                    color: "bg-red-400",
+                                    color: "bg-incorrect",
                                 },
                                 {
                                     name: "Deflection",
                                     desc: "\"Nobody could've predicted that.\" Externalizes all blame to preserve the illusion of competence.",
-                                    color: "bg-red-600",
+                                    /* FLAG: bg-red-600 (worst) collapses to bg-incorrect — same as bg-red-400 above; no darker-red token exists */
+                                    color: "bg-incorrect",
                                 },
                             ]}
                         />
@@ -413,7 +412,7 @@ export default function MethodologyPage() {
             </section>
 
             {/* Scoring Dimensions */}
-            <section className="w-full px-6 py-20 border-t border-zinc-900">
+            <section className="w-full px-6 py-20 border-t border-editorial-border">
                 <div className="max-w-5xl mx-auto">
                     <SectionHeader
                         label="The Scores"
@@ -424,10 +423,10 @@ export default function MethodologyPage() {
                     {/* Free Tier */}
                     <div className="mb-8">
                         <div className="flex items-center gap-3 mb-6">
-                            <span className="text-sm font-mono uppercase tracking-widest text-zinc-500">
+                            <span className="text-sm font-mono uppercase tracking-widest text-ink-3">
                                 Free Tier
                             </span>
-                            <span className="text-xs text-zinc-600">
+                            <span className="text-xs text-ink-3">
                                 — The Triangle
                             </span>
                         </div>
@@ -462,10 +461,10 @@ export default function MethodologyPage() {
                     {/* Pro Tier */}
                     <div className="mb-8">
                         <div className="flex items-center gap-3 mb-6">
-                            <span className="text-sm font-mono uppercase tracking-widest text-emerald-400">
+                            <span className="text-sm font-mono uppercase tracking-widest text-accent-editorial">
                                 Pro Tier
                             </span>
-                            <span className="text-xs text-zinc-600">
+                            <span className="text-xs text-ink-3">
                                 — The Full Profile
                             </span>
                         </div>
@@ -498,14 +497,14 @@ export default function MethodologyPage() {
                     </div>
 
                     {/* Coming Soon: Accountability */}
-                    <div className="rounded-2xl border border-dashed border-zinc-700 bg-zinc-900/30 p-8 text-center space-y-3">
-                        <div className="w-12 h-12 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center mx-auto">
-                            <MessageSquareWarning className="w-6 h-6 text-zinc-400" />
+                    <div className="rounded-2xl border border-dashed border-editorial-border bg-editorial-card p-8 text-center space-y-3">
+                        <div className="w-12 h-12 rounded-lg bg-editorial-card border border-editorial-border flex items-center justify-center mx-auto">
+                            <MessageSquareWarning className="w-6 h-6 text-ink-2" />
                         </div>
-                        <h3 className="text-lg font-bold text-white">
+                        <h3 className="text-lg font-bold text-ink">
                             Coming Soon: Accountability
                         </h3>
-                        <p className="text-sm text-zinc-400 max-w-lg mx-auto leading-relaxed">
+                        <p className="text-sm text-ink-2 max-w-lg mx-auto leading-relaxed">
                             The 7th dimension. We&apos;re building the ability to scan whether a
                             pundit references past misses in subsequent content — do they
                             own their mistakes, bury them, revise history, or double down?
@@ -517,7 +516,7 @@ export default function MethodologyPage() {
             </section>
 
             {/* Prediction Eligibility */}
-            <section className="w-full px-6 py-20 border-t border-zinc-900">
+            <section className="w-full px-6 py-20 border-t border-editorial-border">
                 <div className="max-w-3xl mx-auto">
                     <SectionHeader
                         label="Eligibility"
@@ -527,28 +526,28 @@ export default function MethodologyPage() {
 
                     <div className="space-y-8">
                         <div className="space-y-4">
-                            <h3 className="text-lg font-bold text-white">
+                            <h3 className="text-lg font-bold text-ink">
                                 A scoreable prediction must be:
                             </h3>
                             <div className="space-y-3">
                                 <div className="flex items-start gap-3">
-                                    <Target className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                                    <Target className="w-5 h-5 text-accent-editorial mt-0.5 shrink-0" />
                                     <div>
-                                        <span className="font-semibold text-zinc-200">
+                                        <span className="font-semibold text-ink">
                                             Resolvable
                                         </span>
-                                        <span className="text-zinc-400">
+                                        <span className="text-ink-2">
                                             {" "}— A clear right/wrong outcome must exist.
                                         </span>
                                     </div>
                                 </div>
                                 <div className="flex items-start gap-3">
-                                    <Compass className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
+                                    <Compass className="w-5 h-5 text-accent-editorial mt-0.5 shrink-0" />
                                     <div>
-                                        <span className="font-semibold text-zinc-200">
+                                        <span className="font-semibold text-ink">
                                             Actionable
                                         </span>
-                                        <span className="text-zinc-400">
+                                        <span className="text-ink-2">
                                             {" "}— A bettor could place a wager based on it.
                                         </span>
                                     </div>
@@ -557,12 +556,12 @@ export default function MethodologyPage() {
                         </div>
 
                         {/* Valid Examples */}
-                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6 space-y-3">
-                            <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-emerald-400">
+                        <div className="rounded-xl border border-correct/20 bg-correct/5 p-6 space-y-3">
+                            <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-correct">
                                 <CheckCircle2 className="w-4 h-4" />
                                 Valid Predictions
                             </div>
-                            <ul className="space-y-2 text-sm text-zinc-300">
+                            <ul className="space-y-2 text-sm text-ink-2">
                                 <li>&ldquo;Chiefs -3&rdquo;</li>
                                 <li>&ldquo;Over 47.5&rdquo;</li>
                                 <li>&ldquo;Eagles win the Super Bowl&rdquo;</li>
@@ -577,12 +576,12 @@ export default function MethodologyPage() {
                         </div>
 
                         {/* Invalid Examples */}
-                        <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-6 space-y-3">
-                            <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-red-400">
+                        <div className="rounded-xl border border-incorrect/20 bg-incorrect/5 p-6 space-y-3">
+                            <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-incorrect">
                                 <XCircle className="w-4 h-4" />
                                 Not Scoreable
                             </div>
-                            <ul className="space-y-2 text-sm text-zinc-400">
+                            <ul className="space-y-2 text-sm text-ink-2">
                                 <li>&ldquo;I like the Chiefs this week&rdquo;</li>
                                 <li>
                                     &ldquo;I think the offense will be better&rdquo;
@@ -595,19 +594,19 @@ export default function MethodologyPage() {
                         </div>
 
                         {/* Why */}
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6">
                             <div className="flex items-start gap-3">
-                                <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5 shrink-0" />
+                                <AlertTriangle className="w-5 h-5 text-pending mt-0.5 shrink-0" />
                                 <div className="space-y-2">
-                                    <h4 className="font-semibold text-zinc-200">
+                                    <h4 className="font-semibold text-ink">
                                         Why we filter
                                     </h4>
-                                    <p className="text-sm text-zinc-400 leading-relaxed">
+                                    <p className="text-sm text-ink-2 leading-relaxed">
                                         Vague predictions are the pundit&apos;s escape hatch.
                                         By requiring testable claims, we remove the ability to
                                         retroactively claim &ldquo;that&apos;s what I
                                         meant.&rdquo; This is by design —{" "}
-                                        <span className="text-zinc-200 font-medium">
+                                        <span className="text-ink font-medium">
                                             if you can&apos;t be proven wrong, you shouldn&apos;t
                                             get credit for being right.
                                         </span>
@@ -622,7 +621,7 @@ export default function MethodologyPage() {
             {/* Claim Type Taxonomy — the public adjudication contract (#830) */}
             <section
                 id="claim-taxonomy"
-                className="w-full px-6 py-20 border-t border-zinc-900"
+                className="w-full px-6 py-20 border-t border-editorial-border"
             >
                 <div className="max-w-5xl mx-auto">
                     <SectionHeader
@@ -632,9 +631,9 @@ export default function MethodologyPage() {
                     />
 
                     {/* The headline table — public, plain-language */}
-                    <div className="overflow-x-auto rounded-2xl border border-zinc-800 bg-zinc-900/40">
+                    <div className="overflow-x-auto rounded-2xl border border-editorial-border bg-editorial-card">
                         <table className="w-full text-sm">
-                            <thead className="bg-zinc-900/80 text-zinc-300">
+                            <thead className="bg-editorial-card text-ink-2">
                                 <tr className="text-left">
                                     <th className="px-4 py-3 font-semibold">Type</th>
                                     <th className="px-4 py-3 font-semibold">Definition</th>
@@ -642,44 +641,45 @@ export default function MethodologyPage() {
                                     <th className="px-4 py-3 font-semibold">How we score it</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-zinc-800/80 text-zinc-300">
+                            <tbody className="divide-y divide-editorial-border text-ink-2">
                                 <tr>
                                     <td className="px-4 py-4 align-top">
-                                        <span className="font-semibold text-emerald-400">
+                                        {/* FLAG: categorical taxonomy label, not a pass/fail state — kept as accent-editorial (decorative emphasis for primary type) */}
+                                        <span className="font-semibold text-accent-editorial">
                                             Prediction
                                         </span>
-                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                        <div className="text-xs font-mono text-ink-3 mt-1">
                                             speech_act_type: assertion
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Analyst asserts a future outcome will occur.
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                    <td className="px-4 py-4 align-top text-ink-2 italic">
                                         &ldquo;The Eagles will win the Super Bowl.&rdquo;
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         CORRECT or INCORRECT at resolution. Scored.
                                     </td>
                                 </tr>
                                 <tr>
                                     <td className="px-4 py-4 align-top">
-                                        <span className="font-semibold text-yellow-400">
+                                        <span className="font-semibold text-pending">
                                             Report
                                         </span>
-                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                        <div className="text-xs font-mono text-ink-3 mt-1">
                                             speech_act_type: recall
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Analyst relays insider information about
                                         the current state of affairs.
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                    <td className="px-4 py-4 align-top text-ink-2 italic">
                                         &ldquo;The Eagles are looking to trade for a
                                         WR per sources.&rdquo;
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         CORRECT if independently confirmed. VOID if
                                         the underlying deal/situation falls through.
                                         We score predictions, not reports.
@@ -687,21 +687,21 @@ export default function MethodologyPage() {
                                 </tr>
                                 <tr>
                                     <td className="px-4 py-4 align-top">
-                                        <span className="font-semibold text-zinc-300">
+                                        <span className="font-semibold text-ink-2">
                                             Conditional
                                         </span>
-                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                        <div className="text-xs font-mono text-ink-3 mt-1">
                                             speech_act_type: conditional
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Outcome depends on a contingent event.
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                    <td className="px-4 py-4 align-top text-ink-2 italic">
                                         &ldquo;If they draft a left tackle, the line
                                         will be top-10.&rdquo;
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Scored only when the condition resolves
                                         cleanly. VOID if the &ldquo;if&rdquo;
                                         premise never occurs.
@@ -709,44 +709,44 @@ export default function MethodologyPage() {
                                 </tr>
                                 <tr>
                                     <td className="px-4 py-4 align-top">
-                                        <span className="font-semibold text-zinc-500">
+                                        <span className="font-semibold text-ink-3">
                                             Opinion / Take
                                         </span>
-                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                        <div className="text-xs font-mono text-ink-3 mt-1">
                                             speech_act_type: opinion
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Subjective qualitative assessment with no
                                         falsifiable outcome.
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                    <td className="px-4 py-4 align-top text-ink-2 italic">
                                         &ldquo;Mahomes is the best QB ever.&rdquo;
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Not scored. Filtered at extraction; never
                                         enters the prediction ledger.
                                     </td>
                                 </tr>
                                 <tr>
                                     <td className="px-4 py-4 align-top">
-                                        <span className="font-semibold text-zinc-500">
+                                        <span className="font-semibold text-ink-3">
                                             Commentary / Analogy / Joke / Rhetorical
                                         </span>
-                                        <div className="text-xs font-mono text-zinc-500 mt-1">
+                                        <div className="text-xs font-mono text-ink-3 mt-1">
                                             speech_act_type: commentary,
                                             analogy, joke, rhetorical_question, hedge
                                         </div>
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Analysis, comparison, humor, hedged uncertainty,
                                         or rhetorical framing — no testable outcome.
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400 italic">
+                                    <td className="px-4 py-4 align-top text-ink-2 italic">
                                         &ldquo;They&apos;re playing like it&apos;s
                                         1985.&rdquo;
                                     </td>
-                                    <td className="px-4 py-4 align-top text-zinc-400">
+                                    <td className="px-4 py-4 align-top text-ink-2">
                                         Not scored. Filtered at extraction.
                                     </td>
                                 </tr>
@@ -755,22 +755,22 @@ export default function MethodologyPage() {
                     </div>
 
                     {/* Schema mapping — meets acceptance criterion: public taxonomy maps 1:1 to schema */}
-                    <div className="mt-8 rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-3">
-                        <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-zinc-400">
+                    <div className="mt-8 rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-3">
+                        <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-ink-2">
                             <GitBranch className="w-4 h-4" />
                             Schema Mapping
                         </div>
-                        <p className="text-sm text-zinc-400 leading-relaxed">
+                        <p className="text-sm text-ink-2 leading-relaxed">
                             The public types above map 1:1 to the internal
-                            <span className="font-mono text-emerald-400">
+                            <span className="font-mono text-accent-editorial">
                                 {" "}speech_act_type{" "}
                             </span>
                             field documented in
-                            <span className="font-mono text-zinc-300">
+                            <span className="font-mono text-ink-2">
                                 {" "}pipeline/src/domain_protocol.py
                             </span>
                             . Only claims with
-                            <span className="font-mono text-emerald-400">
+                            <span className="font-mono text-accent-editorial">
                                 {" "}speech_act_type{" "}
                             </span>
                             of
@@ -787,7 +787,7 @@ export default function MethodologyPage() {
             {/* Scoring Formula — explicit, audit-friendly math (#830) */}
             <section
                 id="scoring-formula"
-                className="w-full px-6 py-20 border-t border-zinc-900"
+                className="w-full px-6 py-20 border-t border-editorial-border"
             >
                 <div className="max-w-3xl mx-auto">
                     <SectionHeader
@@ -797,62 +797,62 @@ export default function MethodologyPage() {
                     />
 
                     <div className="space-y-6">
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                        <div className="rounded-2xl border border-editorial-border bg-editorial-card p-6 space-y-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                                <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center shrink-0">
+                                    <CheckCircle2 className="w-5 h-5 text-accent-editorial" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-ink">
                                     binary_correct
                                 </h3>
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 The raw outcome bit, in <span className="font-mono">{`{0, 0.5, 1}`}</span>:
                             </p>
-                            <ul className="text-sm text-zinc-400 space-y-1 ml-1">
+                            <ul className="text-sm text-ink-2 space-y-1 ml-1">
                                 <li>
-                                    <span className="font-mono text-emerald-400">1.0</span>{" "}
+                                    <span className="font-mono text-correct">1.0</span>{" "}
                                     — CORRECT (claim came true)
                                 </li>
                                 <li>
-                                    <span className="font-mono text-yellow-400">0.5</span>{" "}
+                                    <span className="font-mono text-pending">0.5</span>{" "}
                                     — PARTIAL (e.g., predicted score within 3, partial credit)
                                 </li>
                                 <li>
-                                    <span className="font-mono text-red-400">0.0</span>{" "}
+                                    <span className="font-mono text-incorrect">0.0</span>{" "}
                                     — INCORRECT (claim was wrong)
                                 </li>
                             </ul>
-                            <p className="text-sm text-zinc-500 mt-2 leading-relaxed">
+                            <p className="text-sm text-ink-3 mt-2 leading-relaxed">
                                 VOID and PENDING outcomes are <em>excluded</em> — they do
                                 not appear in the denominator of any aggregate.
                             </p>
-                            <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 font-mono text-xs text-zinc-300">
+                            <div className="rounded-lg border border-editorial-border bg-editorial-bg p-3 font-mono text-xs text-ink-2">
                                 accuracy = mean(binary_correct) over resolved, non-VOID predictions
                             </div>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                        <div className="rounded-2xl border border-editorial-border bg-editorial-card p-6 space-y-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <Calculator className="w-5 h-5 text-emerald-400" />
+                                <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center shrink-0">
+                                    <Calculator className="w-5 h-5 text-accent-editorial" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-ink">
                                     weighted_score
                                 </h3>
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 Confidence-adjusted accuracy. A pundit who says
                                 &ldquo;lock of the week&rdquo; (confidence 0.95) and
                                 misses pays a bigger penalty than one who hedges at 0.55
                                 and misses. The formula:
                             </p>
-                            <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 font-mono text-xs text-zinc-300">
+                            <div className="rounded-lg border border-editorial-border bg-editorial-bg p-3 font-mono text-xs text-ink-2">
                                 weighted_score = mean(binary_correct × confidence)
                                 <br />
                                 {"    "}where confidence ∈ [0.5, 1.0]
                             </div>
-                            <p className="text-sm text-zinc-500 leading-relaxed">
+                            <p className="text-sm text-ink-3 leading-relaxed">
                                 Confidence is extracted from the language of the
                                 claim (&ldquo;guaranteed&rdquo;, &ldquo;might&rdquo;,
                                 &ldquo;hammer this&rdquo;) when a pundit doesn&apos;t
@@ -862,41 +862,41 @@ export default function MethodologyPage() {
                             </p>
                         </div>
 
-                        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                        <div className="rounded-2xl border border-editorial-border bg-editorial-card p-6 space-y-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <BarChart3 className="w-5 h-5 text-emerald-400" />
+                                <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center shrink-0">
+                                    <BarChart3 className="w-5 h-5 text-accent-editorial" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-ink">
                                     Brier score
                                 </h3>
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 The gold standard for measuring calibration. For each
                                 probabilistic prediction with stated probability{" "}
                                 <span className="font-mono">p</span> and outcome{" "}
                                 <span className="font-mono">o ∈ {`{0, 1}`}</span>:
                             </p>
-                            <div className="rounded-lg border border-zinc-800 bg-black/40 p-3 font-mono text-xs text-zinc-300">
+                            <div className="rounded-lg border border-editorial-border bg-editorial-bg p-3 font-mono text-xs text-ink-2">
                                 brier_i = (p_i − o_i)²
                                 <br />
                                 brier_overall = mean(brier_i)
                             </div>
-                            <ul className="text-sm text-zinc-400 space-y-1 mt-2">
+                            <ul className="text-sm text-ink-2 space-y-1 mt-2">
                                 <li>
-                                    <span className="font-mono text-emerald-400">0.00</span>{" "}
+                                    <span className="font-mono text-correct">0.00</span>{" "}
                                     — perfect calibration
                                 </li>
                                 <li>
-                                    <span className="font-mono text-yellow-400">0.25</span>{" "}
+                                    <span className="font-mono text-pending">0.25</span>{" "}
                                     — uninformative (random guessing at 50%)
                                 </li>
                                 <li>
-                                    <span className="font-mono text-red-400">1.00</span>{" "}
+                                    <span className="font-mono text-incorrect">1.00</span>{" "}
                                     — maximally wrong with maximum confidence
                                 </li>
                             </ul>
-                            <p className="text-sm text-zinc-500 leading-relaxed">
+                            <p className="text-sm text-ink-3 leading-relaxed">
                                 Lower is better. The Brier score rewards pundits who
                                 say &ldquo;60% confident&rdquo; and are right 60% of
                                 the time — not the ones who say &ldquo;lock&rdquo;
@@ -904,14 +904,14 @@ export default function MethodologyPage() {
                             </p>
                         </div>
 
-                        <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-6">
+                        <div className="rounded-xl border border-accent-editorial/20 bg-accent-editorial/5 p-6">
                             <div className="flex items-start gap-3">
-                                <BookOpen className="w-5 h-5 text-emerald-400 mt-0.5 shrink-0" />
-                                <div className="space-y-2 text-sm text-zinc-300">
-                                    <p className="font-semibold text-zinc-200">
+                                <BookOpen className="w-5 h-5 text-accent-editorial mt-0.5 shrink-0" />
+                                <div className="space-y-2 text-sm text-ink-2">
+                                    <p className="font-semibold text-ink">
                                         Why three numbers, not one?
                                     </p>
-                                    <p className="text-zinc-400 leading-relaxed">
+                                    <p className="text-ink-2 leading-relaxed">
                                         A pundit can have high <span className="font-mono">accuracy</span>{" "}
                                         and a bad <span className="font-mono">Brier score</span> — they hit
                                         often but always at low confidence. Or vice versa: a contrarian who
@@ -929,7 +929,7 @@ export default function MethodologyPage() {
             {/* VOID Criteria — explicit examples (#830 acceptance criterion: ≥ 4 concrete examples) */}
             <section
                 id="void-criteria"
-                className="w-full px-6 py-20 border-t border-zinc-900"
+                className="w-full px-6 py-20 border-t border-editorial-border"
             >
                 <div className="max-w-3xl mx-auto">
                     <SectionHeader
@@ -939,29 +939,29 @@ export default function MethodologyPage() {
                     />
 
                     <div className="space-y-6">
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-3">
-                            <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-zinc-400">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-3">
+                            <div className="flex items-center gap-2 text-sm font-mono uppercase tracking-widest text-ink-2">
                                 <Ban className="w-4 h-4" />
                                 The four VOID conditions
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 A prediction resolves VOID when{" "}
-                                <span className="text-zinc-200 font-medium">
+                                <span className="text-ink font-medium">
                                     any one
                                 </span>{" "}
                                 of the following applies:
                             </p>
-                            <ol className="text-sm text-zinc-300 space-y-2 list-decimal list-inside marker:text-emerald-400">
+                            <ol className="text-sm text-ink-2 space-y-2 list-decimal list-inside marker:text-accent-editorial">
                                 <li>
                                     The underlying event the claim depends on{" "}
-                                    <span className="text-zinc-400">
+                                    <span className="text-ink-2">
                                         was cancelled or never occurred
                                     </span>
                                     .
                                 </li>
                                 <li>
                                     A report was accurate at the time but{" "}
-                                    <span className="text-zinc-400">
+                                    <span className="text-ink-2">
                                         circumstances changed before resolution
                                     </span>{" "}
                                     (trade fell through, injury healed,
@@ -970,14 +970,14 @@ export default function MethodologyPage() {
                                 <li>
                                     A conditional claim&apos;s premise (the
                                     &ldquo;if X&rdquo;){" "}
-                                    <span className="text-zinc-400">
+                                    <span className="text-ink-2">
                                         never resolved
                                     </span>
                                     .
                                 </li>
                                 <li>
                                     Resolution criteria are{" "}
-                                    <span className="text-zinc-400">
+                                    <span className="text-ink-2">
                                         ambiguous and no authoritative ground
                                         truth exists
                                     </span>
@@ -989,21 +989,21 @@ export default function MethodologyPage() {
 
                         {/* Four concrete examples — meets the issue's "≥4 concrete examples" acceptance criterion */}
                         <div className="space-y-4">
-                            <h3 className="text-lg font-bold text-white">
+                            <h3 className="text-lg font-bold text-ink">
                                 Worked examples
                             </h3>
 
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
-                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                            <div className="rounded-xl border border-editorial-border bg-editorial-card p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-pending">
                                     Example 1 — Report, deal fell through
                                 </p>
-                                <p className="text-sm italic text-zinc-300">
+                                <p className="text-sm italic text-ink-2">
                                     &ldquo;The Eagles are finalizing a trade for
                                     DK Metcalf, per sources.&rdquo; — no trade
                                     materializes before the deadline.
                                 </p>
-                                <p className="text-sm text-zinc-400">
-                                    <span className="font-semibold text-zinc-200">
+                                <p className="text-sm text-ink-2">
+                                    <span className="font-semibold text-ink">
                                         Resolution:
                                     </span>{" "}
                                     VOID. The pundit may have accurately
@@ -1013,17 +1013,17 @@ export default function MethodologyPage() {
                                 </p>
                             </div>
 
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
-                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                            <div className="rounded-xl border border-editorial-border bg-editorial-card p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-pending">
                                     Example 2 — Cancelled event
                                 </p>
-                                <p className="text-sm italic text-zinc-300">
+                                <p className="text-sm italic text-ink-2">
                                     &ldquo;Vikings -2.5 on Sunday&rdquo; — the
                                     game is postponed and never rescheduled in
                                     the same season.
                                 </p>
-                                <p className="text-sm text-zinc-400">
-                                    <span className="font-semibold text-zinc-200">
+                                <p className="text-sm text-ink-2">
+                                    <span className="font-semibold text-ink">
                                         Resolution:
                                     </span>{" "}
                                     VOID. The event the claim was about no
@@ -1032,17 +1032,17 @@ export default function MethodologyPage() {
                                 </p>
                             </div>
 
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
-                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                            <div className="rounded-xl border border-editorial-border bg-editorial-card p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-pending">
                                     Example 3 — Conditional premise never met
                                 </p>
-                                <p className="text-sm italic text-zinc-300">
+                                <p className="text-sm italic text-ink-2">
                                     &ldquo;If Mahomes plays, Chiefs win by
                                     10+.&rdquo; — Mahomes is inactive on game
                                     day.
                                 </p>
-                                <p className="text-sm text-zinc-400">
-                                    <span className="font-semibold text-zinc-200">
+                                <p className="text-sm text-ink-2">
+                                    <span className="font-semibold text-ink">
                                         Resolution:
                                     </span>{" "}
                                     VOID. The conditional was never triggered.
@@ -1051,18 +1051,18 @@ export default function MethodologyPage() {
                                 </p>
                             </div>
 
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-2">
-                                <p className="text-xs font-mono uppercase tracking-widest text-yellow-400">
+                            <div className="rounded-xl border border-editorial-border bg-editorial-card p-5 space-y-2">
+                                <p className="text-xs font-mono uppercase tracking-widest text-pending">
                                     Example 4 — Ambiguous resolution criteria
                                 </p>
-                                <p className="text-sm italic text-zinc-300">
+                                <p className="text-sm italic text-ink-2">
                                     &ldquo;The Bears will have a top-tier
                                     defense this year.&rdquo; — &ldquo;top-tier&rdquo;
                                     isn&apos;t defined; the team finishes 12th
                                     by DVOA and 6th by yards allowed.
                                 </p>
-                                <p className="text-sm text-zinc-400">
-                                    <span className="font-semibold text-zinc-200">
+                                <p className="text-sm text-ink-2">
+                                    <span className="font-semibold text-ink">
                                         Resolution:
                                     </span>{" "}
                                     VOID with explanation. If we had a clear
@@ -1074,14 +1074,14 @@ export default function MethodologyPage() {
                             </div>
                         </div>
 
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-5 space-y-2">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-5 space-y-2">
                             <div className="flex items-start gap-3">
-                                <AlertTriangle className="w-5 h-5 text-yellow-400 mt-0.5 shrink-0" />
+                                <AlertTriangle className="w-5 h-5 text-pending mt-0.5 shrink-0" />
                                 <div className="space-y-2 text-sm">
-                                    <p className="font-semibold text-zinc-200">
+                                    <p className="font-semibold text-ink">
                                         VOID is auditable, not a get-out-of-jail card.
                                     </p>
-                                    <p className="text-zinc-400 leading-relaxed">
+                                    <p className="text-ink-2 leading-relaxed">
                                         Every VOID resolution is logged with a
                                         reason code and remains visible on the
                                         prediction&apos;s page. If a pundit
@@ -1097,7 +1097,7 @@ export default function MethodologyPage() {
             </section>
 
             {/* Immutable Ledger */}
-            <section className="w-full px-6 py-20 border-t border-zinc-900">
+            <section className="w-full px-6 py-20 border-t border-editorial-border">
                 <div className="max-w-3xl mx-auto">
                     <SectionHeader
                         label="Integrity"
@@ -1107,45 +1107,45 @@ export default function MethodologyPage() {
 
                     <div className="grid sm:grid-cols-3 gap-6">
                         <div className="space-y-3">
-                            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                                <Lock className="w-5 h-5 text-emerald-400" />
+                            <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center">
+                                <Lock className="w-5 h-5 text-accent-editorial" />
                             </div>
-                            <h3 className="font-semibold text-white">
+                            <h3 className="font-semibold text-ink">
                                 Hash-chained records
                             </h3>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 Each prediction receives a SHA-256 hash that includes the
                                 previous record&apos;s hash — forming an unbroken chain.
                                 Altering any record would break every hash that follows.
                             </p>
                         </div>
                         <div className="space-y-3">
-                            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                                <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                            <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center">
+                                <ShieldCheck className="w-5 h-5 text-accent-editorial" />
                             </div>
-                            <h3 className="font-semibold text-white">
+                            <h3 className="font-semibold text-ink">
                                 Append-only storage
                             </h3>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 The prediction ledger is write-once. No one — not even
                                 us — can edit or delete a prediction after it&apos;s been
                                 recorded. The infrastructure enforces this at every layer.
                             </p>
                         </div>
                         <div className="space-y-3">
-                            <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                                <Eye className="w-5 h-5 text-emerald-400" />
+                            <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-accent-editorial" />
                             </div>
-                            <h3 className="font-semibold text-white">
+                            <h3 className="font-semibold text-ink">
                                 Public verification
                             </h3>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 Chain integrity can be independently verified via our API.
                                 If the data has been tampered with, anyone can detect it.
                             </p>
                             <Link
                                 href="/verify"
-                                className="inline-flex items-center gap-1.5 text-xs text-emerald-400 hover:text-emerald-300 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-xs text-accent-editorial hover:text-accent-editorial-light transition-colors"
                             >
                                 Verify the ledger
                                 <ArrowRight className="w-3 h-3" />
@@ -1156,7 +1156,7 @@ export default function MethodologyPage() {
             </section>
 
             {/* Dispute Process */}
-            <section className="w-full px-6 py-20 border-t border-zinc-900">
+            <section className="w-full px-6 py-20 border-t border-editorial-border">
                 <div className="max-w-3xl mx-auto">
                     <SectionHeader
                         label="Disputes"
@@ -1166,35 +1166,35 @@ export default function MethodologyPage() {
 
                     <div className="space-y-6">
                         <div className="grid sm:grid-cols-2 gap-6">
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-2">
+                            <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-2">
                                 <div className="flex items-center gap-2">
-                                    <Flag className="w-4 h-4 text-emerald-400" />
-                                    <h4 className="font-semibold text-zinc-200">
+                                    <Flag className="w-4 h-4 text-accent-editorial" />
+                                    <h4 className="font-semibold text-ink">
                                         Flag any prediction
                                     </h4>
                                 </div>
-                                <p className="text-sm text-zinc-400">
+                                <p className="text-sm text-ink-2">
                                     Use the flag button on any prediction page. Tell us what
                                     you think we got wrong and include a source.
                                 </p>
                             </div>
-                            <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-2">
+                            <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-2">
                                 <div className="flex items-center gap-2">
-                                    <Brain className="w-4 h-4 text-emerald-400" />
-                                    <h4 className="font-semibold text-zinc-200">
+                                    <Brain className="w-4 h-4 text-accent-editorial" />
+                                    <h4 className="font-semibold text-ink">
                                         5-day review
                                     </h4>
                                 </div>
-                                <p className="text-sm text-zinc-400">
+                                <p className="text-sm text-ink-2">
                                     Flags are reviewed within 5 business days. Confirmed
                                     errors are corrected and logged publicly in the
                                     prediction&apos;s history.
                                 </p>
                             </div>
                         </div>
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
-                            <p className="text-sm text-zinc-400 leading-relaxed">
-                                <span className="font-semibold text-zinc-200">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6">
+                            <p className="text-sm text-ink-2 leading-relaxed">
+                                <span className="font-semibold text-ink">
                                     Important:
                                 </span>{" "}
                                 Pundits cannot unilaterally remove predictions from their
@@ -1203,14 +1203,14 @@ export default function MethodologyPage() {
                                 remains visible with an updated resolution.
                             </p>
                         </div>
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-3">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-3">
                             <div className="flex items-center gap-2">
-                                <Github className="w-4 h-4 text-emerald-400" />
-                                <h4 className="font-semibold text-zinc-200">
+                                <Github className="w-4 h-4 text-accent-editorial" />
+                                <h4 className="font-semibold text-ink">
                                     Dispute publicly on GitHub
                                 </h4>
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 We track adjudication disputes as public issues so
                                 the discussion and outcome are part of the record.
                                 File a dispute with the prediction URL, the current
@@ -1221,24 +1221,24 @@ export default function MethodologyPage() {
                                 href="https://github.com/cap-alpha/cap-alpha-protocol/issues/new?labels=dispute&title=Dispute%3A%20%5Bprediction-id%5D"
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-sm text-accent-editorial hover:text-accent-editorial-light transition-colors"
                             >
                                 Open a dispute issue
                                 <ExternalLink className="w-3.5 h-3.5" />
                             </a>
                         </div>
-                        <p className="text-sm text-zinc-500">
+                        <p className="text-sm text-ink-3">
                             Or email{" "}
                             <a
                                 href="mailto:corrections@cap-alpha.co"
-                                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                                className="text-accent-editorial hover:text-accent-editorial-light transition-colors"
                             >
                                 corrections@cap-alpha.co
                             </a>
                             . Methodology questions:{" "}
                             <a
                                 href="mailto:support@cap-alpha.co"
-                                className="text-emerald-400 hover:text-emerald-300 transition-colors"
+                                className="text-accent-editorial hover:text-accent-editorial-light transition-colors"
                             >
                                 support@cap-alpha.co
                             </a>
@@ -1249,7 +1249,7 @@ export default function MethodologyPage() {
             </section>
 
             {/* Editorial Standards */}
-            <section className="w-full px-6 py-20 border-t border-zinc-900">
+            <section className="w-full px-6 py-20 border-t border-editorial-border">
                 <div className="max-w-3xl mx-auto">
                     <SectionHeader
                         label="Editorial Standards"
@@ -1259,60 +1259,60 @@ export default function MethodologyPage() {
 
                     <div className="space-y-8">
                         {/* 1. Editorial Independence */}
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <Newspaper className="w-5 h-5 text-emerald-400" />
+                                <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center shrink-0">
+                                    <Newspaper className="w-5 h-5 text-accent-editorial" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-ink">
                                     Editorial Independence
                                 </h3>
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 Cap Alpha is not affiliated with any pundit, media
                                 organization, sports team, league, or sportsbook. Pundits
                                 are selected based on volume of public predictions. Scoring
                                 is automated and applies uniformly —{" "}
-                                <span className="text-zinc-200 font-medium">
+                                <span className="text-ink font-medium">
                                     no pundit can pay to be excluded, promoted, or re-scored.
                                 </span>
                             </p>
                         </div>
 
                         {/* 2. Claim Selection Policy */}
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <ListFilter className="w-5 h-5 text-emerald-400" />
+                                <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center shrink-0">
+                                    <ListFilter className="w-5 h-5 text-accent-editorial" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-ink">
                                     Claim Selection Policy
                                 </h3>
                             </div>
                             <div className="space-y-3 text-sm">
-                                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4 space-y-2">
-                                    <p className="font-semibold text-emerald-400 text-xs font-mono uppercase tracking-widest">
+                                <div className="rounded-lg border border-correct/20 bg-correct/5 p-4 space-y-2">
+                                    <p className="font-semibold text-correct text-xs font-mono uppercase tracking-widest">
                                         Categories Tracked
                                     </p>
-                                    <p className="text-zinc-300">
+                                    <p className="text-ink-2">
                                         Game outcome, player performance, trade, draft pick,
                                         injury, contract
                                     </p>
                                 </div>
-                                <div className="rounded-lg border border-red-500/20 bg-red-500/5 p-4 space-y-2">
-                                    <p className="font-semibold text-red-400 text-xs font-mono uppercase tracking-widest">
+                                <div className="rounded-lg border border-incorrect/20 bg-incorrect/5 p-4 space-y-2">
+                                    <p className="font-semibold text-incorrect text-xs font-mono uppercase tracking-widest">
                                         Excluded
                                     </p>
-                                    <p className="text-zinc-400">
+                                    <p className="text-ink-2">
                                         Entertainment predictions, non-sports content, and
                                         ambiguous claims that cannot be objectively resolved
                                     </p>
                                 </div>
-                                <div className="rounded-lg border border-zinc-700 bg-zinc-800/40 p-4 space-y-2">
-                                    <p className="font-semibold text-zinc-300 text-xs font-mono uppercase tracking-widest">
+                                <div className="rounded-lg border border-editorial-border bg-editorial-card p-4 space-y-2">
+                                    <p className="font-semibold text-ink-2 text-xs font-mono uppercase tracking-widest">
                                         Quality Threshold
                                     </p>
-                                    <p className="text-zinc-400">
+                                    <p className="text-ink-2">
                                         A minimum testability threshold (testability score ≥ 0.6)
                                         is required for a claim to enter the ledger
                                     </p>
@@ -1321,75 +1321,75 @@ export default function MethodologyPage() {
                         </div>
 
                         {/* 3. Resolution Sources */}
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <Database className="w-5 h-5 text-emerald-400" />
+                                <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center shrink-0">
+                                    <Database className="w-5 h-5 text-accent-editorial" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-ink">
                                     Resolution Sources
                                 </h3>
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 Outcomes are determined from authoritative public sources:
                             </p>
                             <div className="space-y-2 text-sm">
                                 <div className="flex items-start gap-2">
-                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                                    <p className="text-zinc-400">
-                                        <span className="font-semibold text-zinc-200">
+                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-accent-editorial shrink-0" />
+                                    <p className="text-ink-2">
+                                        <span className="font-semibold text-ink">
                                             Sports Reference / PFR
                                         </span>{" "}
                                         — game outcomes and box scores
                                     </p>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                                    <p className="text-zinc-400">
-                                        <span className="font-semibold text-zinc-200">
+                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-accent-editorial shrink-0" />
+                                    <p className="text-ink-2">
+                                        <span className="font-semibold text-ink">
                                             Spotrac and Over the Cap
                                         </span>{" "}
                                         — contracts and transactions
                                     </p>
                                 </div>
                                 <div className="flex items-start gap-2">
-                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
-                                    <p className="text-zinc-400">
-                                        <span className="font-semibold text-zinc-200">
+                                    <span className="mt-1.5 w-2 h-2 rounded-full bg-accent-editorial shrink-0" />
+                                    <p className="text-ink-2">
+                                        <span className="font-semibold text-ink">
                                             Official league transaction wire
                                         </span>{" "}
                                         — roster moves
                                     </p>
                                 </div>
                             </div>
-                            <p className="text-sm text-zinc-500">
+                            <p className="text-sm text-ink-3">
                                 Edge cases resolved by manual review are logged and
                                 attributed.
                             </p>
                         </div>
 
                         {/* 4. Extraction Transparency */}
-                        <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6 space-y-4">
+                        <div className="rounded-xl border border-editorial-border bg-editorial-card p-6 space-y-4">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0">
-                                    <Cpu className="w-5 h-5 text-emerald-400" />
+                                <div className="w-10 h-10 rounded-lg bg-accent-editorial/10 border border-accent-editorial/20 flex items-center justify-center shrink-0">
+                                    <Cpu className="w-5 h-5 text-accent-editorial" />
                                 </div>
-                                <h3 className="text-lg font-bold text-white">
+                                <h3 className="text-lg font-bold text-ink">
                                     Extraction Transparency
                                 </h3>
                             </div>
-                            <p className="text-sm text-zinc-400 leading-relaxed">
+                            <p className="text-sm text-ink-2 leading-relaxed">
                                 Predictions are extracted using LLM assistance. The model
                                 version and prompt version are logged with each prediction.
                                 The raw verbatim quote is always stored alongside the
                                 extracted structured claim.{" "}
-                                <span className="text-zinc-200 font-medium">
+                                <span className="text-ink font-medium">
                                     Both are publicly visible on every prediction card.
                                 </span>
                             </p>
                             <Link
                                 href="/legal/disclosure"
-                                className="inline-flex items-center gap-1.5 text-sm text-emerald-400 hover:text-emerald-300 transition-colors"
+                                className="inline-flex items-center gap-1.5 text-sm text-accent-editorial hover:text-accent-editorial-light transition-colors"
                             >
                                 View full disclosure
                                 <ExternalLink className="w-3.5 h-3.5" />
@@ -1400,18 +1400,18 @@ export default function MethodologyPage() {
             </section>
 
             {/* CTA */}
-            <section className="w-full px-6 py-16 border-t border-zinc-900">
+            <section className="w-full px-6 py-16 border-t border-editorial-border">
                 <div className="max-w-3xl mx-auto text-center space-y-4">
-                    <h2 className="text-2xl font-bold text-white">
+                    <h2 className="text-2xl font-bold text-ink">
                         See it in action
                     </h2>
-                    <p className="text-zinc-400">
+                    <p className="text-ink-2">
                         Check the leaderboard to see how your favorite pundits
                         actually perform.
                     </p>
                     <Link
                         href="/ledger"
-                        className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-emerald-500 text-black text-sm font-semibold hover:bg-emerald-400 transition-colors"
+                        className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-accent-editorial text-white text-sm font-semibold hover:bg-accent-editorial-light transition-colors"
                     >
                         View Leaderboard <ArrowRight className="w-4 h-4" />
                     </Link>

@@ -157,14 +157,14 @@ function CryptoUpgradeButton({ plan, className }: { plan: string; className?: st
             disabled={loading}
             className={
                 className ??
-                "w-full py-2 rounded-lg text-xs font-medium border border-zinc-700 bg-zinc-900 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
+                "w-full py-2 rounded-lg text-xs font-medium border border-editorial-border bg-editorial-card text-ink-2 hover:border-ink-3 hover:text-ink disabled:opacity-50 transition-colors flex items-center justify-center gap-1.5"
             }
         >
             {loading ? (
                 "Redirecting…"
             ) : (
                 <>
-                    <span className="text-blue-400 font-semibold">USDC</span>
+                    <span className="text-accent-editorial font-semibold">USDC</span>
                     Pay with crypto
                 </>
             )}
@@ -215,7 +215,7 @@ function LemonSqueezyUpgradeButton({
             disabled={loading}
             className={
                 className ??
-                "w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-60 text-sm font-semibold text-black transition-colors"
+                "w-full py-2.5 rounded-lg bg-accent-editorial hover:bg-accent-editorial-light disabled:opacity-60 text-sm font-semibold text-white transition-colors"
             }
         >
             {loading ? "Redirecting…" : label}
@@ -416,22 +416,22 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
 
     const btnBase =
         "px-4 py-2.5 rounded-lg border text-sm font-medium transition-all cursor-pointer";
-    const btnUnselected = "border-zinc-700 bg-zinc-900 text-zinc-300 hover:border-zinc-500 hover:text-white";
-    const btnSelected = "border-emerald-500 bg-emerald-500/10 text-emerald-400";
+    const btnUnselected = "border-editorial-border bg-editorial-card text-ink-2 hover:border-ink-3 hover:text-ink";
+    const btnSelected = "border-accent-editorial bg-accent-editorial/10 text-accent-editorial";
 
     if (state.step === "done") {
         return (
-            <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 flex items-center justify-between gap-4 flex-wrap">
-                <p className="text-sm text-zinc-400">
+            <div className="rounded-2xl border border-editorial-border bg-editorial-card p-6 flex items-center justify-between gap-4 flex-wrap">
+                <p className="text-sm text-ink-2">
                     Based on your answers, we recommend{" "}
-                    <span className="text-emerald-400 font-semibold">
+                    <span className="text-accent-editorial font-semibold">
                         {TIERS.find((t) => t.key === state.recommendation)?.name}
                     </span>
                     .
                 </p>
                 <button
                     onClick={() => dispatch({ type: "RESET" })}
-                    className="text-xs text-zinc-500 hover:text-zinc-300 underline transition-colors"
+                    className="text-xs text-ink-3 hover:text-ink-2 underline transition-colors"
                 >
                     Start over
                 </button>
@@ -440,15 +440,15 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
     }
 
     return (
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-6 space-y-5">
-            <p className="text-xs font-mono uppercase tracking-widest text-zinc-500">
+        <div className="rounded-2xl border border-editorial-border bg-editorial-card p-6 space-y-5">
+            <p className="text-xs font-mono uppercase tracking-widest text-ink-3">
                 Help me choose
             </p>
 
             {/* Step 1 */}
             <div>
-                <p className="text-sm text-zinc-300 mb-3">
-                    <span className="text-zinc-500 mr-2">1 of {state.step === 3 ? "3" : "2+"}.</span>
+                <p className="text-sm text-ink-2 mb-3">
+                    <span className="text-ink-3 mr-2">1 of {state.step === 3 ? "3" : "2+"}.</span>
                     I am a…
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -476,8 +476,8 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
             {/* Step 2 */}
             {(state.step === 2 || state.step === 3) && (
                 <div>
-                    <p className="text-sm text-zinc-300 mb-3">
-                        <span className="text-zinc-500 mr-2">2.</span>
+                    <p className="text-sm text-ink-2 mb-3">
+                        <span className="text-ink-3 mr-2">2.</span>
                         I care most about…
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -505,8 +505,8 @@ function QuizPanel({ onRecommend }: QuizPanelProps) {
             {/* Step 3 — conditional on API */}
             {state.step === 3 && (
                 <div>
-                    <p className="text-sm text-zinc-300 mb-3">
-                        <span className="text-zinc-500 mr-2">3.</span>
+                    <p className="text-sm text-ink-2 mb-3">
+                        <span className="text-ink-3 mr-2">3.</span>
                         How many API calls per month?
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -545,12 +545,12 @@ function FeatureMatrix({ annual, recommendedTier }: FeatureMatrixProps) {
     const tierOrder: TierKey[] = ["free", "pro", "api_starter", "api_growth", "agent_standard", "agent_pro"];
 
     return (
-        <div className="overflow-x-auto rounded-2xl border border-zinc-800">
+        <div className="overflow-x-auto rounded-2xl border border-editorial-border">
             <table className="w-full min-w-[640px] text-sm border-collapse">
                 {/* Sticky header */}
                 <thead>
-                    <tr className="border-b border-zinc-800">
-                        <th className="sticky left-0 z-10 bg-zinc-950 text-left px-5 py-4 font-medium text-zinc-400 w-56">
+                    <tr className="border-b border-editorial-border">
+                        <th className="sticky left-0 z-10 bg-editorial-bg text-left px-5 py-4 font-medium text-ink-2 w-56">
                             Feature
                         </th>
                         {TIERS.map((tier) => {
@@ -561,20 +561,20 @@ function FeatureMatrix({ annual, recommendedTier }: FeatureMatrixProps) {
                                     key={tier.key}
                                     className={`px-5 py-4 text-center font-semibold ${
                                         isPro
-                                            ? "text-emerald-400"
-                                            : "text-zinc-300"
+                                            ? "text-accent-editorial"
+                                            : "text-ink-2"
                                     } ${isRecommended ? "relative" : ""}`}
                                 >
                                     <div className="flex flex-col items-center gap-1">
                                         <span>{tier.name}</span>
-                                        <span className="text-xs font-mono font-normal text-zinc-500">
+                                        <span className="text-xs font-mono font-normal text-ink-3">
                                             {formatPrice(tier.monthlyPrice, annual)}
                                             {tier.monthlyPrice > 0 && (
-                                                <span className="text-zinc-600">/mo</span>
+                                                <span className="text-ink-3">/mo</span>
                                             )}
                                         </span>
                                         {isRecommended && (
-                                            <span className="text-[10px] font-mono uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-2 py-0.5 animate-pulse">
+                                            <span className="text-[10px] font-mono uppercase tracking-wider bg-accent-editorial/20 text-accent-editorial border border-accent-editorial/30 rounded-full px-2 py-0.5 animate-pulse">
                                                 Recommended for you
                                             </span>
                                         )}
@@ -588,11 +588,11 @@ function FeatureMatrix({ annual, recommendedTier }: FeatureMatrixProps) {
                     {MATRIX_ROWS.map((row, i) => (
                         <tr
                             key={row.label}
-                            className={`border-b border-zinc-800/60 ${
-                                i % 2 === 0 ? "bg-zinc-950" : "bg-zinc-900/30"
+                            className={`border-b border-editorial-border ${
+                                i % 2 === 0 ? "bg-editorial-bg" : "bg-editorial-card"
                             }`}
                         >
-                            <td className="sticky left-0 z-10 px-5 py-3.5 text-zinc-300 font-medium bg-inherit">
+                            <td className="sticky left-0 z-10 px-5 py-3.5 text-ink-2 font-medium bg-inherit">
                                 {row.label}
                             </td>
                             {tierOrder.map((key) => {
@@ -604,20 +604,20 @@ function FeatureMatrix({ annual, recommendedTier }: FeatureMatrixProps) {
                                         key={key}
                                         className={`px-5 py-3.5 text-center ${
                                             isPro
-                                                ? "border-x border-emerald-500/20"
+                                                ? "border-x border-accent-editorial/20"
                                                 : ""
                                         } ${
                                             isRecommended && !isPro
-                                                ? "border-x border-emerald-400/30"
+                                                ? "border-x border-accent-editorial/30"
                                                 : ""
                                         }`}
                                     >
                                         {val === "✓" ? (
-                                            <span className="text-emerald-400 font-bold">✓</span>
+                                            <span className="text-correct font-bold">✓</span>
                                         ) : val === "—" ? (
-                                            <span className="text-zinc-700">—</span>
+                                            <span className="text-ink-3">—</span>
                                         ) : (
-                                            <span className="text-zinc-400 text-xs font-mono">{val}</span>
+                                            <span className="text-ink-2 text-xs font-mono">{val}</span>
                                         )}
                                     </td>
                                 );
@@ -652,7 +652,7 @@ export function PricingClient() {
             {/* ── Annual / Monthly toggle ── */}
             <div className="flex items-center justify-center gap-3">
                 <span
-                    className={`text-sm ${!annual ? "text-white font-medium" : "text-zinc-500"}`}
+                    className={`text-sm ${!annual ? "text-ink font-medium" : "text-ink-3"}`}
                 >
                     Monthly
                 </span>
@@ -661,20 +661,20 @@ export function PricingClient() {
                     aria-checked={annual}
                     onClick={() => setAnnual(!annual)}
                     className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        annual ? "bg-emerald-500" : "bg-zinc-700"
+                        annual ? "bg-accent-editorial" : "bg-editorial-border"
                     }`}
                 >
                     <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                        className={`inline-block h-4 w-4 transform rounded-full bg-editorial-card shadow transition-transform ${
                             annual ? "translate-x-6" : "translate-x-1"
                         }`}
                     />
                 </button>
                 <span
-                    className={`text-sm ${annual ? "text-white font-medium" : "text-zinc-500"}`}
+                    className={`text-sm ${annual ? "text-ink font-medium" : "text-ink-3"}`}
                 >
                     Annual{" "}
-                    <span className="text-emerald-400 text-xs font-mono">(save 20%)</span>
+                    <span className="text-accent-editorial text-xs font-mono">(save 20%)</span>
                 </span>
             </div>
 
@@ -688,46 +688,46 @@ export function PricingClient() {
                             data-tier={tier.key}
                             className={`rounded-2xl p-6 space-y-4 flex flex-col transition-all ${
                                 isRecommended
-                                    ? "ring-2 ring-emerald-400 ring-offset-2 ring-offset-black"
+                                    ? "ring-2 ring-accent-editorial ring-offset-2 ring-offset-editorial-bg"
                                     : ""
                             } ${
                                 tier.highlight
-                                    ? "border border-emerald-500/40 bg-emerald-500/5"
-                                    : "border border-zinc-800 bg-zinc-900/50"
+                                    ? "border border-accent-editorial/40 bg-accent-editorial/5"
+                                    : "border border-editorial-border bg-editorial-card"
                             }`}
                         >
                             <div>
                                 <div
                                     className={`text-xs font-mono uppercase tracking-widest mb-1 ${
-                                        tier.highlight ? "text-emerald-400" : "text-zinc-500"
+                                        tier.highlight ? "text-accent-editorial" : "text-ink-3"
                                     }`}
                                 >
                                     {tier.name}
                                     {isRecommended && (
-                                        <span className="ml-2 text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-full px-1.5 py-0.5 animate-pulse">
+                                        <span className="ml-2 text-[10px] bg-accent-editorial/20 text-accent-editorial border border-accent-editorial/30 rounded-full px-1.5 py-0.5 animate-pulse">
                                             Recommended
                                         </span>
                                     )}
                                 </div>
                                 <div className="flex items-baseline gap-0.5">
-                                    <span className="text-2xl font-black text-white">
+                                    <span className="text-2xl font-black text-ink">
                                         {formatPrice(tier.monthlyPrice, annual)}
                                     </span>
                                     {tier.monthlyPrice > 0 && (
-                                        <span className="text-zinc-500 text-sm">/mo</span>
+                                        <span className="text-ink-3 text-sm">/mo</span>
                                     )}
                                 </div>
                                 {annual && tier.monthlyPrice > 0 && (
-                                    <p className="text-xs text-zinc-600 mt-0.5">
+                                    <p className="text-xs text-ink-3 mt-0.5">
                                         billed ${Math.round(tier.monthlyPrice * ANNUAL_DISCOUNT * 12)}/yr
                                     </p>
                                 )}
                             </div>
 
-                            <ul className="space-y-2 text-sm text-zinc-400 flex-1">
+                            <ul className="space-y-2 text-sm text-ink-2 flex-1">
                                 {tier.features.map((f) => (
                                     <li key={f} className="flex items-start gap-2">
-                                        <span className="text-emerald-400 mt-0.5">✓</span>
+                                        <span className="text-correct mt-0.5">✓</span>
                                         {f}
                                     </li>
                                 ))}
@@ -741,8 +741,8 @@ export function PricingClient() {
                                         label={tier.cta.label}
                                         className={`w-full py-2.5 rounded-lg text-sm font-semibold transition-colors ${
                                             tier.highlight
-                                                ? "bg-emerald-500 hover:bg-emerald-400 text-black"
-                                                : "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700"
+                                                ? "bg-accent-editorial hover:bg-accent-editorial-light text-white"
+                                                : "bg-editorial-card hover:bg-editorial-border text-ink border border-editorial-border"
                                         }`}
                                     />
                                     {/* USDC alternative (Coinbase Commerce) */}
@@ -756,7 +756,7 @@ export function PricingClient() {
                             ) : (
                                 <Link
                                     href="/ledger"
-                                    className="block text-center py-2.5 rounded-lg border border-zinc-700 text-sm font-medium text-zinc-300 hover:border-zinc-500 hover:text-white transition-colors"
+                                    className="block text-center py-2.5 rounded-lg border border-editorial-border text-sm font-medium text-ink-2 hover:border-ink-3 hover:text-ink transition-colors"
                                 >
                                     View Leaderboard
                                 </Link>
@@ -771,7 +771,7 @@ export function PricingClient() {
 
             {/* ── Feature comparison matrix ── */}
             <div ref={matrixRef}>
-                <h2 className="text-lg font-semibold text-white mb-4">Compare all features</h2>
+                <h2 className="text-lg font-semibold text-ink mb-4">Compare all features</h2>
                 <FeatureMatrix annual={annual} recommendedTier={recommendedTier} />
             </div>
         </div>

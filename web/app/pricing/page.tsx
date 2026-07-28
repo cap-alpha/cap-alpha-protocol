@@ -9,11 +9,11 @@ export const metadata = {
 
 export default function PricingPage() {
     return (
-        <main className="bg-black text-white min-h-[100dvh] px-6 py-20">
+        <main className="bg-editorial-bg text-ink min-h-[100dvh] px-6 py-20">
             <PageContainer size="5xl" className="space-y-12">
                 <div className="text-center space-y-3">
                     <DisplayHeading size="md">Pricing</DisplayHeading>
-                    <p className="text-zinc-400 max-w-xl mx-auto">
+                    <p className="text-ink-2 max-w-xl mx-auto">
                         Choose how deeply you want to hold pundits accountable. All plans include the
                         cryptographically verified ledger.
                     </p>
@@ -21,9 +21,9 @@ export default function PricingPage() {
 
                 <PricingClient />
 
-                <p className="text-center text-xs text-zinc-600">
+                <p className="text-center text-xs text-ink-3">
                     Enterprise pricing available for teams and media organizations.{" "}
-                    <a href="mailto:hello@cap-alpha.co" className="underline hover:text-zinc-400">
+                    <a href="mailto:hello@cap-alpha.co" className="underline hover:text-ink-2">
                         Contact us.
                     </a>
                 </p>

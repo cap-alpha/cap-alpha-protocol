@@ -40,3 +40,7 @@ tenacity
 sentry-sdk[fastapi]>=2.66.0
 Jinja2>=3.1.6
 fastmcp>=3.4.4,<4.0
+# pipeline/src/matching/embed.py (#1133) -- local CPU embeddings for the
+# Stage-1 news->claim retrieval funnel. ONNX Runtime backed, no torch/GPU.
+fastembed
+numpy

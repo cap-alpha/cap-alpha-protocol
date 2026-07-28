@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { DisplayHeading } from "@/components/ui/heading";
 import { WaitlistForm } from "@/components/waitlist-form";
 import { PunditLeaderboardPreview } from "@/components/pundit-leaderboard-preview";
 import { TrackedPredictionCard } from "@/components/tracked-prediction-card";
@@ -69,16 +68,11 @@ export default async function LandingPage() {
                     {/* Hero headline — 2 lines max. Playfair Display at weight 700,
                         not 900 (#1069 AC) — this is the one hero headline on the
                         page, per the brief's "font-black outside of single hero
-                        headline" rule, but the brief also caps display type at 700.
-                        #1070 Phase 2: mapped to `display-md` (the only display-*
-                        tier that is weight 700 — display-lg/xl are 800/900 and
-                        would violate the #1069 AC), flat/non-responsive rather
-                        than the old 3xl→5xl→6xl step-up. See PR body for the
-                        documented trade-off. */}
-                    <DisplayHeading size="md" className="font-display text-ink">
+                        headline" rule, but the brief also caps display type at 700. */}
+                    <h1 className="font-display font-bold text-3xl sm:text-5xl lg:text-6xl tracking-tight leading-tight text-ink">
                         Sports pundits guess.{" "}
                         <span className="text-navy">We keep the receipts.</span>
-                    </DisplayHeading>
+                    </h1>
                     <p className="text-base sm:text-lg text-ink-2 leading-snug">
                         Every prediction logged. Every verdict public.
                     </p>

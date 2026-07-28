@@ -99,6 +99,8 @@ jobs:
             case "$f" in
               pipeline/src/assertion_extractor.py|\
               pipeline/src/llm_provider.py|\
+              pipeline/src/db_manager.py|\
+              pipeline/scripts/check_extraction_health.py|\
               pipeline/config/llm_config.yaml|\
               .github/workflows/pundit_pipeline.yml)
                 TOUCHED=true
@@ -138,6 +140,7 @@ jobs:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Run extraction smoke test
+        id: run_smoke
         if: steps.paths.outputs.touched == 'true' && steps.auth.outcome == 'success'
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -149,3 +152,33 @@ jobs:
           python pipeline/scripts/run_extraction_smoke.py \
             --fixture pipeline/tests/fixtures/smoke_transcript.txt \
             --dataset silver_v2_claims_ci_smoke
+
+      # ---------------------------------------------------------------------
+      # Issue #1120 — the "Run extraction smoke test" step above is gated on
+      # `steps.auth.outcome == 'success'`, and the auth step has
+      # `continue-on-error: true`. Before this gate step existed, a GCP auth
+      # failure (e.g. GCP_SA_KEY resolving empty, as happened when the secret
+      # was wiped during the 2026-07-16 pause) made the smoke step SKIP
+      # silently while the job still reported overall SUCCESS — every
+      # extraction-touching PR merged on a green check that ran nothing.
+      # This step closes that gap: when extraction paths were touched, the
+      # job now FAILS unless the smoke test actually executed and passed.
+      # `if: always()` guarantees this assertion runs even if an earlier
+      # step failed, so a non-executing smoke test can never report green.
+      # ---------------------------------------------------------------------
+      - name: Assert smoke test actually executed (#1120)
+        if: always() && steps.paths.outputs.touched == 'true'
+        run: |
+          if [[ "${{ steps.auth.outcome }}" == "failure" ]]; then
+            echo "::error::GCP authentication failed (steps.auth.outcome=failure) — the smoke test was skipped as a result. See issue #1120. Check GCP_SA_KEY / its expiry." >&2
+            exit 1
+          fi
+          if [[ "${{ steps.run_smoke.outcome }}" == "skipped" ]]; then
+            echo "::error::Extraction smoke test did not execute even though extraction paths were touched (steps.run_smoke.outcome=skipped). See issue #1120." >&2
+            exit 1
+          fi
+          if [[ "${{ steps.run_smoke.outcome }}" == "failure" ]]; then
+            echo "::error::Extraction smoke test ran and failed — see the 'Run extraction smoke test' step log above." >&2
+            exit 1
+          fi
+          echo "Smoke test executed and passed (steps.run_smoke.outcome=${{ steps.run_smoke.outcome }})."

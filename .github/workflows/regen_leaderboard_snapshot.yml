@@ -8,6 +8,15 @@ name: Regen Leaderboard Snapshot
 # pushes to main). The PR reuses a single branch — successive regens
 # update the same PR rather than piling up duplicates. Skips the PR
 # step entirely when there is no diff.
+#
+# PR creation authenticates as the cap-alpha-workflow-automation GitHub App
+# (via actions/create-github-app-token) rather than the default GITHUB_TOKEN.
+# The org has "Allow GitHub Actions to create and approve pull requests"
+# disabled (an off-limits org setting), so a workflow-scoped GITHUB_TOKEN
+# cannot open a PR — every run failed with "GitHub Actions is not permitted
+# to create or approve pull requests" until this change. The App is exempt
+# from that restriction because it authenticates as an installed GitHub App,
+# not as the default Actions bot identity.
 
 on:
   schedule:
@@ -30,10 +39,17 @@ jobs:
       id-token: write
 
     steps:
+      - name: Mint GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.CAP_ALPHA_APP_ID }}
+          private-key: ${{ secrets.CAP_ALPHA_APP_PRIVATE_KEY }}
+
       - name: Checkout
         uses: actions/checkout@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -91,7 +107,7 @@ jobs:
         if: steps.diff.outputs.changed == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}
           commit-message: |
             chore(snapshot): scheduled leaderboard snapshot regen
 

@@ -1,0 +1,75 @@
+name: Deploy Cloud Run API
+
+# Closes the deploy gap from issue #1183: merges touching pipeline/api/**
+# built + pushed the Docker image nowhere. production.yml (Vercel) already
+# triggers on pipeline/api/** too, but it only ever deploys the Next.js app —
+# nothing redeployed the actual FastAPI backend (pundit-ledger-api on Cloud
+# Run). This workflow is a separate job from production.yml on purpose: the
+# two deploy different services (Vercel web app vs. Cloud Run API) to
+# different targets, so both firing on the same push is correct, not a
+# double-deploy of the same thing.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pipeline/api/**'
+      - 'Dockerfile.api'
+      - 'cloudbuild-api.yaml'
+      - 'pipeline/requirements-api.txt'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cloud-run-api
+  cancel-in-progress: false
+
+jobs:
+  deploy-api:
+    name: Build + Deploy pundit-ledger-api
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write  # Required for Workload Identity Federation OIDC token request
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+
+      # Same WIF-preferred / JSON-key-fallback identities as pundit_pipeline.yml
+      # and regen_leaderboard_snapshot.yml: vars.WORKLOAD_IDENTITY_PROVIDER,
+      # vars.GCP_SERVICE_ACCOUNT_EMAIL, secrets.GCP_SERVICE_ACCOUNT_JSON. No new
+      # secrets. One deliberate difference from those workflows: this job runs
+      # `gcloud builds submit` (the gcloud CLI itself), not just Python
+      # BigQuery/Storage client libraries — so the JSON-key branch passes the
+      # key straight to the `auth` action's `credentials_json` input instead
+      # of hand-writing a file + GOOGLE_APPLICATION_CREDENTIALS (that pattern
+      # only satisfies Python ADC, not gcloud CLI auth). Using `auth` for both
+      # branches means both set GOOGLE_GHA_CREDS_PATH, which setup-gcloud below
+      # auto-detects to authenticate the CLI — the officially documented
+      # auth + setup-gcloud pairing.
+      - name: Authenticate to GCP (Workload Identity)
+        id: auth_wif
+        if: vars.WORKLOAD_IDENTITY_PROVIDER != ''
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT_EMAIL }}
+
+      - name: Authenticate to GCP (JSON key fallback)
+        id: auth_json
+        if: vars.WORKLOAD_IDENTITY_PROVIDER == ''
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Build + deploy pundit-ledger-api
+        run: |
+          gcloud builds submit \
+            --config cloudbuild-api.yaml \
+            --project "${{ secrets.GCP_PROJECT_ID }}"

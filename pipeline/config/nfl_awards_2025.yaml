@@ -7,33 +7,42 @@
 # Award name keys match the keyword sets in _parse_award_claim():
 #   mvp, opoy, dpoy, offensive_rookie, defensive_rookie, coach_of_the_year,
 #   comeback_player, walter_payton_man_of_the_year, super_bowl_mvp
+#
+# Populated 2026-07 (Issue #1167) from the 15th annual NFL Honors ceremony
+# (San Francisco, 2026-02-06) plus Super Bowl LX (2026-02-08). Every winner
+# below is cross-verified against at least two authoritative sources:
+#   - https://www.nfl.com/news/list-of-nfl-honors-award-winners-from-2025-nfl-season
+#   - https://www.espn.com/nfl/story/_/id/47810326/2026-nfl-honors-won-league-biggest-awards
+#   - https://www.nfl.com/news/seahawks-rb-kenneth-walker-iii-named-super-bowl-lx-mvp
+#     (Super Bowl MVP; NFL Honors is held before the Super Bowl, so it is not
+#     in the NFL Honors recap articles above.)
 
 season: 2025
 
 awards:
   # AP Most Valuable Player
-  mvp: null
+  mvp: "Matthew Stafford"
 
   # AP Offensive Player of the Year
-  opoy: null
+  opoy: "Jaxon Smith-Njigba"
 
   # AP Defensive Player of the Year
-  dpoy: null
+  dpoy: "Myles Garrett"
 
   # AP Offensive Rookie of the Year
-  offensive_rookie: null
+  offensive_rookie: "Tetairoa McMillan"
 
   # AP Defensive Rookie of the Year
-  defensive_rookie: null
+  defensive_rookie: "Carson Schwesinger"
 
   # AP Coach of the Year
-  coach_of_the_year: null
+  coach_of_the_year: "Mike Vrabel"
 
   # AP Comeback Player of the Year
-  comeback_player: null
+  comeback_player: "Christian McCaffrey"
 
   # Walter Payton NFL Man of the Year
-  walter_payton_man_of_the_year: null
+  walter_payton_man_of_the_year: "Bobby Wagner"
 
-  # Super Bowl MVP (same season)
-  super_bowl_mvp: null
+  # Super Bowl MVP (same season) — Super Bowl LX, 2026-02-08
+  super_bowl_mvp: "Kenneth Walker III"

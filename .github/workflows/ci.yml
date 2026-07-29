@@ -107,7 +107,11 @@ jobs:
                 echo "  → extraction path touched: $f"
                 ;;
             esac
-            if echo "$f" | grep -qE '^pipeline/migrations/01[5-9]_.*\.sql$'; then
+            # Match migrations 015 and up (0(1[5-9]|[2-9][0-9]) = 015-099).
+            # The old 01[5-9] fence silently stopped triggering at 019 while
+            # the repo advanced past 030, re-opening the exact #1120 gap for
+            # every new extraction migration.
+            if echo "$f" | grep -qE '^pipeline/migrations/0(1[5-9]|[2-9][0-9])_.*\.sql$'; then
               TOUCHED=true
               echo "  → extraction migration touched: $f"
             fi
@@ -173,12 +177,11 @@ jobs:
             echo "::error::GCP authentication failed (steps.auth.outcome=failure) — the smoke test was skipped as a result. See issue #1120. Check GCP_SA_KEY / its expiry." >&2
             exit 1
           fi
-          if [[ "${{ steps.run_smoke.outcome }}" == "skipped" ]]; then
-            echo "::error::Extraction smoke test did not execute even though extraction paths were touched (steps.run_smoke.outcome=skipped). See issue #1120." >&2
-            exit 1
-          fi
-          if [[ "${{ steps.run_smoke.outcome }}" == "failure" ]]; then
-            echo "::error::Extraction smoke test ran and failed — see the 'Run extraction smoke test' step log above." >&2
+          # Assert the ONE good outcome rather than enumerating bad ones — this
+          # also catches outcome=cancelled, which the prior skipped/failure
+          # checks let fall through to the success message.
+          if [[ "${{ steps.run_smoke.outcome }}" != "success" ]]; then
+            echo "::error::Extraction smoke test did not run to success (steps.run_smoke.outcome=${{ steps.run_smoke.outcome }}) even though extraction paths were touched. See issue #1120." >&2
             exit 1
           fi
           echo "Smoke test executed and passed (steps.run_smoke.outcome=${{ steps.run_smoke.outcome }})."

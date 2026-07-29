@@ -31,9 +31,12 @@ class TestUnparseableNotesVocab(unittest.TestCase):
 
     def test_unparseable_notes_values_are_plain_strings(self):
         # An Enum member (instead of its .value) would never match outcome_notes
-        # in the SQL IN clause.
+        # in the SQL IN clause. VoidReason is a `str, Enum`, so isinstance(...,
+        # str) is True for members too — use an identity check on the concrete
+        # type so a stray enum member is actually caught (an enum member renders
+        # as "VoidReason.X" in the f-string that builds the SQL).
         for note in UNPARSEABLE_NOTES:
-            assert isinstance(note, str)
+            assert type(note) is str
 
 
 # ---------------------------------------------------------------------------

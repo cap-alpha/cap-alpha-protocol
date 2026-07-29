@@ -23,7 +23,12 @@
 CREATE TABLE IF NOT EXISTS `{project_id}.silver_v2_claims.claim_embedding`
 (
   claim_id     STRING         NOT NULL  OPTIONS(description="FK to silver_v2_claims.claim.claim_id being embedded."),
-  embedding    ARRAY<FLOAT64> NOT NULL  OPTIONS(description="Dense embedding vector of the claim's raw_utterance.text, produced by model_id. 384-dim for the default model_id BAAI/bge-small-en-v1.5 -- see pipeline/src/matching/embed.py."),
+  -- NOTE: ARRAY columns cannot be declared NOT NULL in BigQuery ("NOT NULL
+  -- cannot be applied to ARRAY field; NULL arrays are always stored as an empty
+  -- array"). An empty array is the effective "no embedding" state; writers
+  -- always populate it. Do not add NOT NULL here — it makes the migration a
+  -- hard 400.
+  embedding    ARRAY<FLOAT64>  OPTIONS(description="Dense embedding vector of the claim's raw_utterance.text, produced by model_id. 384-dim for the default model_id BAAI/bge-small-en-v1.5 -- see pipeline/src/matching/embed.py."),
   model_id     STRING         NOT NULL  OPTIONS(description="Embedding model identifier, e.g. BAAI/bge-small-en-v1.5. Part of this table's effective key: one row per (claim_id, model_id); re-embedding under a new model_id inserts a NEW row rather than overwriting the old one, so old vectors are never silently lost on a model upgrade."),
   embedded_at  TIMESTAMP      NOT NULL  OPTIONS(description="UTC wall-clock time this embedding was computed.")
 )

@@ -103,12 +103,26 @@ class TestSchema:
                 f"Expected column '{col}' not found in migration SQL"
             )
 
-    def test_all_columns_not_null(self, migration_sql):
-        """Every column in this table is required -- there is no
-        legitimate NULL state for a fully-written embedding row."""
-        for col in self.EXPECTED_COLUMNS:
+    # BigQuery rejects NOT NULL on ARRAY columns ("NULL arrays are always stored
+    # as an empty array"), so `embedding` must NOT be NOT NULL — declaring it so
+    # is a hard 400 that aborts the whole migration step (incident 2026-07-29).
+    NOT_NULL_COLUMNS = {"claim_id", "model_id", "embedded_at"}
+
+    def test_scalar_columns_not_null(self, migration_sql):
+        """Every scalar column is required. `embedding` (ARRAY) is excluded:
+        BigQuery disallows NOT NULL on ARRAY fields."""
+        for col in self.NOT_NULL_COLUMNS:
             match = re.search(rf"\b{col}\s+\S+(<\S+>)?\s+NOT NULL", migration_sql)
             assert match, f"Column '{col}' is not declared NOT NULL"
+
+    def test_embedding_array_is_not_not_null(self, migration_sql):
+        """Regression: the embedding ARRAY column must NOT carry NOT NULL, or
+        BigQuery 400s the migration (incident 2026-07-29)."""
+        assert not re.search(
+            r"\bembedding\s+ARRAY<FLOAT64>\s+NOT NULL", migration_sql
+        ), (
+            "embedding ARRAY<FLOAT64> must not be declared NOT NULL (BigQuery rejects it)"
+        )
 
     def test_uses_project_id_placeholder(self, migration_sql):
         """Matches every other migration's envsubst convention --

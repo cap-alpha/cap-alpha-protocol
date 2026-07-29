@@ -521,6 +521,53 @@ class TestPodcastFetcherRegistration:
         assert items[0].source_url == "https://traffic.megaphone.fm/ep99.mp3"
 
     @patch("src.media_ingestor.feedparser")
+    def test_podcast_content_hash_is_stable_across_enclosure_prefix_change(
+        self, mock_fp
+    ):
+        """#1174: the enclosure URL has a volatile ad-measurement prefix
+        (pdst.fm/... etc.). The dedup content_hash must key off the stable <guid>,
+        so the SAME episode does not re-ingest as new when the publisher swaps
+        analytics providers. source_url still displays the (new) enclosure URL."""
+
+        def _one_item(enclosure_href):
+            entry = MagicMock()
+            entry.get = lambda k, d=None: {
+                "title": "Bill Simmons Podcast: NFL Bets",
+                "link": "",
+                "enclosures": [{"href": enclosure_href}],
+                "id": "gid://megaphone/ep99",  # stable guid across both fetches
+            }.get(k, d)
+            entry.published_parsed = None
+            type(entry).summary = property(lambda self: "Some NFL betting predictions.")
+            entry.content = []
+            entry.tags = []
+            mock_feed = MagicMock()
+            mock_feed.bozo = False
+            mock_feed.entries = [entry]
+            mock_fp.parse.return_value = mock_feed
+            source = {
+                "id": "bill_simmons_podcast",
+                "name": "Bill Simmons",
+                "type": "podcast",
+                "url": "https://feeds.megaphone.fm/bs",
+                "pundits": [],
+            }
+            return FETCHERS["podcast"](source, {"max_items_per_feed": 10})[0]
+
+        old = _one_item("https://pdst.fm/e/traffic.megaphone.fm/ep99.mp3")
+        new = _one_item("https://chtbl.com/track/XYZ/traffic.megaphone.fm/ep99.mp3")
+
+        assert old.content_hash == new.content_hash, (
+            "content_hash must follow the stable <guid>, not the volatile "
+            "enclosure prefix — otherwise a provider swap re-ingests history"
+        )
+        # display URL still reflects the current enclosure so the episode plays
+        assert (
+            new.source_url
+            == "https://chtbl.com/track/XYZ/traffic.megaphone.fm/ep99.mp3"
+        )
+
+    @patch("src.media_ingestor.feedparser")
     def test_podcast_entry_without_link_or_enclosure_falls_back_to_guid(self, mock_fp):
         """No link, no enclosure, but a <guid>/<id> — still ingestible via id."""
         entry = MagicMock()

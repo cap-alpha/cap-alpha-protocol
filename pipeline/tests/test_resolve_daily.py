@@ -15,6 +15,7 @@ from src.resolve_daily import (
     _extract_game_claim,
     _extract_player_stat_claim,
     _infer_season_year_from_ingestion,
+    _load_draft_data,
     _normalize_name,
     _normalize_team,
     _resolve_binary_with_dual_write,
@@ -227,19 +228,64 @@ class TestInferSeasonYearFromIngestion:
             == 2026
         )
 
-    def test_january_february_maps_to_prior_year(self):
-        """Ingested in Jan/Feb -> still discussing the prior season (wrapping up)."""
+    def test_january_february_is_ambiguous_returns_none(self):
+        """
+        Issue #1167 MEDIUM-6 (adversarial review): Jan/Feb could mean "still
+        wrapping up last season" or "an early look at next season" — that's
+        a real coin flip, not a safe inference. Previously this guessed
+        year-1 unconditionally; it must now return None (skip) instead.
+        """
         assert (
             _infer_season_year_from_ingestion(
                 datetime(2026, 1, 15, tzinfo=timezone.utc)
             )
-            == 2025
+            is None
         )
         assert (
             _infer_season_year_from_ingestion(
                 datetime(2026, 2, 28, tzinfo=timezone.utc)
             )
+            is None
+        )
+
+    def test_prefers_content_published_at_over_ingestion_timestamp(self):
+        """
+        MEDIUM-6: when a content/article publish date is available it wins
+        over ingestion_timestamp — ingestion only tells us when our pipeline
+        scraped the claim, which can lag the pundit's actual statement.
+        """
+        # Ingested in September (would infer 2026) but actually published in
+        # December of the prior year (should infer 2025).
+        assert (
+            _infer_season_year_from_ingestion(
+                datetime(2026, 9, 1, tzinfo=timezone.utc),
+                content_published_at=datetime(2025, 12, 1, tzinfo=timezone.utc),
+            )
             == 2025
+        )
+
+    def test_falls_back_to_ingestion_when_no_content_date(self):
+        """content_published_at=None falls back to ingestion_timestamp unchanged."""
+        assert (
+            _infer_season_year_from_ingestion(
+                datetime(2026, 9, 1, tzinfo=timezone.utc),
+                content_published_at=None,
+            )
+            == 2026
+        )
+
+    def test_ambiguous_content_date_ignores_unambiguous_ingestion(self):
+        """
+        A Jan/Feb content publish date is ambiguous even when
+        ingestion_timestamp (which is not preferred once a content date
+        exists) would have given an unambiguous month.
+        """
+        assert (
+            _infer_season_year_from_ingestion(
+                datetime(2026, 9, 1, tzinfo=timezone.utc),
+                content_published_at=datetime(2026, 1, 20, tzinfo=timezone.utc),
+            )
+            is None
         )
 
 
@@ -819,6 +865,60 @@ class TestExtractDraftClaim:
         result = _extract_draft_claim("Drake Maye is the three pick in 2024")
         assert result["pick_number"] == 3
 
+    # -----------------------------------------------------------------------
+    # HIGH-4 (Issue #1167 adversarial review) — cardinal misfire GUARD tests.
+    # The previous substring-based cardinal matching produced wrong pick
+    # numbers (not just missed matches); these lock in the fixed behavior.
+    # -----------------------------------------------------------------------
+
+    def test_cardinal_no_word_boundary_seventeen_not_misread_as_seven(self):
+        """
+        "pick number seventeen" must resolve to 17 (a real supported
+        cardinal), not 7 — the old substring check matched "seven" as a
+        prefix of "seventeen" and returned the wrong pick number entirely.
+        """
+        result = _extract_draft_claim("Player will be pick number seventeen in 2026")
+        assert result["pick_number"] == 17
+
+    def test_cardinal_plural_picks_does_not_set_pick_number(self):
+        """
+        "four picks in the top 100" describes a team's pick *count*, not a
+        single pick-number claim — the plural "picks" must not satisfy the
+        singular pick-number pattern the way "four pick" (substring of
+        "four picks") previously did.
+        """
+        result = _extract_draft_claim(
+            "The Broncos will have four picks in the top 100 in 2026"
+        )
+        assert "pick_number" not in result
+
+    def test_cardinal_hyphen_compound_not_misread(self):
+        """
+        "twenty-five overall" must not be misread as pick_number=5 — "five"
+        is a hyphen-compound suffix of the unsupported number 25, not a
+        standalone cardinal, and must be rejected rather than guessed.
+        """
+        result = _extract_draft_claim(
+            "Prospect will go twenty-five overall in the 2026 NFL Draft"
+        )
+        assert "pick_number" not in result
+
+    # -----------------------------------------------------------------------
+    # MEDIUM-8 (Issue #1167 adversarial review) — draft_year should prefer a
+    # year mentioned next to "draft", not just the first 4-digit year found.
+    # -----------------------------------------------------------------------
+
+    def test_draft_year_prefers_year_near_draft_keyword(self):
+        """
+        A claim mentioning an unrelated year (e.g. a recruiting class) ahead
+        of the real draft year must extract the draft-adjacent year, not the
+        first 20xx substring encountered.
+        """
+        result = _extract_draft_claim(
+            "The 2021 recruiting class standout is the No. 3 pick in the 2024 NFL Draft"
+        )
+        assert result["draft_year"] == 2024
+
 
 # ---------------------------------------------------------------------------
 # resolve_draft_picks
@@ -868,6 +968,35 @@ _DRAFT_DATA_2024 = pd.DataFrame(
         },
     ]
 )
+
+
+def _make_full_immutable_board(
+    year: int, n: int = 205, extra_rows: "list[dict] | None" = None
+) -> pd.DataFrame:
+    """
+    Build a synthetic bronze_nflverse_draft_picks-shaped board for `year`
+    with `n` distinct synthetic picks (large enough to pass the
+    _MIN_DRAFT_BOARD_SIZE guard) plus any `extra_rows` (e.g. a specific
+    named player under test). Mirrors the columns _load_immutable_draft_board
+    returns: draft_year, draft_round, draft_pick, draft_team, player_name,
+    name_lower.
+    """
+    rows = [
+        {
+            "draft_year": year,
+            "draft_round": (i // 32) + 1,
+            "draft_pick": i + 1,
+            "draft_team": "GB",
+            "player_name": f"Depth Player {i}",
+            "name_lower": f"depth player {i}",
+        }
+        for i in range(n)
+    ]
+    for extra in extra_rows or []:
+        row = {"draft_year": year, **extra}
+        row.setdefault("name_lower", row["player_name"].lower())
+        rows.append(row)
+    return pd.DataFrame(rows)
 
 
 class TestResolveDraftPicks:
@@ -1043,16 +1172,20 @@ class TestResolveDraftPicks:
 
         assert summary["skipped"] == 1
 
+    @patch("src.resolve_daily._load_immutable_draft_board")
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
     @patch("src.resolve_daily._resolve_binary_with_dual_write")
     def test_terminal_incorrect_when_player_not_found_after_draft_concluded(
-        self, mock_resolve, mock_pending, mock_load, mock_db
+        self, mock_resolve, mock_pending, mock_load, mock_immutable, mock_db
     ):
         """
-        Issue #1167: once the draft year is in the past, a predicted-drafted
-        player who never shows up in the draft board at all is a terminal
-        INCORRECT ("predicted drafted but wasn't"), not an infinite skip.
+        Issue #1167 (reworked per adversarial review): once the draft year is
+        in the past, a predicted-drafted player absent from BOTH the
+        active-roster board AND the complete immutable nflverse draft-results
+        record (which is large enough to trust — guards CRITICAL-1) is a
+        terminal INCORRECT ("predicted drafted but wasn't"), not an infinite
+        skip.
         """
         preds = _make_pending_df(
             "draft_pick",
@@ -1066,6 +1199,7 @@ class TestResolveDraftPicks:
         )
         mock_pending.return_value = preds
         mock_load.return_value = _DRAFT_DATA_2024
+        mock_immutable.return_value = _make_full_immutable_board(2024)
 
         summary = resolve_draft_picks(mock_db, dry_run=False)
 
@@ -1153,6 +1287,341 @@ class TestResolveDraftPicks:
         assert summary["skipped"] == 0
         call_kwargs = mock_resolve.call_args[1]
         assert call_kwargs["correct"] is False
+
+    # -----------------------------------------------------------------------
+    # Issue #1167 adversarial-review REWORK — false-INCORRECT GUARD tests.
+    # -----------------------------------------------------------------------
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_null_pick_without_undrafted_flag_stays_pending(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """
+        MEDIUM-7: a NULL CollegeDraftPick alone is not proof of "undrafted"
+        — it could just be missing/delayed data. Only the explicit
+        IsUndraftedFreeAgent=True flag is trusted as positive evidence; a
+        NULL pick with the flag False/missing must stay pending, not
+        terminal-resolve.
+        """
+        data_gap_row = pd.DataFrame(
+            [
+                {
+                    "Name": "Data Gap Player",
+                    "name_lower": "data gap player",
+                    "draft_year": 2024,
+                    "draft_round": None,
+                    "draft_pick": None,
+                    "draft_team": None,
+                    "current_team": "FA",
+                    "undrafted": False,
+                }
+            ]
+        )
+        draft_data = pd.concat([data_gap_row, _DRAFT_DATA_2024], ignore_index=True)
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Data Gap Player is the #5 pick in 2024",
+                    "season_year": 2024,
+                    "target_player_id": "Data Gap Player",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = draft_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["skipped"] == 1
+        assert summary["resolved"] == 0
+        mock_resolve.assert_not_called()
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_cross_year_leak_does_not_override_same_year_match(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """
+        MEDIUM-7: a stale same-named row from an unrelated draft_year (a
+        2019 record with no pick data and undrafted=True) must never be
+        used to resolve a 2024 claim. Matching is now scoped to the claim's
+        own draft_year, so the player's REAL 2024 pick is used instead of a
+        leftover cross-year NULL-pick record that would otherwise fire a
+        false terminal INCORRECT.
+        """
+        cross_year_leak = pd.DataFrame(
+            [
+                {
+                    "Name": "Cross Year Player",
+                    "name_lower": "cross year player",
+                    "draft_year": 2019,
+                    "draft_round": None,
+                    "draft_pick": None,
+                    "draft_team": None,
+                    "current_team": None,
+                    "undrafted": True,
+                },
+                {
+                    "Name": "Cross Year Player",
+                    "name_lower": "cross year player",
+                    "draft_year": 2024,
+                    "draft_round": 1,
+                    "draft_pick": 10,
+                    "draft_team": "SEA",
+                    "current_team": "SEA",
+                    "undrafted": False,
+                },
+            ]
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Cross Year Player is the No. 10 overall pick in 2024",
+                    "season_year": 2024,
+                    "target_player_id": "Cross Year Player",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = cross_year_leak
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is True, (
+            "must match the real 2024 pick #10 record, not the stale 2019 "
+            "NULL-pick/undrafted=True row"
+        )
+
+    @patch("src.resolve_daily._load_immutable_draft_board")
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_stale_immutable_board_size_guard_skips_instead_of_incorrect(
+        self, mock_resolve, mock_pending, mock_load, mock_immutable, mock_db
+    ):
+        """
+        CRITICAL-1: if the immutable nflverse draft-results board for a
+        concluded year is too small (e.g. a failed/partial ingest), the
+        resolver must SKIP rather than trust its absence signal — a
+        dropped ingest must never mass-resolve a whole draft class
+        INCORRECT in one pass.
+        """
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Ghost Player is the #5 pick in 2024",
+                    "season_year": 2024,
+                    "target_player_id": "Ghost Player",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = _DRAFT_DATA_2024
+        mock_immutable.return_value = _make_full_immutable_board(2024, n=5)
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["skipped"] == 1
+        assert summary["resolved"] == 0
+        mock_resolve.assert_not_called()
+
+    @patch("src.resolve_daily._load_immutable_draft_board")
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_departed_draftee_resolved_via_immutable_board_not_falsely_incorrect(
+        self, mock_resolve, mock_pending, mock_load, mock_immutable, mock_db
+    ):
+        """
+        CRITICAL-1 core regression: bronze_sportsdataio_players is an
+        ACTIVE-roster snapshot — a real draftee who has since retired/been
+        cut vanishes from it (e.g. the 2015 class has shrunk to ~135 of the
+        original ~256 rows). A tiny/attrited active board for an old draft
+        class must NOT produce a false terminal INCORRECT when the player
+        is still on record in the immutable nflverse draft-results history
+        — it must resolve CORRECT/INCORRECT from that record instead.
+        """
+        tiny_active_board = pd.DataFrame(
+            [
+                {
+                    "Name": "Someone Else",
+                    "name_lower": "someone else",
+                    "draft_year": 2015,
+                    "draft_round": 1,
+                    "draft_pick": 1,
+                    "draft_team": "TB",
+                    "current_team": "TB",
+                    "undrafted": False,
+                }
+            ]
+        )
+        full_immutable = _make_full_immutable_board(
+            2015,
+            extra_rows=[
+                {
+                    "draft_round": 1,
+                    "draft_pick": 5,
+                    "draft_team": "SEA",
+                    "player_name": "Old Player",
+                }
+            ],
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Old Player is the No. 5 overall pick in 2015",
+                    "season_year": 2015,
+                    "target_player_id": "Old Player",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = tiny_active_board
+        mock_immutable.return_value = full_immutable
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is True
+        assert call_kwargs["outcome_source"] == "nflverse_draft_picks"
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_initials_name_matches_via_normalized_board(
+        self, mock_resolve, mock_pending, mock_load, mock_db, monkeypatch
+    ):
+        """
+        HIGH-3: "J.J. McCarthy" (claim, normalized to "jj mccarthy" by
+        stripping periods) must match a board row whose raw Name also
+        contains periods ("J.J. McCarthy") once the board side is
+        normalized the same way at load time. Exercises the real
+        `_load_draft_data` normalization path (not a hand-built fixture with
+        a pre-normalized name_lower), since that's exactly where the
+        asymmetry bug lived.
+        """
+        monkeypatch.setenv("GCP_PROJECT_ID", "test-project")
+
+        class _FakeDB:
+            def fetch_df(self, *_args, **_kwargs):
+                return pd.DataFrame(
+                    [
+                        {
+                            "Name": "J.J. McCarthy",
+                            "draft_year": 2024,
+                            "draft_round": 1,
+                            "draft_pick": 10,
+                            "draft_team": "MIN",
+                            "current_team": "MIN",
+                            "undrafted": False,
+                        }
+                    ]
+                )
+
+        real_draft_data = _load_draft_data(_FakeDB())
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "J.J. McCarthy is the No. 10 overall pick in 2024",
+                    "season_year": 2024,
+                    "target_player_id": "J.J. McCarthy",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = real_draft_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is True
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    @patch("src.resolve_daily._void_prediction_with_dual_write")
+    def test_misclassified_recruiting_recap_does_not_resolve(
+        self, mock_void, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """
+        CRITICAL-2 (adversarial review, verified against prod BQ — this is
+        THE false-INCORRECT that fired in the pre-rework code, 1 of 266
+        pending draft_pick rows): a misclassified recruiting recap with no
+        parseable pick/round/top-N structure must never reach the
+        terminal-INCORRECT branch just because it names a player and
+        mentions a year.
+        """
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": (
+                        "Harrison Wallace III was a three-star recruit and "
+                        "71st-ranked receiver in the 2021 recruiting class, "
+                        "according to composite rankings."
+                    ),
+                    "season_year": 2021,
+                    "target_player_id": "Harrison Wallace III",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = (
+            _DRAFT_DATA_2024  # player absent from this board entirely
+        )
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 0
+        assert summary["skipped"] == 1
+        mock_resolve.assert_not_called()
+        mock_void.assert_not_called()
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_re_resolve_voids_does_not_convert_unparseable_to_incorrect(
+        self, mock_resolve, mock_load, mock_db
+    ):
+        """
+        MEDIUM-9: the re-resolve-voids pass retries predictions previously
+        VOID'd as UNPARSEABLE_CLAIM via `pending_override`. Those claims by
+        definition have no pick/round/top-N structure — replaying them
+        (e.g. against a board snapshot where the player no longer matches)
+        must still SKIP rather than newly qualify for the terminal-
+        INCORRECT branch just because the player is now absent from the
+        board.
+        """
+        previously_voided = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Some Player will have an impact in 2024",
+                    "season_year": 2024,
+                    "target_player_id": "Some Player",
+                }
+            ],
+        )
+        mock_load.return_value = _DRAFT_DATA_2024  # "Some Player" not on this board
+
+        summary = resolve_draft_picks(
+            mock_db, dry_run=False, pending_override=previously_voided
+        )
+
+        assert summary["resolved"] == 0
+        assert summary["skipped"] == 1
+        mock_resolve.assert_not_called()
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")

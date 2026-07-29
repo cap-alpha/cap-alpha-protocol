@@ -52,8 +52,14 @@ import os
 import sys
 from pathlib import Path
 
-# Allow running as `python scripts/backfill_null_season_year.py` from repo root
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+# Allow running as `python pipeline/scripts/backfill_null_season_year.py`
+# directly. `src` is imported as a package (`from src.db_manager import
+# ...`), so the path entry must be the `pipeline/` directory that *contains*
+# `src/`, not `pipeline/src` itself (LOW, Issue #1167 adversarial review —
+# the previous `.../ "src"` entry made `import src.db_manager` fail with
+# ModuleNotFoundError when this script was run directly, only working when
+# invoked as `python -m scripts.backfill_null_season_year` from `pipeline/`).
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from src.db_manager import DBManager
 from src.resolve_daily import _infer_season_year_from_ingestion

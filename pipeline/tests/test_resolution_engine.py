@@ -381,6 +381,18 @@ class TestGetPendingPredictions:
         assert "prediction_ledger" in query
         assert "prediction_resolutions" in query
 
+    def test_selects_target_player_name(self, mock_db):
+        """
+        Issue #1167: get_pending_predictions() previously omitted
+        target_player_name (added by migration 008) from its SELECT, so the
+        award_prediction and fa_signing resolvers — which read
+        pred.get("target_player_name") — always saw None. Guard against the
+        column silently disappearing again.
+        """
+        get_pending_predictions(db=mock_db)
+        query = mock_db.fetch_df.call_args[0][0]
+        assert "target_player_name" in query
+
 
 # ---------------------------------------------------------------------------
 # get_pundit_accuracy_summary

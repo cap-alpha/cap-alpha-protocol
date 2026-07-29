@@ -7,3 +7,7 @@
 2026-07-28T01:31:34Z | claude-sonnet-inplay-fallback | CLAIM | file:web/app/ledger/page.tsx
 2026-07-28T22:34:06Z | claude-sonnet-funnel-retrieval | CLAIM | namespace:pipeline/src/matching/
 2026-07-28T22:34:06Z | claude-sonnet-funnel-retrieval | CLAIM | file:pipeline/migrations/031_create_claim_embedding.sql
+2026-07-29T01:10:48Z | claude-sonnet-resolver-stall-1167 | CLAIM | issue:1167
+2026-07-29T01:10:48Z | claude-sonnet-resolver-stall-1167 | CLAIM | file:pipeline/src/resolve_daily.py
+2026-07-29T01:10:48Z | claude-sonnet-resolver-stall-1167 | CLAIM | file:pipeline/src/resolution_engine.py
+2026-07-29T01:10:48Z | claude-sonnet-resolver-stall-1167 | CLAIM | file:pipeline/config/nfl_awards_2025.yaml

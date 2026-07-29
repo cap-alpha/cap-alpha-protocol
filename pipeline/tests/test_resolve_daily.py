@@ -14,6 +14,7 @@ from src.resolve_daily import (
     _extract_draft_claim,
     _extract_game_claim,
     _extract_player_stat_claim,
+    _infer_season_year_from_ingestion,
     _normalize_name,
     _normalize_team,
     _resolve_binary_with_dual_write,
@@ -53,7 +54,9 @@ def _make_pending_df(category: str, claims: list[dict]) -> pd.DataFrame:
                 "season_year": c.get("season_year", 2024),
                 "target_player_id": c.get("target_player_id"),
                 "target_player_name": c.get("player_name"),
-                "ingestion_timestamp": datetime(2024, 9, 1, tzinfo=timezone.utc),
+                "ingestion_timestamp": c.get(
+                    "ingestion_timestamp", datetime(2024, 9, 1, tzinfo=timezone.utc)
+                ),
                 "sport": "NFL",
             }
         )
@@ -195,6 +198,49 @@ class TestExtractPlayerStatClaim:
     def test_no_stat_returns_incomplete(self):
         result = _extract_player_stat_claim("Mahomes will be great in 2026")
         assert "stat_column" not in result or "threshold" not in result
+
+
+# ---------------------------------------------------------------------------
+# _infer_season_year_from_ingestion (Issue #1167)
+# ---------------------------------------------------------------------------
+
+
+class TestInferSeasonYearFromIngestion:
+    def test_none_returns_none(self):
+        assert _infer_season_year_from_ingestion(None) is None
+
+    def test_nat_returns_none(self):
+        assert _infer_season_year_from_ingestion(pd.NaT) is None
+
+    def test_march_through_december_maps_to_same_year(self):
+        """Ingested outside Jan/Feb -> discussing the season starting that year."""
+        assert (
+            _infer_season_year_from_ingestion(
+                datetime(2026, 4, 24, tzinfo=timezone.utc)
+            )
+            == 2026
+        )
+        assert (
+            _infer_season_year_from_ingestion(
+                datetime(2026, 12, 31, tzinfo=timezone.utc)
+            )
+            == 2026
+        )
+
+    def test_january_february_maps_to_prior_year(self):
+        """Ingested in Jan/Feb -> still discussing the prior season (wrapping up)."""
+        assert (
+            _infer_season_year_from_ingestion(
+                datetime(2026, 1, 15, tzinfo=timezone.utc)
+            )
+            == 2025
+        )
+        assert (
+            _infer_season_year_from_ingestion(
+                datetime(2026, 2, 28, tzinfo=timezone.utc)
+            )
+            == 2025
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -355,6 +401,66 @@ class TestResolveGameOutcomes:
         call_kwargs = mock_resolve.call_args[1]
         assert call_kwargs["correct"] is True
 
+    @patch("src.resolve_daily._load_game_scores")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_infers_season_year_from_ingestion_when_null(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """
+        Issue #1167: NULL season_year no longer hard-skips forever — infer it
+        from ingestion_timestamp (read-time fallback) so a completed season
+        can still enter the normal resolution gate.
+        """
+        preds = _make_pending_df(
+            "game_outcome",
+            [
+                {
+                    "claim": "Chiefs beat Eagles",
+                    "season_year": None,
+                    "ingestion_timestamp": datetime(2024, 9, 1, tzinfo=timezone.utc),
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = _SCORES_2024
+
+        summary = resolve_game_outcomes(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        assert summary["skipped"] == 0
+        mock_load.assert_called_once_with(mock_db, 2024)
+
+    @patch("src.resolve_daily.get_pending_predictions")
+    def test_null_season_year_inferred_as_current_season_still_skips(
+        self, mock_pending, mock_db
+    ):
+        """
+        Issue #1167: the inference must not force-resolve predictions whose
+        season hasn't completed. A NULL season_year ingested this spring
+        infers to the current (still in-progress) season and must keep
+        waiting, same as an explicit season_year=<current year> would.
+        """
+        current_year = pd.Timestamp.now().year
+        preds = _make_pending_df(
+            "game_outcome",
+            [
+                {
+                    "claim": "Chiefs beat Eagles",
+                    "season_year": None,
+                    "ingestion_timestamp": datetime(
+                        current_year, 4, 24, tzinfo=timezone.utc
+                    ),
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+
+        summary = resolve_game_outcomes(mock_db, dry_run=False)
+
+        assert summary["skipped"] == 1
+        assert summary["resolved"] == 0
+
     @patch("src.resolve_daily.get_pending_predictions")
     def test_empty_predictions(self, mock_pending, mock_db):
         mock_pending.return_value = pd.DataFrame(
@@ -463,6 +569,68 @@ class TestResolvePlayerPerformance:
         assert summary["resolved"] == 1
         call_kwargs = mock_resolve.call_args[1]
         assert call_kwargs["correct"] is False
+
+    @patch("src.resolve_daily._load_player_season_stats")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_infers_season_year_from_ingestion_when_null(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """
+        Issue #1167: NULL season_year no longer hard-skips forever — infer it
+        from ingestion_timestamp (read-time fallback) so a completed season
+        can still enter the normal resolution gate.
+        """
+        preds = _make_pending_df(
+            "player_performance",
+            [
+                {
+                    "claim": "Patrick Mahomes throws 5000+ passing yards",
+                    "season_year": None,
+                    "player_name": "Patrick Mahomes",
+                    "ingestion_timestamp": datetime(2024, 9, 1, tzinfo=timezone.utc),
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = _MAHOMES_STATS_2024
+
+        summary = resolve_player_performance(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        assert summary["skipped"] == 0
+        mock_load.assert_called_once_with(mock_db, 2024)
+
+    @patch("src.resolve_daily.get_pending_predictions")
+    def test_null_season_year_inferred_as_current_season_still_skips(
+        self, mock_pending, mock_db
+    ):
+        """
+        Issue #1167: the inference must not force-resolve predictions whose
+        season hasn't completed. A NULL season_year ingested this spring
+        infers to the current (still in-progress) season and must keep
+        waiting, same as an explicit season_year=<current year> would.
+        """
+        current_year = pd.Timestamp.now().year
+        preds = _make_pending_df(
+            "player_performance",
+            [
+                {
+                    "claim": "Patrick Mahomes throws 5000+ passing yards",
+                    "season_year": None,
+                    "player_name": "Patrick Mahomes",
+                    "ingestion_timestamp": datetime(
+                        current_year, 4, 24, tzinfo=timezone.utc
+                    ),
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+
+        summary = resolve_player_performance(mock_db, dry_run=False)
+
+        assert summary["skipped"] == 1
+        assert summary["resolved"] == 0
 
     @patch("src.resolve_daily.get_pending_predictions")
     def test_skips_current_season(self, mock_pending, mock_db):
@@ -626,6 +794,30 @@ class TestExtractDraftClaim:
         )
         assert result["pick_number"] == 1
         assert result["draft_year"] == 2023
+
+    # -----------------------------------------------------------------------
+    # Cardinal number words (Issue #1167) — previously only ordinals
+    # ("fifth", "seventh") were understood; cardinal phrasing like "five
+    # overall" or "pick number seven" fell through to unparseable.
+    # -----------------------------------------------------------------------
+
+    def test_cardinal_word_five_overall(self):
+        result = _extract_draft_claim(
+            "Prospect will go five overall in the 2026 NFL Draft"
+        )
+        assert result["pick_number"] == 5
+
+    def test_cardinal_pick_number_seven_word(self):
+        result = _extract_draft_claim("Player will be pick number seven in 2026")
+        assert result["pick_number"] == 7
+
+    def test_cardinal_pick_number_seven_digit(self):
+        result = _extract_draft_claim("Player will be pick number 7 in 2026")
+        assert result["pick_number"] == 7
+
+    def test_cardinal_word_three_pick(self):
+        result = _extract_draft_claim("Drake Maye is the three pick in 2024")
+        assert result["pick_number"] == 3
 
 
 # ---------------------------------------------------------------------------
@@ -853,10 +1045,15 @@ class TestResolveDraftPicks:
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")
-    def test_skip_player_not_found_in_draft_data(
-        self, mock_pending, mock_load, mock_db
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_terminal_incorrect_when_player_not_found_after_draft_concluded(
+        self, mock_resolve, mock_pending, mock_load, mock_db
     ):
-        """Skip when the predicted player isn't in the draft data."""
+        """
+        Issue #1167: once the draft year is in the past, a predicted-drafted
+        player who never shows up in the draft board at all is a terminal
+        INCORRECT ("predicted drafted but wasn't"), not an infinite skip.
+        """
         preds = _make_pending_df(
             "draft_pick",
             [
@@ -872,8 +1069,90 @@ class TestResolveDraftPicks:
 
         summary = resolve_draft_picks(mock_db, dry_run=False)
 
+        assert summary["resolved"] == 1
+        assert summary["skipped"] == 0
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is False
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    def test_skip_player_not_found_when_draft_year_still_current(
+        self, mock_pending, mock_load, mock_db
+    ):
+        """
+        A not-found player is still a plain SKIP (not terminal) when the
+        draft year is the current year — the draft hasn't necessarily
+        "concluded" from the resolver's point of view yet, even though some
+        results already exist for it.
+        """
+        current_year = pd.Timestamp.now().year
+        current_year_draft_data = _DRAFT_DATA_2024.copy()
+        current_year_draft_data["draft_year"] = current_year
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": f"John Nobody is the #5 pick in {current_year}",
+                    "season_year": current_year,
+                    "target_player_id": "John Nobody",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = current_year_draft_data
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
         assert summary["skipped"] == 1
         assert summary["resolved"] == 0
+
+    @patch("src.resolve_daily._load_draft_data")
+    @patch("src.resolve_daily.get_pending_predictions")
+    @patch("src.resolve_daily._resolve_binary_with_dual_write")
+    def test_terminal_incorrect_when_pick_is_null_after_draft_concluded(
+        self, mock_resolve, mock_pending, mock_load, mock_db
+    ):
+        """
+        Issue #1167: the player IS on the draft board for the (past) draft
+        year but CollegeDraftPick is NULL (e.g. went undrafted) — terminal
+        INCORRECT, not an infinite skip.
+        """
+        undrafted_row = pd.DataFrame(
+            [
+                {
+                    "Name": "Undrafted Player",
+                    "name_lower": "undrafted player",
+                    "draft_year": 2024,
+                    "draft_round": None,
+                    "draft_pick": None,
+                    "draft_team": None,
+                    "current_team": "FA",
+                    "undrafted": True,
+                }
+            ]
+        )
+        draft_data_with_undrafted = pd.concat(
+            [undrafted_row, _DRAFT_DATA_2024], ignore_index=True
+        )
+        preds = _make_pending_df(
+            "draft_pick",
+            [
+                {
+                    "claim": "Undrafted Player is the #5 pick in 2024",
+                    "season_year": 2024,
+                    "target_player_id": "Undrafted Player",
+                }
+            ],
+        )
+        mock_pending.return_value = preds
+        mock_load.return_value = draft_data_with_undrafted
+
+        summary = resolve_draft_picks(mock_db, dry_run=False)
+
+        assert summary["resolved"] == 1
+        assert summary["skipped"] == 0
+        call_kwargs = mock_resolve.call_args[1]
+        assert call_kwargs["correct"] is False
 
     @patch("src.resolve_daily._load_draft_data")
     @patch("src.resolve_daily.get_pending_predictions")

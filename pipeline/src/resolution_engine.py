@@ -711,6 +711,11 @@ def get_pending_predictions(
     Returns all PENDING predictions from the ledger that don't yet have a resolution.
     Used by automated resolution jobs to find work to do.
     Pass sport='NFL' to filter to a specific sport; omit for all sports.
+
+    Includes target_player_name (migration 008) alongside the legacy
+    target_player_id so award_prediction / fa_signing resolvers can read the
+    predicted player's name — previously omitted here, so those resolvers
+    always saw None for it (Issue #1167).
     """
     close_db = db is None
     if db is None:
@@ -728,6 +733,7 @@ def get_pending_predictions(
                 l.claim_category,
                 l.season_year,
                 l.target_player_id,
+                l.target_player_name,
                 l.target_team,
                 COALESCE(l.sport, 'NFL') AS sport,
                 l.ingestion_timestamp

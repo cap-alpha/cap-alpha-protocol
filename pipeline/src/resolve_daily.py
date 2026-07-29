@@ -298,13 +298,42 @@ def _extract_draft_claim(claim: str) -> dict:
         "nineteenth": 19,
         "twentieth": 20,
     }
+    # Cardinal number words — "go at five overall", "pick number seven"
+    # (Issue #1167: _extract_draft_claim previously only understood ordinals
+    # like "fifth"/"seventh", so cardinal phrasing silently fell through to
+    # an unparseable claim.)
+    cardinals = {
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+        "eleven": 11,
+        "twelve": 12,
+        "thirteen": 13,
+        "fourteen": 14,
+        "fifteen": 15,
+        "sixteen": 16,
+        "seventeen": 17,
+        "eighteen": 18,
+        "nineteen": 19,
+        "twenty": 20,
+    }
     # Match: "#7 pick", "No. 7 pick", "No. 7 overall pick", "#7 overall",
     # "drafted 7th overall", "drafted 39th overall", "pick #7", "drafted #7",
-    # plus the original "(N) overall pick" variants.
+    # "pick number 7", plus the original "(N) overall pick" variants.
     pick_match = re.search(
-        r"(?:no\.?\s*|#|pick\s*#?|drafted\s+#?)(\d+)(?:st|nd|rd|th)?\s*(?:overall|pick)",
+        r"(?:no\.?\s*|#|pick\s*(?:number\s*)?#?|drafted\s+#?)(\d+)(?:st|nd|rd|th)?\s*(?:overall|pick)",
         claim_lower,
     )
+    if not pick_match:
+        # Bare "pick number N" with no trailing "overall"/"pick" keyword.
+        pick_match = re.search(r"pick\s+number\s+(\d+)\b", claim_lower)
     if not pick_match:
         # Bare "#N overall" or "Nth overall" without a leading keyword.
         pick_match = re.search(r"#?(\d+)(?:st|nd|rd|th)?\s+overall", claim_lower)
@@ -326,8 +355,12 @@ def _extract_draft_claim(claim: str) -> dict:
     if pick_match:
         result["pick_number"] = int(pick_match.group(1))
     else:
-        for word, num in ordinals.items():
-            if f"{word} overall" in claim_lower or f"{word} pick" in claim_lower:
+        for word, num in {**ordinals, **cardinals}.items():
+            if (
+                f"{word} overall" in claim_lower
+                or f"{word} pick" in claim_lower
+                or f"pick number {word}" in claim_lower
+            ):
                 result["pick_number"] = num
                 break
 
@@ -462,6 +495,34 @@ def _resolve_team_claim(claim, parsed, year_draft_data, phash, db, dry_run):
     return None  # Couldn't parse team claim pattern
 
 
+def _infer_season_year_from_ingestion(ingestion_timestamp) -> Optional[int]:
+    """
+    Read-time fallback for predictions with NULL season_year (Issue #1167).
+
+    game_outcome and player_performance both hard-require season_year and
+    hard-skip forever when it's missing (831 rows ingested 2026-04-24 ->
+    2026-05-05 are stuck this way). Rather than leave them permanently
+    unresolvable, infer a season_year from when the claim was ingested so
+    they can enter the normal season-completion gate.
+
+    NFL season YYYY runs Sept YYYY -> the Super Bowl in Feb YYYY+1, and
+    pundit predictions are almost always made about the season that is
+    upcoming or in progress at ingestion time:
+      - Ingested Jan/Feb of year Y  -> discussing season Y-1 (still wrapping up)
+      - Ingested Mar-Dec of year Y  -> discussing season Y
+
+    This mirrors the season-boundary convention already used for the
+    season-completion checks below (`now.month > 2`). It does not change
+    behavior for rows that already carry an explicit season_year, and it
+    does not force-resolve anything: an inferred season_year of, say, 2026
+    still correctly waits at the season-completion gate until Feb 2027.
+    """
+    if ingestion_timestamp is None or pd.isna(ingestion_timestamp):
+        return None
+    ts = pd.Timestamp(ingestion_timestamp)
+    return ts.year - 1 if ts.month <= 2 else ts.year
+
+
 def _filter_nfl_only(pending: pd.DataFrame) -> pd.DataFrame:
     """
     Log and drop any non-NFL predictions from a pending DataFrame.
@@ -481,6 +542,33 @@ def _filter_nfl_only(pending: pd.DataFrame) -> pd.DataFrame:
             f"— {sport} resolver not yet implemented"
         )
     return pending[pending["sport"].isna() | (pending["sport"] == "NFL")]
+
+
+def _resolve_terminal_draft_incorrect(
+    phash: str,
+    notes: str,
+    db: DBManager,
+    dry_run: bool,
+) -> None:
+    """
+    Record a terminal INCORRECT for a draft_pick prediction (Issue #1167).
+
+    Once a draft year is in the past, "the player never shows up in the
+    draft board" and "the player shows up with no assigned pick" are both
+    final answers, not transient states waiting on more data. Before this
+    fix both cases hard-skipped every single day forever — the resolver
+    kept re-treating "not found" as "not resolved yet" instead of scoring
+    the pundit's prediction as wrong (predicted drafted, but wasn't).
+    """
+    logger.info(f"  INCORRECT {phash[:12]}… — {notes}")
+    if not dry_run:
+        _resolve_binary_with_dual_write(
+            prediction_hash=phash,
+            correct=False,
+            outcome_source="sportsdataio",
+            outcome_notes=notes,
+            db=db,
+        )
 
 
 def resolve_draft_picks(
@@ -607,6 +695,16 @@ def resolve_draft_picks(
                     summary["voided"] += 1
                 else:
                     summary["skipped"] += 1
+            elif player_name and draft_year < current_year:
+                # Issue #1167: the draft has concluded and this player never
+                # appears in the draft board at all — terminal INCORRECT
+                # ("predicted drafted but wasn't"), not an infinite skip.
+                notes = (
+                    f"Player '{player_name}' not found in {draft_year} draft "
+                    f"data; draft has concluded — predicted drafted but wasn't"
+                )
+                _resolve_terminal_draft_incorrect(phash, notes, db, dry_run)
+                summary["resolved"] += 1
             else:
                 logger.info(
                     f"  SKIP {phash[:12]}… — can't find player or team pattern: {claim[:60]}"
@@ -621,12 +719,25 @@ def resolve_draft_picks(
         actual_team = actual.get("draft_team")
         actual_name = actual.get("Name")
 
-        # Skip if pick data is missing (0-indexed picks already normalized to 1+ above)
+        # Pick data missing (0-indexed picks already normalized to 1+ above).
+        # If the draft has concluded, a player who IS on the board but has no
+        # assigned pick means they went undrafted — terminal INCORRECT, not
+        # an infinite skip (Issue #1167). If the draft year is still current
+        # (pick just not assigned yet), keep waiting.
         if not pd.notna(actual_pick):
-            logger.info(
-                f"  SKIP {phash[:12]}… — player found but pick not yet assigned: {actual_name}"
-            )
-            summary["skipped"] += 1
+            if draft_year < current_year:
+                notes = (
+                    f"Player found ({actual_name}) but CollegeDraftPick is "
+                    f"NULL in {draft_year} draft data; draft has concluded — "
+                    f"predicted drafted but wasn't"
+                )
+                _resolve_terminal_draft_incorrect(phash, notes, db, dry_run)
+                summary["resolved"] += 1
+            else:
+                logger.info(
+                    f"  SKIP {phash[:12]}… — player found but pick not yet assigned: {actual_name}"
+                )
+                summary["skipped"] += 1
             continue
 
         # Now evaluate the claim
@@ -923,9 +1034,20 @@ def resolve_game_outcomes(
         season_year = pred.get("season_year")
 
         if pd.isna(season_year):
-            logger.info(f"  SKIP {phash[:12]}… — no season_year in metadata")
-            summary["skipped"] += 1
-            continue
+            season_year = _infer_season_year_from_ingestion(
+                pred.get("ingestion_timestamp")
+            )
+            if season_year is None:
+                logger.info(
+                    f"  SKIP {phash[:12]}… — no season_year and no "
+                    f"ingestion_timestamp to infer from"
+                )
+                summary["skipped"] += 1
+                continue
+            logger.info(
+                f"  Inferred season_year={season_year} for {phash[:12]}… "
+                f"from ingestion_timestamp (read-time fallback, Issue #1167)"
+            )
 
         season_year = int(season_year)
 
@@ -1220,9 +1342,20 @@ def resolve_player_performance(
         season_year = pred.get("season_year")
 
         if pd.isna(season_year):
-            logger.info(f"  SKIP {phash[:12]}… — no season_year")
-            summary["skipped"] += 1
-            continue
+            season_year = _infer_season_year_from_ingestion(
+                pred.get("ingestion_timestamp")
+            )
+            if season_year is None:
+                logger.info(
+                    f"  SKIP {phash[:12]}… — no season_year and no "
+                    f"ingestion_timestamp to infer from"
+                )
+                summary["skipped"] += 1
+                continue
+            logger.info(
+                f"  Inferred season_year={season_year} for {phash[:12]}… "
+                f"from ingestion_timestamp (read-time fallback, Issue #1167)"
+            )
 
         season_year = int(season_year)
 

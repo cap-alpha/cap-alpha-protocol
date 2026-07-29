@@ -251,7 +251,13 @@ function claimBorderColor(status: string): string {
 
 // Confidence bar
 function ConfBar({ confidence, status }: { confidence: number | null; status: string }) {
-    if (confidence === null) return null;
+    // Guard both null AND undefined: the backend omits `confidence` entirely
+    // for some predictions (key absent from the JSON, not sent as `null`)
+    // rather than always sending the key. A bare `=== null` check let
+    // `undefined` through and crashed on `confidence.toFixed(2)` below,
+    // taking down the whole pundit detail page render (production incident,
+    // cap-alpha.co/ledger/<pundit_id> — every ClaimCard renders a ConfBar).
+    if (confidence === null || confidence === undefined) return null;
     const pct = Math.round(confidence * 100);
     const barColor = status === "CORRECT" ? DS.pos : status === "INCORRECT" ? DS.neg : DS.gold;
     return (

@@ -353,6 +353,57 @@ class TestApiMinClaimsGuard:
             assert call_kwargs is not None, "get_pundit_accuracy_summary was not called"
             assert call_kwargs.kwargs.get("min_resolved_claims") == 5
 
+    def test_list_pundits_query_params_override_defaults(self):
+        """Issue #1178: ?min_resolved_claims=0&published_only=false bypasses
+        both gates so a caller that does its own client-side filtering (the
+        site's own ledger page + leaderboard preview) can request the full,
+        unfiltered pundit list instead of being silently capped at the
+        tier-1 / 5-resolved defaults."""
+        import unittest.mock as mock
+
+        with (
+            mock.patch("src.db_manager.DBManager._initialize_connection"),
+            mock.patch("api.pundit_router.get_pundit_accuracy_summary") as mock_summary,
+        ):
+            from api.main import app
+            from api.api_key_auth import verify_api_key
+            from api.pundit_router import get_db
+            from fastapi.testclient import TestClient
+
+            mock_summary.return_value = pd.DataFrame()
+
+            stub_key = {
+                "tier": "pro",
+                "user_id": "u1",
+                "key_id": "k1",
+                "status": "active",
+                "scopes": [],
+                "name": "T",
+                "created_at": None,
+                "last_used_at": None,
+                "key_last_four": "test",
+            }
+            mock_db_inst = MagicMock()
+            mock_db_inst.project_id = "test-project"
+            mock_db_inst.dataset_id = "nfl_dead_money"
+            mock_db_inst.client.query.return_value = MagicMock(
+                to_dataframe=lambda: pd.DataFrame()
+            )
+
+            app.dependency_overrides[get_db] = lambda: mock_db_inst
+            app.dependency_overrides[verify_api_key] = lambda: stub_key
+
+            with TestClient(app) as c:
+                resp = c.get("/v1/pundits/?min_resolved_claims=0&published_only=false")
+
+            app.dependency_overrides.clear()
+
+            assert resp.status_code == 200
+            call_kwargs = mock_summary.call_args
+            assert call_kwargs is not None, "get_pundit_accuracy_summary was not called"
+            assert call_kwargs.kwargs.get("min_resolved_claims") == 0
+            assert call_kwargs.kwargs.get("published_only") is False
+
 
 # ---------------------------------------------------------------------------
 # 5. publish_tier1_pundits seed script

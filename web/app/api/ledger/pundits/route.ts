@@ -62,6 +62,20 @@ export async function GET(req: Request) {
     if (backendUrl.searchParams.get("sport") === "ALL") {
         backendUrl.searchParams.delete("sport");
     }
+    // Request the full, unfiltered pundit list from the backend (Issue #1178).
+    // /v1/pundits/ defaults to published_only=True + a 5-resolved-claims floor
+    // (Issue #830), which collapsed the site's "Full Ledger" view from 43
+    // pundits to 3. Every consumer of this route already applies its own
+    // volume floor + sort client-side (ledger/page.tsx's HOF_MIN_RESOLVED /
+    // MIN_RESOLVED_FOR_RANK, pundit-leaderboard-preview.tsx's MIN_PICKS +
+    // Wilson-score sort), so the backend gate is redundant here and only
+    // hides real data. Don't clobber an explicit override a caller sends.
+    if (!backendUrl.searchParams.has("min_resolved_claims")) {
+        backendUrl.searchParams.set("min_resolved_claims", "0");
+    }
+    if (!backendUrl.searchParams.has("published_only")) {
+        backendUrl.searchParams.set("published_only", "false");
+    }
 
     try {
         // Cache the backend fetch for 5 min so the expensive upstream call is

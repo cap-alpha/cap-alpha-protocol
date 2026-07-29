@@ -277,19 +277,55 @@ def list_pundits(
         le=1.0,
         description="Filter predictions by minimum quality score (0.0–1.0).",
     ),
+    min_resolved_claims: Optional[int] = Query(
+        default=None,
+        ge=0,
+        description=(
+            "Override the minimum resolved-claims threshold a pundit must "
+            "clear to appear in results. Omit to use the server default "
+            "(MIN_RESOLVED_CLAIMS env var, currently "
+            f"{os.environ.get('MIN_RESOLVED_CLAIMS', '5')}). Pass 0 for an "
+            "unfiltered list — callers that already apply their own volume "
+            "floor (e.g. min-picks + Wilson-score sort) client-side should "
+            "do this (Issue #1178)."
+        ),
+    ),
+    published_only: Optional[bool] = Query(
+        default=None,
+        description=(
+            "Override the tier-1 'published' gate. Omit to use the server "
+            "default (True). Pass false to include every pundit with ledger "
+            "activity, not just the curated tier-1 list (Issue #1178)."
+        ),
+    ),
     db: DBManager = Depends(get_db),
 ) -> Dict[str, Any]:
     """
     Returns all pundits with aggregate accuracy stats.
     Accepts ?min_quality=0.7 to compute stats using only high-quality predictions.
+
+    By default this endpoint applies two gates inherited from Issue #830:
+    published_only=True (tier-1 curated list) and a resolved-claims floor
+    (MIN_RESOLVED_CLAIMS, default 5). Both are overridable per-request via
+    min_resolved_claims / published_only so a caller that wants the complete,
+    unfiltered ledger (and applies its own filtering) isn't silently capped —
+    see Issue #1178, where the site's own "Full Ledger" view had no way to
+    ask for an unfiltered pull and so under-reported the pundit field.
     """
     try:
-        min_resolved = int(os.environ.get("MIN_RESOLVED_CLAIMS", "5"))
+        min_resolved = (
+            min_resolved_claims
+            if min_resolved_claims is not None
+            else int(os.environ.get("MIN_RESOLVED_CLAIMS", "5"))
+        )
+        effective_published_only = (
+            published_only if published_only is not None else True
+        )
         df = get_pundit_accuracy_summary(
             db=db,
             min_quality=min_quality,
             min_resolved_claims=min_resolved,
-            published_only=True,
+            published_only=effective_published_only,
         )
 
         # Left-join calibration metrics (brier_score, overconfidence_score)

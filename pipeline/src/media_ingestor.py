@@ -313,6 +313,16 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
         title = entry.get("title", "")
         link = entry.get("link", "")
         if not link:
+            # C1 (incident review): podcast feeds (Megaphone etc.) commonly have
+            # no per-item <link> — episode identity lives in <enclosure url> or
+            # <guid>/<id>. Fall back so podcast items aren't silently dropped
+            # (which is how the "podcast fetcher" change was a no-op before).
+            enclosures = entry.get("enclosures") or []
+            if enclosures and enclosures[0].get("href"):
+                link = enclosures[0]["href"]
+            else:
+                link = entry.get("id", "")
+        if not link:
             continue
 
         # Extract author
@@ -356,7 +366,7 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
         if source.get("type") == "youtube_rss":
             content_type = "video"
         elif source.get("type") == "podcast":
-            content_type = "podcast_episode"
+            content_type = "podcast"  # matches schema doc (migrations/005): article|video|podcast|tweet
 
         metadata = {}
         if entry.get("tags"):

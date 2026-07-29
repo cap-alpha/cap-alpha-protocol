@@ -233,18 +233,24 @@ def _is_transient_llm_error(exc: BaseException) -> bool:
 # API with N more doomed requests (see incident: free-tier 20 req/day cap).
 _QUOTA_EXHAUSTED_FRAGMENTS = (
     "resource_exhausted",
-    "429",
     "quota exceeded",
     "exceeded your current quota",
     "exceeded quota",
     "rate limit",
 )
 
+# M4: HTTP 429 as a standalone token. A bare "429" substring also matches "429"
+# inside larger numbers (token counts, run ids, byte offsets) in unrelated error
+# strings and would falsely stop the batch; require word boundaries.
+_HTTP_429_RE = re.compile(r"\b429\b")
+
 
 def _is_quota_exhausted_error(err: str) -> bool:
     """Return True if an extraction error string indicates provider quota exhaustion."""
     msg = err.lower()
-    return any(frag in msg for frag in _QUOTA_EXHAUSTED_FRAGMENTS)
+    return bool(_HTTP_429_RE.search(msg)) or any(
+        frag in msg for frag in _QUOTA_EXHAUSTED_FRAGMENTS
+    )
 
 
 # Default tier assigned to sources not found in media_sources.yaml

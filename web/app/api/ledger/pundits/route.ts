@@ -102,7 +102,19 @@ export async function GET(req: Request) {
         }
 
         const data = await res.json();
-        const pundits = (data.pundits || []).map(normalizePundit);
+        // Drop identity-less rows before they reach the UI. The unfiltered
+        // backend pull (min_resolved_claims=0&published_only=false above)
+        // surfaces ledger rows whose pundit_id is NULL ("Unknown"/null-named
+        // aggregation artifacts). Those rows break React keys (several rows
+        // share the null id), render as "Unknown" cards, and link to a dead
+        // /pundits/null detail page. The client-side volume floors don't
+        // catch them because some have >= 5 resolved claims.
+        const pundits = (data.pundits || [])
+            .filter(
+                (p: Record<string, unknown>) =>
+                    typeof p.pundit_id === "string" && p.pundit_id.length > 0
+            )
+            .map(normalizePundit);
 
         // Inject honeypot fields at the top level to fingerprint scrapers.
         // Issue: #884

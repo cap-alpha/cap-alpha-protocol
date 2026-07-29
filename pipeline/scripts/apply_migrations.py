@@ -106,20 +106,38 @@ def _split_statements(sql: str) -> list[str]:
     """
     Split a SQL file into individual statements on semicolons.
 
-    Strips line comments first, then splits on semicolons that are NOT inside
-    single-quoted or double-quoted string literals. BigQuery OPTIONS(description="...")
-    clauses commonly contain semicolons which must not be treated as statement
-    delimiters.
+    Strips `--` line comments and splits on `;`, in a SINGLE string-literal-aware
+    pass: both are only recognized when NOT inside a single- or double-quoted
+    string. BigQuery OPTIONS(description="...") clauses routinely contain both `;`
+    and `--` inside the quoted description (e.g. migration 031's embedding-column
+    description), and neither must be treated as a delimiter/comment. The previous
+    implementation stripped `--...` with a naive regex BEFORE this pass, which
+    truncated any description containing `--` mid-string and produced a BigQuery
+    "Unclosed string literal" error.
     """
-    # Strip line comments. Safe because our migration descriptions don't contain --.
-    stripped = re.sub(r"--[^\n]*", "", sql)
-
     parts: list[str] = []
     current: list[str] = []
     in_single = False
     in_double = False
 
-    for ch in stripped:
+    i = 0
+    n = len(sql)
+    while i < n:
+        ch = sql[i]
+        # `--` line comment, only outside a string literal: skip to end of line
+        # (keep the newline itself so line structure / later tokens are intact).
+        if (
+            ch == "-"
+            and i + 1 < n
+            and sql[i + 1] == "-"
+            and not in_single
+            and not in_double
+        ):
+            nl = sql.find("\n", i)
+            if nl == -1:
+                break
+            i = nl
+            continue
         if ch == "'" and not in_double:
             in_single = not in_single
         elif ch == '"' and not in_single:
@@ -129,8 +147,10 @@ def _split_statements(sql: str) -> list[str]:
             if stmt:
                 parts.append(stmt)
             current = []
+            i += 1
             continue
         current.append(ch)
+        i += 1
 
     remainder = "".join(current).strip()
     if remainder:

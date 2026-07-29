@@ -372,10 +372,16 @@ sources:
   # On self-hosted runner with home IP, YouTube transcript fetching works without
   # the rate-limiting that blocks GitHub-hosted ubuntu-latest runners.
   # Requires yt-dlp (brew install yt-dlp) — works on self-hosted home IP runner
+  # Switched youtube_transcript -> youtube_data_api 2026-07-28: youtube.com/feeds/videos.xml
+  # is IP-blocked on GitHub-hosted runners (ubuntu-latest); the YouTube Data API v3
+  # fetcher (fetch_youtube_data_api) reads the same channel via the official API
+  # instead. Requires YOUTUBE_API_KEY — degrades to a skip-with-warning (not a hard
+  # fail) when the key is absent. See fetch_youtube_data_api() in media_ingestor.py.
   - id: pat_mcafee_show
     name: "The Pat McAfee Show"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCxcTeAKWJca6XyJ37_ZoKIQ"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCxcTeAKWJca6XyJ37_ZoKIQ"
     enabled: true
     priority_tier: 1  # yield_rate=0.45 (135/299 articles) — high-yield pundit show
@@ -441,11 +447,13 @@ sources:
         name: "Colin Cowherd"
         match_authors: ["Colin Cowherd", "Cowherd"]
 
-  # Requires yt-dlp (brew install yt-dlp)
+  # Switched youtube_transcript -> youtube_data_api 2026-07-28 (see pat_mcafee_show
+  # comment above for rationale — IP-blocked feeds.xml on GitHub-hosted runners).
   - id: club_shay_shay
     name: "Club Shay Shay"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCQoxJOkwaCgyzQtiuAIDcuw"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCQoxJOkwaCgyzQtiuAIDcuw"
     enabled: true
     priority_tier: 1  # Tier 1: Club Shay Shay interview show; high prediction density when extraction enabled
@@ -469,11 +477,13 @@ sources:
         name: "Nick Wright"
         match_authors: ["Nick Wright", "Wright"]
 
-  # Requires yt-dlp (brew install yt-dlp)
+  # Switched youtube_transcript -> youtube_data_api 2026-07-28 (see pat_mcafee_show
+  # comment above for rationale — IP-blocked feeds.xml on GitHub-hosted runners).
   - id: dan_patrick_show
     name: "The Dan Patrick Show"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCORy0Yqzd8bVj2Gb4xyq6HA"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCORy0Yqzd8bVj2Gb4xyq6HA"
     enabled: true
     priority_tier: 1  # yield_rate=0.85 (28/33 articles) — high-yield pundit show
@@ -482,11 +492,13 @@ sources:
         name: "Dan Patrick"
         match_authors: ["Dan Patrick"]
 
-  # Requires yt-dlp (brew install yt-dlp)
+  # Switched youtube_transcript -> youtube_data_api 2026-07-28 (see pat_mcafee_show
+  # comment above for rationale — IP-blocked feeds.xml on GitHub-hosted runners).
   - id: rich_eisen_show
     name: "The Rich Eisen Show"
     sport: "NFL"
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCqMtxjKnR7ySbEZSs2N-v0Q"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCqMtxjKnR7ySbEZSs2N-v0Q"
     enabled: true
     priority_tier: 2  # yield_rate=unknown (no data yet) — interview/opinion show, estimated medium yield
@@ -1015,10 +1027,13 @@ sources:
   # ── Politics / Geopolitics YouTube (issue #880) ──────────────────────────────
   # High-density geopolitical predictions via YouTube transcripts.
   # Backfill: pipeline/scripts/backfill_youtube_pundit.py
+  # Switched youtube_transcript -> youtube_data_api 2026-07-28 (see pat_mcafee_show
+  # comment above for rationale — IP-blocked feeds.xml on GitHub-hosted runners).
   - id: ian_bremmer_gzero
     name: "GZERO World with Ian Bremmer"
     sport: politics
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UC-8_qAhNVG8G1wxONMnYr3Q"
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UC-8_qAhNVG8G1wxONMnYr3Q"
     enabled: true
     priority_tier: 1  # High-density geopolitical predictions; testable against world events
@@ -1027,10 +1042,15 @@ sources:
         name: "Ian Bremmer"
         match_authors: ["Ian Bremmer", "Bremmer", "gzeromedia"]
 
+  # Switched youtube_transcript -> youtube_data_api 2026-07-28 (see pat_mcafee_show
+  # comment above for rationale — IP-blocked feeds.xml on GitHub-hosted runners).
+  # keyword_filter below is applied by fetch_youtube_data_api too, so the
+  # Roubini-only scoping of this multi-guest channel is preserved.
   - id: nouriel_roubini
     name: "Nouriel Roubini (Bloomberg TV)"
     sport: politics
-    type: youtube_transcript
+    type: youtube_data_api
+    channel_id: "UCIALMKvObZNtJ6AmdCLP7Lg"
     # Bloomberg Television main channel — keyword_filter picks only Roubini appearances.
     # Roubini appears frequently here; no dedicated personal channel exists.
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCIALMKvObZNtJ6AmdCLP7Lg"
@@ -1108,13 +1128,16 @@ sources:
         name: "Jovan Buha"
         match_authors: ["Jovan Buha", "Buha"]
 
+  # theringer.com/rss/nba/index.xml returns 404 (same site-wide RSS deprecation
+  # as the_ringer_nfl above); The Ringer NBA Show podcast is the active feed.
+  # Fixed 2026-07-28: mirrors the the_ringer_nfl podcast fix.
   - id: ringer_nba
     name: "The Ringer NBA"
     sport: "NBA"
-    type: rss
+    type: podcast
     scrape_full_text: true
-    url: "https://www.theringer.com/rss/nba/index.xml"
-    enabled: true
+    url: "https://feeds.megaphone.fm/the-ringer-nba-show"
+    enabled: true  # validated 2026-07-28: 200, active podcast feed (Group Chat / Real Ones)
     priority_tier: 1  # Tier 1: Kevin O'Connor + long-form prediction-dense NBA analysis
     default_pundit:
       id: ringer_nba_staff
@@ -1356,13 +1379,17 @@ sources:
         name: "Byrne Hobart"
         match_authors: ["Byrne Hobart", "Hobart", "thediff"]
 
+  # blocked: epsilontheory.com/feed/ 302-redirects to panoptica.com/feed/ (site
+  # rebranded to Panoptica) which 404s; panoptica.com is a Next.js app with no
+  # discoverable RSS/Atom feed (checked /feed, /rss, /rss/ — all 404); no
+  # working replacement found (2026-07-28)
   - id: epsilon_theory
     name: "Epsilon Theory (Ben Hunt)"
     sport: finance
     type: rss
     scrape_full_text: true
     url: "https://www.epsilontheory.com/feed/"
-    enabled: true
+    enabled: false
     priority_tier: 2  # Tier 2: narrative-finance analysis; predictions embedded in long-form essays
     default_pundit:
       id: ben_hunt

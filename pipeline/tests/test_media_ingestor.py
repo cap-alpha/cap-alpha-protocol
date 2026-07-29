@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 
 from src.media_ingestor import (
+    FETCHERS,
     MediaItem,
     SourceResult,
     _extract_video_id,
@@ -432,6 +433,77 @@ class TestFetchRSS:
 # ---------------------------------------------------------------------------
 # ingest_source
 # ---------------------------------------------------------------------------
+
+
+class TestPodcastFetcherRegistration:
+    """Regression tests for the missing `podcast` fetcher (#pipeline-ingestion-recovery).
+
+    the_ringer_nfl and bill_simmons_podcast are `type: podcast` sources backed
+    by plain Megaphone RSS feeds. Before this fix, FETCHERS had no "podcast"
+    key, so ingest_source() hard-failed both sources every run with
+    "No fetcher for source type: podcast".
+    """
+
+    def test_podcast_type_is_registered(self):
+        assert "podcast" in FETCHERS
+
+    def test_podcast_type_routes_to_fetch_rss(self):
+        assert FETCHERS["podcast"] is fetch_rss
+
+    @patch("src.media_ingestor.feedparser")
+    def test_podcast_source_fetches_via_rss(self, mock_fp):
+        """A `type: podcast` source (e.g. Megaphone feed) is fetched exactly
+        like a plain RSS feed and tagged content_type=podcast_episode."""
+        entry = MagicMock()
+        entry.get = lambda k, d=None: {
+            "title": "The Ringer NFL Show: Week 1 Preview",
+            "link": "https://feeds.megaphone.fm/ep1",
+            "author": "Robert Mays",
+        }.get(k, d)
+        entry.published_parsed = None
+        type(entry).summary = property(
+            lambda self: "Predictions for every Week 1 game."
+        )
+        entry.content = []
+        entry.tags = []
+
+        mock_feed = MagicMock()
+        mock_feed.bozo = False
+        mock_feed.entries = [entry]
+        mock_fp.parse.return_value = mock_feed
+
+        source = {
+            "id": "the_ringer_nfl",
+            "name": "The Ringer NFL",
+            "type": "podcast",
+            "url": "https://feeds.megaphone.fm/the-ringer-nfl-show",
+            "pundits": [],
+        }
+        items = FETCHERS["podcast"](source, {"max_items_per_feed": 10})
+
+        assert len(items) == 1
+        assert items[0].content_type == "podcast_episode"
+        assert items[0].fetch_source_type == "podcast"
+        assert items[0].source_url == "https://feeds.megaphone.fm/ep1"
+
+    def test_ingest_source_no_longer_errors_for_podcast_type(self, mock_db):
+        """End-to-end: ingest_source() must not report 'No fetcher' for podcast
+        sources — this was the exact failure mode before FETCHERS["podcast"]
+        was registered."""
+        mock_db.fetch_df.return_value = pd.DataFrame()
+        source = {
+            "id": "bill_simmons_podcast",
+            "name": "The Bill Simmons Podcast",
+            "type": "podcast",
+            "url": "https://feeds.megaphone.fm/the-bill-simmons-podcast",
+            "pundits": [],
+        }
+        mock_fetcher = MagicMock(return_value=[])
+        with patch.dict("src.media_ingestor.FETCHERS", {"podcast": mock_fetcher}):
+            result = ingest_source(source, {"max_items_per_feed": 10}, mock_db)
+
+        assert result.error is None
+        mock_fetcher.assert_called_once()
 
 
 class TestIngestSource:

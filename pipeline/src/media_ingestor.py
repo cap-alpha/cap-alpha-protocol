@@ -355,6 +355,8 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
         content_type = "article"
         if source.get("type") == "youtube_rss":
             content_type = "video"
+        elif source.get("type") == "podcast":
+            content_type = "podcast_episode"
 
         metadata = {}
         if entry.get("tags"):
@@ -892,6 +894,7 @@ def fetch_youtube_data_api(source: dict, defaults: dict) -> list[MediaItem]:
     pundits = source.get("pundits", [])
     sport = source.get("sport", "NFL")
     max_items = defaults.get("max_items_per_feed", 50)
+    keyword_filter = source.get("keyword_filter", [])
 
     if not _api_key_available():
         logger.warning(
@@ -940,6 +943,7 @@ def fetch_youtube_data_api(source: dict, defaults: dict) -> list[MediaItem]:
 
     items = []
     now = datetime.now(timezone.utc)
+    skipped_by_filter = 0
 
     for video in videos:
         title = video["title"]
@@ -958,6 +962,12 @@ def fetch_youtube_data_api(source: dict, defaults: dict) -> list[MediaItem]:
         text = build_video_text(video)
         if not text.strip():
             logger.debug(f"[{source_id}] No text for video {video_id} ({title})")
+            continue
+
+        # Apply keyword filter if configured (e.g. nouriel_roubini scopes a
+        # multi-guest channel down to appearances mentioning the pundit).
+        if keyword_filter and not _passes_keyword_filter(title, text, keyword_filter):
+            skipped_by_filter += 1
             continue
 
         # Parse published date
@@ -990,6 +1000,10 @@ def fetch_youtube_data_api(source: dict, defaults: dict) -> list[MediaItem]:
             )
         )
 
+    if skipped_by_filter:
+        logger.info(
+            f"[{source_id}] Keyword filter skipped {skipped_by_filter} non-matching video(s)"
+        )
     logger.info(f"[{source_id}] YouTube Data API returned {len(items)} items")
     return items
 
@@ -997,6 +1011,7 @@ def fetch_youtube_data_api(source: dict, defaults: dict) -> list[MediaItem]:
 FETCHERS = {
     "rss": fetch_rss,
     "youtube_rss": fetch_rss,  # YouTube Atom feeds work with feedparser
+    "podcast": fetch_rss,  # Megaphone (and most podcast hosts) serve plain RSS 2.0
     "youtube_transcript": fetch_youtube_transcripts,
     "youtube_data_api": fetch_youtube_data_api,  # Official API — replaces IP-blocked scraping
 }

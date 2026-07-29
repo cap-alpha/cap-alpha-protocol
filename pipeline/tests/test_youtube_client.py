@@ -441,6 +441,45 @@ class TestFetchYoutubeDataApiIngestor:
         assert items[0].published_at.month == 4
         assert items[0].published_at.day == 24
 
+    @patch("src.media_ingestor.fetch_youtube_videos")
+    def test_keyword_filter_skips_non_matching_videos(self, mock_fetch):
+        """nouriel_roubini (and similar multi-guest channels) rely on
+        keyword_filter to scope a channel-wide feed down to relevant
+        appearances — this must keep working after switching from
+        youtube_transcript to youtube_data_api (#pipeline-ingestion-recovery)."""
+        from src.media_ingestor import fetch_youtube_data_api
+
+        source_with_filter = {
+            **self.YOUTUBE_SOURCE,
+            "keyword_filter": ["Roubini", "Dr. Doom"],
+        }
+        mock_fetch.return_value = [
+            {
+                "video_id": "match123456",
+                "title": "Nouriel Roubini on the global economy",
+                "description": "Dr. Doom joins to discuss recession risk",
+                "published_at": "2026-04-28T12:00:00Z",
+                "channel_id": "UCa5oCHMV7ImHb6FxJGqz9cQ",
+                "channel_title": "Bloomberg Television",
+                "url": "https://www.youtube.com/watch?v=match123456",
+            },
+            {
+                "video_id": "nomatch12345",
+                "title": "Markets close higher on Fed news",
+                "description": "A recap of today's trading session",
+                "published_at": "2026-04-28T12:00:00Z",
+                "channel_id": "UCa5oCHMV7ImHb6FxJGqz9cQ",
+                "channel_title": "Bloomberg Television",
+                "url": "https://www.youtube.com/watch?v=nomatch12345",
+            },
+        ]
+
+        with patch.dict(os.environ, {"YOUTUBE_API_KEY": "test_key"}):
+            items = fetch_youtube_data_api(source_with_filter, self.DEFAULTS)
+
+        assert len(items) == 1
+        assert items[0].source_url == "https://www.youtube.com/watch?v=match123456"
+
     def test_no_channel_id_anywhere_returns_empty(self):
         from src.media_ingestor import fetch_youtube_data_api
 

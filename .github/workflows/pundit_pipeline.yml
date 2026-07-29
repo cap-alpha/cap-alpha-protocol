@@ -137,13 +137,16 @@ jobs:
       - name: Resolve predictions
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+          # #1131: make GEMINI_API_KEY available in the resolve step so the
+          # grounded judge (llm_judge_silver, provider_override=gemini-flash) can
+          # reach a model when it is wired into the cron. We intentionally do NOT
+          # set LLM_EXTRACTION_PROVIDER here: that would activate the legacy
+          # *ungrounded* parametric judge (get_provider role="extraction"), which
+          # adversarial review flagged for unbounded re-judge churn (cost) and
+          # scoring-metric pollution. Keep the legacy judge inert until it has a
+          # per-run LLM-call cap + unresolvable marker, or resolutions route
+          # through the grounded judge instead.
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          # #1131: the LLM-judge fallback (run inside resolve_daily) was falling
-          # through to the llm_config.yaml default (Ollama @ localhost), which does
-          # not exist on the GitHub runner — every judge call was connection-refused.
-          # Mirror the Extract step's Gemini override so the judge reaches a real model.
-          LLM_EXTRACTION_PROVIDER: gemini
-          LLM_EXTRACTION_MODEL: gemini-3-flash-preview
           PYTHONPATH: ${{ github.workspace }}/pipeline
         run: |
           cd pipeline

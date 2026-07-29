@@ -13,9 +13,28 @@ from src.resolvers.llm_judge import (
     DEFAULT_MAX_RESOLUTIONS,
     CONFIDENCE_THRESHOLD,
     JudgeResult,
+    UNPARSEABLE_NOTES,
     judge_claim,
     run_llm_judge_pass,
 )
+from src.resolution_engine import VoidReason
+
+
+class TestUnparseableNotesVocab(unittest.TestCase):
+    """#1131 regression: the judge's candidate filter must include the current
+    VoidReason.UNPARSEABLE_CLAIM value. #686 renamed the void value out from
+    under UNPARSEABLE_NOTES once already (freezing the pool for ~77 days); pin
+    it so that drift can't silently recur."""
+
+    def test_current_unparseable_claim_value_is_eligible(self):
+        assert VoidReason.UNPARSEABLE_CLAIM.value in UNPARSEABLE_NOTES
+
+    def test_unparseable_notes_values_are_plain_strings(self):
+        # An Enum member (instead of its .value) would never match outcome_notes
+        # in the SQL IN clause.
+        for note in UNPARSEABLE_NOTES:
+            assert isinstance(note, str)
+
 
 # ---------------------------------------------------------------------------
 # judge_claim — unit tests (mocked LLM)

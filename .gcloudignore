@@ -1,0 +1,15 @@
+# Cloud Build context — Dockerfile.api only needs pipeline/.
+# Exclude everything heavy/unneeded so `gcloud builds submit` doesn't choke.
+.git/
+.venv/
+node_modules/
+web/
+.next/
+.duckdb_local/
+.tmp_web/
+.claude/
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+.coverage
+*.duckdb

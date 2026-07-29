@@ -8,6 +8,23 @@
 
 set -e
 
+echo "=== Pre-commit: node_modules symlink guard ==="
+
+# node_modules must never be tracked in git — it's either a real npm-managed
+# directory or a worktree-local symlink created by
+# scripts/configure_agent_identity.sh, both gitignored. This has recurred
+# twice (#588, #1179): a broad `git add -A`/`-f` in an unrelated commit
+# re-staged the symlink despite the gitignore rule already covering it.
+STAGED_NODE_MODULES=$(git diff --cached --name-only | grep -E '(^|/)node_modules$' || true)
+if [ -n "$STAGED_NODE_MODULES" ]; then
+    echo ""
+    echo "ERROR: refusing to commit a tracked node_modules path:"
+    echo "$STAGED_NODE_MODULES"
+    echo "node_modules must never be committed to git (see #588, #1179)."
+    echo "Run: git restore --staged <path>"
+    exit 1
+fi
+
 VENV=".venv"
 
 # Resolve the main repo root — works from worktrees too.

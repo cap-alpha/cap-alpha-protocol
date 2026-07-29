@@ -453,7 +453,7 @@ class TestPodcastFetcherRegistration:
     @patch("src.media_ingestor.feedparser")
     def test_podcast_source_fetches_via_rss(self, mock_fp):
         """A `type: podcast` source (e.g. Megaphone feed) is fetched exactly
-        like a plain RSS feed and tagged content_type=podcast_episode."""
+        like a plain RSS feed and tagged content_type=podcast."""
         entry = MagicMock()
         entry.get = lambda k, d=None: {
             "title": "The Ringer NFL Show: Week 1 Preview",
@@ -482,9 +482,72 @@ class TestPodcastFetcherRegistration:
         items = FETCHERS["podcast"](source, {"max_items_per_feed": 10})
 
         assert len(items) == 1
-        assert items[0].content_type == "podcast_episode"
+        assert items[0].content_type == "podcast"
         assert items[0].fetch_source_type == "podcast"
         assert items[0].source_url == "https://feeds.megaphone.fm/ep1"
+
+    @patch("src.media_ingestor.feedparser")
+    def test_podcast_entry_without_link_uses_enclosure(self, mock_fp):
+        """C1 regression: Megaphone episodes have NO per-item <link> — identity
+        lives in <enclosure url>/<guid>. fetch_rss must fall back to those, or
+        every podcast episode is silently dropped (the no-op the podcast fetcher
+        change originally shipped)."""
+        entry = MagicMock()
+        entry.get = lambda k, d=None: {
+            "title": "Bill Simmons Podcast: NFL Bets",
+            "link": "",  # real Megaphone behavior: no per-item link
+            "enclosures": [{"href": "https://traffic.megaphone.fm/ep99.mp3"}],
+            "id": "gid://megaphone/ep99",
+        }.get(k, d)
+        entry.published_parsed = None
+        type(entry).summary = property(lambda self: "Some NFL betting predictions.")
+        entry.content = []
+        entry.tags = []
+        mock_feed = MagicMock()
+        mock_feed.bozo = False
+        mock_feed.entries = [entry]
+        mock_fp.parse.return_value = mock_feed
+
+        source = {
+            "id": "bill_simmons_podcast",
+            "name": "Bill Simmons",
+            "type": "podcast",
+            "url": "https://feeds.megaphone.fm/bs",
+            "pundits": [],
+        }
+        items = FETCHERS["podcast"](source, {"max_items_per_feed": 10})
+
+        assert len(items) == 1, "podcast episode with no <link> must NOT be dropped"
+        assert items[0].source_url == "https://traffic.megaphone.fm/ep99.mp3"
+
+    @patch("src.media_ingestor.feedparser")
+    def test_podcast_entry_without_link_or_enclosure_falls_back_to_guid(self, mock_fp):
+        """No link, no enclosure, but a <guid>/<id> — still ingestible via id."""
+        entry = MagicMock()
+        entry.get = lambda k, d=None: {
+            "title": "Ep with only a guid",
+            "link": "",
+            "id": "gid://megaphone/ep-guid-only",
+        }.get(k, d)
+        entry.published_parsed = None
+        type(entry).summary = property(lambda self: "text")
+        entry.content = []
+        entry.tags = []
+        mock_feed = MagicMock()
+        mock_feed.bozo = False
+        mock_feed.entries = [entry]
+        mock_fp.parse.return_value = mock_feed
+
+        source = {
+            "id": "the_ringer_nfl",
+            "name": "Ringer NFL",
+            "type": "podcast",
+            "url": "https://feeds.megaphone.fm/rn",
+            "pundits": [],
+        }
+        items = FETCHERS["podcast"](source, {"max_items_per_feed": 10})
+        assert len(items) == 1
+        assert items[0].source_url == "gid://megaphone/ep-guid-only"
 
     def test_ingest_source_no_longer_errors_for_podcast_type(self, mock_db):
         """End-to-end: ingest_source() must not report 'No fetcher' for podcast

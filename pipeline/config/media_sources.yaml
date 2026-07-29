@@ -169,7 +169,7 @@ sources:
     name: "The Ringer NFL"
     sport: "NFL"
     type: podcast
-    scrape_full_text: true
+    scrape_full_text: false  # C1: podcast items have no HTML page; enclosure is an mp3 URL — don't readability-scrape
     url: "https://feeds.megaphone.fm/the-ringer-nfl-show"
     enabled: true  # validated 2026-05-30: 200, active podcast feed with NFL prediction content
     priority_tier: 1  # Tier 1: analytical long-form; high testable prediction density
@@ -1135,7 +1135,7 @@ sources:
     name: "The Ringer NBA"
     sport: "NBA"
     type: podcast
-    scrape_full_text: true
+    scrape_full_text: false  # C1: podcast items have no HTML page; enclosure is an mp3 URL — don't readability-scrape
     url: "https://feeds.megaphone.fm/the-ringer-nba-show"
     enabled: true  # validated 2026-07-28: 200, active podcast feed (Group Chat / Real Ones)
     priority_tier: 1  # Tier 1: Kevin O'Connor + long-form prediction-dense NBA analysis

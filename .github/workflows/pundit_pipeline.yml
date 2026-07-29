@@ -78,6 +78,7 @@ jobs:
           echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/gcp-key.json" >> $GITHUB_ENV
 
       - name: Apply pending migrations
+        id: apply_migrations
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
@@ -141,6 +142,16 @@ jobs:
           python3 scripts/check_extraction_health.py --window-minutes 120 --min-count 1
 
       - name: Refresh SportsDataIO draft data
+        # H1 (incident review): gated like Resolve below, NOT behind the extraction
+        # verify step. Resolve grades draft_pick/fa_signing/game_outcome against
+        # bronze_sportsdataio_* — on a quota/verify-fail day this refresh must still
+        # run, or Resolve grades stale roster/draft data and can emit false INCORRECTs.
+        if: |
+          !cancelled() &&
+          steps.install_deps.outcome == 'success' &&
+          steps.apply_migrations.outcome == 'success' &&
+          steps.auth_wif.outcome != 'failure' &&
+          steps.auth_json.outcome != 'failure'
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           SPORTS_DATA_IO_API_KEY: ${{ secrets.SPORTS_DATA_IO_API_KEY }}
@@ -159,8 +170,9 @@ jobs:
         # succeeded/was applicable) so Resolve still has working GCP
         # creds/PYTHONPATH; NOT gated on Ingest/Seed/Extract/Verify outcome.
         if: |
-          always() &&
+          !cancelled() &&
           steps.install_deps.outcome == 'success' &&
+          steps.apply_migrations.outcome == 'success' &&
           steps.auth_wif.outcome != 'failure' &&
           steps.auth_json.outcome != 'failure'
         env:

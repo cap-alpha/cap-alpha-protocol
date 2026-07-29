@@ -40,6 +40,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Dependencies
+        id: install_deps
         run: |
           python3 -m venv .venv
           .venv/bin/pip install --upgrade pip setuptools wheel
@@ -58,6 +59,7 @@ jobs:
         # Preferred path: workload identity federation — no key file written to disk.
         # Falls back to JSON key if vars.WORKLOAD_IDENTITY_PROVIDER is not configured.
         # See GCP setup instructions in issue #709.
+        id: auth_wif
         if: vars.WORKLOAD_IDENTITY_PROVIDER != ''
         uses: google-github-actions/auth@v2
         with:
@@ -69,6 +71,7 @@ jobs:
         # Writes the key to a temp file that is cleaned up in the Cleanup step.
         # Shell injection risk is mitigated by single-quoting the expansion so
         # the shell never interprets the JSON content.
+        id: auth_json
         if: vars.WORKLOAD_IDENTITY_PROVIDER == ''
         run: |
           echo '${{ secrets.GCP_SERVICE_ACCOUNT_JSON }}' > /tmp/gcp-key.json
@@ -87,6 +90,11 @@ jobs:
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           PYTHONPATH: ${{ github.workspace }}/pipeline
+          # Powers the 6 `youtube_data_api` sources (media_sources.yaml). If unset,
+          # fetch_youtube_data_api() logs a warning and returns [] per source rather
+          # than failing the run — see media_ingestor.py. Andrew: add this repo
+          # secret to actually pull YouTube content (see PR description).
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
         run: |
           cd pipeline
           python3 -m src.media_ingestor
@@ -115,7 +123,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           cd pipeline
-          python3 -m src.assertion_extractor --limit ${{ github.event.inputs.limit || '50' }} --include-unmatched
+          # Precedence: manual workflow_dispatch input > repo variable EXTRACTION_LIMIT
+          # (settable without a code change — lever for the Gemini free-tier 20 req/day
+          # cap) > hardcoded default. run_extraction() also now stops the batch as soon
+          # as it sees one RESOURCE_EXHAUSTED/429 instead of burning the rest of --limit
+          # on doomed calls (see _is_quota_exhausted_error in assertion_extractor.py).
+          # The real fix for the quota ceiling is upgrading off the Gemini free tier —
+          # see PR description.
+          python3 -m src.assertion_extractor --limit ${{ github.event.inputs.limit || vars.EXTRACTION_LIMIT || '50' }} --include-unmatched
 
       - name: Verify extraction produced output
         env:
@@ -135,6 +150,19 @@ jobs:
           python3 -c "from src.sportsdataio_client import ingest_bronze_players; ingest_bronze_players()"
 
       - name: Resolve predictions
+        # Decoupled from the "Verify extraction produced output" gate above
+        # (incident: pipeline-ingestion-recovery). Resolving already-PENDING
+        # predictions does not depend on today's extraction succeeding — a
+        # 0-utterance day (e.g. Gemini free-tier quota exhaustion) must not
+        # also skip resolving predictions from prior days. Gated only on the
+        # environment actually being usable (deps installed, GCP auth
+        # succeeded/was applicable) so Resolve still has working GCP
+        # creds/PYTHONPATH; NOT gated on Ingest/Seed/Extract/Verify outcome.
+        if: |
+          always() &&
+          steps.install_deps.outcome == 'success' &&
+          steps.auth_wif.outcome != 'failure' &&
+          steps.auth_json.outcome != 'failure'
         env:
           GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
           # #1131: make GEMINI_API_KEY available in the resolve step so the

@@ -226,6 +226,27 @@ def _is_transient_llm_error(exc: BaseException) -> bool:
     return False
 
 
+# Fragments identifying quota-exhaustion errors (e.g. Gemini free-tier
+# RESOURCE_EXHAUSTED / HTTP 429). Once one of these is seen, every remaining
+# item in the batch is guaranteed to fail the same way until the quota
+# resets — so run_extraction() stops iterating instead of "hammering" the
+# API with N more doomed requests (see incident: free-tier 20 req/day cap).
+_QUOTA_EXHAUSTED_FRAGMENTS = (
+    "resource_exhausted",
+    "429",
+    "quota exceeded",
+    "exceeded your current quota",
+    "exceeded quota",
+    "rate limit",
+)
+
+
+def _is_quota_exhausted_error(err: str) -> bool:
+    """Return True if an extraction error string indicates provider quota exhaustion."""
+    msg = err.lower()
+    return any(frag in msg for frag in _QUOTA_EXHAUSTED_FRAGMENTS)
+
+
 # Default tier assigned to sources not found in media_sources.yaml
 DEFAULT_PRIORITY_TIER = 2
 
@@ -3007,6 +3028,7 @@ def run_extraction(
         "zero_claims_articles": 0,  # articles where LLM returned 0 claims
         "articles_write_failed": 0,  # articles where BQ write failed (retried next run)
         "failed_sources": [],  # source_ids that produced write errors this run
+        "quota_exhausted": False,  # provider quota hit — batch stopped early (see #<incident>)
     }
 
     # Entity validation config — reads ENTITY_VALIDATION_ENABLED env var (off by default)
@@ -3180,6 +3202,21 @@ def run_extraction(
                 # Do NOT mark as processed — leave the hash out of
                 # processed_hashes so the next pipeline run will retry
                 # this article rather than silently treating it as done.
+                if _is_quota_exhausted_error(result.error):
+                    # Provider quota is exhausted (e.g. Gemini free-tier
+                    # RESOURCE_EXHAUSTED / 429) — every remaining item in this
+                    # batch would fail identically. Stop now instead of
+                    # burning the rest of --limit on doomed calls; the
+                    # remaining media stays unprocessed and is picked up by
+                    # the next scheduled run once quota resets.
+                    summary["quota_exhausted"] = True
+                    logger.error(
+                        f"Provider quota exhausted after {summary['total_processed']} "
+                        f"item(s) — stopping extraction batch early "
+                        f"({len(media_df) - summary['total_processed']} item(s) "
+                        f"left unprocessed for next run)."
+                    )
+                    break
                 continue
 
             # Phase C: write ALL utterances to raw_utterance regardless of

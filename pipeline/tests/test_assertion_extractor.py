@@ -241,6 +241,27 @@ class TestExtractAssertions:
         assert _is_transient_llm_error(Exception("quota exceeded")) is False
         assert _is_transient_llm_error(Exception("403 forbidden")) is False
 
+    def test_is_quota_exhausted_error_classifies_correctly(self):
+        """Unit test for the quota-exhaustion classifier used to short-circuit
+        run_extraction()'s batch loop (Gemini free-tier 429/RESOURCE_EXHAUSTED)."""
+        from src.assertion_extractor import _is_quota_exhausted_error
+
+        assert _is_quota_exhausted_error("429 RESOURCE_EXHAUSTED") is True
+        assert (
+            _is_quota_exhausted_error(
+                "google.api_core.exceptions.ResourceExhausted: 429 You exceeded "
+                "your current quota, please check your plan and billing details."
+            )
+            is True
+        )
+        assert _is_quota_exhausted_error("quota exceeded") is True
+        assert _is_quota_exhausted_error("rate limit hit, try again later") is True
+
+        # Not quota errors — must not falsely trip the short-circuit
+        assert _is_quota_exhausted_error("connection refused") is False
+        assert _is_quota_exhausted_error("401 unauthorized") is False
+        assert _is_quota_exhausted_error("invalid api key") is False
+
     def test_valid_categories_are_complete(self):
         """All expected categories are defined."""
         expected = {
@@ -591,6 +612,57 @@ class TestRunExtraction:
 
         assert summary["errors"] == 1
         assert summary["predictions_extracted"] == 0
+
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_stops_batch_on_quota_exhaustion(
+        self, mock_extract, mock_db, mock_provider
+    ):
+        """A RESOURCE_EXHAUSTED/429 error must stop the batch immediately instead
+        of burning the rest of --limit on doomed calls against an exhausted
+        provider quota (incident: Gemini free-tier 20 req/day cap)."""
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+            error="429 RESOURCE_EXHAUSTED. You exceeded your current quota.",
+        )
+
+        # disable_triage=True: otherwise run_extraction spins up the real triage
+        # provider (localhost Ollama) which filters the mock rows out before
+        # extract_assertions is ever called (call_count would be 0).
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
+
+        # Only the first item should have been attempted before the batch
+        # stopped — the other two rows in media_df must be left untouched.
+        assert mock_extract.call_count == 1
+        assert summary["total_processed"] == 1
+        assert summary["errors"] == 1
+        assert summary["quota_exhausted"] is True
+
+    @patch("src.assertion_extractor.extract_assertions")
+    def test_non_quota_error_does_not_stop_batch(
+        self, mock_extract, mock_db, mock_provider
+    ):
+        """A plain transient/unknown error should NOT trip the quota short-circuit —
+        the batch keeps processing the remaining items."""
+        mock_db.fetch_df.return_value = make_raw_media_df(3)
+        mock_extract.return_value = ExtractionResult(
+            content_hash="hash_0",
+            predictions=[],
+            error="connection reset by peer",
+        )
+
+        # disable_triage=True — see test_stops_batch_on_quota_exhaustion.
+        summary = run_extraction(
+            limit=10, db=mock_db, provider=mock_provider, disable_triage=True
+        )
+
+        assert mock_extract.call_count == 3
+        assert summary["total_processed"] == 3
+        assert summary["errors"] == 3
+        assert summary["quota_exhausted"] is False
 
     @patch("src.assertion_extractor.extract_assertions")
     def test_error_does_not_mark_as_processed(

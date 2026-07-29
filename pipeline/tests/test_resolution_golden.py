@@ -883,6 +883,26 @@ def test_award_parsing_golden(claim, expected_award_key, resolution_source):
     )
 
 
+def test_award_super_bowl_mvp_not_shadowed_by_mvp():
+    """
+    HIGH-5 (Issue #1167 adversarial review, verified against prod): a claim
+    naming the Super Bowl MVP must resolve to 'super_bowl_mvp', not 'mvp'.
+    Before this fix, "mvp" (checked first in dict-insertion order) matched
+    as a substring of "super bowl mvp" and shadowed the more specific
+    keyword, so SB-MVP claims resolved against the regular-season MVP
+    winner instead of the actual Super Bowl MVP.
+    """
+    assert (
+        _parse_award_type("Cooper Kupp will win the Super Bowl MVP") == "super_bowl_mvp"
+    )
+    assert (
+        _parse_award_type("Patrick Mahomes named Super Bowl MVP after the win")
+        == "super_bowl_mvp"
+    )
+    # Regular MVP claims (no "super bowl" qualifier) must still map to "mvp".
+    assert _parse_award_type("Lamar Jackson will win MVP this season") == "mvp"
+
+
 AWARD_RESOLUTION_CASES = [
     # (claim, player_name, awards_config, expected_correct, resolution_source)
     (

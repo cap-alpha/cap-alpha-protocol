@@ -54,6 +54,7 @@ logger = logging.getLogger(__name__)
 _OUTCOME_SOURCE_TO_METHOD_ID: dict[str, str] = {
     "sportsdataio": "nfl_draft_pick_sportsdataio",
     "draft_board": "nfl_draft_pick_sportsdataio",
+    "nflverse_draft_picks": "nfl_draft_pick_sportsdataio",
     "sportsdataio_scores": "nfl_game_outcome_scores",
     "nflverse_player_stats": "nfl_player_perf_nflverse",
     "nfl_awards_config": "nfl_award_config",
@@ -244,7 +245,6 @@ def _load_draft_data(db: DBManager) -> pd.DataFrame:
     query = f"""
         SELECT
             Name,
-            LOWER(Name) AS name_lower,
             CollegeDraftYear AS draft_year,
             CollegeDraftRound AS draft_round,
             CollegeDraftPick AS draft_pick,
@@ -254,7 +254,19 @@ def _load_draft_data(db: DBManager) -> pd.DataFrame:
         FROM `{project_id}.nfl_dead_money.bronze_sportsdataio_players`
         WHERE CollegeDraftYear IS NOT NULL
     """
-    return db.fetch_df(query)
+    df = db.fetch_df(query)
+    # HIGH-3 (Issue #1167 adversarial review): normalize the board side the
+    # same way the claim side is normalized. Previously this was raw
+    # `LOWER(Name)`, so a claim's normalized name ("J.J. McCarthy" ->
+    # "jj mccarthy", periods stripped) never matched the board's raw
+    # "j.j. mccarthy" via substring containment — a real match silently
+    # missed, which for a past draft year fed straight into the terminal
+    # "not found" INCORRECT path.
+    if df.empty:
+        df["name_lower"] = pd.Series(dtype="object")
+    else:
+        df["name_lower"] = df["Name"].apply(_normalize_name)
+    return df
 
 
 def _normalize_name(name: str) -> str:
@@ -267,6 +279,65 @@ def _normalize_name(name: str) -> str:
     return name
 
 
+# Ordinal number words — "first overall pick", "seventeenth pick".
+_ORDINAL_WORDS: dict[str, int] = {
+    "first": 1,
+    "second": 2,
+    "third": 3,
+    "fourth": 4,
+    "fifth": 5,
+    "sixth": 6,
+    "seventh": 7,
+    "eighth": 8,
+    "ninth": 9,
+    "tenth": 10,
+    "eleventh": 11,
+    "twelfth": 12,
+    "thirteenth": 13,
+    "fourteenth": 14,
+    "fifteenth": 15,
+    "sixteenth": 16,
+    "seventeenth": 17,
+    "eighteenth": 18,
+    "nineteenth": 19,
+    "twentieth": 20,
+}
+# Cardinal number words — "go at five overall", "pick number seven"
+# (Issue #1167: _extract_draft_claim previously only understood ordinals
+# like "fifth"/"seventh", so cardinal phrasing silently fell through to
+# an unparseable claim.)
+_CARDINAL_WORDS: dict[str, int] = {
+    "one": 1,
+    "two": 2,
+    "three": 3,
+    "four": 4,
+    "five": 5,
+    "six": 6,
+    "seven": 7,
+    "eight": 8,
+    "nine": 9,
+    "ten": 10,
+    "eleven": 11,
+    "twelve": 12,
+    "thirteen": 13,
+    "fourteen": 14,
+    "fifteen": 15,
+    "sixteen": 16,
+    "seventeen": 17,
+    "eighteen": 18,
+    "nineteen": 19,
+    "twenty": 20,
+}
+# Longest-word-first so a short number word ("seven") can never win a match
+# that should belong to a longer one that contains it as a prefix
+# ("seventeen") before the word-boundary guard even gets a chance to run.
+_NUMBER_WORDS_BY_LENGTH_DESC: list[tuple[str, int]] = sorted(
+    {**_ORDINAL_WORDS, **_CARDINAL_WORDS}.items(),
+    key=lambda pair: len(pair[0]),
+    reverse=True,
+)
+
+
 def _extract_draft_claim(claim: str) -> dict:
     """
     Parse a draft_pick claim to extract structured components.
@@ -275,55 +346,6 @@ def _extract_draft_claim(claim: str) -> dict:
     claim_lower = claim.lower()
     result = {}
 
-    # Extract "No. 1 overall pick" or "#1 pick" or "first overall pick"
-    ordinals = {
-        "first": 1,
-        "second": 2,
-        "third": 3,
-        "fourth": 4,
-        "fifth": 5,
-        "sixth": 6,
-        "seventh": 7,
-        "eighth": 8,
-        "ninth": 9,
-        "tenth": 10,
-        "eleventh": 11,
-        "twelfth": 12,
-        "thirteenth": 13,
-        "fourteenth": 14,
-        "fifteenth": 15,
-        "sixteenth": 16,
-        "seventeenth": 17,
-        "eighteenth": 18,
-        "nineteenth": 19,
-        "twentieth": 20,
-    }
-    # Cardinal number words — "go at five overall", "pick number seven"
-    # (Issue #1167: _extract_draft_claim previously only understood ordinals
-    # like "fifth"/"seventh", so cardinal phrasing silently fell through to
-    # an unparseable claim.)
-    cardinals = {
-        "one": 1,
-        "two": 2,
-        "three": 3,
-        "four": 4,
-        "five": 5,
-        "six": 6,
-        "seven": 7,
-        "eight": 8,
-        "nine": 9,
-        "ten": 10,
-        "eleven": 11,
-        "twelve": 12,
-        "thirteen": 13,
-        "fourteen": 14,
-        "fifteen": 15,
-        "sixteen": 16,
-        "seventeen": 17,
-        "eighteen": 18,
-        "nineteen": 19,
-        "twenty": 20,
-    }
     # Match: "#7 pick", "No. 7 pick", "No. 7 overall pick", "#7 overall",
     # "drafted 7th overall", "drafted 39th overall", "pick #7", "drafted #7",
     # "pick number 7", plus the original "(N) overall pick" variants.
@@ -355,11 +377,30 @@ def _extract_draft_claim(claim: str) -> dict:
     if pick_match:
         result["pick_number"] = int(pick_match.group(1))
     else:
-        for word, num in {**ordinals, **cardinals}.items():
+        # HIGH-4 (Issue #1167 adversarial review): the previous version used
+        # plain substring `in` checks with no word boundaries, which misfired
+        # in several concrete ways:
+        #   - "pick number seventeen" -> matched "seven" as a substring of
+        #     "seventeen" and returned 7 instead of 17.
+        #   - "four picks in the top 100" -> "four pick" is a literal
+        #     substring of "four picks", so the plural got silently treated
+        #     as a singular pick-number claim and returned 4.
+        #   - "twenty-five overall" -> "five overall" is a substring of
+        #     "twenty-five overall", returning 5 for what is actually the
+        #     unsupported compound number 25.
+        # Fixed with a word-boundary regex that additionally: rejects a
+        # match preceded by a hyphen or word character (blocks hyphenated
+        # compounds like "twenty-five"), and requires "pick" to be followed
+        # by a boundary (blocks "picks" pluralization from satisfying a
+        # singular pick-number pattern). When ambiguous, no match is
+        # produced at all — the claim then either falls through to a later
+        # extraction rule or is left unparsed rather than guessed wrong.
+        for word, num in _NUMBER_WORDS_BY_LENGTH_DESC:
+            guarded_word = r"(?<![\w-])" + re.escape(word) + r"(?![\w-])"
             if (
-                f"{word} overall" in claim_lower
-                or f"{word} pick" in claim_lower
-                or f"pick number {word}" in claim_lower
+                re.search(guarded_word + r"\s+overall\b", claim_lower)
+                or re.search(guarded_word + r"\s+pick\b", claim_lower)
+                or re.search(r"pick\s+number\s+" + guarded_word, claim_lower)
             ):
                 result["pick_number"] = num
                 break
@@ -398,10 +439,22 @@ def _extract_draft_claim(claim: str) -> dict:
     elif "first round" in claim_lower or "first-round" in claim_lower:
         result["round_number"] = 1
 
-    # Extract draft year
-    year_match = re.search(r"20\d{2}", claim)
+    # Extract draft year. Prefer a year that appears next to the word
+    # "draft" (MEDIUM-8, Issue #1167 adversarial review) — the previous bare
+    # `20\d{2}` search grabbed the *first* four-digit year anywhere in the
+    # claim, which can be a wrong-but-plausible year from unrelated context
+    # (e.g. "...in the 2021 recruiting class" is not a 2021 draft claim at
+    # all). Falls back to the bare first-year-anywhere match to preserve
+    # existing behavior for claims that never mention "draft" explicitly.
+    year_match = re.search(r"(20\d{2})\s+(?:nfl\s+)?draft", claim_lower)
+    if not year_match:
+        year_match = re.search(r"draft\D{0,10}(20\d{2})", claim_lower)
     if year_match:
-        result["draft_year"] = int(year_match.group())
+        result["draft_year"] = int(year_match.group(1))
+    else:
+        bare_year_match = re.search(r"20\d{2}", claim)
+        if bare_year_match:
+            result["draft_year"] = int(bare_year_match.group())
 
     return result
 
@@ -495,32 +548,99 @@ def _resolve_team_claim(claim, parsed, year_draft_data, phash, db, dry_run):
     return None  # Couldn't parse team claim pattern
 
 
-def _infer_season_year_from_ingestion(ingestion_timestamp) -> Optional[int]:
+def _infer_season_year_from_ingestion(
+    ingestion_timestamp, content_published_at=None
+) -> Optional[int]:
     """
     Read-time fallback for predictions with NULL season_year (Issue #1167).
 
     game_outcome and player_performance both hard-require season_year and
     hard-skip forever when it's missing (831 rows ingested 2026-04-24 ->
     2026-05-05 are stuck this way). Rather than leave them permanently
-    unresolvable, infer a season_year from when the claim was ingested so
-    they can enter the normal season-completion gate.
+    unresolvable, infer a season_year from when the claim was made so they
+    can enter the normal season-completion gate.
+
+    MEDIUM-6 (Issue #1167 adversarial review): prefers `content_published_at`
+    — the underlying article/pundit-statement publish date — over
+    `ingestion_timestamp` when both are available. Ingestion time only tells
+    us when *our pipeline* scraped the claim, which can lag well behind when
+    the pundit actually said it; the publish date is what the "Jan/Feb is
+    ambiguous" reasoning below is actually about.
 
     NFL season YYYY runs Sept YYYY -> the Super Bowl in Feb YYYY+1, and
     pundit predictions are almost always made about the season that is
-    upcoming or in progress at ingestion time:
-      - Ingested Jan/Feb of year Y  -> discussing season Y-1 (still wrapping up)
-      - Ingested Mar-Dec of year Y  -> discussing season Y
+    upcoming or in progress:
+      - Made Mar-Dec of year Y  -> discussing season Y
+      - Made Jan/Feb of year Y  -> AMBIGUOUS: could be about season Y-1
+        (still wrapping up, e.g. Super Bowl week) or an early look ahead at
+        season Y. Previously this guessed Y-1 unconditionally; that's a
+        real coin-flip, not a safe inference, so this now returns None
+        (skip) for Jan/Feb rather than guess (Issue #1167 MEDIUM-6).
 
     This mirrors the season-boundary convention already used for the
     season-completion checks below (`now.month > 2`). It does not change
     behavior for rows that already carry an explicit season_year, and it
     does not force-resolve anything: an inferred season_year of, say, 2026
     still correctly waits at the season-completion gate until Feb 2027.
+
+    Callers that resolve using an inferred value should tag `outcome_notes`
+    with the source (e.g. "[season_year inferred from ingestion_timestamp]")
+    so an inferred resolution can be told apart from an explicit one and
+    reversed if the inference is later shown to be wrong.
     """
-    if ingestion_timestamp is None or pd.isna(ingestion_timestamp):
+    ts = None
+    if content_published_at is not None and pd.notna(content_published_at):
+        ts = pd.Timestamp(content_published_at)
+    elif ingestion_timestamp is not None and pd.notna(ingestion_timestamp):
+        ts = pd.Timestamp(ingestion_timestamp)
+    if ts is None:
         return None
-    ts = pd.Timestamp(ingestion_timestamp)
-    return ts.year - 1 if ts.month <= 2 else ts.year
+    if ts.month in (1, 2):
+        return None  # ambiguous — don't guess
+    return ts.year
+
+
+def _load_content_published_dates(db: DBManager, prediction_hashes: list) -> dict:
+    """
+    Best-effort lookup of the underlying article/content publish date for a
+    batch of predictions (Issue #1167 MEDIUM-6), via the silver_v2_claims
+    linkage: claim.legacy_prediction_hash -> claim.utterance_id ->
+    raw_utterance.uttered_at.
+
+    Most legacy gold_layer rows have no silver_v2 linkage yet (the two
+    pipelines were only recently connected), so this returns an empty or
+    partial dict for them — callers must fall back to ingestion_timestamp
+    when a hash is absent from the result. Never raises: a lookup failure
+    just means "no content date available," not a hard error.
+    """
+    if not prediction_hashes:
+        return {}
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    if not project_id:
+        return {}
+    try:
+        df = db.fetch_df(
+            f"""
+            SELECT c.legacy_prediction_hash AS prediction_hash,
+                   u.uttered_at AS content_published_at
+            FROM `{project_id}.silver_v2_claims.claim` c
+            JOIN `{project_id}.silver_v2_claims.raw_utterance` u
+              ON u.utterance_id = c.utterance_id
+            WHERE c.legacy_prediction_hash IN UNNEST(@hashes)
+              AND u.uttered_at IS NOT NULL
+            """,
+            query_parameters=[
+                bigquery.ArrayQueryParameter(
+                    "hashes", "STRING", list(prediction_hashes)
+                )
+            ],
+        )
+    except Exception as exc:
+        logger.debug(f"_load_content_published_dates: lookup failed (non-fatal): {exc}")
+        return {}
+    if df.empty:
+        return {}
+    return dict(zip(df["prediction_hash"], df["content_published_at"]))
 
 
 def _filter_nfl_only(pending: pd.DataFrame) -> pd.DataFrame:
@@ -549,6 +669,7 @@ def _resolve_terminal_draft_incorrect(
     notes: str,
     db: DBManager,
     dry_run: bool,
+    outcome_source: str = "sportsdataio",
 ) -> None:
     """
     Record a terminal INCORRECT for a draft_pick prediction (Issue #1167).
@@ -559,16 +680,223 @@ def _resolve_terminal_draft_incorrect(
     fix both cases hard-skipped every single day forever — the resolver
     kept re-treating "not found" as "not resolved yet" instead of scoring
     the pundit's prediction as wrong (predicted drafted, but wasn't).
+
+    Per the CRITICAL-1/CRITICAL-2 adversarial-review rework, callers must
+    only reach this function after (a) the claim-shape gate
+    (`_looks_like_draft_prediction`) confirms the claim is actually a draft
+    position prediction, and (b) positive evidence of "undrafted" has been
+    established from a source that does not shrink over time (the immutable
+    nflverse draft-results history, or an explicit undrafted flag) — never
+    from mere absence in the active-roster snapshot.
     """
     logger.info(f"  INCORRECT {phash[:12]}… — {notes}")
     if not dry_run:
         _resolve_binary_with_dual_write(
             prediction_hash=phash,
             correct=False,
-            outcome_source="sportsdataio",
+            outcome_source=outcome_source,
             outcome_notes=notes,
             db=db,
         )
+
+
+# Minimum number of rows a per-year draft board must have before we trust its
+# absence signal for a terminal resolution (Issue #1167 CRITICAL-1). A real
+# NFL draft runs ~255-262 picks; anything drastically smaller for a
+# *concluded* year means a failed/partial ingest, not a small draft class —
+# without this guard a dropped ingest could mass-resolve an entire draft
+# class INCORRECT in a single pass.
+_MIN_DRAFT_BOARD_SIZE = 200
+
+# nflverse/Pro-Football-Reference team codes differ from the SportsDataIO /
+# common broadcast abbreviations used elsewhere in this module (_TEAM_PATTERNS,
+# _TEAM_ALIASES) for a handful of franchises. Translate so notes/team-match
+# comparisons stay consistent regardless of which board actually matched.
+_PFR_TO_STANDARD_TEAM: dict[str, str] = {
+    "GNB": "GB",
+    "KAN": "KC",
+    "LVR": "LV",
+    "NOR": "NO",
+    "NWE": "NE",
+    "SFO": "SF",
+    "TAM": "TB",
+}
+
+
+def _load_immutable_draft_board(db: DBManager) -> pd.DataFrame:
+    """
+    Load the complete historical draft-pick record from
+    bronze_nflverse_draft_picks (Issue #1167 CRITICAL-1).
+
+    Unlike bronze_sportsdataio_players (an ACTIVE-roster snapshot loaded
+    WRITE_TRUNCATE from the /Players endpoint — retired/cut players vanish;
+    e.g. the 2015 class has shrunk to only ~135 of the original ~256 rows),
+    bronze_nflverse_draft_picks is nflverse's Pro-Football-Reference-sourced
+    draft-results history: every pick ever made in a given draft class stays
+    on record regardless of whether that player is still in the league.
+    Absence from THIS table for a concluded draft year is real positive
+    evidence a player was never drafted; absence from the active-roster
+    snapshot is not.
+
+    Returns a DataFrame with columns [draft_year, draft_round, draft_pick,
+    draft_team, player_name, name_lower] — empty (but always column-complete,
+    so callers can safely index columns) if the table is unavailable.
+    """
+    empty = pd.DataFrame(
+        columns=[
+            "draft_year",
+            "draft_round",
+            "draft_pick",
+            "draft_team",
+            "player_name",
+            "name_lower",
+        ]
+    )
+    project_id = os.environ.get("GCP_PROJECT_ID")
+    if not project_id:
+        return empty
+    query = f"""
+        SELECT
+            season AS draft_year,
+            round AS draft_round,
+            pick AS draft_pick,
+            team AS draft_team,
+            pfr_player_name AS player_name
+        FROM `{project_id}.nfl_dead_money.bronze_nflverse_draft_picks`
+        WHERE season IS NOT NULL
+    """
+    try:
+        df = db.fetch_df(query)
+    except NotFound:
+        logger.warning("bronze_nflverse_draft_picks table not found")
+        return empty
+    if df.empty or "player_name" not in df.columns:
+        return empty
+    df["name_lower"] = df["player_name"].apply(_normalize_name)
+    df["draft_team"] = df["draft_team"].map(
+        lambda t: _PFR_TO_STANDARD_TEAM.get(t, t) if pd.notna(t) else t
+    )
+    return df
+
+
+# Predictive/selection phrasing required (alongside a parsed pick/round/
+# top-N target) before a claim is trusted enough to terminal-resolve
+# (Issue #1167 CRITICAL-2). Retrospective narration ("was a three-star
+# recruit", "put up huge numbers") uses neither of these markers.
+_DRAFT_PREDICTIVE_PHRASE_RE = re.compile(
+    r"\b(?:will|is|was|were|goes|going|go|projected|projection|expects?|"
+    r"expected|predicts?|forecast(?:s|ed)?|slated|likely|should|lands?|"
+    r"landing|selects?|selected|drafts?|drafted)\b"
+)
+
+
+def _looks_like_draft_prediction(claim: str, parsed: dict) -> bool:
+    """
+    Claim-shape gate for the terminal-INCORRECT branches (Issue #1167
+    CRITICAL-2 / MEDIUM-9).
+
+    A misclassified non-prediction (recruiting recap, HOF blurb, career-stat
+    recap) can slip into claim_category='draft_pick' upstream — that's the
+    extraction-classifier gap #1167 ranks #1 — and otherwise reach the
+    terminal branch purely because it names a player and mentions *some*
+    year. Before scoring "absent from the board" as INCORRECT we require
+    positive structural + phrasing evidence the claim is actually a forward
+    draft-position prediction:
+      - parsed contains a concrete pick/round/top-N target, AND
+      - the claim uses predictive/selection phrasing.
+
+    Verified false positive this guards against (adversarial review,
+    replayed against prod): "Harrison Wallace III was a three-star recruit
+    and 71st-ranked receiver in the 2021 recruiting class..." — no
+    pick/round/top-N is parseable from that sentence at all (there is no
+    "overall"/"pick"/"round" keyword adjacent to "71st"), so it now falls
+    through to SKIP instead of a terminal INCORRECT.
+
+    This same gate also closes MEDIUM-9: the re-resolve-voids pass retries
+    predictions previously VOID'd as UNPARSEABLE_CLAIM, which by definition
+    have no pick/round/top-N structure — so they can never pass this gate
+    and convert into a terminal INCORRECT on retry.
+    """
+    has_structure = any(k in parsed for k in ("pick_number", "round_number", "top_n"))
+    if not has_structure:
+        return False
+    return bool(_DRAFT_PREDICTIVE_PHRASE_RE.search(claim.lower()))
+
+
+def _evaluate_draft_pick_claim(
+    claim: str,
+    parsed: dict,
+    actual_pick,
+    actual_round,
+    actual_team,
+    actual_name: str,
+) -> tuple[Optional[bool], str]:
+    """
+    Compare a parsed draft claim against one actual draft-board record.
+
+    Shared between the primary (active-roster) match path and the
+    immutable-board fallback path so both apply the identical exact/fuzzy/
+    round/top-N rules. Returns (correct, notes); correct is None when the
+    claim has no pick/round/top-N structure to evaluate against this record
+    (caller should VOID rather than guess).
+    """
+    notes_parts = [
+        f"Actual: {actual_name} was pick #{actual_pick} (Round {actual_round}) by {actual_team}"
+    ]
+
+    if "pick_number" in parsed and pd.notna(actual_pick):
+        predicted_pick = parsed["pick_number"]
+        actual_pick_int = int(actual_pick)
+        pick_delta = abs(actual_pick_int - predicted_pick)
+
+        # Extract claimed team from the claim text for fuzzy-match evaluation.
+        claimed_team: Optional[str] = None
+        claim_lower_for_team = claim.lower()
+        for pattern, abbr in _TEAM_PATTERNS.items():
+            if pattern in claim_lower_for_team:
+                claimed_team = abbr
+                break
+
+        team_matches = (
+            claimed_team is not None
+            and actual_team is not None
+            and claimed_team == actual_team
+        )
+
+        if actual_pick_int == predicted_pick:
+            # Exact match — always correct.
+            correct = True
+            match_type = "exact"
+        elif team_matches and pick_delta <= 3:
+            # Rule 2: team matches and pick is within ±3 — correct.
+            # Covers post-event tracker off-by-one/two errors (issue #997).
+            correct = True
+            match_type = f"fuzzy±{pick_delta}+team"
+        else:
+            # Rule 3 / Rule 4: pick is off and either team is wrong or delta > 3.
+            correct = False
+            match_type = "mismatch"
+
+        notes_parts.append(
+            f"Claimed pick #{predicted_pick} ({claimed_team or 'no-team'}), "
+            f"actual #{actual_pick_int} ({actual_team}); "
+            f"match={match_type}"
+        )
+        return correct, "; ".join(notes_parts)
+
+    if "top_n" in parsed and pd.notna(actual_pick):
+        correct = int(actual_pick) <= parsed["top_n"]
+        notes_parts.append(f"Claimed top-{parsed['top_n']}, actual #{int(actual_pick)}")
+        return correct, "; ".join(notes_parts)
+
+    if "round_number" in parsed and pd.notna(actual_round):
+        correct = int(actual_round) == parsed["round_number"]
+        notes_parts.append(
+            f"Claimed Round {parsed['round_number']}, actual Round {int(actual_round)}"
+        )
+        return correct, "; ".join(notes_parts)
+
+    return None, "; ".join(notes_parts)
 
 
 def resolve_draft_picks(
@@ -629,6 +957,33 @@ def resolve_draft_picks(
         f"against {len(draft_data)} player draft records"
     )
 
+    # Lazy-loaded: only fetched from BigQuery the first time a terminal
+    # "player absent" decision actually needs it, and tolerant of the table
+    # or GCP_PROJECT_ID being unavailable (degrades to the empty/size-guard-
+    # failing frame, which routes to SKIP rather than raising).
+    immutable_board_cache: dict[str, pd.DataFrame] = {}
+
+    def _get_immutable_board() -> pd.DataFrame:
+        if "board" not in immutable_board_cache:
+            try:
+                immutable_board_cache["board"] = _load_immutable_draft_board(db)
+            except Exception as exc:  # noqa: BLE001 - defensive, must never crash the pass
+                logger.warning(
+                    f"Could not load immutable draft board (nflverse): {exc}; "
+                    f"falling back to SKIP for absent-player terminal checks"
+                )
+                immutable_board_cache["board"] = pd.DataFrame(
+                    columns=[
+                        "draft_year",
+                        "draft_round",
+                        "draft_pick",
+                        "draft_team",
+                        "player_name",
+                        "name_lower",
+                    ]
+                )
+        return immutable_board_cache["board"]
+
     for _, pred in draft_preds.iterrows():
         summary["checked"] += 1
         claim = pred["extracted_claim"]
@@ -666,20 +1021,31 @@ def resolve_draft_picks(
             summary["skipped"] += 1
             continue
 
-        # Find the player in draft data
+        # Find the player in draft data. Scoped to THIS claim's draft_year
+        # (MEDIUM-7, Issue #1167 adversarial review) — previously matched
+        # across the entire multi-year board, so a same/similar-named player
+        # from an unrelated draft_year could satisfy the match and pollute
+        # both the pick-comparison and the NULL-pick terminal path below.
+        year_board = draft_data[draft_data["draft_year"] == draft_year]
         norm_name = _normalize_name(player_name) if player_name else ""
         player_matches = (
-            draft_data[draft_data["name_lower"].str.contains(norm_name, na=False)]
+            year_board[year_board["name_lower"].str.contains(norm_name, na=False)]
             if norm_name and norm_name != "none"
             else pd.DataFrame()
         )
 
-        # Also try extracting player name from the claim itself
+        # Also try extracting player name from the claim itself. Periods are
+        # stripped from the claim text here (not a full _normalize_name,
+        # which assumes an isolated name string) so an initialed name like
+        # "J.J. McCarthy" in the claim still matches the now-normalized
+        # board name_lower ("jj mccarthy") — HIGH-3.
         if player_matches.empty:
-            # Try each name in draft_data against the claim
-            claim_lower = claim.lower()
-            for _, draft_row in draft_data.iterrows():
-                if draft_row["name_lower"] in claim_lower:
+            claim_no_periods = claim.lower().replace(".", "")
+            for _, draft_row in year_board.iterrows():
+                if (
+                    draft_row["name_lower"]
+                    and draft_row["name_lower"] in claim_no_periods
+                ):
                     player_matches = pd.DataFrame([draft_row])
                     break
 
@@ -696,15 +1062,101 @@ def resolve_draft_picks(
                 else:
                     summary["skipped"] += 1
             elif player_name and draft_year < current_year:
-                # Issue #1167: the draft has concluded and this player never
-                # appears in the draft board at all — terminal INCORRECT
-                # ("predicted drafted but wasn't"), not an infinite skip.
-                notes = (
-                    f"Player '{player_name}' not found in {draft_year} draft "
-                    f"data; draft has concluded — predicted drafted but wasn't"
-                )
-                _resolve_terminal_draft_incorrect(phash, notes, db, dry_run)
-                summary["resolved"] += 1
+                # Issue #1167 CRITICAL-1/CRITICAL-2: the draft has concluded
+                # and this player is absent from the active-roster snapshot.
+                # That alone is NOT positive evidence of "undrafted" (they
+                # may simply have retired/been cut since — the snapshot is
+                # WRITE_TRUNCATE from the /Players ACTIVE endpoint). Require
+                # (a) the claim actually looks like a draft-position
+                # prediction, then (b) check the immutable, non-shrinking
+                # nflverse draft-results history for positive evidence
+                # either way, guarded against a failed/partial ingest.
+                if not _looks_like_draft_prediction(claim, parsed):
+                    logger.info(
+                        f"  SKIP {phash[:12]}… — claim has no pick/round/top-N "
+                        f"structure + predictive phrasing; not confidently a "
+                        f"draft-position prediction: {claim[:60]}"
+                    )
+                    summary["skipped"] += 1
+                    continue
+
+                immutable_board = _get_immutable_board()
+                year_immutable = immutable_board[
+                    immutable_board["draft_year"] == draft_year
+                ]
+                if len(year_immutable) < _MIN_DRAFT_BOARD_SIZE:
+                    # TODO(#1167): no immutable per-year draft source is
+                    # available/complete for this year (guard: need >=
+                    # _MIN_DRAFT_BOARD_SIZE rows, got len(year_immutable)).
+                    # Do the conservative thing and leave this pending
+                    # rather than infer "undrafted" from absence alone.
+                    logger.info(
+                        f"  SKIP {phash[:12]}… — no reliable immutable draft "
+                        f"record for {draft_year} (got {len(year_immutable)} "
+                        f"rows, need >= {_MIN_DRAFT_BOARD_SIZE}); can't "
+                        f"positively confirm undrafted"
+                    )
+                    summary["skipped"] += 1
+                    continue
+
+                norm_name_im = _normalize_name(player_name)
+                immutable_match = year_immutable[
+                    year_immutable["name_lower"].str.contains(norm_name_im, na=False)
+                ]
+                if immutable_match.empty:
+                    # Positive evidence from a complete, non-shrinking
+                    # source: genuinely absent from this draft class.
+                    notes = (
+                        f"Player '{player_name}' not found in {draft_year} "
+                        f"active-roster draft data or the complete "
+                        f"{draft_year} draft-results record "
+                        f"({len(year_immutable)} picks, nflverse); draft has "
+                        f"concluded — predicted drafted but wasn't"
+                    )
+                    _resolve_terminal_draft_incorrect(
+                        phash, notes, db, dry_run, outcome_source="nflverse_draft_picks"
+                    )
+                    summary["resolved"] += 1
+                else:
+                    # They WERE drafted — the active-roster snapshot just no
+                    # longer carries them (retired/cut). Resolve against the
+                    # immutable record instead of falsely scoring INCORRECT.
+                    im_actual = immutable_match.iloc[0]
+                    correct, eval_notes = _evaluate_draft_pick_claim(
+                        claim,
+                        parsed,
+                        im_actual.get("draft_pick"),
+                        im_actual.get("draft_round"),
+                        im_actual.get("draft_team"),
+                        im_actual.get("player_name"),
+                    )
+                    if correct is None:
+                        logger.info(
+                            f"  VOID {phash[:12]}… — found in immutable draft "
+                            f"history but claim has no pick/round/top-N "
+                            f"structure: {claim[:60]}"
+                        )
+                        if not dry_run:
+                            _void_prediction_with_dual_write(
+                                phash, VoidReason.UNPARSEABLE_CLAIM, db=db
+                            )
+                        summary["voided"] += 1
+                    else:
+                        outcome_notes = (
+                            "[resolved via nflverse immutable draft history — "
+                            "absent from active-roster snapshot] " + eval_notes
+                        )
+                        status = "CORRECT" if correct else "INCORRECT"
+                        logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
+                        if not dry_run:
+                            _resolve_binary_with_dual_write(
+                                prediction_hash=phash,
+                                correct=correct,
+                                outcome_source="nflverse_draft_picks",
+                                outcome_notes=outcome_notes,
+                                db=db,
+                            )
+                        summary["resolved"] += 1
             else:
                 logger.info(
                     f"  SKIP {phash[:12]}… — can't find player or team pattern: {claim[:60]}"
@@ -720,19 +1172,41 @@ def resolve_draft_picks(
         actual_name = actual.get("Name")
 
         # Pick data missing (0-indexed picks already normalized to 1+ above).
-        # If the draft has concluded, a player who IS on the board but has no
-        # assigned pick means they went undrafted — terminal INCORRECT, not
-        # an infinite skip (Issue #1167). If the draft year is still current
-        # (pick just not assigned yet), keep waiting.
+        # If the draft has concluded, a player who IS on the board for THIS
+        # draft_year (MEDIUM-7: matches are now year-scoped, so this can no
+        # longer be a cross-year mismatch) but has no assigned pick is only
+        # a terminal INCORRECT ("went undrafted") when SportsDataIO
+        # positively flags them as such — a NULL pick alone is not proof of
+        # undrafted, it can just be missing/delayed data (Issue #1167).
         if not pd.notna(actual_pick):
             if draft_year < current_year:
-                notes = (
-                    f"Player found ({actual_name}) but CollegeDraftPick is "
-                    f"NULL in {draft_year} draft data; draft has concluded — "
-                    f"predicted drafted but wasn't"
+                is_flagged_undrafted = bool(pd.notna(actual.get("undrafted"))) and bool(
+                    actual.get("undrafted")
                 )
-                _resolve_terminal_draft_incorrect(phash, notes, db, dry_run)
-                summary["resolved"] += 1
+                if not _looks_like_draft_prediction(claim, parsed):
+                    logger.info(
+                        f"  SKIP {phash[:12]}… — claim has no pick/round/top-N "
+                        f"structure + predictive phrasing: {claim[:60]}"
+                    )
+                    summary["skipped"] += 1
+                elif is_flagged_undrafted:
+                    notes = (
+                        f"Player found ({actual_name}) and positively flagged "
+                        f"IsUndraftedFreeAgent=True in {draft_year} draft "
+                        f"data; draft has concluded — predicted drafted but wasn't"
+                    )
+                    _resolve_terminal_draft_incorrect(phash, notes, db, dry_run)
+                    summary["resolved"] += 1
+                else:
+                    # TODO(#1167): NULL pick without a positive undrafted
+                    # flag isn't enough evidence — could be missing/delayed
+                    # data rather than a real non-draftee. Leave pending.
+                    logger.info(
+                        f"  SKIP {phash[:12]}… — player found ({actual_name}) "
+                        f"with NULL pick in {draft_year} but not positively "
+                        f"flagged undrafted; can't confirm — leaving pending"
+                    )
+                    summary["skipped"] += 1
             else:
                 logger.info(
                     f"  SKIP {phash[:12]}… — player found but pick not yet assigned: {actual_name}"
@@ -741,60 +1215,10 @@ def resolve_draft_picks(
             continue
 
         # Now evaluate the claim
-        correct = None
-        notes_parts = [
-            f"Actual: {actual_name} was pick #{actual_pick} (Round {actual_round}) by {actual_team}"
-        ]
-
-        if "pick_number" in parsed and pd.notna(actual_pick):
-            predicted_pick = parsed["pick_number"]
-            actual_pick_int = int(actual_pick)
-            pick_delta = abs(actual_pick_int - predicted_pick)
-
-            # Extract claimed team from the claim text for fuzzy-match evaluation.
-            claimed_team: Optional[str] = None
-            claim_lower_for_team = claim.lower()
-            for pattern, abbr in _TEAM_PATTERNS.items():
-                if pattern in claim_lower_for_team:
-                    claimed_team = abbr
-                    break
-
-            team_matches = (
-                claimed_team is not None
-                and actual_team is not None
-                and claimed_team == actual_team
-            )
-
-            if actual_pick_int == predicted_pick:
-                # Exact match — always correct.
-                correct = True
-                match_type = "exact"
-            elif team_matches and pick_delta <= 3:
-                # Rule 2: team matches and pick is within ±3 — correct.
-                # Covers post-event tracker off-by-one/two errors (issue #997).
-                correct = True
-                match_type = f"fuzzy±{pick_delta}+team"
-            else:
-                # Rule 3 / Rule 4: pick is off and either team is wrong or delta > 3.
-                correct = False
-                match_type = "mismatch"
-
-            notes_parts.append(
-                f"Claimed pick #{predicted_pick} ({claimed_team or 'no-team'}), "
-                f"actual #{actual_pick_int} ({actual_team}); "
-                f"match={match_type}"
-            )
-        elif "top_n" in parsed and pd.notna(actual_pick):
-            correct = int(actual_pick) <= parsed["top_n"]
-            notes_parts.append(
-                f"Claimed top-{parsed['top_n']}, actual #{int(actual_pick)}"
-            )
-        elif "round_number" in parsed and pd.notna(actual_round):
-            correct = int(actual_round) == parsed["round_number"]
-            notes_parts.append(
-                f"Claimed Round {parsed['round_number']}, actual Round {int(actual_round)}"
-            )
-        else:
+        correct, outcome_notes = _evaluate_draft_pick_claim(
+            claim, parsed, actual_pick, actual_round, actual_team, actual_name
+        )
+        if correct is None:
             # Can't determine specific claim — void
             logger.info(
                 f"  VOID {phash[:12]}… — can't parse specific claim: {claim[:60]}"
@@ -806,7 +1230,6 @@ def resolve_draft_picks(
             summary["voided"] += 1
             continue
 
-        outcome_notes = "; ".join(notes_parts)
         status = "CORRECT" if correct else "INCORRECT"
         logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
 
@@ -1027,26 +1450,44 @@ def resolve_game_outcomes(
     # (i.e. prior year, or current year after February)
     season_data_cache: dict[int, pd.DataFrame] = {}
 
+    # MEDIUM-6 (Issue #1167): batch-fetch content publish dates once for all
+    # NULL-season_year rows so per-row inference can prefer them over
+    # ingestion_timestamp.
+    null_season_hashes = game_preds.loc[
+        game_preds["season_year"].isna(), "prediction_hash"
+    ].tolist()
+    content_dates = _load_content_published_dates(db, null_season_hashes)
+
     for _, pred in game_preds.iterrows():
         summary["checked"] += 1
         claim = pred["extracted_claim"]
         phash = pred["prediction_hash"]
         season_year = pred.get("season_year")
+        season_year_inferred = False
+        inferred_from = None
 
         if pd.isna(season_year):
+            content_date = content_dates.get(phash)
             season_year = _infer_season_year_from_ingestion(
-                pred.get("ingestion_timestamp")
+                pred.get("ingestion_timestamp"), content_date
             )
             if season_year is None:
                 logger.info(
-                    f"  SKIP {phash[:12]}… — no season_year and no "
-                    f"ingestion_timestamp to infer from"
+                    f"  SKIP {phash[:12]}… — no season_year and no usable "
+                    f"content-publish/ingestion date to infer from (or the "
+                    f"date fell in the ambiguous Jan/Feb window)"
                 )
                 summary["skipped"] += 1
                 continue
+            season_year_inferred = True
+            inferred_from = (
+                "content_published_at"
+                if content_date is not None
+                else "ingestion_timestamp"
+            )
             logger.info(
                 f"  Inferred season_year={season_year} for {phash[:12]}… "
-                f"from ingestion_timestamp (read-time fallback, Issue #1167)"
+                f"from {inferred_from} (read-time fallback, Issue #1167)"
             )
 
         season_year = int(season_year)
@@ -1166,6 +1607,12 @@ def resolve_game_outcomes(
             summary["skipped"] += 1
             continue
 
+        if season_year_inferred:
+            # MEDIUM-6: tag inferred resolutions for reversibility — an
+            # auditor can find/undo these separately if the inference is
+            # later shown to be wrong, without touching explicit-season_year
+            # resolutions.
+            notes_parts.append(f"[season_year inferred from {inferred_from}]")
         outcome_notes = "; ".join(notes_parts)
         status = "CORRECT" if correct else "INCORRECT"
         logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
@@ -1335,26 +1782,44 @@ def resolve_player_performance(
     current_year = pd.Timestamp.now().year
     stats_cache: dict[int, pd.DataFrame] = {}
 
+    # MEDIUM-6 (Issue #1167): batch-fetch content publish dates once for all
+    # NULL-season_year rows so per-row inference can prefer them over
+    # ingestion_timestamp.
+    null_season_hashes = perf_preds.loc[
+        perf_preds["season_year"].isna(), "prediction_hash"
+    ].tolist()
+    content_dates = _load_content_published_dates(db, null_season_hashes)
+
     for _, pred in perf_preds.iterrows():
         summary["checked"] += 1
         claim = pred["extracted_claim"]
         phash = pred["prediction_hash"]
         season_year = pred.get("season_year")
+        season_year_inferred = False
+        inferred_from = None
 
         if pd.isna(season_year):
+            content_date = content_dates.get(phash)
             season_year = _infer_season_year_from_ingestion(
-                pred.get("ingestion_timestamp")
+                pred.get("ingestion_timestamp"), content_date
             )
             if season_year is None:
                 logger.info(
-                    f"  SKIP {phash[:12]}… — no season_year and no "
-                    f"ingestion_timestamp to infer from"
+                    f"  SKIP {phash[:12]}… — no season_year and no usable "
+                    f"content-publish/ingestion date to infer from (or the "
+                    f"date fell in the ambiguous Jan/Feb window)"
                 )
                 summary["skipped"] += 1
                 continue
+            season_year_inferred = True
+            inferred_from = (
+                "content_published_at"
+                if content_date is not None
+                else "ingestion_timestamp"
+            )
             logger.info(
                 f"  Inferred season_year={season_year} for {phash[:12]}… "
-                f"from ingestion_timestamp (read-time fallback, Issue #1167)"
+                f"from {inferred_from} (read-time fallback, Issue #1167)"
             )
 
         season_year = int(season_year)
@@ -1440,6 +1905,9 @@ def resolve_player_performance(
             f"{player_name} {stat_col}: actual={actual_val:.0f}, "
             f"claimed {operator}{threshold:.0f} in {season_year}"
         )
+        if season_year_inferred:
+            # MEDIUM-6: tag inferred resolutions for reversibility.
+            outcome_notes += f"; [season_year inferred from {inferred_from}]"
         status = "CORRECT" if correct else "INCORRECT"
         logger.info(f"  {status} {phash[:12]}… — {outcome_notes}")
 
@@ -1490,6 +1958,23 @@ _AWARD_KEYWORDS: dict[str, list[str]] = {
     "super_bowl_mvp": ["super bowl mvp"],
 }
 
+# Flattened (keyword, award_key) pairs, longest keyword first (HIGH-5, Issue
+# #1167 adversarial review). _parse_award_type previously iterated
+# _AWARD_KEYWORDS in dict order and returned on the first match, so a claim
+# containing "Super Bowl MVP" matched the generic "mvp" keyword (checked
+# first) before "super bowl mvp" was ever considered — SB-MVP claims
+# resolved against the regular-season MVP winner instead. Sorting by keyword
+# length so the most specific keyword always wins, regardless of dict order.
+_AWARD_KEYWORD_PAIRS_BY_LENGTH_DESC: list[tuple[str, str]] = sorted(
+    (
+        (keyword, award_key)
+        for award_key, keywords in _AWARD_KEYWORDS.items()
+        for keyword in keywords
+    ),
+    key=lambda pair: len(pair[0]),
+    reverse=True,
+)
+
 
 def _load_awards_config(season: int) -> dict[str, Optional[str]]:
     """Load NFL award winners from config/nfl_awards_<season>.yaml."""
@@ -1503,10 +1988,16 @@ def _load_awards_config(season: int) -> dict[str, Optional[str]]:
 
 
 def _parse_award_type(claim: str) -> Optional[str]:
-    """Return the award config key if the claim names a known award, else None."""
+    """
+    Return the award config key if the claim names a known award, else None.
+
+    Matches the most specific (longest) keyword first (HIGH-5) so a
+    substring keyword like "mvp" can never shadow a more specific one like
+    "super bowl mvp".
+    """
     claim_lower = claim.lower()
-    for award_key, keywords in _AWARD_KEYWORDS.items():
-        if any(kw in claim_lower for kw in keywords):
+    for keyword, award_key in _AWARD_KEYWORD_PAIRS_BY_LENGTH_DESC:
+        if keyword in claim_lower:
             return award_key
     return None
 

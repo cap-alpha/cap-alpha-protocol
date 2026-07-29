@@ -16,6 +16,7 @@ from src.resolve_daily import (
     _extract_player_stat_claim,
     _infer_season_year_from_ingestion,
     _load_draft_data,
+    _looks_like_draft_prediction,
     _normalize_name,
     _normalize_team,
     _resolve_binary_with_dual_write,
@@ -30,6 +31,47 @@ from src.resolve_daily import (
 )
 
 FAKE_HASH = "b" * 64
+
+
+class TestDraftPredictionGate:
+    """#1168 re-review HIGH-1: the claim-shape gate must reject recruiting/
+    career recaps (which the upstream classifier still misfiles into
+    claim_category='draft_pick') so they never reach a terminal INCORRECT,
+    while still admitting genuine forward/present-tense draft predictions."""
+
+    def test_recruiting_recap_rejected_even_with_parsed_pick(self):
+        # Real repro from the adversarial review — drafted 2025, so an
+        # absent-from-2022 check would false-INCORRECT if this passed.
+        assert not _looks_like_draft_prediction(
+            "Travis Hunter was the No. 1 overall recruit in the 2022 recruiting cycle",
+            {"pick_number": 1},
+        )
+        assert not _looks_like_draft_prediction(
+            "Jaydn Ott was the No. 3 overall recruit in the 2021 class",
+            {"pick_number": 3},
+        )
+
+    def test_past_tense_recap_rejected(self):
+        assert not _looks_like_draft_prediction(
+            "He was the 5th overall selection", {"pick_number": 5}
+        )
+
+    def test_no_structure_rejected(self):
+        assert not _looks_like_draft_prediction("Some team will draft a receiver", {})
+
+    def test_genuine_predictions_admitted(self):
+        assert _looks_like_draft_prediction(
+            "Old Player is the No. 5 overall pick in 2015", {"pick_number": 5}
+        )
+        assert _looks_like_draft_prediction(
+            "Cam Ward will be the No. 1 overall pick", {"pick_number": 1}
+        )
+
+    def test_normalize_name_folds_diacritics(self):
+        # #1168 re-review MEDIUM-1: accented names in one source must match
+        # plain-ASCII names in the other, or a real draftee reads as absent.
+        assert _normalize_name("Audric Estimé") == "audric estime"
+        assert _normalize_name("Jevón Holland") == "jevon holland"
 
 
 # ---------------------------------------------------------------------------

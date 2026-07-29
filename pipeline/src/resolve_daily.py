@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -272,6 +273,11 @@ def _load_draft_data(db: DBManager) -> pd.DataFrame:
 def _normalize_name(name: str) -> str:
     """Normalize player name for fuzzy matching."""
     name = name.lower().strip()
+    # Fold diacritics (Estimé -> estime, Holland's é, etc.) so accented names in
+    # one source match plain-ASCII names in the other (#1165 review MEDIUM-1:
+    # otherwise a real draftee with an accented name reads as "absent" -> a
+    # false terminal INCORRECT).
+    name = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode("ascii")
     # Remove common suffixes
     name = re.sub(r"\s+(jr\.?|sr\.?|ii|iii|iv)$", "", name)
     # Remove periods from initials
@@ -783,10 +789,26 @@ def _load_immutable_draft_board(db: DBManager) -> pd.DataFrame:
 # top-N target) before a claim is trusted enough to terminal-resolve
 # (Issue #1167 CRITICAL-2). Retrospective narration ("was a three-star
 # recruit", "put up huge numbers") uses neither of these markers.
+# Prediction/claim phrasing (#1168 re-review HIGH-1). The past-tense recap verbs
+# was/were/drafted/selected are dropped (they made the gate pass career/recruiting
+# recaps); present-tense is/are is kept because pundits legitimately phrase picks
+# that way ("X is the No. 5 overall pick"). The real recap-blocker is the
+# _DRAFT_NON_PREDICTION_RE marker check below, plus the all-years absence check.
 _DRAFT_PREDICTIVE_PHRASE_RE = re.compile(
-    r"\b(?:will|is|was|were|goes|going|go|projected|projection|expects?|"
-    r"expected|predicts?|forecast(?:s|ed)?|slated|likely|should|lands?|"
-    r"landing|selects?|selected|drafts?|drafted)\b"
+    r"\b(?:will|going to|goes|is|are|projected|projection|expects?|expected|"
+    r"predicts?|forecast(?:s|ed)?|slated|likely|should|lands?|landing|"
+    r"selects|drafts|taken|picked)\b"
+)
+
+# Non-prediction markers (#1168 re-review HIGH-1). A claim carrying these is
+# describing recruiting/history, not forecasting an NFL draft outcome, even if a
+# "No. N overall" recruit ranking makes it parse a pick number. Verified repro
+# that this rejects: "Travis Hunter was the No. 1 overall recruit in the 2022
+# recruiting cycle" (drafted 2025 -> absent from 2022 board -> would false-INCORRECT).
+_DRAFT_NON_PREDICTION_RE = re.compile(
+    r"\b(?:recruit(?:s|ing)?|recruiting class|composite|rivals|247|"
+    r"(?:three|four|five)[- ]star|star (?:recruit|prospect)|high[- ]school|"
+    r"class of \d{4})\b"
 )
 
 
@@ -817,10 +839,14 @@ def _looks_like_draft_prediction(claim: str, parsed: dict) -> bool:
     have no pick/round/top-N structure — so they can never pass this gate
     and convert into a terminal INCORRECT on retry.
     """
+    claim_l = claim.lower()
+    # Hard-reject recruiting/history recaps even if they parse a number.
+    if _DRAFT_NON_PREDICTION_RE.search(claim_l):
+        return False
     has_structure = any(k in parsed for k in ("pick_number", "round_number", "top_n"))
     if not has_structure:
         return False
-    return bool(_DRAFT_PREDICTIVE_PHRASE_RE.search(claim.lower()))
+    return bool(_DRAFT_PREDICTIVE_PHRASE_RE.search(claim_l))
 
 
 def _evaluate_draft_pick_claim(
@@ -1101,11 +1127,36 @@ def resolve_draft_picks(
 
                 norm_name_im = _normalize_name(player_name)
                 immutable_match = year_immutable[
-                    year_immutable["name_lower"].str.contains(norm_name_im, na=False)
+                    year_immutable["name_lower"].str.contains(
+                        norm_name_im, na=False, regex=False
+                    )
                 ]
                 if immutable_match.empty:
+                    # HIGH-2 (#1168 re-review): before scoring "never drafted",
+                    # confirm the player isn't simply in a DIFFERENT draft year.
+                    # A wrong draft_year derivation would otherwise turn "absent
+                    # from year X" into a false INCORRECT. If they appear in any
+                    # other year of the immutable record, the year is suspect —
+                    # skip rather than mis-score.
+                    other_year = immutable_board[
+                        immutable_board["name_lower"].str.contains(
+                            norm_name_im, na=False, regex=False
+                        )
+                    ]
+                    if not other_year.empty:
+                        years = sorted(
+                            {int(y) for y in other_year["draft_year"].dropna().tolist()}
+                        )
+                        logger.info(
+                            f"  SKIP {phash[:12]}… — '{player_name}' absent from "
+                            f"{draft_year} but present in the immutable draft "
+                            f"record for {years}; draft_year derivation suspect, "
+                            f"not scoring INCORRECT"
+                        )
+                        summary["skipped"] += 1
+                        continue
                     # Positive evidence from a complete, non-shrinking
-                    # source: genuinely absent from this draft class.
+                    # source: genuinely absent from every draft class.
                     notes = (
                         f"Player '{player_name}' not found in {draft_year} "
                         f"active-roster draft data or the complete "

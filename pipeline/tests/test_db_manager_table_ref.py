@@ -215,6 +215,27 @@ def test_json_load_safe_value_valid_json_no_warning(caplog):
     assert not any(r.levelno == logging.WARNING for r in caplog.records)
 
 
+def test_json_load_safe_value_demotes_integer_valued_float():
+    """#1165: pandas promotes an int column with any NULL to float64, so an
+    Optional[int] like prediction_ledger.season_year arrives as 2026.0. The
+    JSON load path (unlike the old Parquet path) does no schema coercion, so
+    BigQuery can reject a JSON float at an INT64 column. Integer-valued floats
+    must be demoted losslessly; genuine fractional floats must pass through."""
+    from src.db_manager import _json_load_safe_value
+
+    demoted = _json_load_safe_value(2026.0, is_json_col=False)
+    assert demoted == 2026
+    assert isinstance(demoted, int)
+
+    # Non-integral floats (e.g. a real FLOAT64 column) are untouched.
+    passthrough = _json_load_safe_value(0.75, is_json_col=False)
+    assert passthrough == 0.75
+    assert isinstance(passthrough, float)
+
+    # NaN is still normalised to None (handled before the demotion).
+    assert _json_load_safe_value(float("nan"), is_json_col=False) is None
+
+
 # ---------------------------------------------------------------------------
 # Regression coverage for issue #1127 — fetch_df() job_config kwarg
 # ---------------------------------------------------------------------------

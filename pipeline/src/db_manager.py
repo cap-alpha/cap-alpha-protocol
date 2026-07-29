@@ -47,6 +47,15 @@ def _json_load_safe_value(value: Any, is_json_col: bool) -> Any:
                 preview,
             )
             return value
+    # #1165: pandas promotes an int column containing any NULL to float64, so an
+    # Optional[int] (e.g. prediction_ledger.season_year) arrives here as 2026.0.
+    # load_table_from_json would emit that as a JSON float against an INT64
+    # column, which BigQuery can reject ("Could not convert value to integer").
+    # The old load_table_from_dataframe (Parquet) path coerced via the
+    # destination schema; the JSON path does not, so demote integer-valued
+    # floats losslessly here. (NaN floats are already returned as None above.)
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
     return value
 
 

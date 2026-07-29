@@ -312,6 +312,10 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
     for entry in feed.entries[:max_items]:
         title = entry.get("title", "")
         link = entry.get("link", "")
+        # hash_key is the durable dedup identity; source_url (= link) is what we
+        # store/display. For normal feeds they're the same stable per-item <link>.
+        guid = entry.get("id", "")
+        hash_key = link
         if not link:
             # C1 (incident review): podcast feeds (Megaphone etc.) commonly have
             # no per-item <link> — episode identity lives in <enclosure url> or
@@ -321,7 +325,14 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
             if enclosures and enclosures[0].get("href"):
                 link = enclosures[0]["href"]
             else:
-                link = entry.get("id", "")
+                link = guid
+            # #1174 (LOW, from #1172 review): the enclosure URL carries an
+            # ad-measurement prefix (pdst.fm/...) that changes if the publisher
+            # swaps analytics providers, which would break dedup identity vs
+            # history. Prefer the stable <guid> for the hash key; fall back to the
+            # enclosure URL only when there's no guid. Display URL stays the
+            # enclosure so the episode remains playable.
+            hash_key = guid or link
         if not link:
             continue
 
@@ -360,7 +371,7 @@ def fetch_rss(source: dict, defaults: dict) -> list[MediaItem]:
         pundit_id, pundit_name, match_method = match_pundit(
             author, pundits, raw_text=raw_text, source=source
         )
-        content_hash = compute_content_hash(link, title)
+        content_hash = compute_content_hash(hash_key, title)
 
         content_type = "article"
         if source.get("type") == "youtube_rss":

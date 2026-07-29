@@ -83,6 +83,35 @@ class TestSplitStatements:
         parts = _split_statements(sql)
         assert len(parts) == 2
 
+    def test_double_dash_inside_string_literal_not_stripped(self):
+        # Regression (migration 031): a `--` inside an OPTIONS(description="...")
+        # must NOT be treated as a line comment. The old naive re.sub stripped
+        # from `--` to EOL, truncating the double-quoted string mid-literal and
+        # producing a BigQuery "Unclosed string literal" 400.
+        sql = (
+            "CREATE TABLE t (\n"
+            '  a STRING OPTIONS(description="dim vector -- see embed.py for details."),\n'
+            '  b INT64 OPTIONS(description="key; one row per id -- never overwritten.")\n'
+            ");"
+        )
+        parts = _split_statements(sql)
+        assert len(parts) == 1, f"Expected 1 statement, got {len(parts)}: {parts}"
+        # The description text (incl. the -- and everything after it) must survive.
+        assert "see embed.py for details." in parts[0]
+        assert "never overwritten." in parts[0]
+        # Balanced double-quotes => no unclosed literal.
+        assert parts[0].count('"') % 2 == 0
+
+    def test_line_comment_still_stripped_outside_strings(self):
+        sql = (
+            "-- header comment\n"
+            "SELECT 1;  -- trailing comment with -- dashes\n"
+            "-- another\nSELECT 2"
+        )
+        parts = _split_statements(sql)
+        assert len(parts) == 2
+        assert "comment" not in " ".join(parts)
+
 
 class TestSha256:
     def test_deterministic(self):

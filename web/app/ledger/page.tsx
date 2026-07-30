@@ -136,7 +136,7 @@ function AccuracyBar({ rate }: { rate: number | null }) {
                 />
             </div>
             {isTopDecile ? (
-                <span className="inline-flex items-center rounded-full bg-navy px-1.5 py-0.5 text-[11px] font-mono font-semibold text-white tabular-nums">
+                <span className="inline-flex items-center rounded-full bg-navy px-1.5 py-0.5 text-micro font-mono font-semibold text-white tabular-nums">
                     {pct}%
                 </span>
             ) : (
@@ -172,18 +172,18 @@ function BrierBadge({ score }: { score: number | null }) {
 function StatusBadge({ status }: { status: string | null }) {
     if (status === "CORRECT")
         return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(26,122,74,0.1)] px-2 py-0.5 text-[10px] font-semibold text-correct ring-1 ring-correct/30">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(26,122,74,0.1)] px-2 py-0.5 text-micro-sm font-semibold text-correct ring-1 ring-correct/30">
                 <CheckCircle2 className="w-2.5 h-2.5" /> Correct
             </span>
         );
     if (status === "INCORRECT")
         return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(185,28,28,0.08)] px-2 py-0.5 text-[10px] font-semibold text-incorrect ring-1 ring-incorrect/30">
+            <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(185,28,28,0.08)] px-2 py-0.5 text-micro-sm font-semibold text-incorrect ring-1 ring-incorrect/30">
                 <XCircle className="w-2.5 h-2.5" /> Wrong
             </span>
         );
     return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-editorial-border px-2 py-0.5 text-[10px] font-semibold text-ink-2 ring-1 ring-editorial-border">
+        <span className="inline-flex items-center gap-1 rounded-full bg-editorial-border px-2 py-0.5 text-micro-sm font-semibold text-ink-2 ring-1 ring-editorial-border">
             <Clock className="w-2.5 h-2.5" /> Pending
         </span>
     );
@@ -199,7 +199,7 @@ function CategoryPill({ category }: { category: string }) {
         contract: "Contract",
     };
     return (
-        <span className="text-[10px] font-mono uppercase tracking-wide text-ink-2 bg-editorial-card border border-editorial-border rounded px-1.5 py-0.5">
+        <span className="text-micro-sm font-mono uppercase tracking-wide text-ink-2 bg-editorial-card border border-editorial-border rounded px-1.5 py-0.5">
             {label[category] ?? category}
         </span>
     );
@@ -267,7 +267,7 @@ function ClaimTimestamps({
     const received = fmtDate(ingestion_timestamp);
     const said = fmtDate(source_published_at);
     return (
-        <span className="text-[10px] font-mono text-ink-3 flex flex-wrap gap-2">
+        <span className="text-micro-sm font-mono text-ink-3 flex flex-wrap gap-2">
             {received && <span>received {received}</span>}
             {said && said !== received && <span>said ~{said}</span>}
         </span>
@@ -343,7 +343,7 @@ function PredictionDrawer({
                 <div className="flex items-start justify-between p-5 border-b border-editorial-border sticky top-0 bg-editorial-card z-10">
                     <div className="flex items-center gap-2">
                         <Shield className="w-3.5 h-3.5 text-navy shrink-0" />
-                        <span className="text-[10px] font-mono uppercase tracking-widest text-navy">
+                        <span className="text-micro-sm font-mono uppercase tracking-widest text-navy">
                             Sealed Prediction
                         </span>
                     </div>
@@ -383,7 +383,7 @@ function PredictionDrawer({
 
                     {/* 3. Pundit name — prominent + clickable */}
                     <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-mono uppercase tracking-wide text-ink-3">By</span>
+                        <span className="text-micro-sm font-mono uppercase tracking-wide text-ink-3">By</span>
                         <Link
                             href={`/ledger/${encodeURIComponent(prediction.pundit_id)}`}
                             className="text-sm font-semibold text-ink hover:text-navy transition-colors inline-flex items-center gap-1"
@@ -397,23 +397,23 @@ function PredictionDrawer({
                     {/* Metadata grid — category, sport, season, timestamps */}
                     <div className="grid grid-cols-2 gap-3 text-xs font-mono">
                         <div className="rounded-lg border border-editorial-border bg-editorial-card px-3 py-2">
-                            <div className="text-ink-3 uppercase tracking-wide text-[9px] mb-0.5">Category</div>
+                            <div className="text-ink-3 uppercase tracking-wide text-micro-sm mb-0.5">Category</div>
                             <CategoryPill category={prediction.claim_category} />
                         </div>
                         <div className="rounded-lg border border-editorial-border bg-editorial-card px-3 py-2">
-                            <div className="text-ink-3 uppercase tracking-wide text-[9px] mb-0.5">Sport</div>
+                            <div className="text-ink-3 uppercase tracking-wide text-micro-sm mb-0.5">Sport</div>
                             <span className="text-ink">{prediction.sport || "—"}</span>
                         </div>
                         {prediction.season_year && (
                             <div className="rounded-lg border border-editorial-border bg-editorial-card px-3 py-2">
-                                <div className="text-ink-3 uppercase tracking-wide text-[9px] mb-0.5">Season</div>
+                                <div className="text-ink-3 uppercase tracking-wide text-micro-sm mb-0.5">Season</div>
                                 <span className="text-ink">{prediction.season_year}</span>
                             </div>
                         )}
 
                         {/* Dual timestamps */}
                         <div className="rounded-lg border border-editorial-border bg-editorial-card px-3 py-2 col-span-2">
-                            <div className="text-ink-3 uppercase tracking-wide text-[9px] mb-1">Timestamps</div>
+                            <div className="text-ink-3 uppercase tracking-wide text-micro-sm mb-1">Timestamps</div>
                             <div className="space-y-1">
                                 {receivedDate && (
                                     <div>
@@ -434,12 +434,12 @@ function PredictionDrawer({
                     {/* Entity links — player/team chips above sources */}
                     {(prediction.target_player_name ?? prediction.target_player_id ?? prediction.target_team) && (
                         <div>
-                            <div className="text-ink-3 uppercase tracking-wide text-[9px] font-mono mb-2">About</div>
+                            <div className="text-ink-3 uppercase tracking-wide text-micro-sm font-mono mb-2">About</div>
                             <div className="flex flex-wrap gap-2">
                                 {(prediction.target_player_name ?? prediction.target_player_id) && (
                                     <Link
                                         href={`/player/${slugifyPlayer(prediction.target_player_name ?? prediction.target_player_id!)}`}
-                                        className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[10px] font-mono font-semibold text-amber-500/80 hover:text-amber-400 hover:border-amber-500/50 transition-colors"
+                                        className="inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-micro-sm font-mono font-semibold text-amber-500/80 hover:text-amber-400 hover:border-amber-500/50 transition-colors"
                                         onClick={onClose}
                                     >
                                         {prediction.target_player_name ?? prediction.target_player_id}
@@ -448,7 +448,7 @@ function PredictionDrawer({
                                 {prediction.target_team && (
                                     <Link
                                         href={`/team/${encodeURIComponent(prediction.target_team)}`}
-                                        className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/5 px-2 py-1 text-[10px] font-mono font-semibold text-sky-500/80 hover:text-sky-400 hover:border-sky-500/50 transition-colors"
+                                        className="inline-flex items-center gap-1 rounded border border-sky-500/30 bg-sky-500/5 px-2 py-1 text-micro-sm font-mono font-semibold text-sky-500/80 hover:text-sky-400 hover:border-sky-500/50 transition-colors"
                                         onClick={onClose}
                                     >
                                         {prediction.target_team}
@@ -461,7 +461,7 @@ function PredictionDrawer({
                     {/* All source links side-by-side */}
                     {allSources.some((m) => m.source_url) && (
                         <div>
-                            <div className="text-ink-3 uppercase tracking-wide text-[9px] font-mono mb-2">Sources</div>
+                            <div className="text-ink-3 uppercase tracking-wide text-micro-sm font-mono mb-2">Sources</div>
                             <div className="flex flex-wrap gap-2">
                                 {allSources
                                     .filter((m) => m.source_url)
@@ -471,7 +471,7 @@ function PredictionDrawer({
                                             href={m.source_url!}
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            className="inline-flex items-center gap-1 rounded border border-editorial-border bg-editorial-card px-2 py-1 text-[10px] font-mono text-ink-2 hover:text-navy hover:border-navy/40 transition-colors"
+                                            className="inline-flex items-center gap-1 rounded border border-editorial-border bg-editorial-card px-2 py-1 text-micro-sm font-mono text-ink-2 hover:text-navy hover:border-navy/40 transition-colors"
                                         >
                                             Source {allSources.filter((x) => x.source_url).length > 1 ? i + 1 : ""}{" "}
                                             <ExternalLink className="w-2.5 h-2.5" />
@@ -484,7 +484,7 @@ function PredictionDrawer({
                     {/* Similar calls */}
                     {similar.length > 0 && (
                         <div>
-                            <div className="text-ink-3 uppercase tracking-wide text-[9px] font-mono mb-2">
+                            <div className="text-ink-3 uppercase tracking-wide text-micro-sm font-mono mb-2">
                                 Similar calls
                             </div>
                             <div className="space-y-2">
@@ -496,7 +496,7 @@ function PredictionDrawer({
                                         <div className="flex items-start justify-between gap-2">
                                             <Link
                                                 href={`/ledger/${encodeURIComponent(s.speaker_entity_id)}`}
-                                                className="text-[10px] font-semibold text-ink-2 hover:text-navy transition-colors shrink-0"
+                                                className="text-micro-sm font-semibold text-ink-2 hover:text-navy transition-colors shrink-0"
                                                 onClick={onClose}
                                             >
                                                 {s.pundit_name}
@@ -507,7 +507,7 @@ function PredictionDrawer({
                                             {s.extracted_claim}
                                         </p>
                                         {s.uttered_at && (
-                                            <span className="text-[10px] font-mono text-ink-3 mt-1 block">
+                                            <span className="text-micro-sm font-mono text-ink-3 mt-1 block">
                                                 {fmtDate(s.uttered_at)}
                                             </span>
                                         )}
@@ -533,7 +533,7 @@ function PredictionDrawer({
 
                     {/* Hash */}
                     <div className="pt-1">
-                        <span className="text-[10px] font-mono text-ink-3">
+                        <span className="text-micro-sm font-mono text-ink-3">
                             #{prediction.prediction_hash_short}
                         </span>
                     </div>
@@ -694,7 +694,7 @@ function ResolutionBreakdown({ stats }: { stats: ResolutionStats }) {
 
     return (
         <div className="flex items-center gap-3 text-xs font-mono tabular-nums">
-            <span className="text-ink-3 uppercase tracking-widest text-[9px]">
+            <span className="text-ink-3 uppercase tracking-widest text-micro-sm">
                 Outcomes
             </span>
             {correct && (
@@ -1120,7 +1120,7 @@ export default function LedgerPage() {
 
                     {/* Sport filter — secondary filter below search */}
                     <div className="flex items-center gap-2 mt-3">
-                        <span className="text-[10px] font-mono uppercase tracking-widest text-ink-3 mr-1">
+                        <span className="text-micro-sm font-mono uppercase tracking-widest text-ink-3 mr-1">
                             Sport:
                         </span>
                         {SPORTS.map((s) => (
@@ -1138,7 +1138,7 @@ export default function LedgerPage() {
                             </button>
                         ))}
                         {sportFilter !== "ALL" && (
-                            <span className="text-[10px] font-mono text-ink-3 ml-1">
+                            <span className="text-micro-sm font-mono text-ink-3 ml-1">
                                 — filtering leaderboard &amp; recent predictions
                             </span>
                         )}
@@ -1520,7 +1520,7 @@ function TabContent({
                             />
                             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                                 {debouncedQuery.trim() && (
-                                    <span className="text-[10px] font-mono text-ink-2 tabular-nums">
+                                    <span className="text-micro-sm font-mono text-ink-2 tabular-nums">
                                         {filteredRecent.length} result{filteredRecent.length !== 1 ? "s" : ""}
                                     </span>
                                 )}
@@ -1579,7 +1579,7 @@ function LeaderboardTab({
     return (
         <div className="space-y-2">
             {/* Column headers */}
-            <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px_80px] gap-3 px-4 pb-1 text-[10px] font-mono uppercase tracking-widest text-ink-3">
+            <div className="hidden md:grid grid-cols-[32px_1fr_130px_90px_80px_70px_90px_80px] gap-3 px-4 pb-1 text-micro-sm font-mono uppercase tracking-widest text-ink-3">
                 <span>#</span>
                 <span>Pundit</span>
                 <span>Accuracy</span>
@@ -1645,7 +1645,7 @@ function LeaderboardTab({
                             {p.pundit_id && p.pundit_id !== "None" ? (
                                 <Link
                                     href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
-                                    className="text-[10px] font-mono text-ink-3 hover:text-navy transition-colors inline-flex items-center gap-0.5"
+                                    className="text-micro-sm font-mono text-ink-3 hover:text-navy transition-colors inline-flex items-center gap-0.5"
                                 >
                                     Card <ArrowRight className="w-2.5 h-2.5" />
                                 </Link>
@@ -1690,7 +1690,7 @@ function LeaderboardTab({
                             {p.pundit_id && p.pundit_id !== "None" && (
                                 <Link
                                     href={`/ledger/${encodeURIComponent(p.pundit_id)}`}
-                                    className="text-[10px] font-mono text-ink-3 hover:text-navy transition-colors inline-flex items-center gap-0.5 mt-1"
+                                    className="text-micro-sm font-mono text-ink-3 hover:text-navy transition-colors inline-flex items-center gap-0.5 mt-1"
                                 >
                                     Card <ArrowRight className="w-2.5 h-2.5" />
                                 </Link>
@@ -1725,7 +1725,7 @@ function CategoryBreakdown({ p }: { p: PunditStat }) {
             {nonZero.map((c) => (
                 <span
                     key={c.key}
-                    className="text-[10px] font-mono text-ink-3 leading-none"
+                    className="text-micro-sm font-mono text-ink-3 leading-none"
                 >
                     {c.label}:{" "}
                     <span className="text-ink-2">
@@ -1856,7 +1856,7 @@ function SemanticClusterSection({
         <div data-testid="prediction-group" className="space-y-1">
             {/* Divider with collapse toggle */}
             <button
-                className="w-full flex items-center gap-2 text-[10px] font-mono text-ink-2 hover:text-ink transition-colors py-1 group"
+                className="w-full flex items-center gap-2 text-micro-sm font-mono text-ink-2 hover:text-ink transition-colors py-1 group"
                 onClick={() => setCollapsed((v) => !v)}
                 aria-expanded={!collapsed}
                 aria-label={`Toggle ${cluster.label} group`}
@@ -1932,7 +1932,7 @@ function PredictionGroupRow({
                         {(p.target_player_name ?? p.target_player_id) && (
                             <Link
                                 href={`/player/${slugifyPlayer(p.target_player_name ?? p.target_player_id!)}`}
-                                className="text-[10px] font-mono font-semibold text-amber-500/70 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 bg-amber-500/5 rounded px-1.5 py-0.5 transition-colors"
+                                className="text-micro-sm font-mono font-semibold text-amber-500/70 hover:text-amber-400 border border-amber-500/20 hover:border-amber-500/40 bg-amber-500/5 rounded px-1.5 py-0.5 transition-colors"
                             >
                                 {p.target_player_name ?? p.target_player_id}
                             </Link>
@@ -1940,13 +1940,13 @@ function PredictionGroupRow({
                         {p.target_team && (
                             <Link
                                 href={`/team/${encodeURIComponent(p.target_team)}`}
-                                className="text-[10px] font-mono font-semibold text-sky-500/70 hover:text-sky-400 border border-sky-500/20 hover:border-sky-500/40 bg-sky-500/5 rounded px-1.5 py-0.5 transition-colors"
+                                className="text-micro-sm font-mono font-semibold text-sky-500/70 hover:text-sky-400 border border-sky-500/20 hover:border-sky-500/40 bg-sky-500/5 rounded px-1.5 py-0.5 transition-colors"
                             >
                                 {p.target_team}
                             </Link>
                         )}
                         {p.season_year && (
-                            <span className="text-[10px] font-mono text-ink-3">
+                            <span className="text-micro-sm font-mono text-ink-3">
                                 {p.season_year}
                             </span>
                         )}
@@ -1955,7 +1955,7 @@ function PredictionGroupRow({
                             source_published_at={p.source_published_at}
                         />
                         {p.brier_score !== null && (
-                            <span className="text-[10px] font-mono text-ink-2">
+                            <span className="text-micro-sm font-mono text-ink-2">
                                 Brier: <BrierBadge score={p.brier_score} />
                             </span>
                         )}
@@ -1968,7 +1968,7 @@ function PredictionGroupRow({
                                     href={m.source_url!}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-[10px] font-mono text-ink-3 hover:text-ink-2 inline-flex items-center gap-0.5"
+                                    className="text-micro-sm font-mono text-ink-3 hover:text-ink-2 inline-flex items-center gap-0.5"
                                 >
                                     source <ExternalLink className="w-2.5 h-2.5" />
                                 </a>
@@ -1989,7 +1989,7 @@ function PredictionGroupRow({
                     {/* Expand/collapse for repeat occurrences */}
                     {hasRepeats && (
                         <button
-                            className="inline-flex items-center gap-0.5 text-[10px] font-mono text-ink-2 hover:text-ink transition-colors"
+                            className="inline-flex items-center gap-0.5 text-micro-sm font-mono text-ink-2 hover:text-ink transition-colors"
                             onClick={() => setExpanded((v) => !v)}
                             aria-label={`${repeatOccurrences.length} repeat${repeatOccurrences.length !== 1 ? "s" : ""} — ${expanded ? "collapse" : "show"}`}
                         >
@@ -2001,7 +2001,7 @@ function PredictionGroupRow({
                             )}
                         </button>
                     )}
-                    <span className="text-[10px] font-mono text-ink-3 hidden sm:block">
+                    <span className="text-micro-sm font-mono text-ink-3 hidden sm:block">
                         #{p.prediction_hash_short}
                     </span>
                 </div>
@@ -2010,7 +2010,7 @@ function PredictionGroupRow({
             {/* Inline expanded summary (one-liner) */}
             {expanded && (
                 <div className="border-t border-editorial-border px-4 py-2.5 bg-editorial-card">
-                    <p className="text-[10px] font-mono text-ink-2 mb-2 uppercase tracking-wide">
+                    <p className="text-micro-sm font-mono text-ink-2 mb-2 uppercase tracking-wide">
                         {p.pundit_name} said this again on different occasions:
                     </p>
                     <div className="space-y-2">
@@ -2035,7 +2035,7 @@ function PredictionGroupRow({
                                                 href={variant.source_url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="text-[10px] font-mono text-ink-3 hover:text-ink-2 inline-flex items-center gap-0.5"
+                                                className="text-micro-sm font-mono text-ink-3 hover:text-ink-2 inline-flex items-center gap-0.5"
                                             >
                                                 source <ExternalLink className="w-2.5 h-2.5" />
                                             </a>
@@ -2043,7 +2043,7 @@ function PredictionGroupRow({
                                     </div>
                                 </div>
                                 <button
-                                    className="inline-flex items-center gap-1 text-[10px] font-mono text-ink-2 hover:text-navy transition-colors border border-editorial-border hover:border-navy/60 bg-editorial-card hover:bg-navy/10 rounded px-2 py-0.5 shrink-0"
+                                    className="inline-flex items-center gap-1 text-micro-sm font-mono text-ink-2 hover:text-navy transition-colors border border-editorial-border hover:border-navy/60 bg-editorial-card hover:bg-navy/10 rounded px-2 py-0.5 shrink-0"
                                     onClick={() => onOpenDrawer(variant, [variant])}
                                     aria-label="Open details for this occurrence"
                                 >

@@ -40,6 +40,15 @@ const config = {
                 'label': ['0.75rem', { lineHeight: '1.4', letterSpacing: '0.06em', fontWeight: '500' }],
                 'mono-lg': ['1rem', { lineHeight: '1.5' }],
                 'mono-sm': ['0.875rem', { lineHeight: '1.5' }],
+                // Micro-typography — consolidates the arbitrary text-[9px]/[10px]/[11px]
+                // values found in dense data tables (design audit §2.5, issue #1070
+                // Phase 5). 12px call sites map to the existing `text-xs` (0.75rem).
+                // No explicit lineHeight set (unlike the other scale entries above) —
+                // the arbitrary text-[Npx] values being replaced only ever set
+                // font-size and relied on inherited line-height; matching that keeps
+                // this a font-size-only change with zero line-height shift.
+                'micro': '0.6875rem',
+                'micro-sm': '0.625rem',
             },
             colors: {
                 border: "hsl(var(--border))",

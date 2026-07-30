@@ -300,32 +300,32 @@ type VerdictKind = "Expert" | "Reliable" | "Average" | "Avoid";
 
 const VERDICT_STYLE: Record<VerdictKind, string> = {
     Expert:
-        "bg-emerald-900/20 text-emerald-400 border border-emerald-500/30",
+        "bg-correct/10 text-correct border border-correct/30",
     Reliable:
-        "bg-emerald-900/10 text-emerald-400 border border-emerald-500/20",
+        "bg-correct/5 text-correct border border-correct/20",
     Average:
-        "bg-amber-900/20 text-amber-400 border border-amber-500/30",
+        "bg-pending/10 text-pending border border-pending/30",
     Avoid:
-        "bg-red-900/20 text-red-400 border border-red-500/30",
+        "bg-incorrect/10 text-incorrect border border-incorrect/30",
 };
 
 function verdictStyle(verdict: string | null): string {
-    if (!verdict) return "bg-zinc-800 text-zinc-400 border border-zinc-700";
-    return VERDICT_STYLE[verdict as VerdictKind] ?? "bg-zinc-800 text-zinc-400 border border-zinc-700";
+    if (!verdict) return "bg-editorial-border text-ink-2 border border-editorial-border";
+    return VERDICT_STYLE[verdict as VerdictKind] ?? "bg-editorial-border text-ink-2 border border-editorial-border";
 }
 
 function getAccuracyClass(pct: number | null): string {
-    if (pct === null) return "text-zinc-500";
-    if (pct >= 70) return "text-emerald-400";
-    if (pct >= 55) return "text-amber-400";
-    return "text-red-400";
+    if (pct === null) return "text-ink-3";
+    if (pct >= 70) return "text-correct";
+    if (pct >= 55) return "text-pending";
+    return "text-incorrect";
 }
 
 function getBrierClass(score: number | null): string {
-    if (score === null) return "text-zinc-500";
-    if (score <= 0.2) return "text-emerald-400";
-    if (score <= 0.35) return "text-amber-400";
-    return "text-red-400";
+    if (score === null) return "text-ink-3";
+    if (score <= 0.2) return "text-correct";
+    if (score <= 0.35) return "text-pending";
+    return "text-incorrect";
 }
 
 function fmtDate(ts: string | null | undefined): string | null {
@@ -356,18 +356,18 @@ function getInitials(name: string): string {
 function ClaimStatusBadge({ status }: { status: "CORRECT" | "INCORRECT" | "PENDING" | null }) {
     if (status === "CORRECT")
         return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-900/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-emerald-500/30 shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-full bg-correct/10 px-2.5 py-1 text-[11px] font-semibold text-correct ring-1 ring-correct/30 shrink-0">
                 <CheckCircle2 className="w-3 h-3" /> Correct
             </span>
         );
     if (status === "INCORRECT")
         return (
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-900/40 px-2.5 py-1 text-[11px] font-semibold text-red-400 ring-1 ring-red-500/30 shrink-0">
+            <span className="inline-flex items-center gap-1 rounded-full bg-incorrect/10 px-2.5 py-1 text-[11px] font-semibold text-incorrect ring-1 ring-incorrect/30 shrink-0">
                 <XCircle className="w-3 h-3" /> Incorrect
             </span>
         );
     return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-amber-900/30 px-2.5 py-1 text-[11px] font-semibold text-amber-400 ring-1 ring-amber-500/30 shrink-0">
+        <span className="inline-flex items-center gap-1 rounded-full bg-pending/10 px-2.5 py-1 text-[11px] font-semibold text-pending ring-1 ring-pending/30 shrink-0">
             <Clock className="w-3 h-3" /> Pending
         </span>
     );
@@ -378,14 +378,14 @@ function ConfBar({ confidence, status }: { confidence: number | null; status: "C
     const pct = Math.round(confidence * 100);
     const fillClass =
         status === "CORRECT"
-            ? "bg-emerald-500"
+            ? "bg-correct"
             : status === "INCORRECT"
-            ? "bg-red-500"
-            : "bg-amber-500";
+            ? "bg-incorrect"
+            : "bg-pending";
     return (
-        <div className="flex items-center gap-2 text-[11px] text-zinc-500 font-mono">
+        <div className="flex items-center gap-2 text-[11px] text-ink-3 font-mono">
             <span>Conf:</span>
-            <div className="w-12 h-1 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="w-12 h-1 bg-editorial-border rounded-full overflow-hidden">
                 <div
                     className={cn("h-full rounded-full", fillClass)}
                     style={{ width: `${pct}%` }}
@@ -411,9 +411,9 @@ function EntityTypeBrowser() {
                 <Link
                     key={type}
                     href={`/entity/${type}`}
-                    className="flex items-center gap-2 bg-zinc-900/60 border border-zinc-800 hover:border-zinc-600 px-3 py-2.5 text-sm font-semibold text-zinc-300 hover:text-white transition-colors rounded"
+                    className="flex items-center gap-2 bg-editorial-card border border-editorial-border hover:border-ink-3 px-3 py-2.5 text-sm font-semibold text-ink-2 hover:text-ink transition-colors rounded"
                 >
-                    <span className="text-[10px] font-mono font-bold text-zinc-500 w-4 text-center">
+                    <span className="text-[10px] font-mono font-bold text-ink-3 w-4 text-center">
                         {icon}
                     </span>
                     {label}
@@ -509,9 +509,9 @@ export default function EntityDetailPage() {
 
     if (loading || !entity) {
         return (
-            <div className="min-h-screen bg-black text-white flex items-center justify-center">
-                <Activity className="w-4 h-4 animate-pulse mr-2 text-emerald-400" />
-                <span className="font-mono text-sm text-zinc-400">Loading entity…</span>
+            <div className="min-h-screen bg-editorial-bg text-ink flex items-center justify-center">
+                <Activity className="w-4 h-4 animate-pulse mr-2 text-accent-editorial" />
+                <span className="font-mono text-sm text-ink-2">Loading entity…</span>
             </div>
         );
     }
@@ -520,29 +520,29 @@ export default function EntityDetailPage() {
     const entityInitials = getInitials(entity.entity_name);
 
     return (
-        <div className="min-h-screen bg-black text-white">
+        <div className="min-h-screen bg-editorial-bg text-ink">
             {/* Breadcrumb */}
-            <div className="border-b border-zinc-900 bg-zinc-950/50 px-6 py-2">
-                <div className="max-w-6xl mx-auto flex items-center gap-2 text-xs text-zinc-500 font-mono">
-                    <Link href="/ledger" className="hover:text-emerald-400 transition-colors inline-flex items-center gap-1">
+            <div className="border-b border-editorial-border bg-editorial-card px-6 py-2">
+                <div className="max-w-6xl mx-auto flex items-center gap-2 text-xs text-ink-3 font-mono">
+                    <Link href="/ledger" className="hover:text-accent-editorial transition-colors inline-flex items-center gap-1">
                         <ArrowLeft className="w-3 h-3" /> Leaderboard
                     </Link>
-                    <span className="text-zinc-700">›</span>
-                    <Link href={`/entity/${entityType}`} className="hover:text-emerald-400 transition-colors capitalize">
+                    <span className="text-ink-3">›</span>
+                    <Link href={`/entity/${entityType}`} className="hover:text-accent-editorial transition-colors capitalize">
                         {entityTypeLabel}s
                     </Link>
-                    <span className="text-zinc-700">›</span>
-                    <span className="text-zinc-300">{entity.entity_name}</span>
+                    <span className="text-ink-3">›</span>
+                    <span className="text-ink-2">{entity.entity_name}</span>
                 </div>
             </div>
 
             {/* Entity Header */}
-            <div className="border-b border-zinc-900 bg-zinc-950/70">
+            <div className="border-b border-editorial-border bg-editorial-card">
                 <div className="max-w-6xl mx-auto px-6 py-8">
                     <div className="flex flex-col sm:flex-row items-start gap-6">
                         {/* Avatar */}
-                        <div className="w-20 h-20 rounded-lg bg-gradient-to-br from-zinc-800 to-zinc-900 border border-zinc-700 flex items-center justify-center shrink-0">
-                            <span className="font-black text-2xl text-emerald-400 font-mono">
+                        <div className="w-20 h-20 rounded-lg bg-editorial-bg border border-editorial-border flex items-center justify-center shrink-0">
+                            <span className="font-black text-2xl text-accent-editorial font-mono">
                                 {entityInitials}
                             </span>
                         </div>
@@ -550,15 +550,15 @@ export default function EntityDetailPage() {
                         {/* Name + meta */}
                         <div className="flex-1 min-w-0">
                             {/* Type badge */}
-                            <div className="text-[10px] font-bold tracking-[2px] uppercase text-amber-400 mb-1">
+                            <div className="text-[10px] font-bold tracking-[2px] uppercase text-gold mb-1">
                                 {entityTypeLabel}
                                 {entity.entity_subtype ? ` · ${entity.entity_subtype}` : ""}
                             </div>
-                            <SectionHeading size="xl" className="text-white mb-2">
+                            <SectionHeading size="xl" className="text-ink mb-2">
                                 {entity.entity_name}
                             </SectionHeading>
                             {entity.context && (
-                                <div className="text-sm text-zinc-400 mb-3">{entity.context}</div>
+                                <div className="text-sm text-ink-2 mb-3">{entity.context}</div>
                             )}
                             {/* Tags */}
                             {entity.tags && entity.tags.length > 0 && (
@@ -566,7 +566,7 @@ export default function EntityDetailPage() {
                                     {entity.tags.map((tag) => (
                                         <span
                                             key={tag}
-                                            className="bg-zinc-900 border border-zinc-700 text-zinc-300 text-[11px] font-semibold px-2.5 py-1 uppercase tracking-wide"
+                                            className="bg-editorial-bg border border-editorial-border text-ink-2 text-[11px] font-semibold px-2.5 py-1 uppercase tracking-wide"
                                         >
                                             {tag}
                                         </span>
@@ -576,28 +576,28 @@ export default function EntityDetailPage() {
                         </div>
 
                         {/* Claim summary boxes */}
-                        <div className="flex divide-x divide-zinc-800 border border-zinc-800 bg-zinc-950 shrink-0">
+                        <div className="flex divide-x divide-editorial-border border border-editorial-border bg-editorial-bg shrink-0">
                             <div className="text-center px-6 py-4">
-                                <div className="text-3xl font-black font-mono text-white tabular-nums">
+                                <div className="text-3xl font-black font-mono text-ink tabular-nums">
                                     {entity.total_claims}
                                 </div>
-                                <div className="text-[10px] uppercase tracking-widest text-zinc-500 mt-1">
+                                <div className="text-[10px] uppercase tracking-widest text-ink-3 mt-1">
                                     Total Claims
                                 </div>
                             </div>
                             <div className="text-center px-6 py-4">
-                                <div className="text-3xl font-black font-mono text-emerald-400 tabular-nums">
+                                <div className="text-3xl font-black font-mono text-correct tabular-nums">
                                     {entity.correct_claims}
                                 </div>
-                                <div className="text-[10px] uppercase tracking-widest text-zinc-500 mt-1">
+                                <div className="text-[10px] uppercase tracking-widest text-ink-3 mt-1">
                                     Correct
                                 </div>
                             </div>
                             <div className="text-center px-6 py-4">
-                                <div className="text-3xl font-black font-mono text-red-400 tabular-nums">
+                                <div className="text-3xl font-black font-mono text-incorrect tabular-nums">
                                     {entity.incorrect_claims}
                                 </div>
-                                <div className="text-[10px] uppercase tracking-widest text-zinc-500 mt-1">
+                                <div className="text-[10px] uppercase tracking-widest text-ink-3 mt-1">
                                     Wrong
                                 </div>
                             </div>
@@ -607,7 +607,7 @@ export default function EntityDetailPage() {
             </div>
 
             {/* Tabs */}
-            <div className="border-b border-zinc-900 bg-zinc-950/30">
+            <div className="border-b border-editorial-border bg-editorial-card">
                 <div className="max-w-6xl mx-auto px-6">
                     <div className="flex gap-0">
                         {TABS.map(({ id, label }) => (
@@ -617,8 +617,8 @@ export default function EntityDetailPage() {
                                 className={cn(
                                     "px-5 py-3 text-sm font-semibold uppercase tracking-wide transition-colors border-b-2",
                                     activeTab === id
-                                        ? "border-amber-500 text-amber-400"
-                                        : "border-transparent text-zinc-500 hover:text-zinc-300"
+                                        ? "border-accent-editorial text-accent-editorial"
+                                        : "border-transparent text-ink-3 hover:text-ink"
                                 )}
                             >
                                 {label}
@@ -637,13 +637,13 @@ export default function EntityDetailPage() {
                 <div>
                     {/* Pundit accuracy table — always shown regardless of tab */}
                     <div className="mb-8">
-                        <div className="border-t-2 border-white pt-3 flex items-baseline justify-between mb-4">
-                            <h2 className="text-xl font-black text-white">
+                        <div className="border-t-2 border-ink pt-3 flex items-baseline justify-between mb-4">
+                            <h2 className="text-xl font-black text-ink">
                                 Pundit Accuracy on {entity.entity_name}
                             </h2>
                             <Link
                                 href="/ledger"
-                                className="text-[11px] font-bold uppercase tracking-wide text-amber-400 hover:text-amber-300 transition-colors"
+                                className="text-[11px] font-bold uppercase tracking-wide text-accent-editorial hover:text-accent-editorial-light transition-colors"
                             >
                                 All pundits →
                             </Link>
@@ -651,13 +651,13 @@ export default function EntityDetailPage() {
                         <div className="overflow-x-auto">
                             <table className="w-full border-collapse">
                                 <thead>
-                                    <tr className="border-b border-zinc-800">
+                                    <tr className="border-b border-editorial-border">
                                         {["Pundit", "Claims", "Correct", "Accuracy", "Brier", "Verdict"].map(
                                             (col, i) => (
                                                 <th
                                                     key={col}
                                                     className={cn(
-                                                        "text-[10px] font-bold uppercase tracking-widest text-zinc-500 py-2 px-3",
+                                                        "text-[10px] font-bold uppercase tracking-widest text-ink-3 py-2 px-3",
                                                         i === 0 ? "text-left" : "text-right"
                                                     )}
                                                 >
@@ -671,22 +671,22 @@ export default function EntityDetailPage() {
                                     {punditsRows.map((row) => (
                                         <tr
                                             key={row.pundit_id}
-                                            className="border-b border-zinc-900 hover:bg-zinc-900/30 transition-colors"
+                                            className="border-b border-editorial-border hover:bg-editorial-card transition-colors"
                                         >
                                             <td className="py-3 px-3">
                                                 <Link
                                                     href={`/ledger/${encodeURIComponent(row.pundit_id)}`}
-                                                    className="font-black text-white hover:text-emerald-400 transition-colors text-sm"
+                                                    className="font-black text-ink hover:text-accent-editorial transition-colors text-sm"
                                                 >
                                                     {row.pundit_name}
                                                 </Link>
                                                 {row.outlet && (
-                                                    <div className="text-[11px] text-zinc-500 mt-0.5">
+                                                    <div className="text-[11px] text-ink-3 mt-0.5">
                                                         {row.outlet}
                                                     </div>
                                                 )}
                                             </td>
-                                            <td className="py-3 px-3 text-right font-mono text-sm text-zinc-300 tabular-nums">
+                                            <td className="py-3 px-3 text-right font-mono text-sm text-ink-2 tabular-nums">
                                                 {row.claims}
                                             </td>
                                             <td className={cn("py-3 px-3 text-right font-mono text-sm font-bold tabular-nums", getAccuracyClass(row.accuracy_pct))}>
@@ -720,8 +720,8 @@ export default function EntityDetailPage() {
                     {/* Claims feed */}
                     {activeTab !== "claim-timeline" && (
                         <div>
-                            <div className="border-t-2 border-white pt-3 flex items-baseline justify-between mb-4">
-                                <h2 className="text-xl font-black text-white">
+                            <div className="border-t-2 border-ink pt-3 flex items-baseline justify-between mb-4">
+                                <h2 className="text-xl font-black text-ink">
                                     {activeTab === "by-pundit"
                                         ? `Claims by Pundit`
                                         : `All Claims about ${entity.entity_name}`}
@@ -729,7 +729,7 @@ export default function EntityDetailPage() {
                             </div>
 
                             {claims.length === 0 && (
-                                <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 py-12 text-center text-zinc-500 text-sm">
+                                <div className="rounded-xl border border-editorial-border bg-editorial-card py-12 text-center text-ink-3 text-sm">
                                     No claims found for this entity yet.
                                 </div>
                             )}
@@ -744,11 +744,11 @@ export default function EntityDetailPage() {
                                 <div className="text-center mt-6">
                                     <button
                                         onClick={() => setClaimsShown((n) => n + 10)}
-                                        className="text-sm font-semibold text-amber-400 hover:text-amber-300 transition-colors font-mono"
+                                        className="text-sm font-semibold text-accent-editorial hover:text-accent-editorial-light transition-colors font-mono"
                                     >
                                         Load more →
                                     </button>
-                                    <span className="text-xs text-zinc-600 ml-3 font-mono">
+                                    <span className="text-xs text-ink-3 ml-3 font-mono">
                                         Showing {claimsShown} of {claims.length}
                                     </span>
                                 </div>
@@ -759,30 +759,30 @@ export default function EntityDetailPage() {
                     {/* Claim Timeline tab */}
                     {activeTab === "claim-timeline" && (
                         <div>
-                            <div className="border-t-2 border-white pt-3 mb-4">
-                                <h2 className="text-xl font-black text-white">Claim Timeline</h2>
+                            <div className="border-t-2 border-ink pt-3 mb-4">
+                                <h2 className="text-xl font-black text-ink">Claim Timeline</h2>
                             </div>
                             <div className="space-y-0">
                                 {timeline.map((evt, i) => (
                                     <div
                                         key={i}
-                                        className="grid grid-cols-[80px_1fr] gap-4 py-4 border-b border-zinc-900 last:border-b-0"
+                                        className="grid grid-cols-[80px_1fr] gap-4 py-4 border-b border-editorial-border last:border-b-0"
                                     >
-                                        <div className="font-mono text-[11px] text-zinc-500 leading-5 whitespace-pre-line">
+                                        <div className="font-mono text-[11px] text-ink-3 leading-5 whitespace-pre-line">
                                             {evt.date_str}
                                         </div>
-                                        <div className="text-sm text-zinc-300 leading-5">
-                                            <span className="font-bold text-white">{evt.pundit_name}</span>{" "}
+                                        <div className="text-sm text-ink-2 leading-5">
+                                            <span className="font-bold text-ink">{evt.pundit_name}</span>{" "}
                                             {evt.summary.replace(/ — (correct|incorrect|pending)$/, "")}
                                             {" — "}
                                             <span
                                                 className={cn(
                                                     "font-semibold",
                                                     evt.status === "correct"
-                                                        ? "text-emerald-400"
+                                                        ? "text-correct"
                                                         : evt.status === "incorrect"
-                                                        ? "text-red-400"
-                                                        : "text-amber-400"
+                                                        ? "text-incorrect"
+                                                        : "text-pending"
                                                 )}
                                             >
                                                 {evt.status}
@@ -798,11 +798,11 @@ export default function EntityDetailPage() {
                 {/* Sidebar */}
                 <div className="space-y-5">
                     {/* Related entities */}
-                    <div className="bg-zinc-950 border border-zinc-800 p-5 rounded">
-                        <div className="text-[11px] font-bold uppercase tracking-[2px] text-amber-400 border-b border-zinc-800 pb-3 mb-4">
+                    <div className="bg-editorial-card border border-editorial-border p-5 rounded">
+                        <div className="text-[11px] font-bold uppercase tracking-[2px] text-gold border-b border-editorial-border pb-3 mb-4">
                             Related Entities
                         </div>
-                        <div className="space-y-0 divide-y divide-zinc-900">
+                        <div className="space-y-0 divide-y divide-editorial-border">
                             {relatedEntities.map((rel) => (
                                 <Link
                                     key={rel.entity_id}
@@ -810,21 +810,21 @@ export default function EntityDetailPage() {
                                     className="flex items-center justify-between py-3 group"
                                 >
                                     <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 rounded bg-zinc-800 border border-zinc-700 flex items-center justify-center text-[10px] font-bold text-zinc-300 shrink-0">
+                                        <div className="w-8 h-8 rounded bg-editorial-bg border border-editorial-border flex items-center justify-center text-[10px] font-bold text-ink-2 shrink-0">
                                             {rel.initials ?? getInitials(rel.entity_name)}
                                         </div>
                                         <div>
-                                            <div className="text-sm font-semibold text-zinc-200 group-hover:text-emerald-400 transition-colors">
+                                            <div className="text-sm font-semibold text-ink group-hover:text-accent-editorial transition-colors">
                                                 {rel.entity_name}
                                             </div>
                                             {rel.entity_subtype && (
-                                                <div className="text-[11px] text-zinc-500 capitalize">
+                                                <div className="text-[11px] text-ink-3 capitalize">
                                                     {ENTITY_TYPE_LABELS[rel.entity_type] ?? rel.entity_type} · {rel.entity_subtype}
                                                 </div>
                                             )}
                                         </div>
                                     </div>
-                                    <div className="font-mono text-[11px] text-zinc-500 tabular-nums">
+                                    <div className="font-mono text-[11px] text-ink-3 tabular-nums">
                                         {rel.co_mention_count.toLocaleString()} claims
                                     </div>
                                 </Link>
@@ -833,28 +833,28 @@ export default function EntityDetailPage() {
                     </div>
 
                     {/* Recent activity timeline */}
-                    <div className="bg-zinc-950 border border-zinc-800 p-5 rounded">
-                        <div className="text-[11px] font-bold uppercase tracking-[2px] text-amber-400 border-b border-zinc-800 pb-3 mb-4">
+                    <div className="bg-editorial-card border border-editorial-border p-5 rounded">
+                        <div className="text-[11px] font-bold uppercase tracking-[2px] text-gold border-b border-editorial-border pb-3 mb-4">
                             Recent Activity
                         </div>
-                        <div className="space-y-0 divide-y divide-zinc-900">
+                        <div className="space-y-0 divide-y divide-editorial-border">
                             {timeline.map((evt, i) => (
                                 <div key={i} className="grid grid-cols-[56px_1fr] gap-3 py-3">
-                                    <div className="font-mono text-[10px] text-zinc-500 leading-4 whitespace-pre-line">
+                                    <div className="font-mono text-[10px] text-ink-3 leading-4 whitespace-pre-line">
                                         {evt.date_str}
                                     </div>
-                                    <div className="text-xs text-zinc-400 leading-4">
-                                        <span className="font-bold text-zinc-200">{evt.pundit_name}</span>{" "}
+                                    <div className="text-xs text-ink-2 leading-4">
+                                        <span className="font-bold text-ink">{evt.pundit_name}</span>{" "}
                                         {evt.summary.replace(/ — (correct|incorrect|pending)$/, "")}
                                         {" — "}
                                         <span
                                             className={cn(
                                                 "font-semibold",
                                                 evt.status === "correct"
-                                                    ? "text-emerald-400"
+                                                    ? "text-correct"
                                                     : evt.status === "incorrect"
-                                                    ? "text-red-400"
-                                                    : "text-amber-400"
+                                                    ? "text-incorrect"
+                                                    : "text-pending"
                                             )}
                                         >
                                             {evt.status}
@@ -866,8 +866,8 @@ export default function EntityDetailPage() {
                     </div>
 
                     {/* Entity type browser */}
-                    <div className="bg-zinc-950 border border-zinc-800 p-5 rounded">
-                        <div className="text-[11px] font-bold uppercase tracking-[2px] text-amber-400 border-b border-zinc-800 pb-3 mb-4">
+                    <div className="bg-editorial-card border border-editorial-border p-5 rounded">
+                        <div className="text-[11px] font-bold uppercase tracking-[2px] text-gold border-b border-editorial-border pb-3 mb-4">
                             Browse by Type
                         </div>
                         <EntityTypeBrowser />
@@ -885,15 +885,15 @@ export default function EntityDetailPage() {
 function ClaimCard({ claim }: { claim: ClaimItem }) {
     const borderColor =
         claim.resolution_status === "CORRECT"
-            ? "border-l-emerald-500"
+            ? "border-l-correct"
             : claim.resolution_status === "INCORRECT"
-            ? "border-l-red-500"
-            : "border-l-amber-500";
+            ? "border-l-incorrect"
+            : "border-l-pending";
 
     return (
         <div
             className={cn(
-                "bg-zinc-950 border border-zinc-800 border-l-4 p-5 relative",
+                "bg-editorial-card border border-editorial-border border-l-4 p-5 relative",
                 borderColor
             )}
         >
@@ -902,14 +902,14 @@ function ClaimCard({ claim }: { claim: ClaimItem }) {
                 <div>
                     <Link
                         href={`/ledger/${encodeURIComponent(claim.pundit_id)}`}
-                        className="font-black text-sm text-white hover:text-emerald-400 transition-colors"
+                        className="font-black text-sm text-ink hover:text-accent-editorial transition-colors"
                     >
                         {claim.pundit_name}
                     </Link>
                     {claim.outlet && (
-                        <span className="text-zinc-500 text-sm"> · {claim.outlet}</span>
+                        <span className="text-ink-3 text-sm"> · {claim.outlet}</span>
                     )}
-                    <div className="text-[11px] text-zinc-500 font-mono mt-0.5">
+                    <div className="text-[11px] text-ink-3 font-mono mt-0.5">
                         {claim.claim_date ?? ""}
                         {claim.claim_context ? ` · ${claim.claim_context}` : ""}
                     </div>
@@ -918,7 +918,7 @@ function ClaimCard({ claim }: { claim: ClaimItem }) {
             </div>
 
             {/* Quote */}
-            <p className="text-base italic text-zinc-300 leading-relaxed mb-3 font-serif">
+            <p className="text-base italic text-ink-2 leading-relaxed mb-3 font-serif">
                 &ldquo;{claim.claim_text}&rdquo;
             </p>
 
@@ -926,7 +926,7 @@ function ClaimCard({ claim }: { claim: ClaimItem }) {
             <div className="flex items-center justify-between">
                 <ConfBar confidence={claim.confidence ?? null} status={claim.resolution_status} />
                 {claim.hash_short && (
-                    <span className="font-mono text-[9px] text-zinc-700">
+                    <span className="font-mono text-[9px] text-ink-3">
                         {claim.hash_short}
                     </span>
                 )}

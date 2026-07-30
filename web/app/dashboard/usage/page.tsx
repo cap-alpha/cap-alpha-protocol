@@ -20,20 +20,20 @@ export default async function UsagePage() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white">
+        <div className="min-h-screen bg-editorial-bg text-ink">
             {/* Header */}
-            <div className="border-b border-zinc-900 bg-zinc-950/50">
+            <div className="border-b border-editorial-border bg-editorial-card">
                 <PageContainer size="4xl" className="px-4 py-8">
                     <div className="flex items-center gap-2 mb-2">
-                        <Activity className="w-4 h-4 text-emerald-400" />
-                        <span className="text-xs font-mono uppercase tracking-widest text-emerald-400">
+                        <Activity className="w-4 h-4 text-accent-editorial" />
+                        <span className="text-xs font-mono uppercase tracking-widest text-accent-editorial">
                             Account
                         </span>
                     </div>
-                    <SectionHeading size="xl" className="text-white">
+                    <SectionHeading size="xl" className="text-ink">
                         Usage Dashboard
                     </SectionHeading>
-                    <p className="mt-1 text-sm text-zinc-400 max-w-lg">
+                    <p className="mt-1 text-sm text-ink-2 max-w-lg">
                         Monitor your API consumption, rate limits, and upgrade
                         when you need more.
                     </p>

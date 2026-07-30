@@ -101,22 +101,22 @@ export default async function AdminQualityRunsPage() {
     const { rows, tableExists, error } = await getRunData();
 
     return (
-        <div className="bg-black text-white min-h-[100dvh]">
-            <section className="border-b border-zinc-900 px-6 py-10">
+        <div className="bg-editorial-bg text-ink min-h-[100dvh]">
+            <section className="border-b border-editorial-border px-6 py-10">
                 <div className="max-w-6xl mx-auto space-y-2">
-                    <div className="flex items-center gap-2 text-xs text-zinc-500 font-mono">
-                        <a href="/quality" className="hover:text-zinc-300">
+                    <div className="flex items-center gap-2 text-xs text-ink-3 font-mono">
+                        <a href="/quality" className="hover:text-ink">
                             Quality Dashboard
                         </a>
                         <span>/</span>
-                        <span className="text-zinc-300">Extraction Runs</span>
+                        <span className="text-ink-2">Extraction Runs</span>
                     </div>
                     <SectionHeading size="lg">
                         Extraction Run Log
                     </SectionHeading>
-                    <p className="text-sm text-zinc-400">
+                    <p className="text-sm text-ink-2">
                         Per-run metrics from{" "}
-                        <code className="font-mono text-xs bg-zinc-900 px-1.5 py-0.5 rounded">
+                        <code className="font-mono text-xs bg-editorial-card px-1.5 py-0.5 rounded">
                             silver_v2_claims.extraction_run
                         </code>
                     </p>
@@ -125,13 +125,13 @@ export default async function AdminQualityRunsPage() {
 
             <div className="max-w-6xl mx-auto px-6 py-8">
                 {!tableExists && (
-                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6 flex items-start gap-4">
-                        <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="rounded-xl border border-pending/30 bg-pending/10 p-6 flex items-start gap-4">
+                        <AlertTriangle className="w-5 h-5 text-pending shrink-0 mt-0.5" />
                         <div className="space-y-2">
-                            <p className="text-sm font-semibold text-amber-300">
+                            <p className="text-sm font-semibold text-pending">
                                 extraction_run table not found
                             </p>
-                            <p className="text-xs text-zinc-400 leading-relaxed">
+                            <p className="text-xs text-ink-2 leading-relaxed">
                                 The{" "}
                                 <code className="font-mono">
                                     silver_v2_claims.extraction_run
@@ -142,7 +142,7 @@ export default async function AdminQualityRunsPage() {
                                     href="https://github.com/andrewjsmith00/nfl-dead-money/issues/4"
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-400 hover:text-blue-300 inline-flex items-center gap-1"
+                                    className="text-accent-editorial hover:text-accent-editorial-light inline-flex items-center gap-1"
                                 >
                                     Issue #4
                                     <ExternalLink className="w-3 h-3" />
@@ -155,13 +155,13 @@ export default async function AdminQualityRunsPage() {
                 )}
 
                 {tableExists && error && (
-                    <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6 flex items-start gap-4">
-                        <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                    <div className="rounded-xl border border-incorrect/30 bg-incorrect/10 p-6 flex items-start gap-4">
+                        <AlertTriangle className="w-5 h-5 text-incorrect shrink-0 mt-0.5" />
                         <div>
-                            <p className="text-sm font-semibold text-red-300">
+                            <p className="text-sm font-semibold text-incorrect">
                                 Query failed
                             </p>
-                            <p className="text-xs text-zinc-400 mt-1 font-mono">
+                            <p className="text-xs text-ink-2 mt-1 font-mono">
                                 {error}
                             </p>
                         </div>
@@ -169,23 +169,23 @@ export default async function AdminQualityRunsPage() {
                 )}
 
                 {tableExists && !error && rows.length === 0 && (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-10 text-center space-y-3">
-                        <Database className="w-8 h-8 text-zinc-600 mx-auto" />
-                        <p className="text-zinc-400 font-medium">
+                    <div className="rounded-xl border border-editorial-border bg-editorial-card p-10 text-center space-y-3">
+                        <Database className="w-8 h-8 text-ink-3 mx-auto" />
+                        <p className="text-ink-2 font-medium">
                             No run records yet
                         </p>
-                        <p className="text-sm text-zinc-600">
+                        <p className="text-sm text-ink-3">
                             Extraction runs will appear here as they complete.
                         </p>
                     </div>
                 )}
 
                 {rows.length > 0 && (
-                    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+                    <div className="rounded-xl border border-editorial-border bg-editorial-card overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-xs text-left">
                                 <thead>
-                                    <tr className="border-b border-zinc-800 bg-zinc-900 text-zinc-500 font-mono uppercase tracking-wider">
+                                    <tr className="border-b border-editorial-border bg-editorial-bg text-ink-3 font-mono uppercase tracking-wider">
                                         <th className="px-4 py-3">Run ID</th>
                                         <th className="px-4 py-3">Started</th>
                                         <th className="px-4 py-3">Provider</th>
@@ -201,13 +201,13 @@ export default async function AdminQualityRunsPage() {
                                         <th className="px-4 py-3">Status</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-zinc-900">
+                                <tbody className="divide-y divide-editorial-border">
                                     {rows.map((row) => (
                                         <tr
                                             key={row.run_id}
-                                            className="text-zinc-300 hover:bg-zinc-900/40"
+                                            className="text-ink-2 hover:bg-editorial-bg"
                                         >
-                                            <td className="px-4 py-2.5 font-mono text-zinc-500 max-w-[120px] truncate">
+                                            <td className="px-4 py-2.5 font-mono text-ink-3 max-w-[120px] truncate">
                                                 {row.run_id.slice(0, 8)}…
                                             </td>
                                             <td className="px-4 py-2.5 whitespace-nowrap">
@@ -220,7 +220,7 @@ export default async function AdminQualityRunsPage() {
                                                     minute: "2-digit",
                                                 })}
                                             </td>
-                                            <td className="px-4 py-2.5 font-mono text-zinc-400">
+                                            <td className="px-4 py-2.5 font-mono text-ink-2">
                                                 {row.provider ?? "—"}
                                             </td>
                                             <td className="px-4 py-2.5 text-right tabular-nums">
@@ -228,7 +228,7 @@ export default async function AdminQualityRunsPage() {
                                                     className={
                                                         row.utterances_written ===
                                                         0
-                                                            ? "text-red-400 font-bold"
+                                                            ? "text-incorrect font-bold"
                                                             : ""
                                                     }
                                                 >
@@ -242,8 +242,8 @@ export default async function AdminQualityRunsPage() {
                                                 <span
                                                     className={
                                                         row.errors > 0
-                                                            ? "text-amber-400"
-                                                            : "text-zinc-600"
+                                                            ? "text-pending"
+                                                            : "text-ink-3"
                                                     }
                                                 >
                                                     {row.errors}
@@ -254,11 +254,11 @@ export default async function AdminQualityRunsPage() {
                                                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-mono ${
                                                         row.status ===
                                                         "SUCCESS"
-                                                            ? "bg-emerald-500/20 text-emerald-400"
+                                                            ? "bg-correct/10 text-correct"
                                                             : row.status ===
                                                               "FAILED"
-                                                            ? "bg-red-500/20 text-red-400"
-                                                            : "bg-zinc-800 text-zinc-400"
+                                                            ? "bg-incorrect/10 text-incorrect"
+                                                            : "bg-editorial-border text-ink-2"
                                                     }`}
                                                 >
                                                     {row.status}
@@ -269,7 +269,7 @@ export default async function AdminQualityRunsPage() {
                                 </tbody>
                             </table>
                         </div>
-                        <div className="px-4 py-3 border-t border-zinc-800 text-xs text-zinc-600">
+                        <div className="px-4 py-3 border-t border-editorial-border text-xs text-ink-3">
                             Showing last {rows.length} runs. Page cached 1
                             hour.
                         </div>

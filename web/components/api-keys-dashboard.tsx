@@ -108,13 +108,13 @@ function tierLabel(tier: string): string {
 function tierColor(tier: string): string {
     switch (tier) {
         case "pro":
-            return "bg-blue-500/20 text-blue-400 border-blue-500/30";
+            return "bg-accent-editorial/10 text-accent-editorial border-accent-editorial/30";
         case "api":
-            return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+            return "bg-gold/10 text-gold border-gold/30";
         case "enterprise":
-            return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+            return "bg-pending/10 text-pending border-pending/30";
         default:
-            return "bg-zinc-500/20 text-zinc-400 border-zinc-500/30";
+            return "bg-editorial-border text-ink-2 border-editorial-border";
     }
 }
 
@@ -138,15 +138,15 @@ function KeyRevealPanel({
 
     return (
         <div className="space-y-4">
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+            <div className="rounded-lg border border-pending/30 bg-pending/10 p-4">
                 <div className="flex items-center gap-2 mb-3">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    <span className="text-sm font-medium text-amber-400">
+                    <AlertTriangle className="h-4 w-4 text-pending" />
+                    <span className="text-sm font-medium text-pending">
                         This key will not be shown again. Copy it now.
                     </span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 rounded-md bg-black/60 px-3 py-2.5 font-mono text-sm text-emerald-400 break-all select-all">
+                    <code className="flex-1 rounded-md bg-zinc-950 px-3 py-2.5 font-mono text-sm text-correct break-all select-all">
                         {revealed
                             ? plaintextKey
                             : plaintextKey.slice(0, 10) +
@@ -173,7 +173,7 @@ function KeyRevealPanel({
                     >
                         {copied ? (
                             <>
-                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                <Check className="h-3.5 w-3.5 text-correct" />
                                 Copied
                             </>
                         ) : (
@@ -200,22 +200,22 @@ function SkeletonRows() {
             {[1, 2, 3].map((i) => (
                 <TableRow key={i}>
                     <TableCell>
-                        <div className="h-4 w-24 bg-zinc-800 rounded animate-pulse" />
+                        <div className="h-4 w-24 bg-editorial-border rounded animate-pulse" />
                     </TableCell>
                     <TableCell>
-                        <div className="h-4 w-36 bg-zinc-800 rounded animate-pulse" />
+                        <div className="h-4 w-36 bg-editorial-border rounded animate-pulse" />
                     </TableCell>
                     <TableCell>
-                        <div className="h-5 w-14 bg-zinc-800 rounded-full animate-pulse" />
+                        <div className="h-5 w-14 bg-editorial-border rounded-full animate-pulse" />
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                        <div className="h-4 w-20 bg-zinc-800 rounded animate-pulse" />
+                        <div className="h-4 w-20 bg-editorial-border rounded animate-pulse" />
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                        <div className="h-4 w-16 bg-zinc-800 rounded animate-pulse" />
+                        <div className="h-4 w-16 bg-editorial-border rounded animate-pulse" />
                     </TableCell>
                     <TableCell>
-                        <div className="h-8 w-20 bg-zinc-800 rounded animate-pulse" />
+                        <div className="h-8 w-20 bg-editorial-border rounded animate-pulse" />
                     </TableCell>
                 </TableRow>
             ))}
@@ -404,20 +404,20 @@ export function ApiKeysDashboard() {
 
     return (
         <TooltipProvider>
-            <main className="min-h-[100dvh] bg-zinc-950 font-sans text-foreground">
+            <main className="min-h-[100dvh] bg-editorial-bg font-sans text-ink">
                 {/* Header */}
-                <div className="border-b border-white/5 bg-black/40">
+                <div className="border-b border-editorial-border bg-editorial-card">
                     <div className="container mx-auto px-4 py-6 sm:px-6 lg:px-8">
                         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-2.5">
-                                    <Key className="h-6 w-6 text-emerald-400" />
+                                <div className="rounded-lg bg-accent-editorial/10 border border-accent-editorial/30 p-2.5">
+                                    <Key className="h-6 w-6 text-accent-editorial" />
                                 </div>
                                 <div>
                                     <h1 className="text-2xl font-bold tracking-tight">
                                         API Keys
                                     </h1>
-                                    <p className="text-sm text-muted-foreground mt-0.5">
+                                    <p className="text-sm text-ink-2 mt-0.5">
                                         Manage your API keys for programmatic
                                         access to the Pundit Ledger.
                                     </p>
@@ -429,7 +429,7 @@ export function ApiKeysDashboard() {
                                 >
                                     {tierLabel(tier)} tier
                                 </Badge>
-                                <span className="text-sm text-muted-foreground">
+                                <span className="text-sm text-ink-2">
                                     {activeKeys.length} of {maxKeys} keys used
                                 </span>
                             </div>
@@ -440,20 +440,20 @@ export function ApiKeysDashboard() {
                 <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
                     {/* Error banner */}
                     {error && (
-                        <div className="mb-6 rounded-lg border border-red-500/30 bg-red-500/5 px-4 py-3 flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-                            <p className="text-sm text-red-400">{error}</p>
+                        <div className="mb-6 rounded-lg border border-incorrect/30 bg-incorrect/10 px-4 py-3 flex items-center gap-2">
+                            <AlertTriangle className="h-4 w-4 text-incorrect shrink-0" />
+                            <p className="text-sm text-incorrect">{error}</p>
                             <button
                                 onClick={() => setError(null)}
-                                className="ml-auto text-red-400 hover:text-red-300 text-sm"
+                                className="ml-auto text-incorrect hover:text-incorrect/80 text-sm"
                             >
                                 Dismiss
                             </button>
                         </div>
                     )}
 
-                    <Card className="bg-card border-border">
-                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-border/50 pb-6">
+                    <Card className="bg-editorial-card border-editorial-border">
+                        <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-editorial-border pb-6">
                             <div>
                                 <CardTitle className="text-lg">
                                     Your Keys
@@ -512,11 +512,11 @@ export function ApiKeysDashboard() {
                                 </Table>
                             ) : keys.length === 0 ? (
                                 <div className="flex flex-col items-center justify-center py-16 px-4 text-center">
-                                    <Shield className="h-12 w-12 text-zinc-600 mb-4" />
-                                    <p className="text-lg font-medium text-zinc-400">
+                                    <Shield className="h-12 w-12 text-ink-3 mb-4" />
+                                    <p className="text-lg font-medium text-ink-2">
                                         No API keys yet
                                     </p>
-                                    <p className="text-sm text-muted-foreground mt-1 mb-6">
+                                    <p className="text-sm text-ink-2 mt-1 mb-6">
                                         Create one to get started with the
                                         Pundit Ledger API.
                                     </p>
@@ -567,8 +567,8 @@ export function ApiKeysDashboard() {
                                                                 className={`text-[10px] px-1.5 py-0 ${
                                                                     key.mode ===
                                                                     "test"
-                                                                        ? "border-amber-500/30 text-amber-400"
-                                                                        : "border-emerald-500/30 text-emerald-400"
+                                                                        ? "border-pending/30 text-pending"
+                                                                        : "border-correct/30 text-correct"
                                                                 }`}
                                                             >
                                                                 {key.mode}
@@ -577,7 +577,7 @@ export function ApiKeysDashboard() {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell>
-                                                    <code className="rounded bg-zinc-800/50 px-2 py-1 text-xs font-mono text-zinc-400">
+                                                    <code className="rounded bg-editorial-bg px-2 py-1 text-xs font-mono text-ink-2">
                                                         {key.mode === "test"
                                                             ? "capk_test_"
                                                             : "capk_live_"}
@@ -595,17 +595,17 @@ export function ApiKeysDashboard() {
                                                         className={
                                                             key.status ===
                                                             "active"
-                                                                ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
-                                                                : "bg-zinc-700/50 text-zinc-500"
+                                                                ? "bg-correct/10 text-correct border-correct/30"
+                                                                : "bg-editorial-border text-ink-3"
                                                         }
                                                     >
                                                         {key.status}
                                                     </Badge>
                                                 </TableCell>
-                                                <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+                                                <TableCell className="hidden sm:table-cell text-ink-2 text-sm">
                                                     {formatDate(key.createdAt)}
                                                 </TableCell>
-                                                <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+                                                <TableCell className="hidden md:table-cell text-ink-2 text-sm">
                                                     {formatRelativeDate(
                                                         key.lastUsedAt
                                                     )}
@@ -666,7 +666,7 @@ export function ApiKeysDashboard() {
                                                                     <Button
                                                                         variant="ghost"
                                                                         size="icon"
-                                                                        className="h-8 w-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                                                        className="h-8 w-8 text-incorrect hover:text-incorrect/80 hover:bg-incorrect/10"
                                                                         onClick={() => {
                                                                             setTargetKey(
                                                                                 key
@@ -685,7 +685,7 @@ export function ApiKeysDashboard() {
                                                             </Tooltip>
                                                         </div>
                                                     ) : (
-                                                        <span className="text-xs text-zinc-600">
+                                                        <span className="text-xs text-ink-3">
                                                             Revoked
                                                         </span>
                                                     )}
@@ -730,7 +730,7 @@ export function ApiKeysDashboard() {
                                     <Label htmlFor="key-mode">
                                         Mode
                                     </Label>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs text-ink-2">
                                         {newKeyMode === "live"
                                             ? "Live keys access production data"
                                             : "Test keys return sandbox data"}
@@ -740,8 +740,8 @@ export function ApiKeysDashboard() {
                                     <span
                                         className={`text-xs font-medium ${
                                             newKeyMode === "test"
-                                                ? "text-amber-400"
-                                                : "text-zinc-500"
+                                                ? "text-pending"
+                                                : "text-ink-3"
                                         }`}
                                     >
                                         Test
@@ -762,8 +762,8 @@ export function ApiKeysDashboard() {
                                     <span
                                         className={`text-xs font-medium ${
                                             newKeyMode === "live"
-                                                ? "text-emerald-400"
-                                                : "text-zinc-500"
+                                                ? "text-correct"
+                                                : "text-ink-3"
                                         }`}
                                     >
                                         Live
@@ -829,12 +829,12 @@ export function ApiKeysDashboard() {
                     <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
-                                <AlertTriangle className="h-5 w-5 text-red-500" />
+                                <AlertTriangle className="h-5 w-5 text-incorrect" />
                                 Revoke API Key
                             </DialogTitle>
                             <DialogDescription>
                                 This will immediately disable{" "}
-                                <strong className="text-foreground">
+                                <strong className="text-ink">
                                     {targetKey?.name}
                                 </strong>
                                 . Any requests using this key will return 401
@@ -871,12 +871,12 @@ export function ApiKeysDashboard() {
                     <DialogContent className="sm:max-w-md">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
-                                <RotateCcw className="h-5 w-5 text-amber-500" />
+                                <RotateCcw className="h-5 w-5 text-pending" />
                                 Rotate API Key
                             </DialogTitle>
                             <DialogDescription>
                                 This will revoke{" "}
-                                <strong className="text-foreground">
+                                <strong className="text-ink">
                                     {targetKey?.name}
                                 </strong>{" "}
                                 and create a new key with the same name. The old

@@ -725,35 +725,46 @@ class TestBuildGroundedPrompt:
 
 
 class TestDefaultGroundedSearch:
+    """
+    v1.2 (#1129 follow-up): _default_grounded_search makes TWO calls, not
+    one. Root cause of the "every grounded verdict has zero citations" bug:
+    a single call that carries BOTH the google_search tool AND a JSON output
+    constraint (prompt instruction or response_schema) makes the model skip
+    invoking Search and answer from parametric memory instead --
+    grounding_metadata comes back None. So call 1 must be freeform + tools,
+    and call 2 (JSON formatting) must be tools-free. These tests assert that
+    call shape directly so a regression back to the single-call design (or
+    accidentally reintroducing a JSON constraint on call 1) fails loudly.
+    """
+
     def test_raises_without_api_key(self, monkeypatch):
         monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         with pytest.raises(EnvironmentError):
             _default_grounded_search("prompt text")
 
-    def test_calls_genai_with_google_search_tool(self, monkeypatch):
+    def test_research_call_has_search_tool_and_no_json_constraint(self, monkeypatch):
         monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
-        captured = {}
+        calls = []
 
-        class FakeModels:
-            def generate_content(self, model, contents, config):
-                captured["model"] = model
-                captured["contents"] = contents
-                captured["config"] = config
-                return _FakeResponse(candidates=[])
+        class FakeResearchResponse:
+            text = "Plain-English research findings: the outcome occurred."
+            candidates = []  # no grounding_metadata here -> citations == []
 
-        class FakeGenaiResponse:
+        class FakeFormatResponse:
             text = '{"verdict": "TRUE", "confidence": 0.9, "reasoning": "ok"}'
             candidates = []
 
-        class FakeModelsReturningText(FakeModels):
+        class FakeModels:
             def generate_content(self, model, contents, config):
-                super().generate_content(model, contents, config)
-                return FakeGenaiResponse()
+                calls.append({"model": model, "contents": contents, "config": config})
+                return (
+                    FakeResearchResponse() if len(calls) == 1 else FakeFormatResponse()
+                )
 
         class FakeClient:
             def __init__(self, api_key):
-                captured["api_key"] = api_key
-                self.models = FakeModelsReturningText()
+                self.api_key = api_key
+                self.models = FakeModels()
 
         import google.genai as genai_module
 
@@ -761,14 +772,103 @@ class TestDefaultGroundedSearch:
 
         result = _default_grounded_search("prompt text", model="gemini-2.5-flash")
 
-        assert captured["api_key"] == "fake-key"
-        assert captured["model"] == "gemini-2.5-flash"
-        assert captured["contents"] == "prompt text"
-        # config must carry the Google Search grounding tool.
-        assert captured["config"].tools[0].google_search is not None
+        assert len(calls) == 2
+        research_call, format_call = calls
+
+        # Call 1 (research): search tool attached, no JSON constraint.
+        assert research_call["model"] == "gemini-2.5-flash"
+        assert research_call["contents"] == "prompt text"
+        assert research_call["config"].tools[0].google_search is not None
+        assert research_call["config"].response_mime_type is None
+        assert research_call["config"].response_schema is None
+
+        # Call 2 (format): no search tool, strict JSON via response_schema,
+        # fed call 1's research text.
+        assert not format_call["config"].tools
+        assert format_call["config"].response_mime_type == "application/json"
+        assert format_call["config"].response_schema is not None
+        assert "the outcome occurred" in format_call["contents"]
+
         assert isinstance(result, GroundedSearchResult)
-        assert result.text == FakeGenaiResponse.text
+        assert result.text == FakeFormatResponse.text
         assert result.citations == []
+
+    def test_empty_research_response_skips_format_call(self, monkeypatch):
+        """No text back from the research call -> defer immediately, never
+        spend a second call formatting nothing."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+        calls = []
+
+        class FakeEmptyResponse:
+            text = None
+            candidates = []
+
+        class FakeModels:
+            def generate_content(self, model, contents, config):
+                calls.append(config)
+                return FakeEmptyResponse()
+
+        class FakeClient:
+            def __init__(self, api_key):
+                self.models = FakeModels()
+
+        import google.genai as genai_module
+
+        monkeypatch.setattr(genai_module, "Client", FakeClient)
+
+        result = _default_grounded_search("prompt text")
+
+        assert len(calls) == 1
+        assert result.text is None
+        assert result.citations == []
+
+    def test_citations_come_from_research_call_only(self, monkeypatch):
+        """Citations must be extracted from call 1's (research)
+        grounding_metadata, never call 2's (format, which never has any --
+        it has no search tool attached)."""
+        monkeypatch.setenv("GEMINI_API_KEY", "fake-key")
+
+        class FakeWeb:
+            uri = "https://example.com/story"
+            title = "Example story"
+
+        class FakeChunk:
+            web = FakeWeb()
+
+        class FakeGroundingMetadata:
+            grounding_chunks = [FakeChunk()]
+
+        class FakeCandidate:
+            grounding_metadata = FakeGroundingMetadata()
+
+        class FakeResearchResponse:
+            text = "findings"
+            candidates = [FakeCandidate()]
+
+        class FakeFormatResponse:
+            text = '{"verdict": "TRUE", "confidence": 0.9, "reasoning": "ok"}'
+            candidates = []
+
+        responses = iter([FakeResearchResponse(), FakeFormatResponse()])
+
+        class FakeModels:
+            def generate_content(self, model, contents, config):
+                return next(responses)
+
+        class FakeClient:
+            def __init__(self, api_key):
+                self.models = FakeModels()
+
+        import google.genai as genai_module
+
+        monkeypatch.setattr(genai_module, "Client", FakeClient)
+
+        result = _default_grounded_search("prompt text")
+
+        assert result.citations == [
+            {"uri": "https://example.com/story", "title": "Example story"}
+        ]
+        assert result.text == FakeFormatResponse.text
 
 
 # ---------------------------------------------------------------------------

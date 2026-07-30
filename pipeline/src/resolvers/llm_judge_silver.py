@@ -65,6 +65,29 @@ v1 design decisions (locked, per the Slice 2 task brief):
     the model answering from parametric memory, which grounding exists to
     replace, not merely supplement.
 
+  - **v1.2 fix — two-call split, because JSON-forcing silently disables the
+    search tool** (#1129 follow-up: after quota recovered, EVERY grounded
+    call returned a confident verdict with `citations=[]`, defeating the
+    v1.1 no-citations-defer gate — 0 resolutions written). Diagnosed against
+    the real API (`google-genai==1.73.1`, model `gemini-flash-latest`):
+    attaching `tools=[Tool(google_search=...)]` to a call that ALSO demands
+    strict JSON output — whether via a "respond with JSON only" prompt
+    instruction or via `response_schema`/`response_mime_type` — reliably
+    makes the model skip invoking Search altogether and answer from
+    parametric memory instead; `candidates[0].grounding_metadata` comes back
+    `None`. A freeform call with the identical claim/instructions but no
+    output-format constraint reliably triggers Search and returns real
+    `grounding_chunks`. Fix: `_default_grounded_search` now makes two calls —
+    (1) a freeform grounded "research" call (tools attached, no JSON
+    constraint — this is what must actually search) whose
+    `grounding_metadata` is the only source of `citations`, then (2) a
+    tools-free "format" call that converts call (1)'s prose into the strict
+    JSON verdict shape via `response_schema` (safe here — no search tool on
+    this call, so the JSON constraint doesn't fight it). Costs one extra
+    Gemini call per grounded-fallback claim; the local-evidence path
+    (`LLMJudgeResolutionMethod`) and the "no citations → defer" gate are
+    unchanged.
+
 Explicitly OUT OF SCOPE for this module (per the Slice 2 task brief):
   - Embeddings / vector store evidence funnel (#1133).
   - Wiring into resolve_daily.py or any scheduled workflow — see the
@@ -570,14 +593,14 @@ GROUNDED_CONFIDENCE_THRESHOLD = float(
 
 
 # ---------------------------------------------------------------------------
-# Grounded web-search fallback (#1129 read-path audit).
+# Grounded web-search fallback (#1129 read-path audit; two-call split v1.2).
 #
 # Calls `google-genai` directly rather than through `src.llm_provider`.
 # `llm_provider.py` / `llm_config.yaml` are protected extraction paths (see
 # CLAUDE.md "Extraction-touching PR rules": editing them requires a real
 # LLM smoke test + CODEOWNERS review). Grounded resolution is a
-# resolution-only concern with a different call shape (a `tools=` config,
-# no JSON-schema response enforcement, citation-shaped output) that does not
+# resolution-only concern with a different call shape (`tools=` config,
+# citation-shaped output, a second tools-free formatting call) that does not
 # belong in the shared extraction abstraction — so this module talks to
 # google-genai directly, mirroring `llm_provider.GeminiProvider`'s own
 # `from google import genai` / `GEMINI_API_KEY` construction pattern so
@@ -638,16 +661,55 @@ def _extract_citations(response: Any) -> list[dict]:
     return citations
 
 
+def _build_grounded_verdict_schema(types_module: Any) -> Any:
+    """
+    `google.genai.types.Schema` for the format-only call's strict JSON
+    verdict shape. Split into its own function (rather than a module-level
+    constant) because it needs the lazily-imported `types` module — this
+    file must not import `google.genai` at module scope (see
+    _default_grounded_search's docstring: instantiating the resolution
+    method must never require credentials/the dependency to be installed).
+    """
+    return types_module.Schema(
+        type=types_module.Type.OBJECT,
+        properties={
+            "verdict": types_module.Schema(
+                type=types_module.Type.STRING,
+                enum=["TRUE", "FALSE", "VOID", "UNCERTAIN"],
+            ),
+            "confidence": types_module.Schema(type=types_module.Type.NUMBER),
+            "reasoning": types_module.Schema(type=types_module.Type.STRING),
+        },
+        required=["verdict", "confidence", "reasoning"],
+    )
+
+
 def _default_grounded_search(
     prompt: str, model: str = DEFAULT_GROUNDED_MODEL
 ) -> GroundedSearchResult:
     """
-    Real Gemini call with the Google Search grounding tool enabled.
+    Real Gemini call with the Google Search grounding tool enabled — two
+    calls (v1.2 fix, #1129 follow-up).
+
+    A single call that both attaches `tools=[Tool(google_search=...)]` AND
+    demands strict JSON output (via prompt instruction or `response_schema`)
+    was verified against the real API during PR development to make the
+    model skip invoking Search entirely and answer from parametric memory —
+    `candidates[0].grounding_metadata` comes back `None` even for a
+    confident-sounding verdict. So this makes two calls instead:
+
+      1. A freeform "research" call: `prompt` verbatim, `tools` attached, NO
+         output-format constraint. This is the call that must actually
+         search — citations are extracted from ITS grounding_metadata only.
+      2. A tools-free "format" call: takes call 1's prose response and asks
+         for the strict JSON verdict shape via `response_schema`. Safe to
+         force JSON here since there's no search tool on this call to
+         suppress.
 
     Raises EnvironmentError if GEMINI_API_KEY is unset, and propagates any
-    google-genai exception — GroundedLLMJudgeResolutionMethod.resolve()
-    catches both and defers rather than crashing a resolution pass. Never
-    called at class-construction time (see
+    google-genai exception from either call — GroundedLLMJudgeResolutionMethod
+    .resolve() catches both and defers rather than crashing a resolution
+    pass. Never called at class-construction time (see
     GroundedLLMJudgeResolutionMethod._get_search_fn) so instantiating the
     method never requires credentials.
     """
@@ -661,35 +723,60 @@ def _default_grounded_search(
             "resolution. Set it with: export GEMINI_API_KEY=<your-key>"
         )
     client = genai.Client(api_key=api_key)
-    response = client.models.generate_content(
+
+    # Call 1: freeform grounded research. Must NOT carry response_schema /
+    # response_mime_type — see docstring above.
+    research_response = client.models.generate_content(
         model=model,
         contents=prompt,
         config=types.GenerateContentConfig(
             tools=[types.Tool(google_search=types.GoogleSearch())]
         ),
     )
+    citations = _extract_citations(research_response)
+    research_text = getattr(research_response, "text", None)
+    if not research_text:
+        # Nothing to format — don't spend a second call on empty input.
+        return GroundedSearchResult(text=None, citations=citations)
+
+    # Call 2: format-only, no tools — safe to force strict JSON here.
+    format_response = client.models.generate_content(
+        model=model,
+        contents=GROUNDED_FORMAT_PROMPT_TEMPLATE.format(research_text=research_text),
+        config=types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=_build_grounded_verdict_schema(types),
+        ),
+    )
     return GroundedSearchResult(
-        text=getattr(response, "text", None),
-        citations=_extract_citations(response),
+        text=getattr(format_response, "text", None),
+        citations=citations,
     )
 
 
-GROUNDED_JUDGE_PROMPT_TEMPLATE = """You are an evidence-based prediction adjudicator with access to live web search. Search the web to determine whether a claim's predicted outcome has actually occurred. These are public-record sports events — draft picks, contract signings, trades, game results, awards — so authoritative reporting should exist if the outcome has happened.
+GROUNDED_RESEARCH_PROMPT_TEMPLATE = """You are an evidence-based prediction adjudicator with access to live web search. Search the web to determine whether a claim's predicted outcome has actually occurred. These are public-record sports events — draft picks, contract signings, trades, game results, awards — so authoritative reporting should exist if the outcome has happened.
 
 Claim (asserted by {speaker} on {asserted_at}): "{claim_text}"
 Subject(s): {subjects}
 
-Search for the most recent, authoritative reporting on this claim's subject and predicted outcome. Then decide:
-- Return "TRUE" only if you find clear, credible search results showing the predicted outcome occurred.
-- Return "FALSE" only if you find clear, credible search results showing a contradicting outcome occurred (the predicted outcome demonstrably did NOT happen).
-- Return "VOID" if search results show the claim is now moot/unresolvable for reasons unrelated to whether the prediction was right (e.g. the subject retired, the event was cancelled).
-- Return "UNCERTAIN" if search results are insufficient, ambiguous, contradictory, or you cannot find authoritative coverage either way. Be conservative — prefer UNCERTAIN over guessing from general knowledge.
+Search for the most recent, authoritative reporting on this claim's subject and predicted outcome. Then explain in plain English what you found, and state your verdict clearly:
+- TRUE only if you find clear, credible search results showing the predicted outcome occurred.
+- FALSE only if you find clear, credible search results showing a contradicting outcome occurred (the predicted outcome demonstrably did NOT happen).
+- VOID if search results show the claim is now moot/unresolvable for reasons unrelated to whether the prediction was right (e.g. the subject retired, the event was cancelled).
+- UNCERTAIN if search results are insufficient, ambiguous, contradictory, or you cannot find authoritative coverage either way. Be conservative — prefer UNCERTAIN over guessing from general knowledge.
+
+Cite what your search found and state one of TRUE, FALSE, VOID, or UNCERTAIN as your verdict."""
+
+GROUNDED_FORMAT_PROMPT_TEMPLATE = """Extract a structured verdict from the research findings below. Do not perform any new research and do not use outside knowledge — base your answer only on the findings given.
+
+Research findings:
+{research_text}
 
 Respond with a JSON object only, no other text:
 {{
   "verdict": "TRUE" | "FALSE" | "VOID" | "UNCERTAIN",
   "confidence": <float 0.0-1.0>,
-  "reasoning": "<one or two sentences citing what your search found>"
+  "reasoning": "<one or two sentences citing what the research found>"
 }}"""
 
 
@@ -700,7 +787,7 @@ def _build_grounded_prompt(claim: dict, asserted_at: Optional[datetime] = None) 
     asserted_at_str = (
         asserted_at.isoformat() if asserted_at is not None else "an unknown date"
     )
-    return GROUNDED_JUDGE_PROMPT_TEMPLATE.format(
+    return GROUNDED_RESEARCH_PROMPT_TEMPLATE.format(
         speaker=speaker,
         subjects=subjects,
         claim_text=claim_text,

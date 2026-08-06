@@ -44,7 +44,6 @@ class RiskModeler:
         self.db_path = db_path
         self.read_only = read_only
         self.db = DBManager(db_path, read_only=self.read_only)
-        self.con = self.db.con
 
     def prepare_data(self, target_col="true_bust_variance", skip_persist=False):
         from src.feature_factory import FeatureFactory
@@ -76,9 +75,9 @@ class RiskModeler:
             logger.warning(
                 f"Target {target_col} not in matrix. Joining from Gold Layer..."
             )
-            df_target = self.con.execute(
+            df_target = self.db.fetch_df(
                 f"SELECT player_name, year, week, {target_col} FROM fact_player_efficiency"
-            ).df()
+            )
             df = pd.merge(
                 df, df_target, on=["player_name", "year", "week"], how="inner"
             )
@@ -280,9 +279,9 @@ class RiskModeler:
                 "Database is read-only. Skipping persistence to 'prediction_results' table."
             )
         else:
-            self.con.register("metadata_df", metadata)
             self.db.execute(
-                "CREATE OR REPLACE TABLE prediction_results AS SELECT * FROM metadata_df"
+                "CREATE OR REPLACE TABLE prediction_results AS SELECT * FROM metadata_df",
+                params={"metadata_df": metadata},
             )
             logger.info("✓ Predictions persisted to 'prediction_results' table.")
 
@@ -365,9 +364,9 @@ class RiskModeler:
                     "Database is read-only. Skipping persistence to 'prediction_explanations' table."
                 )
             else:
-                self.con.register("metadata_copy_df", metadata_copy)
                 self.db.execute(
-                    "CREATE OR REPLACE TABLE prediction_explanations AS SELECT player_name, year, top_factors, all_factors FROM metadata_copy_df WHERE top_factors IS NOT NULL"
+                    "CREATE OR REPLACE TABLE prediction_explanations AS SELECT player_name, year, top_factors, all_factors FROM metadata_copy_df WHERE top_factors IS NOT NULL",
+                    params={"metadata_copy_df": metadata_copy},
                 )
                 logger.info(
                     "✓ Explanations persisted to 'prediction_explanations' (Top 3 + Full JSON)."

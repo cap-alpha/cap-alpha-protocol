@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.10"]
+        python-version: ["3.13"]
 
     steps:
     - uses: actions/checkout@v6
@@ -128,7 +128,7 @@ jobs:
         if: steps.paths.outputs.touched == 'true'
         uses: actions/setup-python@v6
         with:
-          python-version: "3.10"
+          python-version: "3.13"
           cache: 'pip'
 
       - name: Install dependencies

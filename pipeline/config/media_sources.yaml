@@ -1159,8 +1159,8 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://www.si.com/rss/si_nba.rss"
-    # blocked: si.com sport-specific RSS feeds defunct (si_nba.rss → 404); SI/Minute Media
-    # removed all tag-based RSS endpoints; no working SI NBA feed found (2026-05-30)
+    # re-verified 2026-06-16: still 404; SI/Minute Media sport-specific RSS feeds remain defunct;
+    # no working SI NBA feed found; scraping required (see issue filed from #988)
     enabled: false
     priority_tier: 2  # Tier 2: mixed analysis + news; moderate prediction density
     default_pundit:
@@ -1177,8 +1177,8 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://bleacherreport.com/articles/feed?tag_id=9"
-    # blocked: Bleacher Report NBA tag feed returns 404; B/R deprecated article RSS feeds
-    # after pivoting to B/R streaming app; no working replacement found (2026-05-30)
+    # re-verified 2026-06-16: still 404; also tried bleacherreport.com/nba.rss (404);
+    # B/R deprecated article RSS after pivoting to streaming app; scraping required (see issue from #988)
     enabled: false
     priority_tier: 2  # Tier 2: high-volume opinion; good for claim diversity
     default_pundit:
@@ -1198,8 +1198,9 @@ sources:
     sport: "NBA"
     type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=UCEjOSbbaOfgnfRODEEMYlCw"
-    # blocked: channel_id UCEjOSbbaOfgnfRODEEMYlCw is FreeDawkins (highlights channel), not
-    # Inside the NBA; TNT NBA deal ended 2025, show moved to Amazon/NBC; no active clip channel found (2026-05-30)
+    # re-verified 2026-06-16: channel UCEjOSbbaOfgnfRODEEMYlCw confirmed = FreeDawkins highlights,
+    # not Inside the NBA; TNT deal ended, show moved to Amazon/NBC; no official clip channel found;
+    # correct channel ID research required (see issue filed from #988)
     enabled: false
     priority_tier: 1  # Tier 1: Shaq/Barkley/Kenny prediction-dense debate show
     keyword_filter:
@@ -1243,8 +1244,9 @@ sources:
     sport: "NBA"
     type: youtube_transcript
     url: "https://www.youtube.com/feeds/videos.xml?channel_id=ESPN_HOOP_COLLECTIVE"
-    # blocked: ESPN_HOOP_COLLECTIVE is a placeholder, not a real channel_id; no valid
-    # YouTube channel or podcast RSS feed found for Hoop Collective (2026-05-30)
+    # re-verified 2026-06-16: ESPN_HOOP_COLLECTIVE placeholder still returns 404; tried
+    # espn.com/espnradio/podcast itunes feed (404); correct channel/podcast ID research required
+    # (see issue filed from #988)
     enabled: false
     priority_tier: 1  # Tier 1: Windhorst/Lowe analytics-driven NBA predictions
     pundits:
@@ -1264,8 +1266,10 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://www.bloomberg.com/opinion/authors/ARbTQlRLRjE/matthew-s-levine.rss"
-    # blocked: Bloomberg RSS requires Bloomberg Terminal / paid auth (2026-05-30);
-    # URL returns 200 but response is behind paywall — auth-required, not parseable without credentials
+    # re-verified 2026-06-16: RSS URL returns 200, 20 entries, most recent 2026-06-15
+    # ("The Stock Market Will Get More Stock"); BUT content is headline+teaser only (82-132 chars,
+    # no content:encoded) — full text requires Bloomberg auth; scrape_full_text=true needs proxy.
+    # Paywalled — do not enable until auth/proxy issue resolved (see issue filed from #988).
     enabled: false
     proxy_required: true
     priority_tier: 1  # Tier 1: extremely high testable-claim density on finance/markets
@@ -1298,10 +1302,11 @@ sources:
     sport: finance
     type: rss
     scrape_full_text: true
-    url: "https://www.themacrotourist.com/feed.xml"
-    # blocked: feed.xml returns 404; Substack and alternative feeds also unreachable;
-    # site appears inactive / author Kevin Muir no longer publishing publicly (2026-05-30)
-    enabled: false
+    url: "https://posts.themacrotourist.com/feed"
+    # validated 2026-06-16: posts.themacrotourist.com/feed → 200, 20 entries, most recent 2026-06-15
+    # ("WATCH YOUR BIDS (s2026 e16)"); old url themacrotourist.com/feed.xml was 404;
+    # site redirects posts to Substack at posts.themacrotourist.com
+    enabled: true
     priority_tier: 1  # Tier 1: macro trading predictions with explicit entry/exit calls
     default_pundit:
       id: kevin_muir
@@ -1317,8 +1322,8 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://www.oaktreecapital.com/insights/memos/rss"
-    # blocked: Oaktree Capital has no RSS feed; /insights/memos page exists (200) but
-    # no RSS/Atom link tag; scraping would be required to extract memos (2026-05-30)
+    # re-verified 2026-06-16: /insights/memos/rss still 404; /insights/memos page 200 but no
+    # RSS link tag; /rss endpoint 404; scraping required (see issue filed from #988)
     enabled: false
     priority_tier: 1  # Tier 1: Howard Marks memos are prediction-dense market-cycle calls
     default_pundit:
@@ -1351,8 +1356,8 @@ sources:
     type: rss
     scrape_full_text: true
     url: "https://pershingsquareholdings.com/media/press-releases/rss/"
-    # blocked: RSS URL redirects to site homepage (not an RSS feed); Pershing Square
-    # letters page (/media/) returns 404; no working RSS found — scraping required (2026-05-30)
+    # re-verified 2026-06-16: /media/press-releases/rss/ redirects (301) to homepage (200);
+    # no RSS content; scraping pershingsquareholdings.com required (see issue filed from #988)
     enabled: false
     priority_tier: 1  # Tier 1: Ackman public letters contain explicit price target calls
     default_pundit:

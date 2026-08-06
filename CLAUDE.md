@@ -236,6 +236,14 @@ make up
 make test-e2e
 ```
 
+### Coverage policy
+
+Pipeline test coverage is gated at **43%** (`--cov-fail-under=43` in `pipeline/pytest.ini`).
+
+**Ratchet rule:** A PR that raises global coverage _may_ bump the floor in the same PR. A PR that drops global coverage must carry the `coverage-waiver` label (informational comment still posts, gate does not hard-fail).
+
+**Per-file floor for protected paths** (`assertion_extractor.py`, `llm_provider.py`, `domain_*.py`, `cryptographic_ledger.py`): must stay ≥ 80%, even if global coverage rises. Enforced by `.github/workflows/coverage_gate.yml`.
+
 ## Working style
 
 ### Autonomy defaults

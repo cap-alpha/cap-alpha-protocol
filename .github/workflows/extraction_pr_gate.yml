@@ -58,7 +58,7 @@ jobs:
 
       - name: Warn — extraction checkbox not checked
         if: steps.paths.outputs.touched == 'true' && steps.checkbox.outputs.checked == 'false'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const body = `### ⚠️ Extraction risk — checkbox required

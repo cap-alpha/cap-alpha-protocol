@@ -37,7 +37,7 @@ pydantic
 youtube-transcript-api>=1.2.4,<2.0.0
 readability-lxml
 tenacity
-sentry-sdk[fastapi]>=2.66.0
+sentry-sdk[fastapi]>=2.68.0
 Jinja2>=3.1.6
 fastmcp>=3.4.4,<4.0
 # pipeline/src/matching/embed.py (#1133) -- local CPU embeddings for the
